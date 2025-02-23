@@ -166,7 +166,7 @@ class runDORA(object):
                             self.ignore_memory_semantics,
                             retrieval_license=True,
                         )  # ekaterina: added retrieval_license
-                        # 4.3.11) Update mapping hypotheses.
+                        # 4.3.11) Update mapping hypotheses. 
                         self.memory = update_mappingHyps(self.memory)
                         # fire the local_inhibitor if necessary.
                         self.time_step_fire_local_inhibitor()
