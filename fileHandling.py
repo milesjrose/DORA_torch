@@ -112,16 +112,16 @@ class tensorBuilder(object):
         # ====         Set per type properties       =====
         match type(token):
             case dt.Groups:                                 # Groups
-                tk[1] = 4                                   # token.set
+                tk[1] = 4                                   # - token.set
                 tk.append(token.group_layer)                # - group layer - INT
             case dt.PUnit:                                  # P
-                tk[1] = 3                                   # token.set
+                tk[1] = 3                                   # - token.set
                 tk.append(token.mode)                       # - p.mode - INT
             case dt.RBUnit:                                 # RB
-                tk[1] = 2                                   # token.set
+                tk[1] = 2                                   # - token.set
                 tk.append(token.timesFired)                 # - rb.timesfired - INT
             case dt.POUnit:                                 # PO
-                tk[1] = 1                                   # token.set
+                tk[1] = 1                                   # - token.set
                 tk.append(token.semNormalization)           # - po.semNormalizatino - INT
                 tk.append(bool(token.predOrObj))            # - po.predOrObj -> BOOL
                 tk.append(token.max_sem_weight)             # - max_sem_weight - FLOAT
@@ -159,7 +159,7 @@ class tensorBuilder(object):
                 self.mappings[(driver, recipient)] = mp     # add mapping to list
                 addedMaps[mapCon] = True                    # mark mapping as added
 
-    # Adds all connections for token (Only add child nodes so dont duplicate writes)
+    # TODO: Adds all connections for token (Only add child nodes so dont duplicate writes)
     def addConnections(self, token):
         # TODO add all forward connections for given token
         # Match token type, as each token stores info differently.
@@ -192,17 +192,38 @@ class tensorBuilder(object):
     
     # Print formated token in readable way for debugging
     def printToken(self, tk):
-        # print all nodes
-        if tk == "-a":
-            for node in self.nodes:
-                self.printToken(node)
-            return
-        # sort nodes by id, then print them all
-        if tk == "-s":
-            for node in sorted(self.nodes, key=lambda x: x[1]):
-                self.printToken(node)
-            return
-
+        args = None                                 # check for args
+        if type(tk) == tuple:
+            args = tk[1]
+            tk = tk[0]
+        elif type(tk) == str:
+            args = tk
+        
+        a, s, n = False, False, False               # set flags
+        if args != None:
+            tk = tk.lower()
+            if ("-a" in tk) or ("--all" in tk):
+                a = True
+            if ("-s" in tk) or ("--sort" in tk):
+                s = True
+            if ("-n" in tk) or ("--name" in tk):
+                n = True
+            
+            if s:
+                nodes = sorted(self.nodes, key=lambda x: x[1])
+            else:
+                nodes = self.nodes
+            
+            if a:
+                if n:
+                    for node in nodes:
+                        self.printToken(node, "-n")
+                    return
+                else:
+                    for node in self.nodes:
+                        self.printToken(node)
+                    return
+                
         properties = [
             "ID",
             "Type",
@@ -230,17 +251,47 @@ class tensorBuilder(object):
             "net_input"
         ]
 
-        # Find the max length of property names for alignment
-        max_key_length = max(len(prop) for prop in properties)
+        # generate all values in strings
+        values = []
+        for i in range(len(properties)):
+            values.append(str(tk[i]))
+        
+        # TODO: generate value labels
+        vLabels = []
+        for i in range(len(properties)):
+            vLabels.append("None")
 
-        # Create header box for ID
-        id_value = tk[0]  # Assuming the first element corresponds to "ID"
-        id_box = f"---=--------- ID : {id_value} ----------"
-        print(id_box)
+        # Header box TODO: add name if -n set
+        headerTop = ("╒" + ("═" * len(" Node ")) + "╤" + ("═" * len(" ID : 999 ")) + "╕")
+        headerInfo = ("│" + " Node " + "│" + f" ID : {str(tk[0]).ljust(4)}" + "│")
+        headerBottom = ("╘" + ("═" * len(" Node ")) + "╧" + ("═" * len(" ID : 999 ")) + "╛")
+        
+        # index | label | value | label
+        labelpad = int((len(max(properties, key=len)) - len(" Label ")) / 2) + 2
+        columns = ("│" + " Ind " + "│" + (" " * labelpad) + " Label " + (" " * labelpad) + "│" + " Value " + "│" + " Label " + "│")
+        subhead = ("├" + ("─" * len(" Ind ")) + "┼" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┼" + ("─" * len(" Value ")) + "┼" + ("─" * len(" Label ")) + "┤")
+        bottom  = ("└" + ("─" * len(" Ind ")) + "┴" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┴" + ("─" * len(" Value ")) + "┴" + ("─" * len(" Label ")) + "┘")
+        top     = ("┌" + ("─" * len(" Ind ")) + "┬" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┬" + ("─" * len(" Value ")) + "┬" + ("─" * len(" Label ")) + "┐")
+
+        print(headerTop)
+        print(headerInfo)
+        print(headerBottom)
+        
+        print(top)
+        print(columns)
+        print(subhead)
 
         # Print each property aligned
         for i in range(len(properties)):
-            print(f"{str(i).ljust(3)}| {properties[i].ljust(max_key_length)} = {tk[i]}")
+            print(f"│{str(i).ljust(5)}│ {properties[i].ljust((labelpad * 2) + 6)}│ {str(tk[i]).ljust(5)} │ {vLabels[i].ljust(6)}│")
 
-        print(("-" * 3) + "=" + ("-" * (len(id_box) - 4)))  # Bottom order
+        print(bottom)
+        
+    # Print builder info for debugging
+    def print(self):
+        print("mem", self.mem)
+        # mem details to print number of each node
+        # nodes per set
 
+        # builder details to print: number of each node in tokens, number of connections, number of mappings
+        # nodes per set
