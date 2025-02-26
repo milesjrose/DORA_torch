@@ -56,17 +56,17 @@ class tensorBuilder(object):
         self.sets = ["driver", "recipient", "memory", "newSet"]
 
         # Intermediate data
-        self.IDs = {}                   # Mapping: node -> ID
-        self.names = {}                 # Mapping: ID -> name
-        self.semantics = []             # List of all formatted semantics
-        self.tokens = []                # List of all formatted nodes
-        self.connections = {}           # Weighted, directed adjacency list, stores weights and directions of connections
-        self.mappings = {}              # Directed adjacency list for mappings, stores weights and hypothesis info in buckets
+        self.IDs = {}                                       # Mapping: node -> ID
+        self.names = {}                                     # Mapping: ID -> name
+        self.semantics = []                                 # List of all formatted semantics
+        self.tokens = []                                    # List of all formatted nodes
+        self.connections = {}                               # Weighted, directed adjacency list, stores weights and directions of connections
+        self.mappings = {}                                  # Directed adjacency list for mappings, stores weights and hypothesis info in buckets
 
     # TODO: Turn intermediatary format into single object containing tensor data structures
     def tensorise(self):
         memoryTensors = None
-        return memoryTensors                                            # return tensorMemory object, containing full tensors, and supporting data structures
+        return memoryTensors                                # return tensorMemory object, containing full tensors, and supporting data structures
 
     # Extract data into intermediatory format
     def formatMemory(self):
@@ -196,68 +196,69 @@ class tensorBuilder(object):
 
     # Adds all connections for token (Only add one direction per node so dont duplicate writes)
     def addConnections(self, token):
-        match type(token):                          # Match token type, as each token stores info differently.
+        match type(token):                                  # Match token type, as each token stores info differently.
             case dt.POUnit:
-                for RB in token.myRBs:              # PO.myRBs          - connections to tokens RBs
+                for RB in token.myRBs:                      # PO.myRBs          - connections to tokens RBs
                     self.addCon(token, RB)
-                for PO in token.same_RB_POs:        # PO.same_RB_POs    - connections to POs connected to same RB as self
+                for PO in token.same_RB_POs:                # PO.same_RB_POs    - connections to POs connected to same RB as self
                     self.addCon(token, PO)
-                for link in token.mySemantics:      # PO.mySemantics    - Link objects containing connection to my semantics
+                for link in token.mySemantics:              # PO.mySemantics    - Link objects containing connection to my semantics
                     sem = link.mySemantic
                     weight = link.weight
                     self.addCon(token, sem, weight)
 
             case dt.RBUnit:
-                token: dt.RBUnit = token            # for autocomplete
-                for P in token.myParentPs:          # RB.myParentPs     - connections to tokens Ps
+                token: dt.RBUnit = token                    # for autocomplete
+                for P in token.myParentPs:                  # RB.myParentPs     - connections to tokens Ps
                     self.addCon(token, P)
-                for pred in token.myPred:           # RB.myPred         - connections to my pred unit
+                for pred in token.myPred:                   # RB.myPred         - connections to my pred unit
                     self.addCon(token, pred)
-                for obj in token.myObj:             # RB.myObj          - connections to my object unit
+                for obj in token.myObj:                     # RB.myObj          - connections to my object unit
                     self.addCon(token, obj)
-                for P in token.myChildP:            # RB.myChildP       - connections to my child P unit
+                for P in token.myChildP:                    # RB.myChildP       - connections to my child P unit
                     self.addCon(token, P)
                 
             case dt.PUnit:
-                token: dt.PUnit = token             # for autocomplete
-                for RB in token.myRBs:              # P.myRBs           - connections to tokens RBs
+                token: dt.PUnit = token                     # for autocomplete
+                for RB in token.myRBs:                      # P.myRBs           - connections to tokens RBs
                     self.addCon(token, RB)
-                for RB in token.myParentRBs:        # P.myParentRBs     - connections to RBs in which I am an argument
+                for RB in token.myParentRBs:                # P.myParentRBs     - connections to RBs in which I am an argument
                     self.addCon(token, RB)
-                for Group in token.myGroups:        # P.myGroups        - connections to groups that I am a part of 
+                for Group in token.myGroups:                # P.myGroups        - connections to groups that I am a part of 
                     self.addCon(Group)
                 
             case dt.Groups:
-                token: dt.Groups = token            # for autocomplete
-                for group in token.myParentGroups:  # Group.myParentGroups  - connections to groups above me
+                token: dt.Groups = token                    # for autocomplete
+                for group in token.myParentGroups:          # Group.myParentGroups  - connections to groups above me
                     self.addCon(token, group)
-                for group in token.myChildGroups:   # Group.myChildGroups   - connections to groups below me
+                for group in token.myChildGroups:           # Group.myChildGroups   - connections to groups below me
                     self.addCon(token, group)      
-                for P in token.myPs:                # Group.myPs            - connections to my Ps
+                for P in token.myPs:                        # Group.myPs            - connections to my Ps
                     self.addCon(token, P)
-                for RB in token.myRBs:              # Group.myRBs           - connections to my RBs
+                for RB in token.myRBs:                      # Group.myRBs           - connections to my RBs
                     self.addCon(RB)
-                for link in token.mySemantics:      # Group.mySemantics     - link objects containing connection to my semantics
+                for link in token.mySemantics:              # Group.mySemantics     - link objects containing connection to my semantics
                     sem = link.mySemantic
                     weight = link.weight
                     self.addCon(token, sem, weight)
                 
             case dt.Semantic:
-                token: dt.Semantic = token              # for autocomplete
-                for link in token.myPOs:                # Semantic.myPOs               - link objects containing connections to my POs
+                token: dt.Semantic = token                  # for autocomplete
+                for link in token.myPOs:                    # Semantic.myPOs        - link objects containing connections to my POs
                     sem = link.mySemantic
                     weight = link.weight
                     self.addCon(token, sem, weight)
                 for i in range(len(token.semConnect)): 
-                    link = token.semConnect[i]          # Semantic.semConnect           - link objects containing connections to other semantics
+                    link = token.semConnect[i]              # Semantic.semConnect   - link objects containing connections to other semantics
                     sem = link.mySemantic
-                    weight = token.semConnectWeights    # Semantic.semConnectWeights    - weights of the semantic-to-semantic connections, stored at same index as the link object in the semConnect list
+                    weight = token.semConnectWeights        # Semantic.semConnectWeights - weights of the semantic-to-semantic connections, stored at same index as the link object in the semConnect list
                     self.addCon(token, sem, weight)
    
     # creates ID for each node and store in hash map for efficent lookup
     def identifyNodes(self):
         ID = 0
-        for type in [self.mem.semantics, self.mem.POs, self.mem.RBs, self.mem.Ps, self.mem.Groups]:
+        types = [self.mem.semantics, self.mem.POs, self.mem.RBs, self.mem.Ps, self.mem.Groups]
+        for type in types:
             for node in type:
                 self.IDs[node] = ID
                 print(node, ID)
