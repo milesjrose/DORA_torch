@@ -159,21 +159,66 @@ class tensorBuilder(object):
                 self.mappings[(driver, recipient)] = mp     # add mapping to list
                 addedMaps[mapCon] = True                    # mark mapping as added
 
-    # TODO: Adds all connections for token (Only add child nodes so dont duplicate writes)
+    # TODO: Adds all connections for token (Only add one direction per node so dont duplicate writes)
     def addConnections(self, token):
-        # TODO add all forward connections for given token
-        # Match token type, as each token stores info differently.
-        match type(token):
+        match type(token):                          # Match token type, as each token stores info differently.
             case dt.POUnit:
-                pass
+                for RB in token.myRBs:              # PO.myRBs          - connections to tokens RBs
+                    self.addCon(token, RB)
+                for PO in token.same_RB_POs:        # PO.same_RB_POs    - connections to POs connected to same RB as self
+                    self.addCon(token, PO)
+                for link in token.mySemantics:      # PO.mySemantics    - Link objects containing connection to my semantics
+                    sem = link.mySemantic
+                    weight = link.weight
+                    self.addCon(token, sem, weight)
+
             case dt.RBUnit:
-                pass
+                token: dt.RBUnit = token            # for autocomplete
+                for P in token.myParentPs:          # RB.myParentPs     - connections to tokens Ps
+                    self.addCon(token, P)
+                for pred in token.myPred:           # RB.myPred         - connections to my pred unit
+                    self.addCon(token, pred)
+                for obj in token.myObj:             # RB.myObj          - connections to my object unit
+                    self.addCon(token, obj)
+                for P in token.myChildP:            # RB.myChildP       - connections to my child P unit
+                    self.addCon(token, P)
+                
             case dt.PUnit:
-                pass
+                token: dt.PUnit = token             # for autocomplete
+                for RB in token.myRBs:              # P.myRBs           - connections to tokens RBs
+                    self.addCon(token, RB)
+                for RB in token.myParentRBs:        # P.myParentRBs     - connections to RBs in which I am an argument
+                    self.addCon(token, RB)
+                for Group in token.myGroups:        # P.myGroups        - connections to groups that I am a part of 
+                    self.addCon(Group)
+                
             case dt.Groups:
-                pass
+                token: dt.Groups = token
+                for group in token.myParentGroups:  # Group.myParentGroups  - connections to groups above me
+                    self.addCon(token, group)
+                for group in token.myChildGroups:   # Group.myChildGroups   - connections to groups below me
+                    self.addCon(token, group)      
+                for P in token.myPs:                # Group.myPs            - connections to my Ps
+                    self.addCon(token, P)
+                for RB in token.myRBs:              # Group.myRBs           - connections to my RBs
+                    self.addCon(RB)
+                for link in token.mySemantics:      # Group.mySemantics     - link objects containing connection to my semantics
+                    sem = link.mySemantic
+                    weight = link.weight
+                    self.addCon(token, sem, weight)
+                
             case dt.Semantic:
-                pass
+                token: dt.Semantic = token
+                for link in token.myPOs:                 # Semantic.myPOs               - link objects containing connections to my POs
+                    sem = link.mySemantic
+                    weight = link.weight
+                    self.addCon(token, sem, weight)
+                for i in range(len(token.semConnect)): 
+                    link = token.semConnect[i]          # Semantic.semConnect           - link objects containing connections to other semantics
+                    sem = link.mySemantic
+                    weight = token.semConnectWeights    # Semantic.semConnectWeights    - weights of the semantic-to-semantic connections, stored at same index as the link object in the semConnect list
+                    self.addCon(token, sem, weight)
+                
     
     # creates ID for each node and store in hash map for efficent lookup
     def identifyNodes(self):
@@ -183,6 +228,13 @@ class tensorBuilder(object):
                 self.IDs[node] = ID
                 print(node, ID)
                 ID += 1
+
+    # Takes a pair of nodes, and adds a connection from the first to second
+    def addCon(self, parent, child, weight = 1):
+        parentID = self.IDs.get(parent)
+        childID = self.IDs.get(child)
+        self.connections[(parentID, childID)] = weight
+        return
 
     # Returns 0 if not integer, or val o.w
     def sanitiseInt(self, val):
