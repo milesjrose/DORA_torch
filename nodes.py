@@ -43,13 +43,14 @@ class tokenFields(IntEnum):
 class semanticFields(IntEnum):
     # INT values:
     ID                  = 0
-    ONT_STATUS          = 1
+    TYPE                = 1
+    ONT_STATUS          = 2
 
     # FLOAT values:
-    AMOUNT              = 2
-    MYINPUT             = 3
-    MAX_SEM_INPUT       = 4
-    ACT                 = 5       
+    AMOUNT              = 3
+    MYINPUT             = 4
+    MAX_SEM_INPUT       = 5
+    ACT                 = 6      
 
 class Nodes(object):
     def __init__(self):
