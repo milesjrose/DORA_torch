@@ -254,7 +254,7 @@ class tensorBuilder(object):
                     weight = token.semConnectWeights        # Semantic.semConnectWeights - weights of the semantic-to-semantic connections, stored at same index as the link object in the semConnect list
                     self.addCon(token, sem, weight)
    
-    # creates ID for each node and store in hash map for efficent lookup
+    # Creates ID for each node and store in hash map for efficent lookup
     def identifyNodes(self):
         ID = 0
         types = [self.mem.semantics, self.mem.POs, self.mem.RBs, self.mem.Ps, self.mem.Groups]
