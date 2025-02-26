@@ -131,13 +131,28 @@ class tensorBuilder(object):
                 tk.append(token.max_sem_weight)             # - max_sem_weight - FLOAT
         return tk
     
-    # TODO: Return formatted list of semantic values
-    def formatSemantic(self, sem):
-        #sem.ontstatus -> match state-0 value-1 sdm-2 int
-        #sem_amount
-        #sem_input
-        #max_sem_input
-        return None
+    # Return formatted list of semantic values
+    def formatSemantic(self, sem: dt.Semantic):
+        sm = []                         # empty semantic
+
+        # ------[  FLOATS  ]-------
+        sm.append(self.IDs.get(sem))    # ID
+        sm.append(sem.amount)           # Amount
+        sm.append(sem.myinput)          # Input
+        sm.append(sem.max_sem_input)    # Max_input
+        sm.append(sem.act)              # Act
+
+        # --------[  INT  ]--------
+        match sem.ont_status:           # Ont_status: -> (state:0, value:1, SDM:2)
+            case "state":               
+                sm.append(0)
+            case "value":               
+                sm.append(1)
+            case "SDM":                 
+                sm.append(2)
+            case _:
+                print("Invalid ont_status, ID:", self.IDs.get(sem))
+        return sm
     
     # Adds mappings and hypotheses for a given token
     def addMappings(self, token):
