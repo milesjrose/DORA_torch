@@ -47,11 +47,15 @@ class tensorBuilder(object):
     def __init__(self, mem: dt.memorySet):
         # Memory data
         self.mem = mem
-        self.tokenAmounts = [len(self.mem.semantics), len(self.mem.POs), len(self.mem.RBs), len(self.mem.Ps), len(self.mem.Groups)]
-        numNodes = sum(self.tokenAmounts)
+        self.tokenAmounts = [len(self.mem.semantics), 
+                             len(self.mem.POs), 
+                             len(self.mem.RBs), 
+                             len(self.mem.Ps), 
+                             len(self.mem.Groups)]
         self.tokenTypes = [dt.POUnit, dt.RBUnit, dt.PUnit, dt.Groups]
         self.sets = ["driver", "recipient", "memory", "newSet"]
-        # Intermediate 
+
+        # Intermediate data
         self.IDs = {}                   # Mapping: node -> ID
         self.names = {}                 # Mapping: ID -> name
         self.nodes = []                 # List of all formatted nodes
@@ -68,7 +72,7 @@ class tensorBuilder(object):
         nodes = []                                                      # To store all formatted nodes
         self.identifyNodes()
         for anumber in range(len(self.mem.analogs)):                    # iterate through analogs, keeping track of analog number
-            analog: dt.Analog = self.mem.analogs[anumber]               # - for autocomplete
+            analog: dt.Analog = self.mem.analogs[anumber]               # for autocomplete
             types = [analog.myPOs, analog.myRBs, analog.myPs, analog.myGroups]
             for tokens in types:                                        
                 for token in tokens:                                 
@@ -82,7 +86,7 @@ class tensorBuilder(object):
         tk = []                                             # Empty token            
         # =====        Set shared properties        =====
         self.names[self.IDs.get(token)] = token.name        # Map ID -> name
-        # -------------------------------------------- INTs
+        # --------------------[  INTs  ]--------------------
         tk.append(self.IDs.get(token))                      # ID
         tk.append("TypeNotSet")                             # Type
         tk.append(self.sets.index(token.set))               # Set
@@ -91,14 +95,14 @@ class tensorBuilder(object):
         tk.append(self.IDs.get(token.my_made_unit))         # made_unit
         tk.append(self.IDs.get(token.my_maker_unit))        # maker_unit
         tk.append(self.IDs.get(token.inhibitorThreshold))   # inhibitor_threshold
-        # ------------------------------------------- BOOLs
+        # -------------------[  BOOLs  ]--------------------
         tk.append(token.inferred)                           # inferred
         tk.append(token.retrieved)                          # retrieved
         tk.append(token.copy_for_DR)                        # copy_for_dr
         tk.append(token.copied_DR_index)                    # copied_dr_index
         tk.append(token.sim_made)                           # sim_made
         tk.append(False)                                    # isDeleted = False
-        # ------------------------------------------  FLOATs
+        # -------------------[  FLOATS  ]-------------------
         tk.append(token.act)                                # act
         tk.append(token.max_act)                            # max_act
         tk.append(token.inhibitor_input)                    # inhibitor_input
@@ -138,7 +142,9 @@ class tensorBuilder(object):
     # Adds mappings and hypotheses for a given token
     def addMappings(self, token):
         addedMaps = {}
-        for mapHyp in token.mappingHypotheses:              # Add hypotheses
+
+        # Add hypotheses and their corrosponding mapping connection
+        for mapHyp in token.mappingHypotheses:              
             mp = []                                         # emtpy mapping
             mapCon = mapHyp.mappingConnection               # get corresponding mapping
             driver = self.IDs[mapCon.driverToken]           # Driver token
@@ -148,8 +154,11 @@ class tensorBuilder(object):
             mp.append(mapHyp.max_hyp)                       # max_hyp
             self.mappings[(driver, recipient)] = mp         # add mapping to list
             addedMaps[mapCon] = True                        # mark mapping as added
-        for mapCon in token.mappingConnections:        # Add any remaining mappings without hypotheses
-            if addedMaps[mapCon] != True:              # NOTE: need to check when mapping has/hasnt got hypothesis
+        
+        # Add any remaining mappings without hypotheses
+        # NOTE: need to check when mapping has/hasnt got hypothesis
+        for mapCon in token.mappingConnections:        
+            if addedMaps[mapCon] != True:              
                 mp = []                                     # emtpy mapping
                 driver = self.IDs[mapCon.driverToken]       # Driver token
                 recipient =self.IDs[mapCon.recipientToken]  # recipient token
@@ -193,7 +202,7 @@ class tensorBuilder(object):
                     self.addCon(Group)
                 
             case dt.Groups:
-                token: dt.Groups = token
+                token: dt.Groups = token            # for autocomplete
                 for group in token.myParentGroups:  # Group.myParentGroups  - connections to groups above me
                     self.addCon(token, group)
                 for group in token.myChildGroups:   # Group.myChildGroups   - connections to groups below me
@@ -208,8 +217,8 @@ class tensorBuilder(object):
                     self.addCon(token, sem, weight)
                 
             case dt.Semantic:
-                token: dt.Semantic = token
-                for link in token.myPOs:                 # Semantic.myPOs               - link objects containing connections to my POs
+                token: dt.Semantic = token              # for autocomplete
+                for link in token.myPOs:                # Semantic.myPOs               - link objects containing connections to my POs
                     sem = link.mySemantic
                     weight = link.weight
                     self.addCon(token, sem, weight)
@@ -243,14 +252,16 @@ class tensorBuilder(object):
     
     # Print formated token in readable way for debugging
     def printToken(self, tk):
-        args = None                                 # check for args
+        # check for args
+        args = None                                 
         if type(tk) == tuple:
             args = tk[1]
             tk = tk[0]
         elif type(tk) == str:
             args = tk
-        
-        a, s, n = False, False, False               # set flags
+
+        # set flags
+        a, s, n = False, False, False 
         if args != None:
             tk = tk.lower()
             if ("-a" in tk) or ("--all" in tk):
@@ -259,12 +270,14 @@ class tensorBuilder(object):
                 s = True
             if ("-n" in tk) or ("--name" in tk):
                 n = True
-            
+
+            # sort if required
             if s:
                 nodes = sorted(self.nodes, key=lambda x: x[1])
             else:
                 nodes = self.nodes
-            
+
+            # prind all nodes if required
             if a:
                 if n:
                     for node in nodes:
@@ -274,7 +287,8 @@ class tensorBuilder(object):
                     for node in self.nodes:
                         self.printToken(node)
                     return
-                
+        
+        # Labels for properties in token list
         properties = [
             "ID",
             "Type",
@@ -324,10 +338,10 @@ class tensorBuilder(object):
         bottom  = ("└" + ("─" * len(" Ind ")) + "┴" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┴" + ("─" * len(" Value ")) + "┴" + ("─" * len(" Label ")) + "┘")
         top     = ("┌" + ("─" * len(" Ind ")) + "┬" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┬" + ("─" * len(" Value ")) + "┬" + ("─" * len(" Label ")) + "┐")
 
+        # print header and column labels
         print(headerTop)
         print(headerInfo)
         print(headerBottom)
-        
         print(top)
         print(columns)
         print(subhead)
