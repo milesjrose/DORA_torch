@@ -58,7 +58,8 @@ class tensorBuilder(object):
         # Intermediate data
         self.IDs = {}                   # Mapping: node -> ID
         self.names = {}                 # Mapping: ID -> name
-        self.nodes = []                 # List of all formatted nodes
+        self.semantics = []             # List of all formatted semantics
+        self.tokens = []                # List of all formatted nodes
         self.connections = {}           # Weighted, directed adjacency list, stores weights and directions of connections
         self.mappings = {}              # Directed adjacency list for mappings, stores weights and hypothesis info in buckets
 
@@ -69,17 +70,27 @@ class tensorBuilder(object):
 
     # Extract data into intermediatory format
     def formatMemory(self):
-        nodes = []                                                      # To store all formatted nodes
-        self.identifyNodes()
-        for anumber in range(len(self.mem.analogs)):                    # iterate through analogs, keeping track of analog number
-            analog: dt.Analog = self.mem.analogs[anumber]               # for autocomplete
-            types = [analog.myPOs, analog.myRBs, analog.myPs, analog.myGroups]
+        self.identifyNodes()                                # generate IDs for nodes
+
+        # Format semantics
+        for sem in self.mem.semantics:
+            sm = self.formatSemantic(sem)
+            self.semantics.append(sm)
+            self.addConnections(sem)
+
+        # Format tokens
+        for anumber in range(len(self.mem.analogs)):        # Add one analog at a time
+            analog: dt.Analog = self.mem.analogs[anumber]   # for autocomplete
+            types = [analog.myPOs, 
+                     analog.myRBs, 
+                     analog.myPs, 
+                     analog.myGroups]
             for tokens in types:                                        
                 for token in tokens:                                 
-                    tk = self.formatToken(token, anumber)               # Format Token
-                    self.nodes.append(tk)   
-                    self.addMappings(token)                             # Add Mappings
-                    self.addConnections(token)                          # Connections
+                    tk = self.formatToken(token, anumber)   # Format Token
+                    self.tokens.append(tk)   
+                    self.addMappings(token)                 # Add Mappings
+                    self.addConnections(token)              # Add Connections
 
     # Returns formatted list of token values
     def formatToken(self, token: dt.TokenUnit, anumber):
@@ -288,9 +299,9 @@ class tensorBuilder(object):
 
             # sort if required
             if s:
-                nodes = sorted(self.nodes, key=lambda x: x[1])
+                nodes = sorted(self.tokens, key=lambda x: x[1])
             else:
-                nodes = self.nodes
+                nodes = self.tokens
 
             # prind all nodes if required
             if a:
@@ -299,7 +310,7 @@ class tensorBuilder(object):
                         self.printToken(node, "-n")
                     return
                 else:
-                    for node in self.nodes:
+                    for node in self.tokens:
                         self.printToken(node)
                     return
         
