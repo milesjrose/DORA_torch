@@ -59,6 +59,7 @@ class tensorBuilder(object):
         self.IDs = {}                                       # Mapping: node -> ID
         self.names = {}                                     # Mapping: ID -> name
         self.semantics = []                                 # List of all formatted semantics
+        self.semDims = []                                   # Mapping: ID -> dimension (for semantics)
         self.tokens = []                                    # List of all formatted nodes
         self.connections = {}                               # Weighted, directed adjacency list, stores weights and directions of connections
         self.mappings = {}                                  # Directed adjacency list for mappings, stores weights and hypothesis info in buckets
@@ -144,17 +145,19 @@ class tensorBuilder(object):
     
     # Return formatted list of semantic values
     def formatSemantic(self, sem: dt.Semantic):
-        sm = []                         # empty semantic
+        sm = []                             # Empty semantic
+        ID = self.IDs.get(sem)
+        self.semDims[ID] = sem.dimension    # Add dimension to mapping
 
         # ------[  FLOATS  ]-------
-        sm.append(self.IDs.get(sem))    # ID
-        sm.append(sem.amount)           # Amount
-        sm.append(sem.myinput)          # Input
-        sm.append(sem.max_sem_input)    # Max_input
-        sm.append(sem.act)              # Act
+        sm.append(self.IDs.get(sem))        # ID
+        sm.append(sem.amount)               # Amount
+        sm.append(sem.myinput)              # Input
+        sm.append(sem.max_sem_input)        # Max_input
+        sm.append(sem.act)                  # Act
 
         # --------[  INT  ]--------
-        match sem.ont_status:           # Ont_status: -> (state:0, value:1, SDM:2)
+        match sem.ont_status:               # Ont_status: -> (state:0, value:1, SDM:2)
             case "state":               
                 sm.append(0)
             case "value":               
