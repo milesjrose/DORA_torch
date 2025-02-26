@@ -67,7 +67,7 @@ class tensorBuilder(object):
     def formatMemory(self):
         nodes = []                                                      # To store all formatted nodes
         self.identifyNodes()
-        for anumber in range(len(self.mem.analogs)):                         # iterate through analogs, keeping track of analog number
+        for anumber in range(len(self.mem.analogs)):                    # iterate through analogs, keeping track of analog number
             analog: dt.Analog = self.mem.analogs[anumber]               # - for autocomplete
             types = [analog.myPOs, analog.myRBs, analog.myPs, analog.myGroups]
             for tokens in types:                                        
@@ -159,7 +159,7 @@ class tensorBuilder(object):
                 self.mappings[(driver, recipient)] = mp     # add mapping to list
                 addedMaps[mapCon] = True                    # mark mapping as added
 
-    # TODO: Adds all connections for token (Only add one direction per node so dont duplicate writes)
+    # Adds all connections for token (Only add one direction per node so dont duplicate writes)
     def addConnections(self, token):
         match type(token):                          # Match token type, as each token stores info differently.
             case dt.POUnit:
@@ -218,8 +218,7 @@ class tensorBuilder(object):
                     sem = link.mySemantic
                     weight = token.semConnectWeights    # Semantic.semConnectWeights    - weights of the semantic-to-semantic connections, stored at same index as the link object in the semConnect list
                     self.addCon(token, sem, weight)
-                
-    
+   
     # creates ID for each node and store in hash map for efficent lookup
     def identifyNodes(self):
         ID = 0
@@ -229,11 +228,11 @@ class tensorBuilder(object):
                 print(node, ID)
                 ID += 1
 
-    # Takes a pair of nodes, and adds a connection from the first to second
-    def addCon(self, parent, child, weight = 1):
-        parentID = self.IDs.get(parent)
-        childID = self.IDs.get(child)
-        self.connections[(parentID, childID)] = weight
+    # Takes a pair of nodes, and adds a directed connection from the first to second, with optional weight
+    def addCon(self, fromNode, toNode, weight = 1):
+        fromID = self.IDs.get(fromNode)
+        toID = self.IDs.get(toNode)
+        self.connections[(fromID, toID)] = weight
         return
 
     # Returns 0 if not integer, or val o.w
