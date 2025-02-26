@@ -157,8 +157,8 @@ class builder(object):
         sm[sf.MYINPUT] = sem.myinput                            # Input
         sm[sf.MAX_SEM_INPUT] = sem.max_sem_input                # Max_input
         sm[sf.ACT] = sem.act                                    # Act
-
         # ----------------------[  INTs  ]----------------------
+        sm[sf.TYPE] = 0
         match sem.ont_status:                                   # Ont_status: -> (state:0, value:1, SDM:2)
             case "state":               
                 sm[sf.ONT_STATUS] = 0
@@ -266,7 +266,6 @@ class builder(object):
         for type in types:
             for node in type:
                 self.IDs[node] = ID
-                print(node, ID)
                 ID += 1
 
     # Takes a pair of nodes, and adds a directed connection from the first to second, with optional weight
@@ -283,7 +282,7 @@ class builder(object):
         return val
     
     # Print formated token in readable way for debugging
-    def printToken(self, tk):
+    def printNode(self, tk):
         # check for args
         args = None                                 
         if type(tk) == tuple:
@@ -293,74 +292,85 @@ class builder(object):
             args = tk
 
         # set flags
-        a, s, n = False, False, False 
+        a, s, sem, tokens = False, False, False, False
         if args != None:
             args = args.lower()
-            if ("-a" in args) or ("--all" in args):
+            if ("all" in args):
                 a = True
-            if ("-s" in args) or ("--sort" in args):
+            if ("sort" in args):
                 s = True
-            if ("-n" in args) or ("--name" in args):
-                n = True
-
+            if ("sem" in args):
+                sem = True
+            if ("tok" in args):
+                tokens = True
+            
+            # nodes to print
+            if sem:
+                nodes = self.semantics
+            elif tokens:
+                nodes = self.tokens
+            else: 
+                nodes = self.semantics + self.tokens
+            
             # sort if required
             if s:
-                nodes = sorted(self.tokens, key=lambda x: x[1])
-            else:
-                nodes = self.tokens
-
-            # prind all nodes if required
-            if a:
-                if n:
-                    for node in nodes:
-                        self.printToken(node, "-n")
-                    return
-                else:
-                    for node in nodes:
-                        self.printToken(node)
-                    return
+                nodes = sorted(nodes, key=lambda x: x[1])
+            
+            # print nodes
+            for node in nodes:
+                self.printNode(node)
+            return
         
-        # Labels for properties in token list
-        tf = tt.tokenFields
+        # Labels for properties
+        if tk[1] == 0:
+            labels = tt.semanticFields
+            token = False
+        else:
+            labels = tt.tokenFields
+            token = True
 
         # generate all values in strings
         values = []
-        for i in range(len(tf)):
+        for i in range(len(labels)):
             values.append(str(tk[i]))
         
         # TODO: generate value labels
         vLabels = []
-        for i in range(len(tf)):
+        for i in range(len(labels)):
             vLabels.append("None")
 
-        # Header box TODO: add name if -n set
-        c1 = len(" Node ")
-        c2 = len(" ID : 999 ")
-        c3 = (len(str(self.names[tk[0]])) + len(" NAME :  "))
-        headerTop = ("╒" + ("═" * c1) + "╤" + ("═" * c2) + "╤" + ("═" * c3)+ "╕" )
-        headerInfo = ("│" + " Node " + "│" + f" ID : {str(tk[0]).ljust(4)}" + "│" + f" NAME : {str(self.names[tk[0]])} " + "│")
-        headerBottom = ("╘" + ("═" * c1) + "╧" + ("═" * c2) + "╧" + ("═" * c3) + "╛")
+        # Header
+        #   Columns
+        if token:
+            ntype   = "Token"
+            name    = f" Name : {str(self.names[tk[0]])} "
+        else:
+            ntype   = "Semantic"
+            name    = f" Dimension : {str(self.semDims[tk[0]])} "
+        ID = f" ID : {str(tk[0]).ljust(4)}"
+        #   Strings
+        headerTop =     ("╒" + ("═" * len(ntype)) + "╤" + ("═" * len(ID)) + "╤" + ("═" * len(name)) + "╕")
+        headerInfo =    ("│" + ntype              + "│" + ID              + "│" +  name             + "│")
+        headerBottom =  ("╘" + ("═" * len(ntype)) + "╧" + ("═" * len(ID)) + "╧" + ("═" * len(name)) + "╛")
         
+        # Body
         # index | label | value | label
-        maxName = max(len(e.name) for e in tf)
+        maxName = max(len(e.name) for e in labels)
         labelpad = int((maxName - len(" Label ")) / 2) + 2
-        columns = ("│" + " Ind " + "│" + (" " * labelpad) + " Label " + (" " * labelpad) + "│" + " Value " + "│" + " Label " + "│")
+        top     = ("┌" + ("─" * len(" Ind ")) + "┬" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┬" + ("─" * len(" Value ")) + "┬" + ("─" * len(" Label ")) + "┐")
+        columns = ("│" + " Ind "              + "│" + (" " * labelpad)            + " Label " + (" " * labelpad)   + "│" + " Value "              + "│" + " Label "              + "│")
         subhead = ("├" + ("─" * len(" Ind ")) + "┼" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┼" + ("─" * len(" Value ")) + "┼" + ("─" * len(" Label ")) + "┤")
         bottom  = ("└" + ("─" * len(" Ind ")) + "┴" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┴" + ("─" * len(" Value ")) + "┴" + ("─" * len(" Label ")) + "┘")
-        top     = ("┌" + ("─" * len(" Ind ")) + "┬" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┬" + ("─" * len(" Value ")) + "┬" + ("─" * len(" Label ")) + "┐")
-
-        # print header and column labels
+        
+        # Print all
         print(headerTop)
         print(headerInfo)
         print(headerBottom)
         print(top)
         print(columns)
         print(subhead)
-
-        # Print each property aligned
-        for i in range(len(tf)):
-            print(f"│{str(i).ljust(5)}│ {tf(i).name.ljust((labelpad * 2) + 6)}│ {str(tk[i]).ljust(5)} │ {vLabels[i].ljust(6)}│")
-
+        for i in range(len(labels)):
+            print(f"│{str(i).ljust(5)}│ {labels(i).name.ljust((labelpad * 2) + 6)}│ {str(tk[i]).ljust(5)} │ {vLabels[i].ljust(6)}│")
         print(bottom)
         
     # Print builder info for debugging
