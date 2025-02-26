@@ -4,7 +4,7 @@ import random, copy, json
 import numpy as np
 import buildNetwork as bn
 import pdb
-import tensorTypes as tt
+import nodes as tt
 import dataTypes as dt
 
 def buildNetFromFile(fileName):
@@ -43,7 +43,7 @@ def buildNetFromFile(fileName):
     mem = bn.buildTheNetwork(sym, mem)
     return mem
 
-class tensorBuilder(object):
+class builder(object):
     def __init__(self, mem: dt.memorySet):
         # Memory data
         self.mem = mem
@@ -59,7 +59,7 @@ class tensorBuilder(object):
         self.IDs = {}                                       # Mapping: node -> ID
         self.names = {}                                     # Mapping: ID -> name
         self.semantics = []                                 # List of all formatted semantics
-        self.semDims = []                                   # Mapping: ID -> dimension (for semantics)
+        self.semDims = {}                                   # Mapping: ID -> dimension (for semantics)
         self.tokens = []                                    # List of all formatted nodes
         self.connections = {}                               # Weighted, directed adjacency list, stores weights and directions of connections
         self.mappings = {}                                  # Directed adjacency list for mappings, stores weights and hypothesis info in buckets
@@ -95,75 +95,77 @@ class tensorBuilder(object):
 
     # Returns formatted list of token values
     def formatToken(self, token: dt.TokenUnit, anumber):
-        tk = []                                             # Empty token            
-        # =====        Set shared properties        =====
-        self.names[self.IDs.get(token)] = token.name        # Map ID -> name
-        # --------------------[  INTs  ]--------------------
-        tk.append(self.IDs.get(token))                      # ID
-        tk.append("TypeNotSet")                             # Type
-        tk.append(self.sets.index(token.set))               # Set
-        tk.append(anumber)                                  # analog
-        tk.append(self.IDs.get(token.max_map_unit))         # max_map_unit
-        tk.append(self.IDs.get(token.my_made_unit))         # made_unit
-        tk.append(self.IDs.get(token.my_maker_unit))        # maker_unit
-        tk.append(self.IDs.get(token.inhibitorThreshold))   # inhibitor_threshold
-        # -------------------[  BOOLs  ]--------------------
-        tk.append(token.inferred)                           # inferred
-        tk.append(token.retrieved)                          # retrieved
-        tk.append(token.copy_for_DR)                        # copy_for_dr
-        tk.append(token.copied_DR_index)                    # copied_dr_index
-        tk.append(token.sim_made)                           # sim_made
-        tk.append(False)                                    # isDeleted = False
-        # -------------------[  FLOATS  ]-------------------
-        tk.append(token.act)                                # act
-        tk.append(token.max_act)                            # max_act
-        tk.append(token.inhibitor_input)                    # inhibitor_input
-        tk.append(token.inhibitor_act)                      # inhibitor_act
-        tk.append(token.max_map)                            # max_map
-        tk.append(token.td_input)                           # td_input
-        tk.append(token.bu_input)                           # bu_input
-        tk.append(token.lateral_input)                      # lateral_input
-        tk.append(token.map_input)                          # map_input
-        tk.append(token.net_input)                          # net_input
-        # ====         Set per type properties       =====
+        tf = tt.tokenFields
+        tk = [None] * len(tt.tokenFields)                       # Empty token            
+        # ========        Set shared properties        ========
+        self.names[self.IDs.get(token)] = token.name            # Map ID -> name
+        # ----------------------[  INTs  ]----------------------
+        tk[tf.ID] = self.IDs.get(token)                         # ID
+        tk[tf.TYPE] = "TypeNotSet"                              # Type
+        tk[tf.SET] = self.sets.index(token.set)                 # Set
+        tk[tf.ANALOG] = anumber                                 # analog
+        tk[tf.MAX_MAP_UNIT] = self.IDs.get(token.max_map_unit)  # max_map_unit
+        tk[tf.MADE_UNIT] = self.IDs.get(token.my_made_unit)     # made_unit
+        tk[tf.MAKER_UNIT] = self.IDs.get(token.my_maker_unit)   # maker_unit
+        tk[tf.INHIBITOR_THRESHOLD] = token.inhibitorThreshold   # inhibitor_threshold
+        # ---------------------[  BOOLs  ]----------------------
+        tk[tf.INFERRED] = token.inferred                        # inferred
+        tk[tf.RETRIEVED] = token.retrieved                      # retrieved
+        tk[tf.COPY_FOR_DR] = token.copy_for_DR                  # copy_for_dr
+        tk[tf.COPIED_DR_INDEX] = token.copied_DR_index          # copied_dr_index
+        tk[tf.SIM_MADE] = token.sim_made                        # sim_made
+        tk[tf.DELETED] = False                                  # isDeleted = False
+        # ---------------------[  FLOATS  ]---------------------
+        tk[tf.ACT] = token.act                                  # act
+        tk[tf.MAX_ACT] = token.max_act                          # max_act
+        tk[tf.INHIBITOR_INPUT] = token.inhibitor_input          # inhibitor_input
+        tk[tf.INHIBITOR_ACT] = token.inhibitor_act              # inhibitor_act
+        tk[tf.MAX_MAP] = token.max_map                          # max_map
+        tk[tf.TD_INPUT] = token.td_input                        # td_input
+        tk[tf.BU_INPUT] = token.bu_input                        # bu_input
+        tk[tf.LATERAL_INPUT] = token.lateral_input              # lateral_input
+        tk[tf.MAP_INPUT] = token.map_input                      # map_input
+        tk[tf.NET_INPUT] = token.net_input                      # net_input
+        # =======         Set per type properties       ========
         match type(token):
-            case dt.Groups:                                 # Groups
-                tk[1] = 4                                   # - token.set
-                tk.append(token.group_layer)                # - group layer - INT
-            case dt.PUnit:                                  # P
-                tk[1] = 3                                   # - token.set
-                tk.append(token.mode)                       # - p.mode - INT
-            case dt.RBUnit:                                 # RB
-                tk[1] = 2                                   # - token.set
-                tk.append(token.timesFired)                 # - rb.timesfired - INT
-            case dt.POUnit:                                 # PO
-                tk[1] = 1                                   # - token.set
-                tk.append(token.semNormalization)           # - po.semNormalizatino - INT
-                tk.append(bool(token.predOrObj))            # - po.predOrObj -> BOOL
-                tk.append(token.max_sem_weight)             # - max_sem_weight - FLOAT
+            case dt.Groups:                                     # Groups:
+                tk[tf.TYPE] = 4                                 #   - token.set
+                tk[tf.GROUP_LAYER] = token.group_layer          #   - group layer - INT
+            case dt.PUnit:                                      # P:
+                tk[tf.TYPE] = 3                                 #   - token.set
+                tk[tf.MODE] = token.mode                        #   - p.mode - INT
+            case dt.RBUnit:                                     # RB:
+                tk[tf.TYPE] = 2                                 #   - token.set
+                tk[tf.TIMES_FIRED] = token.timesFired           #   - rb.timesfired - INT
+            case dt.POUnit:                                     # PO:
+                tk[tf.TYPE] = 1                                 #   - token.set
+                tk[tf.SEM_COUNT] = token.semNormalization       #   - po.semNormalizatino - INT
+                tk[tf.PRED] = bool(token.predOrObj)             #   - po.predOrObj -> BOOL
+                tk[tf.MAX_SEM_WEIGHT] = token.max_sem_weight    #   - max_sem_weight - FLOAT
         return tk
     
     # Return formatted list of semantic values
     def formatSemantic(self, sem: dt.Semantic):
-        sm = []                             # Empty semantic
+        sf = tt.semanticFields
+        sm = [None] * len(tt.semanticFields)                    # Empty semantic
         ID = self.IDs.get(sem)
-        self.semDims[ID] = sem.dimension    # Add dimension to mapping
+        self.semDims[ID] = sem.dimension                        # Add dimension to mapping
 
-        # ------[  FLOATS  ]-------
-        sm.append(self.IDs.get(sem))        # ID
-        sm.append(sem.amount)               # Amount
-        sm.append(sem.myinput)              # Input
-        sm.append(sem.max_sem_input)        # Max_input
-        sm.append(sem.act)                  # Act
+        # ---------------------[  FLOATS  ]---------------------
+        sm[sf.ID] = self.IDs.get(sem)                           # ID
+        sm[sf.AMOUNT] = sem.amount                              # Amount
+        sm[sf.MYINPUT] = sem.myinput                            # Input
+        sm[sf.MAX_SEM_INPUT] = sem.max_sem_input                # Max_input
+        sm[sf.ACT] = sem.act                                    # Act
 
-        # --------[  INT  ]--------
-        match sem.ont_status:               # Ont_status: -> (state:0, value:1, SDM:2)
+        # ----------------------[  INTs  ]----------------------
+        match sem.ont_status:                                   # Ont_status: -> (state:0, value:1, SDM:2)
             case "state":               
-                sm.append(0)
+                sm[sf.ONT_STATUS] = 0
             case "value":               
-                sm.append(1)
+                sm[sf.ONT_STATUS] = 1
             case "SDM":                 
-                sm.append(2)
+                sm[sf.ONT_STATUS] = 2
             case _:
                 print("Invalid ont_status, ID:", self.IDs.get(sem))
         return sm
@@ -293,12 +295,12 @@ class tensorBuilder(object):
         # set flags
         a, s, n = False, False, False 
         if args != None:
-            tk = tk.lower()
-            if ("-a" in tk) or ("--all" in tk):
+            args = args.lower()
+            if ("-a" in args) or ("--all" in args):
                 a = True
-            if ("-s" in tk) or ("--sort" in tk):
+            if ("-s" in args) or ("--sort" in args):
                 s = True
-            if ("-n" in tk) or ("--name" in tk):
+            if ("-n" in args) or ("--name" in args):
                 n = True
 
             # sort if required
@@ -314,55 +316,34 @@ class tensorBuilder(object):
                         self.printToken(node, "-n")
                     return
                 else:
-                    for node in self.tokens:
+                    for node in nodes:
                         self.printToken(node)
                     return
         
         # Labels for properties in token list
-        properties = [
-            "ID",
-            "Type",
-            "Set",
-            "analog",
-            "max_map_unit",
-            "made_unit",
-            "maker_unit",
-            "inhibitor_threshold",
-            "inferred",
-            "retrieved",
-            "copy_for_dr",
-            "copied_dr_index",
-            "sim_made",
-            "isDeleted",
-            "act",
-            "max_act",
-            "inhibitor_input",
-            "inhibitor_act",
-            "max_map",
-            "td_input",
-            "bu_input",
-            "lateral_input",
-            "map_input",
-            "net_input"
-        ]
+        tf = tt.tokenFields
 
         # generate all values in strings
         values = []
-        for i in range(len(properties)):
+        for i in range(len(tf)):
             values.append(str(tk[i]))
         
         # TODO: generate value labels
         vLabels = []
-        for i in range(len(properties)):
+        for i in range(len(tf)):
             vLabels.append("None")
 
         # Header box TODO: add name if -n set
-        headerTop = ("╒" + ("═" * len(" Node ")) + "╤" + ("═" * len(" ID : 999 ")) + "╕")
-        headerInfo = ("│" + " Node " + "│" + f" ID : {str(tk[0]).ljust(4)}" + "│")
-        headerBottom = ("╘" + ("═" * len(" Node ")) + "╧" + ("═" * len(" ID : 999 ")) + "╛")
+        c1 = len(" Node ")
+        c2 = len(" ID : 999 ")
+        c3 = (len(str(self.names[tk[0]])) + len(" NAME :  "))
+        headerTop = ("╒" + ("═" * c1) + "╤" + ("═" * c2) + "╤" + ("═" * c3)+ "╕" )
+        headerInfo = ("│" + " Node " + "│" + f" ID : {str(tk[0]).ljust(4)}" + "│" + f" NAME : {str(self.names[tk[0]])} " + "│")
+        headerBottom = ("╘" + ("═" * c1) + "╧" + ("═" * c2) + "╧" + ("═" * c3) + "╛")
         
         # index | label | value | label
-        labelpad = int((len(max(properties, key=len)) - len(" Label ")) / 2) + 2
+        maxName = max(len(e.name) for e in tf)
+        labelpad = int((maxName - len(" Label ")) / 2) + 2
         columns = ("│" + " Ind " + "│" + (" " * labelpad) + " Label " + (" " * labelpad) + "│" + " Value " + "│" + " Label " + "│")
         subhead = ("├" + ("─" * len(" Ind ")) + "┼" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┼" + ("─" * len(" Value ")) + "┼" + ("─" * len(" Label ")) + "┤")
         bottom  = ("└" + ("─" * len(" Ind ")) + "┴" + ("─" * len((" " * labelpad) + " Label " + (" " * labelpad))) + "┴" + ("─" * len(" Value ")) + "┴" + ("─" * len(" Label ")) + "┘")
@@ -377,8 +358,8 @@ class tensorBuilder(object):
         print(subhead)
 
         # Print each property aligned
-        for i in range(len(properties)):
-            print(f"│{str(i).ljust(5)}│ {properties[i].ljust((labelpad * 2) + 6)}│ {str(tk[i]).ljust(5)} │ {vLabels[i].ljust(6)}│")
+        for i in range(len(tf)):
+            print(f"│{str(i).ljust(5)}│ {tf(i).name.ljust((labelpad * 2) + 6)}│ {str(tk[i]).ljust(5)} │ {vLabels[i].ljust(6)}│")
 
         print(bottom)
         
