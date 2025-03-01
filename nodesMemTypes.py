@@ -2,6 +2,7 @@
 # Classes for segments of memory, and set-specific tensor operations
 import torch
 from nodeEnums import *
+import tensorOps
 
 
 class TokenTensor(object):
@@ -79,11 +80,12 @@ class DriverTensor(TokenTensor):
     def update_input_p_parent(self):
         # P units in parent mode:
         # sources of input:
-        # Exitatory: td (my Groups), bu (my RBs).
+        # Exitatory: td (my Groups) / bu (my RBs)
         # Inhibitory: lateral (other P units in parent mode*3), inhibitor.
-
         # 1). get masks
         p = self.get_mask(Type.P)                               # Boolean mask for P nodes
+        parent = (self.nodes(p, tf.MODE) == Mode.PARENT)        # Get sub mask of nodes in p that are in parent mode
+        p[p] &= parent                                          # Refine p mask to nodes both in p and in parent mode
         group = self.get_mask(Type.GROUP)                       # Boolean mask for GROUP nodes
         rb = self.get_mask(Type.RB)                             # Boolean mask for RB nodes
 
@@ -102,39 +104,68 @@ class DriverTensor(TokenTensor):
         # Inhibitory input:
         # 4). LATERAL_INPUT: (3 * other parent p nodes in driver), inhibitor
         # 4a). Create tensor mask of parent p nodes, and a tensor to connect p nodes to each other
-        parent = (self.nodes(p, tf.MODE) == Mode.PARENT)        # Get sub mask of nodes in p that are in parent mode
-        p[p] &= parent                                          # Refine p mask to nodes both in p and in parent mode
-        M = sum(p)                                              # Number of parent p nodes
-        diag_zeroes = torch.ones((M, M), dtype=torch.float32)   # Create all ones matrix, size of sub-tensor of p nodes in parent mode
-        diag_zeroes -= torch.eye(M)                             # Remove ones in diagonal to create adj matrix connection connecting parent ps to all but themself
+        diag_zeroes = tensorOps.diag_zeros(sum(p))              # adj matrix connection connecting parent ps to all but themselves
         # 4b). 3 * other parent p nodes in driver
         self.nodes[p, tf.LATERAL_INPUT] -= torch.mul(3, torch.matmul(
             diag_zeroes,                                        # Tensor size sum(p)xsum(p), to ignore p[i] -> p[i] connections
             self.nodes[p, tf.ACT]                               # Each parent p node -> 3*(sum of all other parent p nodes)
         ))
 
-    def update_input_p_child(self):
+    def update_input_p_child(self, DORA_mode: bool, phase_set):
         # P units in child mode:
         # sources of input:
-        # Exitatory: td (my parent RBs and my Groups).
-        # Inhibitory: lateral (other P units in child mode, and, if in DORA mode, then other POs not connected to same RB and other PO conected to same RB*3), inhibitor.
-        # get my td input from my RBs.
-
+        # Exitatory: td (my parent RBs), (if phase_set>1: my groups)
+        # Inhibitory: lateral (Other p in child mode), (if DORA_mode: PO acts / Else: POs not connected to same RBs)
         # 1). get masks
         p = self.get_mask(Type.P)                               # Boolean mask for P nodes
+        child = (self.nodes[p, tf.MODE] == Mode.CHILD)          # Sub-mask of p nodes in child mode
+        p[p] &= child                                           # Global mask of p nodes in child mode
         group = self.get_mask(Type.GROUP)                       # Boolean mask for GROUP nodes
         rb = self.get_mask(Type.RB)                             # Boolean mask for RB nodes
 
         # Exitatory input:
         # 2). TD_INPUT: my_groups and my_parent_RBs
-        self.nodes[p, tf.TD_INPUT] += torch.matmul(             # matmul outputs martix (sum(p) x 1) of values to add to current input value
-            self.connections[p, group],                         # Masks connections between p[i] and its groups
-            self.nodes[group, tf.ACT]                           # each p node -> sum of act of connected group nodes
+        # 2a). groups
+        if phase_set>=1:                                        # (NOTE: phase_set counts from 0, so phase_set == 1 is the second phase_set.)
+            self.nodes[p, tf.TD_INPUT] += torch.matmul(         # matmul outputs martix (sum(p) x 1) of values to add to current input value
+                self.connections[p, group],                     # Masks connections between p[i] and its groups
+                self.nodes[group, tf.ACT]                       # For each p node -> sum of act of connected group nodes
+                )
+        # 2b). parent_rbs
+        t_connections = torch.transpose(self.connections)       # transpose, so gives child -> parent connections
+        self.nodes[p, tf.TD_INPUT] += torch.matmul(             # matmul outputs matrix (sum(p) x 1) of values to add to current input value
+            t_connections[p, rb],                               # Masks connections between p[i] and its rbs
+            self.nodes[rb, tf.ACT]                              # For each p node -> sum of act of connected parent rb nodes
             )
-        self.nodes[p, tf.BU_INPUT] += torch.matmul(             # matmul outputs martix (sum(p) x 1) of values to add to current input value
-            self.connections[p, rb],                            # Masks connections between p[i] and its rbs
-            self.nodes[rb, tf.ACT]                              # Each p node -> sum of act of connected rb nodes
-            )  
+        
+        # Inhibitory input:
+        # 3). LATERAL_INPUT: (Other p in child mode), (if DORA_mode: PO acts / Else: POs not connected to same RBs)
+        # 3a). other p in child mode
+        diag_zeroes = tensorOps.diag_zeros(sum(p))              # adj matrix connection connecting child ps to all but themselves
+        self.nodes[p, tf.LATERAL_INPUT] -= torch.matmul(
+            diag_zeroes,                                        # Tensor size sum(p)xsum(p), to ignore p[i] -> p[i] connections
+            self.nodes[p, tf.ACT]                               # Each child p node -> 3*(sum of all other parent p nodes)
+        )
+        # 3b). if DORA_mode: Object acts / Else: Objects not connected to same RBs
+        if DORA_mode: # Object acts
+            po = self.get_mask(po)                              # po mask
+            obj = (self.nodes[obj, tf.PRED] == False)           # sub-mask objects
+            po[po] &= obj                                       # global mask objects
+            ones = torch.ones((sum(p), sum(po)))                # tensor connecting every p to every object
+            self.nodes[p, tf.LATERAL_INPUT] -= torch.matmul(    
+                ones,                                           # connects all p to all object
+                self.nodes[po, tf.ACT]                          # Each  p node -> sum of all object acts
+            )
+        else: # Objects not connected to same RBs
+            #TODO: finish implementing
+            return
+
+
+
+
+
+        
+
     # ----------------------------------------------------------
 
 # ====================[RECPIPIENT FUNCTIONS]====================
