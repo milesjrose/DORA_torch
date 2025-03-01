@@ -1,4 +1,5 @@
-# fileHandling.py
+# nodeBuilder.py
+# Builds tensorised memory from old memory object
 
 import random, copy, json
 import numpy as np
@@ -6,6 +7,7 @@ import buildNetwork as bn
 import pdb
 import nodes as tt
 import dataTypes as dt
+from nodeEnums import *
 
 def buildNetFromFile(fileName):
     try:
@@ -95,8 +97,8 @@ class builder(object):
 
     # Returns formatted list of token values
     def formatToken(self, token: dt.TokenUnit, anumber):
-        tf = tt.tokenFields
-        tk = [None] * len(tt.tokenFields)                       # Empty token            
+        tf = tf
+        tk = [None] * len(tf)                       # Empty token            
         # ========        Set shared properties        ========
         self.names[self.IDs.get(token)] = token.name            # Map ID -> name
         # ----------------------[  INTs  ]----------------------
@@ -146,8 +148,8 @@ class builder(object):
     
     # Return formatted list of semantic values
     def formatSemantic(self, sem: dt.Semantic):
-        sf = tt.semanticFields
-        sm = [None] * len(tt.semanticFields)                    # Empty semantic
+        sf = SemanticFields
+        sm = [None] * len(sf)                    # Empty semantic
         ID = self.IDs.get(sem)
         self.semDims[ID] = sem.dimension                        # Add dimension to mapping
 
@@ -295,38 +297,29 @@ class builder(object):
         a, s, sem, tokens = False, False, False, False
         if args != None:
             args = args.lower()
-            if ("all" in args):
-                a = True
-            if ("sort" in args):
-                s = True
+            nodes = self.semantics + self.tokens
             if ("sem" in args):
-                sem = True
-            if ("tok" in args):
-                tokens = True
-            
-            # nodes to print
-            if sem:
                 nodes = self.semantics
-            elif tokens:
+            if ("tok" in args):
                 nodes = self.tokens
-            else: 
-                nodes = self.semantics + self.tokens
-            
-            # sort if required
-            if s:
+            if ("sort" in args):
                 nodes = sorted(nodes, key=lambda x: x[1])
-            
             # print nodes
             for node in nodes:
                 self.printNode(node)
             return
         
         # Labels for properties
+        vLabels = [""] * len(labels)
+        vLabels[SemanticFields.TYPE] = Type(tk[SemanticFields.TYPE])
         if tk[1] == 0:
-            labels = tt.semanticFields
+            labels = SemanticFields
+            vLabels[SemanticFields.ONT_STATUS] = OntStatus(tk[SemanticFields.ONT_STATUS])
             token = False
         else:
-            labels = tt.tokenFields
+            labels = tf
+            vLabels[tf.SET] = Set(tk[tf.SET])
+            vLabels[tf.MODE] = Mode(tk[tf.MODE])
             token = True
 
         # generate all values in strings
@@ -334,11 +327,6 @@ class builder(object):
         for i in range(len(labels)):
             values.append(str(tk[i]))
         
-        # TODO: generate value labels
-        vLabels = []
-        for i in range(len(labels)):
-            vLabels.append("None")
-
         # Header
         #   Columns
         if token:
