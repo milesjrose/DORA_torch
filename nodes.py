@@ -6,7 +6,7 @@ from nodesMemTypes import *
 from nodesMemTypes import tf as tf
 
 class Nodes(object):
-    def __init__(self, driver: DriverTensor, recipient: RecipientTensor, semantics: TokenTensor, LTM: TokenTensor, links: Links, mappings: Mappings):
+    def __init__(self, driver: DriverTensor, recipient: RecipientTensor, semantics: TokenTensor, LTM: TokenTensor, links: Links, mappings: Mappings, DORA_mode: bool):
         # node tensors
         self.driver: DriverTensor = driver
         self.recipient: RecipientTensor = recipient
@@ -16,5 +16,6 @@ class Nodes(object):
         # inter-set connections
         self.links: Links = links
         self.mappings: Mappings = mappings
+        self.DORA_mode: bool = DORA_mode
     
 
