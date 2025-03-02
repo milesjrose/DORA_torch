@@ -317,9 +317,9 @@ class builder(object):
             vLabels[SemanticFields.ONT_STATUS] = OntStatus(tk[SemanticFields.ONT_STATUS])
             token = False
         else:
-            labels = tf
-            vLabels[tf.SET] = Set(tk[tf.SET])
-            vLabels[tf.MODE] = Mode(tk[tf.MODE])
+            labels = TF
+            vLabels[TF.SET] = Set(tk[TF.SET])
+            vLabels[TF.MODE] = Mode(tk[TF.MODE])
             token = True
 
         # generate all values in strings
