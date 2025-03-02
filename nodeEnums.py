@@ -4,7 +4,7 @@
 from enum import IntEnum
 
 # Enum to access token values
-class tf(IntEnum):
+class TF(IntEnum):
     # INT values:
     ID                  = 0
     TYPE                = 1
@@ -87,3 +87,7 @@ class OntStatus(IntEnum):
     STATE       = 0
     VALUE       = 1
     SDM         = 2
+
+class B(IntEnum):
+    TRUE    = 1
+    FALSE   = 0

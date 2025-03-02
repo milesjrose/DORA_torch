@@ -3,7 +3,7 @@
 import torch
 from nodeEnums import *
 from nodesMemTypes import *
-from nodesMemTypes import tf as tf
+from nodesMemTypes import TF
 
 class Nodes(object):
     def __init__(self, driver: DriverTensor, recipient: RecipientTensor, semantics: TokenTensor, LTM: TokenTensor, links: Links, mappings: Mappings, DORA_mode: bool):
