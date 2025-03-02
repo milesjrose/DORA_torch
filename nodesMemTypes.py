@@ -94,6 +94,12 @@ class DriverTensor(TokenTensor):
         super().__init__(floatTensor, boolTensor, connections)
 
     # ==============[ DRIVER UPDATE INPUT FUNCTIONS ]===============
+    def update_input(self, as_DORA):            # Update all input in driver
+        self.update_input_p_parent()
+        self.update_input_p_child(as_DORA)
+        self.update_input_rb(as_DORA)
+        self.update_input_po(as_DORA)
+
     def update_input_p_parent(self):
         # P units in parent mode:
         # Exitatory: td (my Groups) / bu (my RBs)
@@ -126,7 +132,7 @@ class DriverTensor(TokenTensor):
             self.nodes[p, TF.ACT]                                   # Each parent p node -> 3*(sum of all other parent p nodes)
         ))
 
-    def update_input_p_child(self, as_DORA, phase_set):
+    def update_input_p_child(self, as_DORA):
         # P units in child mode:
         # Exitatory: td (my parent RBs), (if phase_set>1: my groups)
         # Inhibitory: lateral (Other p in child mode), (if DORA_mode: PO acts / Else: POs not connected to same RBs)
@@ -197,6 +203,12 @@ class RecipientTensor(TokenTensor):
         super().__init__(floatTensor, boolTensor, connections)
 
     # ============[ RECIPIENT UPDATE INPUT FUNCTIONS ]==============
+    def update_input(self, as_DORA):            # Update all input in recipient
+        self.update_input_p_parent()
+        self.update_input_p_child(as_DORA)
+        self.update_input_rb(as_DORA)
+        self.update_input_po(as_DORA)
+
     def update_input_p_parent(self):                                # TODO: implement
         pass
 
