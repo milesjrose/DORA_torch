@@ -49,42 +49,42 @@ class TokenTensor(object):
     def groups(self):           # Return Group subtensor
         return self.nodes[self.get_mask(Type.GROUP)]
     
-    def get_p_mode(self):       # TODO: Set mode for all P units
+    def get_p_mode(self):                                           # TODO: Set mode for all P units
         # set Pmode to 1 (Parent) if input from my RBs below me is greater than input from RBs above me, set Pmode to -1 (child) if input from RBs above me is greater than input from RBs below me, and set Pmode to 0 (neutral) otherwise.
         # get the input from RBs below me (.myRBs) and RBs above me (.myParentRBs).
         return None
 
-    def add_nodes(self, nodes): # TODO: Add nodes 
+    def add_nodes(self, nodes):                                     # TODO: Add nodes 
         # As tensor is non-extensible, keep some headroom. If the tensor is full create new tensor with ratio 1.1, o.w just add node
         # TODO: allow for adding nodes - tensor non-extensible, so must create new tensor then add node
         return None
     
-    def del_Nodes(self, nodes): # TODO: Delete nodes
+    def del_Nodes(self, nodes):                                     # TODO: Delete nodes
         # Tensor size is static, so just set the nodes deleted to zero - then recompute masks to exclude it.
         # TODO: When deleted nodes ratio hits threshold, compress the tensor to remove all deleted nodes.
         # TODO: Impletment
         return None
     
     # ======================[ TOKEN FUNCTIONS ]========================
-    def initialise_input(self, refresh):        # TODO: initialize inputs to 0, and td_input to refresh.
+    def initialise_input(self, refresh):                            # TODO: initialize inputs to 0, and td_input to refresh.
         pass
 
-    def initialise_act(self, refresh):          # TODO: initialize act to 0.0,  and call initialise_inputs
+    def initialise_act(self, refresh):                              # TODO: initialize act to 0.0,  and call initialise_inputs
         pass
 
-    def initialise_state(self):                 # TODO: set  self.retrieved to false, and call initialise_act
+    def initialise_state(self):                                     # TODO: set  self.retrieved to false, and call initialise_act
         pass
     
-    def update_act(self, gamma, delta, HebbBias): # TODO: update act of node
+    def update_act(self, gamma, delta, HebbBias):                   # TODO: update act of node
         pass
 
-    def zero_lateral_input(self):               # TODO: set lateral_input to 0 (to allow synchrony at different levels by 0-ing lateral inhibition at that level (e.g., to bind via synchrony, 0 lateral inhibition in POs).
+    def zero_lateral_input(self):                                   # TODO: set lateral_input to 0 (to allow synchrony at different levels by 0-ing lateral inhibition at that level (e.g., to bind via synchrony, 0 lateral inhibition in POs).
         pass
     
-    def update_inhibitor_input(self):           # TODO: update the input to my inhibitor by my current activation.
+    def update_inhibitor_input(self):                               # TODO: update the input to my inhibitor by my current activation.
         pass
 
-    def reset_inhibitor(self):                  # TODO: reset the inhibitor_input and act to 0.0.
+    def reset_inhibitor(self):                                      # TODO: reset the inhibitor_input and act to 0.0.
         pass
     # --------------------------------------------------------------
 
@@ -194,7 +194,6 @@ class DriverTensor(TokenTensor):
     
     def update_input_po(self, as_DORA):                             # TODO: implement
         pass
-
     # --------------------------------------------------------------
 
 
@@ -220,10 +219,9 @@ class RecipientTensor(TokenTensor):
     
     def update_input_po(self, as_DORA, phase_set, lateral_input_level, ignore_object_semantics=False): # TODO: implement
         pass
-
     # --------------------------------------------------------------
     
-class SemanticTensor(TokenTensor):
+class SemanticTensor(TokenTensor):                                  # TODO: implement
     def __init__(self):
         pass
 
