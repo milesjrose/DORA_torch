@@ -14,11 +14,12 @@ def undirected(T):
 
 # returns global mask for (mask == True) AND (T[mask,index] == value)
 def refine_mask(tensor, mask, index, value, in_place = False):
-    submask = (tensor[mask, index] == value)                    # sub-mask
-    if in_place:
-        mask[mask] &= submask                                   # set in place
-        return None                                             # return None
-    else:
-        mask_copy = mask.copy()                                 # make copy
-        mask_copy[mask_copy] &= submask  
-        return mask_copy                                        # return new mask
+    submask = (tensor[mask, index] == value)
+    return sub_union(mask, submask, in_place)                   # return new mask
+
+# Returns new_mask(size of input mask), of union of mask and its submask
+def sub_union(mask, submask, in_place = False):
+    if not in_place:
+        mask = mask.copy()
+    mask[mask] &= submask
+    return mask
