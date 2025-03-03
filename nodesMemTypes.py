@@ -203,7 +203,7 @@ class RecipientTensor(TokenTensor):
         super().__init__(floatTensor, boolTensor, connections)
 
     # ============[ RECIPIENT UPDATE INPUT FUNCTIONS ]==============
-    def update_input(self, as_DORA):            # Update all input in recipient
+    def update_input(self, as_DORA, phase_set, lateral_input_level, ignore_object_semantics=False):            # Update all input in recipient
         self.update_input_p_parent()
         self.update_input_p_child(as_DORA)
         self.update_input_rb(as_DORA)
