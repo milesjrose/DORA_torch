@@ -11,7 +11,7 @@ class TokenTensor(object):
         self.nodesBool: torch.Tensor = boolTensor
         self.masks = self.cache_masks()
         self.indicies = self.cache_masks()
-        # Unweighted directed connections between token of same set. Connetion is from parent to child.
+        # Unweighted directed connections between token of same set. Connetion is from parent to child (i.e [i, j] = 1 means “node i is the parent of node j”)
         self.connections = connections
 
     def cache_masks(self, types_to_recompute = None):   # Compute and cache masks, specify types to recompute via list of tokenTypes
@@ -27,15 +27,12 @@ class TokenTensor(object):
 
         self.masks: torch.Tensor = torch.stack(masks, dim=0)
     
-    def compute_mask(self, token_type: Type):       # Compute the mask for a token type
+    def compute_mask(self, token_type: Type):           # Compute the mask for a token type
         mask = (self.nodes[:, TF.TYPE] == token_type) 
         return mask
     
-    def get_mask(self, token_type: Type = None):    # Returns mask for token of type Type, or full tensor o.w
-        if token_type is None:              
-            return self.masks                               # Return stacked mask tensor
-        else:
-            return self.masks[token_type]                   # Return mask for inputted type
+    def get_mask(self, token_type: Type):               # Returns mask for given token type
+        return self.masks[token_type]                   
     
     def pos(self):              # Return PO subtensor
         return self.nodes[self.get_mask(Type.PO)]
@@ -49,7 +46,6 @@ class TokenTensor(object):
     def groups(self):           # Return Group subtensor
         return self.nodes[self.get_mask(Type.GROUP)]
     
-    def get_p_mode(self):                                           # TODO: Set mode for all P units
         # set Pmode to 1 (Parent) if input from my RBs below me is greater than input from RBs above me, set Pmode to -1 (child) if input from RBs above me is greater than input from RBs below me, and set Pmode to 0 (neutral) otherwise.
         # get the input from RBs below me (.myRBs) and RBs above me (.myParentRBs).
         return None
@@ -65,29 +61,105 @@ class TokenTensor(object):
         # TODO: Impletment
         return None
     
-    # ======================[ TOKEN FUNCTIONS ]========================
-    def initialise_input(self, refresh):                            # TODO: initialize inputs to 0, and td_input to refresh.
+    # =====================[ TOKEN FUNCTIONS ]=======================
+
+    def initialise_float(self, features: list[TF]):                 # Initialise given features
+        init_subt = self.nodes[:, features]                            # Get subtensor of types to intialise
+        init_subt = torch.zeros_like(init_subt)                     # Set types to 0
+    
+    def initialise_input(self, refresh):                            # Initialize inputs to 0, and td_input to refresh.
+        self.nodes[:, TF.TD_INPUT] = refresh                        # Set td_input to refresh
+        types_to_intialise = [
+            TF.BU_INPUT,
+            TF.LATERAL_INPUT,
+            TF.MAP_INPUT,
+            TF.NET_INPUT
+        ]
+        self.initialise_float(types_to_intialise)                   # Set types to 0.0
+
+    def initialise_act(self):                                       # Initialize act to 0.0,  and call initialise_inputs
+        self.initialise_input(0.0)
+        self.initialise_float([TF.ACT])
+
+    def initialise_state(self):                                     # Set self.retrieved to false, and call initialise_act
+        self.initialise_act()
+        self.initialise_float([TF.RETRIEVED])                       
+        
+    def update_act(self, gamma, delta, HebbBias):                   # Update act of nodes
+        net_input_types = [
+            TF.TD_INPUT,
+            TF.BU_INPUT,
+            TF.LATERAL_INPUT
+        ]
+        net_input = self.nodes[:, net_input_types].sum(dim=1, keepdim=True) # sum non mapping inputs
+        net_input += self.nodes[:, self.map_input] * HebbBias               # Add biased mapping input
+        acts = self.nodes[:, TF.ACT]                                        # Get node acts
+        delta_act = gamma * net_input * (1.1 - acts) - (delta * acts)       # Find change in act for each node
+        acts += delta_act                                                   # Update acts
+        
+        self.nodes[(self.nodes[:, TF.ACT] > 1.0), TF.ACT] = 1.0             # Limit activation to 1.0 or below
+        self.nodes[(self.nodes[:, TF.ACT] < 0.0), TF.ACT] = 0.0             # Limit activation to 0.0 or above                                      # update act
+
+    def zero_lateral_input(self):                                   # Set lateral_input to 0 (to allow synchrony at different levels by 0-ing lateral inhibition at that level (e.g., to bind via synchrony, 0 lateral inhibition in POs).
+        self.initialise_float([TF.LATERAL_INPUT])
+    
+    def update_inhibitor_input(self, n_type: Type):                 # Update inputs to inhibitors by current activation for nodes of type n_type
+        mask = self.get_mask(n_type)
+        self.nodes[mask, TF.INHIBITOR_INPUT] += self.nodes[mask, TF.ACT]
+
+    def reset_inhibitor(self, n_type: Type):                        # Reset the inhibitor input and act to 0.0 for given type
+        mask = self.get_mask(n_type)
+        self.nodes[mask, TF.INHIBITOR_INPUT] = 0.0
+        self.nodes[mask, TF.INHIBITOR_ACT] = 0.0
+    
+    def update_inhibitor_act(self, n_type: Type):                   # Update the inhibitor act for given type
+        type_mask = self.get_mask(n_type)
+        input = self.nodes[type_mask, TF.INHIBITOR_INPUT]
+        threshold = self.nodes[type_mask, TF.INHIBITOR_THRESHOLD]
+        nodes_to_update = (input >= threshold)                      # if inhib_input >= inhib_threshold
+        self.nodes[nodes_to_update, TF.INHIBITOR_ACT] = 1.0         # then set to 1
+
+    # =======================[ P FUNCTIONS ]========================
+    def p_initialise_mode(self):                                    # Initialize all p.mode back to neutral.
+        p = self.get_mask(Type.P)
+        self.nodes[p, TF.MODE] = Mode.NEUTRAL
+
+    def p_get_mode(self):                                           # Set mode for all P units
+        # Pmode = Parent: child RB act> parent RB act / Child: parent RB act > child RB act / Neutral: o.w
+        p = self.get_mask(Type.P)
+        rb = self.get_mask(Type.RB)
+        child_input = torch.matmul(                                 # Px1 matrix: sum of child rb for each p
+            self.connections[p, rb],
+            self.nodes[rb, TF.ACT]
+        )
+        parent_input = torch.matmult(                               # Px1 matrix: sum of parent rb for each p
+            torch.transpose(self.connections)[p, rb],
+            self.nodes[rb]
+        )
+        # Get global masks of p, by mode
+        input_diff = parent_input - child_input                     # (input_diff > 0) <-> (parents > childs)
+        child_p = tOps.sub_union(p, (input_diff[:, 0] > 0.0))       # (input_diff > 0) -> (parents > childs) -> (p mode = child)
+        parent_p = tOps.sub_union(p, (input_diff[:, 0] < 0.0))      # (input_diff < 0) -> (parents < childs) -> (p mode = parent) 
+        neutral_p = tOps.sub_union(p, (input_diff[:, 0] == 0.0))    # input_diff == 0 -> p mode = neutral
+        # Set mode values:
+        self.nodes[child_p, TF.MODE] = Mode.CHILD                   
+        self.nodes[parent_p, TF.MODE] = Mode.PARENT
+        self.nodes[neutral_p, TF.MODE] = Mode.NEUTRAL
+
+    # =======================[ RB FUNCTIONS ]========================
+    def rb_initiaise_times_fired(self):                             # TODO: Implement
         pass
 
-    def initialise_act(self, refresh):                              # TODO: initialize act to 0.0,  and call initialise_inputs
+    def rb_update_times_fired(self):                                # TODO: Implement
         pass
 
-    def initialise_state(self):                                     # TODO: set  self.retrieved to false, and call initialise_act
+    # =======================[ RB FUNCTIONS ]========================
+    def po_get_weight_length(self):                                 # TODO: Implement
+        pass
+
+    def po_get_max_semantic_weight(self):                           # TODO: Implement
         pass
     
-    def update_act(self, gamma, delta, HebbBias):                   # TODO: update act of node
-        pass
-
-    def zero_lateral_input(self):                                   # TODO: set lateral_input to 0 (to allow synchrony at different levels by 0-ing lateral inhibition at that level (e.g., to bind via synchrony, 0 lateral inhibition in POs).
-        pass
-    
-    def update_inhibitor_input(self):                               # TODO: update the input to my inhibitor by my current activation.
-        pass
-
-    def reset_inhibitor(self):                                      # TODO: reset the inhibitor_input and act to 0.0.
-        pass
-    # --------------------------------------------------------------
-
 
 class DriverTensor(TokenTensor):
     def __init__(self, floatTensor, boolTensor, connections):   
