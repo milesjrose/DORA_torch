@@ -33,7 +33,11 @@ class TokenTensor(object):
     
     def get_mask(self, token_type: Type):               # Returns mask for given token type
         return self.masks[token_type]                   
-    
+
+    def get_combined_mask(self, n_types: list[Type]):   # Returns combined mask of give types
+        masks = [self.masks[i] for i in n_types]
+        return torch.logical_or.reduce(masks)
+
     def pos(self):              # Return PO subtensor
         return self.nodes[self.get_mask(Type.PO)]
     
@@ -63,27 +67,24 @@ class TokenTensor(object):
     
     # =====================[ TOKEN FUNCTIONS ]=======================
 
-    def initialise_float(self, features: list[TF]):                 # Initialise given features
-        init_subt = self.nodes[:, features]                            # Get subtensor of types to intialise
-        init_subt = torch.zeros_like(init_subt)                     # Set types to 0
+    def initialise_float(self, n_type: list[Type], features: list[TF]): # Initialise given features
+        type_mask = self.get_combined_mask(n_type)                      # Get mask of nodes to update
+        init_subt = self.nodes[type_mask, features]                     # Get subtensor of features to intialise
+        self.nodes[type_mask, features] = torch.zeros_like(init_subt)   # Set features to 0
     
-    def initialise_input(self, refresh):                            # Initialize inputs to 0, and td_input to refresh.
-        self.nodes[:, TF.TD_INPUT] = refresh                        # Set td_input to refresh
-        types_to_intialise = [
-            TF.BU_INPUT,
-            TF.LATERAL_INPUT,
-            TF.MAP_INPUT,
-            TF.NET_INPUT
-        ]
-        self.initialise_float(types_to_intialise)                   # Set types to 0.0
+    def initialise_input(self, n_type: list[Type], refresh):            # Initialize inputs to 0, and td_input to refresh.
+        type_mask = self.get_combined_mask(n_type)
+        self.nodes[type_mask, TF.TD_INPUT] = refresh                    # Set td_input to refresh
+        features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
+        self.initialise_float(n_type, features)                         # Set types to 0.0
 
-    def initialise_act(self):                                       # Initialize act to 0.0,  and call initialise_inputs
-        self.initialise_input(0.0)
-        self.initialise_float([TF.ACT])
+    def initialise_act(self, n_type: list[Type]):                   # Initialize act to 0.0,  and call initialise_inputs
+        self.initialise_input(n_type, 0.0)
+        self.initialise_float(n_type, [TF.ACT])
 
-    def initialise_state(self):                                     # Set self.retrieved to false, and call initialise_act
-        self.initialise_act()
-        self.initialise_float([TF.RETRIEVED])                       
+    def initialise_state(self, n_type: list[Type]):                 # Set self.retrieved to false, and call initialise_act
+        self.initialise_act(n_type)
+        self.initialise_float(n_type, [TF.RETRIEVED])                       
         
     def update_act(self, gamma, delta, HebbBias):                   # Update act of nodes
         net_input_types = [
@@ -100,20 +101,20 @@ class TokenTensor(object):
         self.nodes[(self.nodes[:, TF.ACT] > 1.0), TF.ACT] = 1.0             # Limit activation to 1.0 or below
         self.nodes[(self.nodes[:, TF.ACT] < 0.0), TF.ACT] = 0.0             # Limit activation to 0.0 or above                                      # update act
 
-    def zero_lateral_input(self):                                   # Set lateral_input to 0 (to allow synchrony at different levels by 0-ing lateral inhibition at that level (e.g., to bind via synchrony, 0 lateral inhibition in POs).
-        self.initialise_float([TF.LATERAL_INPUT])
+    def zero_lateral_input(self, n_type: list[Type]):               # Set lateral_input to 0 (to allow synchrony at different levels by 0-ing lateral inhibition at that level (e.g., to bind via synchrony, 0 lateral inhibition in POs).
+        self.initialise_float(n_type, [TF.LATERAL_INPUT])
     
-    def update_inhibitor_input(self, n_type: Type):                 # Update inputs to inhibitors by current activation for nodes of type n_type
-        mask = self.get_mask(n_type)
+    def update_inhibitor_input(self, n_type: list[Type]):           # Update inputs to inhibitors by current activation for nodes of type n_type
+        mask = self.get_combined_mask(n_type)
         self.nodes[mask, TF.INHIBITOR_INPUT] += self.nodes[mask, TF.ACT]
 
-    def reset_inhibitor(self, n_type: Type):                        # Reset the inhibitor input and act to 0.0 for given type
-        mask = self.get_mask(n_type)
+    def reset_inhibitor(self, n_type: list[Type]):                  # Reset the inhibitor input and act to 0.0 for given type
+        mask = self.get_combined_mask(n_type)
         self.nodes[mask, TF.INHIBITOR_INPUT] = 0.0
         self.nodes[mask, TF.INHIBITOR_ACT] = 0.0
     
-    def update_inhibitor_act(self, n_type: Type):                   # Update the inhibitor act for given type
-        type_mask = self.get_mask(n_type)
+    def update_inhibitor_act(self, n_type: list[Type]):             # Update the inhibitor act for given type
+        type_mask = self.get_combined_mask(n_type)
         input = self.nodes[type_mask, TF.INHIBITOR_INPUT]
         threshold = self.nodes[type_mask, TF.INHIBITOR_THRESHOLD]
         nodes_to_update = (input >= threshold)                      # if inhib_input >= inhib_threshold
@@ -159,14 +160,22 @@ class TokenTensor(object):
 
     def po_get_max_semantic_weight(self):                           # TODO: Implement
         pass
-    
+
 
 class DriverTensor(TokenTensor):
     def __init__(self, floatTensor, boolTensor, connections):   
         super().__init__(floatTensor, boolTensor, connections)
+    
+    def check_local_inhibitor(self):                                # Return true if any PO.inhibitor_act == 1.0
+        po = self.get_mask(Type.PO)
+        return torch.any(self.nodes[po, TF.INHIBITOR_ACT] == 1.0) 
 
+    def check_global_inhibitor(self):                               # Return true if any RB.inhibitor_act == 1.0
+        rb = self.get_mask(Type.RB)
+        return torch.any(self.nodes[rb, TF.INHIBITOR_ACT] == 1.0) 
+    
     # ==============[ DRIVER UPDATE INPUT FUNCTIONS ]===============
-    def update_input(self, as_DORA):            # Update all input in driver
+    def update_input(self, as_DORA):                                # Update all input in driver
         self.update_input_p_parent()
         self.update_input_p_child(as_DORA)
         self.update_input_rb(as_DORA)
@@ -274,7 +283,7 @@ class RecipientTensor(TokenTensor):
         super().__init__(floatTensor, boolTensor, connections)
 
     # ============[ RECIPIENT UPDATE INPUT FUNCTIONS ]==============
-    def update_input(self, as_DORA, phase_set, lateral_input_level, ignore_object_semantics=False):            # Update all input in recipient
+    def update_input(self, as_DORA, phase_set, lateral_input_level, ignore_object_semantics=False): # Update all input in recipient
         self.update_input_p_parent()
         self.update_input_p_child(as_DORA)
         self.update_input_rb(as_DORA)
@@ -296,7 +305,9 @@ class RecipientTensor(TokenTensor):
 class SemanticTensor(TokenTensor):                                  # TODO: implement
     def __init__(self):
         pass
-
+    
+    def initialise_sem():                                           # TODO: implement
+        pass
 
 class Links(object):    # Weighted connections between nodes
     def __init__(self, driverLinks, recipientLinks, semLinks):  # Takes weighted adjacency matrices
