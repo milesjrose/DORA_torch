@@ -72,7 +72,7 @@ class TokenTensor(object):
         init_subt = self.nodes[type_mask, features]                     # Get subtensor of features to intialise
         self.nodes[type_mask, features] = torch.zeros_like(init_subt)   # Set features to 0
     
-    def initialise_input(self, n_type: list[Type], refresh):            # Initialize inputs to 0, and td_input to refresh.
+    def initialise_input(self, n_type: list[Type], refresh):        # Initialize inputs to 0, and td_input to refresh.
         type_mask = self.get_combined_mask(n_type)
         self.nodes[type_mask, TF.TD_INPUT] = refresh                    # Set td_input to refresh
         features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
@@ -181,8 +181,7 @@ class DriverTensor(TokenTensor):
         self.update_input_rb(as_DORA)
         self.update_input_po(as_DORA)
 
-    def update_input_p_parent(self):
-        # P units in parent mode:
+    def update_input_p_parent(self):                                # P units in parent mode
         # Exitatory: td (my Groups) / bu (my RBs)
         # Inhibitory: lateral (other P units in parent mode*3), inhibitor.
         # 1). get masks
@@ -213,8 +212,7 @@ class DriverTensor(TokenTensor):
             self.nodes[p, TF.ACT]                                   # Each parent p node -> 3*(sum of all other parent p nodes)
         ))
 
-    def update_input_p_child(self, as_DORA):
-        # P units in child mode:
+    def update_input_p_child(self, as_DORA):                        # P units in child mode:
         # Exitatory: td (my parent RBs), (if phase_set>1: my groups)
         # Inhibitory: lateral (Other p in child mode), (if DORA_mode: PO acts / Else: POs not connected to same RBs)
         # 1). get masks
@@ -259,7 +257,7 @@ class DriverTensor(TokenTensor):
             # 3ci). Create masks
             obj = self.get_mask(Type.PO)                            # get PO mask
             obj = tOps.refine_mask(self.nodes, po, TF.PRED, B.TRUE) # refine mask for objects only
-            # 3cii). Find objects not connected to me               # NOTE: check if p.myRB contains p.myParentRBs !currently assume true!
+            # 3cii). Find objects not connected to me               # NOTE: check if p.myRB contains p.myParentRBs !not true! TODO: fix
             ud_con = torch.bitwise_or(self.connections, t_con)      # undirected connections tensor (OR connections with its transpose)
             shared = torch.matmul(ud_con[p, rb], ud_con[rb, obj])   # PxObject tensor, shared[i][j] > 1 if p[i] and object[j] share an RB, 0 o.w
             shared = torch.gt(shared, 0).int()                      # now shared[i][j] = 1 if p[i] and object[j] share an RB, 0 o.w
