@@ -5,7 +5,7 @@ from nodeEnums import *
 from nodesMemTypes import *
 
 class Nodes(object):
-    def __init__(self, driver: DriverTensor, recipient: RecipientTensor, semantics: SemanticTensor, LTM: TokenTensor, links: Links, mappings: Mappings, DORA_mode: bool):
+    def __init__(self, driver: DriverTensor, recipient: RecipientTensor, semantics: SemanticTensor, LTM: TokenTensor, mappings: Mappings, DORA_mode: bool):
         # node tensors
         self.driver: DriverTensor = driver
         self.recipient: RecipientTensor = recipient
@@ -13,7 +13,6 @@ class Nodes(object):
         self.memory: TokenTensor = LTM
         
         # inter-set connections
-        self.links: Links = links
         self.mappings: Mappings = mappings
         self.DORA_mode: bool = DORA_mode
 

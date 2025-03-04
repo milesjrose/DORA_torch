@@ -6,11 +6,15 @@ import tensorOps as tOps
 
 
 class TokenTensor(object):
-    def __init__(self, floatTensor, boolTensor, connections):
+    def __init__(self, floatTensor, boolTensor, connections, links):
         self.nodes: torch.Tensor = floatTensor
         self.nodesBool: torch.Tensor = boolTensor
         self.masks = self.cache_masks()
         self.indicies = self.cache_masks()
+        self.analogs, self.analog_counts = self.analog_node_count()
+
+        # Weighted undirected adj matrix (NxS), connections between set tokens and semantics
+        self.links = links()
         # Unweighted directed connections between token of same set. Connetion is from parent to child (i.e [i, j] = 1 means “node i is the parent of node j”)
         self.connections = connections
 
@@ -38,22 +42,6 @@ class TokenTensor(object):
         masks = [self.masks[i] for i in n_types]
         return torch.logical_or.reduce(masks)
 
-    def pos(self):              # Return PO subtensor
-        return self.nodes[self.get_mask(Type.PO)]
-    
-    def rbs(self):              # Return RB subtensor
-        return self.nodes[self.get_mask(Type.RB)]
-    
-    def ps(self):               # Return P subtensor
-        return self.nodes[self.get_mask(Type.Ps)]
-    
-    def groups(self):           # Return Group subtensor
-        return self.nodes[self.get_mask(Type.GROUP)]
-    
-        # set Pmode to 1 (Parent) if input from my RBs below me is greater than input from RBs above me, set Pmode to -1 (child) if input from RBs above me is greater than input from RBs below me, and set Pmode to 0 (neutral) otherwise.
-        # get the input from RBs below me (.myRBs) and RBs above me (.myParentRBs).
-        return None
-
     def add_nodes(self, nodes):                                     # TODO: Add nodes 
         # As tensor is non-extensible, keep some headroom. If the tensor is full create new tensor with ratio 1.1, o.w just add node
         # TODO: allow for adding nodes - tensor non-extensible, so must create new tensor then add node
@@ -65,8 +53,10 @@ class TokenTensor(object):
         # TODO: Impletment
         return None
     
-    # =====================[ TOKEN FUNCTIONS ]=======================
+    def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
+        self.analogs, self.analog_counts = torch.unique(self.nodes[:, TF.ANALOG], return_counts=True)
 
+    # =====================[ TOKEN FUNCTIONS ]=======================
     def initialise_float(self, n_type: list[Type], features: list[TF]): # Initialise given features
         type_mask = self.get_combined_mask(n_type)                      # Get mask of nodes to update
         init_subt = self.nodes[type_mask, features]                     # Get subtensor of features to intialise
@@ -148,18 +138,23 @@ class TokenTensor(object):
         self.nodes[neutral_p, TF.MODE] = Mode.NEUTRAL
 
     # =======================[ RB FUNCTIONS ]========================
-    def rb_initiaise_times_fired(self):                             # TODO: Implement
+    def rb_initiaise_times_fired(self):                             # Initialise all RBs times fired NOTE: Never used?
+        self.initialise_float(Type.RB, TF.TIMES_FIRED)
+
+    def rb_update_times_fired(self):                                # TODO: Implement   NOTE: ALso never used?
         pass
 
-    def rb_update_times_fired(self):                                # TODO: Implement
-        pass
+    # =======================[ PO FUNCTIONS ]========================
+    def po_get_weight_length(self, links):                          # Sum value of links with weight > 0.1 for all PO nodes
+        po = self.get_mask(Type.PO)                                 # mask links with PO
+        mask = self.links[po] > 0.1                                 # Create sub mask for links with weight > 0.1
+        weights = (self.links[po] * mask).sum(dim=1, keepdim = True) # Sum links > 0.1
+        self.nodes[po, TF.SEM_COUNT] = weights                      # Set semNormalisation
 
-    # =======================[ RB FUNCTIONS ]========================
-    def po_get_weight_length(self):                                 # TODO: Implement
-        pass
-
-    def po_get_max_semantic_weight(self):                           # TODO: Implement
-        pass
+    def po_get_max_semantic_weight(self):                           # Get max link weight for all PO nodes
+        po = self.get_mask(Type.PO)
+        max_values, _ = torch.max(self.links[po], dim=1, keepdim=True)# (max_values, _) unpacks tuple returned by torch.max
+        self.nodes[po, TF.MAX_SEM_WEIGHT] = max_values              # Set max
 
 
 class DriverTensor(TokenTensor):
