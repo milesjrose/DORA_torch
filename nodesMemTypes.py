@@ -18,27 +18,27 @@ class TokenTensor(object):
         # Unweighted directed connections between token of same set. Connetion is from parent to child (i.e [i, j] = 1 means “node i is the parent of node j”)
         self.connections = connections
 
-    def cache_masks(self, types_to_recompute = None):   # Compute and cache masks, specify types to recompute via list of tokenTypes
-        if types_to_recompute == None:                      #  If no type specified, recompute all
+    def cache_masks(self, types_to_recompute = None):               # Compute and cache masks, specify types to recompute via list of tokenTypes
+        if types_to_recompute == None:                              #  If no type specified, recompute all
             types_to_recompute = [Type.PO, Type.RB, Type.P, Type.GROUP]
 
         masks = []
         for token_type in [Type.PO, Type.RB, Type.P, Type.GROUP]:
             if token_type in types_to_recompute:
-                masks.append(self.computeMasks(token_type)) # Recompute mask
+                masks.append(self.computeMasks(token_type))         # Recompute mask
             else:
-                masks.append(self.masks[token_type])        # Use cached mask
+                masks.append(self.masks[token_type])                # Use cached mask
 
         self.masks: torch.Tensor = torch.stack(masks, dim=0)
     
-    def compute_mask(self, token_type: Type):           # Compute the mask for a token type
+    def compute_mask(self, token_type: Type):                       # Compute the mask for a token type
         mask = (self.nodes[:, TF.TYPE] == token_type) 
         return mask
     
-    def get_mask(self, token_type: Type):               # Returns mask for given token type
+    def get_mask(self, token_type: Type):                           # Returns mask for given token type
         return self.masks[token_type]                   
 
-    def get_combined_mask(self, n_types: list[Type]):   # Returns combined mask of give types
+    def get_combined_mask(self, n_types: list[Type]):               # Returns combined mask of give types
         masks = [self.masks[i] for i in n_types]
         return torch.logical_or.reduce(masks)
 
@@ -50,7 +50,6 @@ class TokenTensor(object):
     def del_Nodes(self, nodes):                                     # TODO: Delete nodes
         # Tensor size is static, so just set the nodes deleted to zero - then recompute masks to exclude it.
         # TODO: When deleted nodes ratio hits threshold, compress the tensor to remove all deleted nodes.
-        # TODO: Impletment
         return None
     
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
@@ -62,7 +61,7 @@ class TokenTensor(object):
         init_subt = self.nodes[type_mask, features]                     # Get subtensor of features to intialise
         self.nodes[type_mask, features] = torch.zeros_like(init_subt)   # Set features to 0
     
-    def initialise_input(self, n_type: list[Type], refresh):        # Initialize inputs to 0, and td_input to refresh.
+    def initialise_input(self, n_type: list[Type], refresh):            # Initialize inputs to 0, and td_input to refresh.
         type_mask = self.get_combined_mask(n_type)
         self.nodes[type_mask, TF.TD_INPUT] = refresh                    # Set td_input to refresh
         features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
@@ -109,6 +108,7 @@ class TokenTensor(object):
         threshold = self.nodes[type_mask, TF.INHIBITOR_THRESHOLD]
         nodes_to_update = (input >= threshold)                      # if inhib_input >= inhib_threshold
         self.nodes[nodes_to_update, TF.INHIBITOR_ACT] = 1.0         # then set to 1
+    # --------------------------------------------------------------
 
     # =======================[ P FUNCTIONS ]========================
     def p_initialise_mode(self):                                    # Initialize all p.mode back to neutral.
@@ -136,6 +136,7 @@ class TokenTensor(object):
         self.nodes[child_p, TF.MODE] = Mode.CHILD                   
         self.nodes[parent_p, TF.MODE] = Mode.PARENT
         self.nodes[neutral_p, TF.MODE] = Mode.NEUTRAL
+    # ---------------------------------------------------------------
 
     # =======================[ RB FUNCTIONS ]========================
     def rb_initiaise_times_fired(self):                             # Initialise all RBs times fired NOTE: Never used?
@@ -143,6 +144,7 @@ class TokenTensor(object):
 
     def rb_update_times_fired(self):                                # TODO: Implement   NOTE: ALso never used?
         pass
+    # ---------------------------------------------------------------
 
     # =======================[ PO FUNCTIONS ]========================
     def po_get_weight_length(self, links):                          # Sum value of links with weight > 0.1 for all PO nodes
@@ -155,7 +157,7 @@ class TokenTensor(object):
         po = self.get_mask(Type.PO)
         max_values, _ = torch.max(self.links[po], dim=1, keepdim=True)# (max_values, _) unpacks tuple returned by torch.max
         self.nodes[po, TF.MAX_SEM_WEIGHT] = max_values              # Set max
-
+    # ---------------------------------------------------------------
 
 class DriverTensor(TokenTensor):
     def __init__(self, floatTensor, boolTensor, connections):   
