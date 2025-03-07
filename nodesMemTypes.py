@@ -349,6 +349,28 @@ class DriverTensor(TokenTensor):
         self.nodes[po, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat input
     # --------------------------------------------------------------
 
+class Mappings(object): # 3D tensor storing mapping and hypothesis information
+    def __init__(self, connections):    # Takes 3D tensor, of stacked 2D adjacency matrices
+        # Takes 3D tensor, of stacked 2D adjacency matrices: Recipient -> driver
+        self.adj_matrix: torch.Tensor = connections
+    
+    def connections(self):
+        return self.adj_matrix[:, :, MappingFields.CONNETIONS]
+
+    def weights(self):
+        return self.adj_matrix[:, :, MappingFields.WEIGHT]
+    
+    def hypotheses(self):
+        return self.adj_matrix[:, :, MappingFields.HYPOTHESIS]
+    
+    def max_hyps(self):
+        return self.adj_matrix[:, :, MappingFields.MAX_HYP]
+    
+    def updateHypotheses(self, hypotheses):                         # TODO: implement
+        pass
+    
+    def add_mappings(self,  mappings):                              # TODO: implement
+        pass
 
 class RecipientTensor(TokenTensor):
     def __init__(self, floatTensor, boolTensor, connections):
@@ -361,9 +383,66 @@ class RecipientTensor(TokenTensor):
         self.update_input_rb(as_DORA)
         self.update_input_po(as_DORA)
 
-    def update_input_p_parent(self):                                # TODO: implement
-        pass
+    def update_input_p_parent(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor):  # P units in parent mode
+        # Exitatory: td (my Groups), bu (my RBs), mapping input.
+        # Inhibitory: lateral (other P units in parent mode*3), inhibitor.
 
+        # 1). get masks
+        p = self.get_mask(Type.P)                                   # Boolean mask for P nodes
+        p = tOps.refine_mask(self.nodes, p, TF.MODE, Mode.PARENT)   # Boolean mask for Parent P nodes
+        group = self.get_mask(Type.GROUP)                           # Boolean mask for GROUP nodes
+        rb = self.get_mask(Type.RB)                                 # Boolean mask for RB nodes
+
+        # Exitatory input:
+        # 2). TD_INPUT: my_groups
+        if phase_set > 1:
+            self.nodes[p, TF.TD_INPUT] += torch.matmul(             # matmul outputs martix (sum(p) x 1) of values to add to current input value
+                self.connections[p, group],                         # Masks connections between p[i] and its groups
+                self.nodes[group, TF.ACT]                           # each p node -> sum of act of connected group nodes
+                )
+        # 3). BU_INPUT: my_RBs
+        self.nodes[p, TF.BU_INPUT] += torch.matmul(                 # matmul outputs martix (sum(p) x 1) of values to add to current input value
+            self.connections[p, rb],                                # Masks connections between p[i] and its rbs
+            self.nodes[rb, TF.ACT]                                  # Each p node -> sum of act of connected rb nodes
+            )  
+        # 4). Mapping input
+        pmap_weights = mappings.weights()[p] 
+        pmap_connections = mappings.connections()[p]
+        weight = torch.mul(                                         # weight = (3*map_weight*driverToken.act)
+            3,
+            torch.matmul(
+                pmap_weights,
+                driver.nodes[:, TF.ACT]
+            )
+        )
+        act_sum = torch.matmul(                                     # pmax_map = (self.max_map*driverToken.act)
+            pmap_connections,
+            driver.nodes[:, TF.ACT]
+        )
+        pmax_map = act_sum * self.nodes[p, TF.MAX_MAP]
+        dmax_map = torch.mult(                                      # dmax_map = (driverToken.max_map*driverToken.act)
+            driver.nodes[:, TF.MAX_MAP],
+            driver.nodes[:, TF.ACT]
+        )
+        dmax_map = torch.mult(
+            pmap_connections,
+            dmax_map
+        )
+        self.nodes[p, TF.MAP_INPUT] += weight - pmax_map - dmax_map  # 3*(driver.act*mapping_weight) - max(mapping_weight_driver_unit) - max(own_mapping_weight)
+
+        # Inhibitory input:
+        # 5). LATERAL_INPUT: (3 * other parent p nodes in recipient), inhibitor
+        # 5a). Tensor to connect p nodes to each other
+        diag_zeroes = tOps.diag_zeros(sum(p))                       # adj matrix connection connecting parent ps to all but themselves
+        # 5b). 3 * other parent p nodes in driver
+        self.nodes[p, TF.LATERAL_INPUT] -= torch.matmul(
+            diag_zeroes,                                            # Tensor size sum(p)xsum(p), to ignore p[i] -> p[i] connections
+            self.nodes[p, TF.ACT]                                   # Each parent p node -> (sum of all other parent p nodes)
+        )
+        # 5c). Inhibitor
+        inhib_input = self.nodes[p, TF.INHIBITOR_ACT]
+        self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(10, inhib_input)
+    
     def update_input_p_child(self):                                 # TODO: implement
         pass
     
@@ -388,25 +467,4 @@ class Links(object):    # Weighted connections between nodes
         self.semantics: torch.Tensor = semLinks
     
     def add_links(self, set: Set, links):                           # TODO: implement
-        pass
-
-
-class Mappings(object): # 3D tensor storing mapping and hypothesis information
-    def __init__(self, connections):    # Takes 3D tensor, of stacked 2D adjacency matrices
-        # Takes 3D tensor, of stacked 2D adjacency matrices
-        self.adj_matrix: torch.Tensor = connections
-    
-    def weights(self):
-        return self.adj_matrix[:, :, MappingFields.WEIGHT]
-    
-    def hypotheses(self):
-        return self.adj_matrix[:, :, MappingFields.HYPOTHESIS]
-    
-    def max_hyps(self):
-        return self.adj_matrix[:, :, MappingFields.MAX_HYP]
-    
-    def updateHypotheses(self, hypotheses):                         # TODO: implement
-        pass
-    
-    def add_mappings(self,  mappings):                              # TODO: implement
         pass

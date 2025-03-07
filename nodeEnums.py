@@ -60,6 +60,7 @@ class MappingFields(IntEnum):
     WEIGHT      = 0
     HYPOTHESIS  = 1
     MAX_HYP     = 2
+    CONNETIONS  = 3
 
 # Enum to encode my_type field in tokenFields
 class Type(IntEnum):
