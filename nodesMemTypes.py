@@ -385,17 +385,15 @@ class RecipientTensor(TokenTensor):
 
     def update_input_p_parent(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor):  # P units in parent mode
         # Exitatory: td (my Groups), bu (my RBs), mapping input.
-        # Inhibitory: lateral (other P units in parent mode*3), inhibitor.
-
+        # Inhibitory: lateral (other P units in parent mode*lat_input_level), inhibitor.
         # 1). get masks
         p = self.get_mask(Type.P)                                   # Boolean mask for P nodes
         p = tOps.refine_mask(self.nodes, p, TF.MODE, Mode.PARENT)   # Boolean mask for Parent P nodes
         group = self.get_mask(Type.GROUP)                           # Boolean mask for GROUP nodes
         rb = self.get_mask(Type.RB)                                 # Boolean mask for RB nodes
-
         # Exitatory input:
         # 2). TD_INPUT: my_groups
-        if phase_set > 1:
+        if phase_set >= 1:
             self.nodes[p, TF.TD_INPUT] += torch.matmul(             # matmul outputs martix (sum(p) x 1) of values to add to current input value
                 self.connections[p, group],                         # Masks connections between p[i] and its groups
                 self.nodes[group, TF.ACT]                           # each p node -> sum of act of connected group nodes
@@ -406,45 +404,83 @@ class RecipientTensor(TokenTensor):
             self.nodes[rb, TF.ACT]                                  # Each p node -> sum of act of connected rb nodes
             )  
         # 4). Mapping input
-        pmap_weights = mappings.weights()[p] 
-        pmap_connections = mappings.connections()[p]
-        weight = torch.mul(                                         # weight = (3*map_weight*driverToken.act)
-            3,
-            torch.matmul(
-                pmap_weights,
-                driver.nodes[:, TF.ACT]
-            )
-        )
-        act_sum = torch.matmul(                                     # pmax_map = (self.max_map*driverToken.act)
-            pmap_connections,
-            driver.nodes[:, TF.ACT]
-        )
-        pmax_map = act_sum * self.nodes[p, TF.MAX_MAP]
-        dmax_map = torch.mult(                                      # dmax_map = (driverToken.max_map*driverToken.act)
-            driver.nodes[:, TF.MAX_MAP],
-            driver.nodes[:, TF.ACT]
-        )
-        dmax_map = torch.mult(
-            pmap_connections,
-            dmax_map
-        )
-        self.nodes[p, TF.MAP_INPUT] += weight - pmax_map - dmax_map  # 3*(driver.act*mapping_weight) - max(mapping_weight_driver_unit) - max(own_mapping_weight)
-
+        self.nodes[p, TF.MAP_INPUT] += self.map_input(p, mappings, driver) 
         # Inhibitory input:
-        # 5). LATERAL_INPUT: (3 * other parent p nodes in recipient), inhibitor
+        # 5). LATERAL_INPUT: (lat_input_level * other parent p nodes in recipient), inhibitor
         # 5a). Tensor to connect p nodes to each other
         diag_zeroes = tOps.diag_zeros(sum(p))                       # adj matrix connection connecting parent ps to all but themselves
         # 5b). 3 * other parent p nodes in driver
-        self.nodes[p, TF.LATERAL_INPUT] -= torch.matmul(
-            diag_zeroes,                                            # Tensor size sum(p)xsum(p), to ignore p[i] -> p[i] connections
-            self.nodes[p, TF.ACT]                                   # Each parent p node -> (sum of all other parent p nodes)
+        self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(
+            lateral_input_level,
+            torch.matmul(
+                diag_zeroes,                                        # Tensor size sum(p)xsum(p), to ignore p[i] -> p[i] connections
+                self.nodes[p, TF.ACT]                               # Each parent p node -> (sum of all other parent p nodes)
+            )
         )
         # 5c). Inhibitor
         inhib_input = self.nodes[p, TF.INHIBITOR_ACT]
         self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(10, inhib_input)
     
-    def update_input_p_child(self):                                 # TODO: implement
-        pass
+    def update_input_p_child(self, as_DORA, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor):                                 # P Units in child mode:
+        # Exitatory: td (RBs above me), mapping input, bu (my semantics [currently not implmented]).
+        # Inhibitory: lateral (other Ps in child, and, if in DORA mode, other PO objects not connected to my RB, and 3*PO connected to my RB), inhibitor.
+        # 1). get masks
+        p = self.get_mask(Type.P)
+        p = tOps.refine_mask(self.nodes, p, TF.MODE, Mode.CHILD)    # Boolean mask for Child P nodes
+        group = self.get_mask(Type.GROUP)                           # Boolean mask for GROUP nodes
+        rb = self.get_mask(Type.RB)                                 # Boolean mask for RB nodes
+        po = self.get_mask(Type.PO)
+        obj = tOps.refine_mask(self.nodes, po, TF.PRED, B.FALSE)    # get object mask
+        # Exitatory input:
+        # 2). TD_INPUT: my_groups and my_parent_RBs
+        """ NOTE: Says this should be input in comments, but not in code?
+        # 2a). groups
+        self.nodes[p, TF.TD_INPUT] += torch.matmul(                 # matmul outputs martix (sum(p) x 1) of values to add to current input value
+            self.connections[p, group],                             # Masks connections between p[i] and its groups
+            self.nodes[group, TF.ACT]                               # For each p node -> sum of act of connected group nodes
+            )
+        """
+        # 2b). parent_rbs
+        if phase_set >= 1:
+            t_con = torch.transpose(self.connections)               # transpose, so gives child -> parent connections
+            self.nodes[p, TF.TD_INPUT] += torch.matmul(             # matmul outputs matrix (sum(p) x 1) of values to add to current input value
+                t_con[p, rb],                                       # Masks connections between p[i] and its rbs
+                self.nodes[rb, TF.ACT]                              # For each p node -> sum of act of connected parent rb nodes
+                )
+        # 3). BU_INPUT: Semantics                                     NOTE: not implenmented yet
+        # 4). Mapping input
+        self.nodes[p, TF.MAP_INPUT] += self.map_input(p, mappings, driver) 
+        # Inhibitory input:
+        # 5). LATERAL_INPUT: (Other p in child mode), (if DORA_mode: POs not connected to same RBs / Else: PO acts)
+        # 5a). other p in child mode                                  NOTE: dataTypes.py doesnt sum the lateral_input, but sets this to only the input form the last P in the recipient. I'm assuming this is a mistake and have implemented as if it said "-=" instead.
+        diag_zeroes = tOps.diag_zeros(sum(p))                       # adj matrix connection connecting child ps to all but themselves
+        self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(
+            lateral_input_level,
+            torch.matmul(
+                diag_zeroes,                                        # Tensor size sum(p)xsum(p), to ignore p[i] -> p[i] connections
+                self.nodes[p, TF.ACT]                               # Each parent p node -> (sum of all other parent p nodes)
+            )
+        )
+        # 3b). if not as_DORA: Object acts
+        if not as_DORA:
+            ones = torch.ones((sum(p), sum(obj)))                   # tensor connecting every p to every object
+            self.nodes[p, TF.LATERAL_INPUT] -= torch.matmul(    
+                ones,                                               # connects all p to all object
+                self.nodes[obj, TF.ACT]                             # Each  p node -> sum of all object acts
+            )
+        # 3c). Else(asDORA): Objects not connected to same RBs
+        else: 
+            # 3ci). Find objects not connected to me                # NOTE: check if p.myRB contains p.myParentRBs !not true! TODO: fix
+            ud_con = torch.bitwise_or(self.connections, t_con)      # undirected connections tensor (OR connections with its transpose)
+            shared = torch.matmul(ud_con[p, rb], ud_con[rb, obj])   # PxObject tensor, shared[i][j] > 1 if p[i] and object[j] share an RB, 0 o.w
+            shared = torch.gt(shared, 0).int()                      # now shared[i][j] = 1 if p[i] and object[j] share an RB, 0 o.w
+            non_shared = 1 - shared                                 # non_shared[i][j] = 0 if p[i] and object[j] share an RB, 1 o.w
+            # 3cii). update input using non shared objects
+            self.nodes[p, TF.LATERAL_INPUT] -= torch.matmul(
+                non_shared,                                         # sum(p)xsum(object) matrix, listing non shared objects for each p
+                self.nodes[obj, TF.ACT]                             # sum(objects)x1 matrix, listing act of each object
+            )
+   
     
     def update_input_rb(self, as_DORA, phase_set, lateral_input_level): # TODO: implement
         pass
@@ -453,6 +489,39 @@ class RecipientTensor(TokenTensor):
         pass
     # --------------------------------------------------------------
     
+    # =================[ MAPPING INPUT FUNCTION ]===================
+    def map_input(self, t_mask, mappings: Mappings, driver: DriverTensor):    # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
+        pmap_weights = mappings.weights()[t_mask] 
+        pmap_connections = mappings.connections()[t_mask]
+
+        # 1). weight = (3*map_weight*driverToken.act)
+        weight = torch.mul(                                         
+            3,
+            torch.matmul(
+                pmap_weights,
+                driver.nodes[:, TF.ACT]
+            )
+        )
+
+        # 2). pmax_map = (self.max_map*driverToken.act)
+        act_sum = torch.matmul(                                     
+            pmap_connections,
+            driver.nodes[:, TF.ACT]
+        )
+        tmax_map = act_sum * self.nodes[t_mask, TF.MAX_MAP]
+
+        # 3). dmax_map = (driverToken.max_map*driverToken.act)
+        dmax_map = torch.mult(                                      
+            driver.nodes[:, TF.MAX_MAP],
+            driver.nodes[:, TF.ACT]
+        )
+        dmax_map = torch.mult(
+            pmap_connections,
+            dmax_map
+        )
+        # 4). map_input = (3*driver.act*mapping_weight) - max(mapping_weight_driver_unit) - max(own_mapping_weight)
+        return (weight - tmax_map - dmax_map)                       
+    # --------------------------------------------------------------
 class SemanticTensor(TokenTensor):                                  # TODO: implement
     def __init__(self):
         pass
