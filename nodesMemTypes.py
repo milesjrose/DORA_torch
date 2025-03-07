@@ -67,22 +67,22 @@ class TokenTensor(object):
         features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
         self.initialise_float(n_type, features)                         # Set types to 0.0
 
-    def initialise_act(self, n_type: list[Type]):                   # Initialize act to 0.0,  and call initialise_inputs
+    def initialise_act(self, n_type: list[Type]):                       # Initialize act to 0.0,  and call initialise_inputs
         self.initialise_input(n_type, 0.0)
         self.initialise_float(n_type, [TF.ACT])
 
-    def initialise_state(self, n_type: list[Type]):                 # Set self.retrieved to false, and call initialise_act
+    def initialise_state(self, n_type: list[Type]):                     # Set self.retrieved to false, and call initialise_act
         self.initialise_act(n_type)
         self.initialise_float(n_type, [TF.RETRIEVED])                       
         
-    def update_act(self, gamma, delta, HebbBias):                   # Update act of nodes
+    def update_act(self, gamma, delta, HebbBias):                       # Update act of nodes
         net_input_types = [
             TF.TD_INPUT,
             TF.BU_INPUT,
             TF.LATERAL_INPUT
         ]
         net_input = self.nodes[:, net_input_types].sum(dim=1, keepdim=True) # sum non mapping inputs
-        net_input += self.nodes[:, self.map_input] * HebbBias               # Add biased mapping input
+        net_input += self.nodes[:, TF.MAP_INPUT] * HebbBias                 # Add biased mapping input
         acts = self.nodes[:, TF.ACT]                                        # Get node acts
         delta_act = gamma * net_input * (1.1 - acts) - (delta * acts)       # Find change in act for each node
         acts += delta_act                                                   # Update acts
@@ -147,45 +147,45 @@ class TokenTensor(object):
     # ---------------------------------------------------------------
 
     # =======================[ PO FUNCTIONS ]========================
-    def po_get_weight_length(self, links):                          # Sum value of links with weight > 0.1 for all PO nodes
-        po = self.get_mask(Type.PO)                                 # mask links with PO
-        mask = self.links[po] > 0.1                                 # Create sub mask for links with weight > 0.1
-        weights = (self.links[po] * mask).sum(dim=1, keepdim = True) # Sum links > 0.1
-        self.nodes[po, TF.SEM_COUNT] = weights                      # Set semNormalisation
+    def po_get_weight_length(self, links):                              # Sum value of links with weight > 0.1 for all PO nodes
+        po = self.get_mask(Type.PO)                                     # mask links with PO
+        mask = self.links[po] > 0.1                                     # Create sub mask for links with weight > 0.1
+        weights = (self.links[po] * mask).sum(dim=1, keepdim = True)    # Sum links > 0.1
+        self.nodes[po, TF.SEM_COUNT] = weights                          # Set semNormalisation
 
-    def po_get_max_semantic_weight(self):                           # Get max link weight for all PO nodes
+    def po_get_max_semantic_weight(self):                               # Get max link weight for all PO nodes
         po = self.get_mask(Type.PO)
-        max_values, _ = torch.max(self.links[po], dim=1, keepdim=True)# (max_values, _) unpacks tuple returned by torch.max
-        self.nodes[po, TF.MAX_SEM_WEIGHT] = max_values              # Set max
+        max_values, _ = torch.max(self.links[po], dim=1, keepdim=True)  # (max_values, _) unpacks tuple returned by torch.max
+        self.nodes[po, TF.MAX_SEM_WEIGHT] = max_values                  # Set max
     # ---------------------------------------------------------------
 
 class DriverTensor(TokenTensor):
     def __init__(self, floatTensor, boolTensor, connections):   
         super().__init__(floatTensor, boolTensor, connections)
     
-    def check_local_inhibitor(self):                                # Return true if any PO.inhibitor_act == 1.0
+    def check_local_inhibitor(self):                                    # Return true if any PO.inhibitor_act == 1.0
         po = self.get_mask(Type.PO)
         return torch.any(self.nodes[po, TF.INHIBITOR_ACT] == 1.0) 
 
-    def check_global_inhibitor(self):                               # Return true if any RB.inhibitor_act == 1.0
+    def check_global_inhibitor(self):                                   # Return true if any RB.inhibitor_act == 1.0
         rb = self.get_mask(Type.RB)
         return torch.any(self.nodes[rb, TF.INHIBITOR_ACT] == 1.0) 
     
     # ==============[ DRIVER UPDATE INPUT FUNCTIONS ]===============
-    def update_input(self, as_DORA):                                # Update all input in driver
+    def update_input(self, as_DORA):                                    # Update all input in driver
         self.update_input_p_parent()
         self.update_input_p_child(as_DORA)
         self.update_input_rb(as_DORA)
         self.update_input_po(as_DORA)
 
-    def update_input_p_parent(self):                                # P units in parent mode - driver
+    def update_input_p_parent(self):                                    # P units in parent mode - driver
         # Exitatory: td (my Groups) / bu (my RBs)
         # Inhibitory: lateral (other P units in parent mode*3), inhibitor.
         # 1). get masks
-        p = self.get_mask(Type.P)                                   # Boolean mask for P nodes
-        p = tOps.refine_mask(self.nodes, p, TF.MODE, Mode.PARENT)   # Boolean mask for Parent P nodes
-        group = self.get_mask(Type.GROUP)                           # Boolean mask for GROUP nodes
-        rb = self.get_mask(Type.RB)                                 # Boolean mask for RB nodes
+        p = self.get_mask(Type.P)                                       # Boolean mask for P nodes
+        p = tOps.refine_mask(self.nodes, p, TF.MODE, Mode.PARENT)       # Boolean mask for Parent P nodes
+        group = self.get_mask(Type.GROUP)                               # Boolean mask for GROUP nodes
+        rb = self.get_mask(Type.RB)                                     # Boolean mask for RB nodes
 
         # Exitatory input:
         # 2). TD_INPUT: my_groups
@@ -207,8 +207,8 @@ class DriverTensor(TokenTensor):
         self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(
             3, 
             torch.matmul(
-                diag_zeroes,                                            # Tensor size sum(p)xsum(p), to ignore p[i] -> p[i] connections
-                self.nodes[p, TF.ACT]                                   # Each parent p node -> 3*(sum of all other parent p nodes)
+                diag_zeroes,                                        # Tensor size sum(p)xsum(p), to ignore p[i] -> p[i] connections
+                self.nodes[p, TF.ACT]                               # Each parent p node -> 3*(sum of all other parent p nodes)
             )
         )
 
