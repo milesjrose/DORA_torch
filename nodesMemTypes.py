@@ -9,12 +9,11 @@ class TokenTensor(object):
     def __init__(self, floatTensor, boolTensor, connections, links):
         self.nodes: torch.Tensor = floatTensor
         self.nodesBool: torch.Tensor = boolTensor
-        self.masks = self.cache_masks()
-        self.indicies = self.cache_masks()
+        self.cache_masks()
         self.analogs, self.analog_counts = self.analog_node_count()
 
         # Weighted undirected adj matrix (NxS), connections between set tokens and semantics
-        self.links = links()
+        self.links = links
         # Unweighted directed connections between token of same set. Connetion is from parent to child (i.e [i, j] = 1 means “node i is the parent of node j”)
         self.connections = connections
 
