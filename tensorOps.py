@@ -4,8 +4,8 @@ import torch
 
 # return MxM matrix, with all ones except the diagonal from T[0, 0] to T[M, M]
 def diag_zeros(M):
-    diag_zeroes = torch.ones((M, M), dtype=torch.float32)       # Create all ones matrix, size of sub-tensor of p nodes in parent mode
-    diag_zeroes -= torch.eye(M)                                 # Remove ones in diagonal to create adj matrix connection connecting parent ps to all but themsel
+    diag_zeroes = torch.ones((M, M), dtype=torch.float32)       # Create all ones matrix
+    diag_zeroes -= torch.eye(M)                                 # Remove ones in diagonal, connecting value in row to each column, exceps same index as itself
     return diag_zeroes
 
 # retuns undirected matrix made by OR of both directions
