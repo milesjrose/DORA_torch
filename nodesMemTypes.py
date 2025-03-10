@@ -443,7 +443,7 @@ class RecipientTensor(TokenTensor):
         self.nodes[p, TF.MAP_INPUT] += self.map_input(p, mappings, driver) 
         # Inhibitory input:
         # 5). LATERAL_INPUT: (Other p in child mode), (if DORA_mode: POs not connected to same RBs / Else: PO acts)
-        # 5a). other p in child mode                                  NOTE: dataTypes.py doesnt sum the lateral_input, but sets this to only the input form the last P in the recipient. I'm assuming this is a mistake and have implemented as if it said "-=" instead.
+        # 5a). other p in child mode
         diag_zeroes = tOps.diag_zeros(sum(p))                       # adj matrix connection connecting child ps to all but themselves
         self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(
             lateral_input_level,
