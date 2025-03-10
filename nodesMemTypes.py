@@ -137,14 +137,6 @@ class TokenTensor(object):
         self.nodes[neutral_p, TF.MODE] = Mode.NEUTRAL
     # ---------------------------------------------------------------
 
-    # =======================[ RB FUNCTIONS ]========================
-    def rb_initiaise_times_fired(self):                             # Initialise all RBs times fired NOTE: Never used?
-        self.initialise_float(Type.RB, TF.TIMES_FIRED)
-
-    def rb_update_times_fired(self):                                # TODO: Implement   NOTE: ALso never used?
-        pass
-    # ---------------------------------------------------------------
-
     # =======================[ PO FUNCTIONS ]========================
     def po_get_weight_length(self, links):                              # Sum value of links with weight > 0.1 for all PO nodes
         po = self.get_mask(Type.PO)                                     # mask links with PO
