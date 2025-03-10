@@ -513,6 +513,7 @@ class RecipientTensor(TokenTensor):
         # 4). map_input = (3*driver.act*mapping_weight) - max(mapping_weight_driver_unit) - max(own_mapping_weight)
         return (weight - tmax_map - dmax_map)                       
     # --------------------------------------------------------------
+
 class SemanticTensor(TokenTensor):                                  # TODO: implement
     def __init__(self):
         pass
