@@ -154,29 +154,29 @@ class DriverTensor(TokenTensor):
     def __init__(self, floatTensor, boolTensor, connections):   
         super().__init__(floatTensor, boolTensor, connections)
     
-    def check_local_inhibitor(self):                                    # Return true if any PO.inhibitor_act == 1.0
+    def check_local_inhibitor(self):                                # Return true if any PO.inhibitor_act == 1.0
         po = self.get_mask(Type.PO)
         return torch.any(self.nodes[po, TF.INHIBITOR_ACT] == 1.0) 
 
-    def check_global_inhibitor(self):                                   # Return true if any RB.inhibitor_act == 1.0
+    def check_global_inhibitor(self):                               # Return true if any RB.inhibitor_act == 1.0
         rb = self.get_mask(Type.RB)
         return torch.any(self.nodes[rb, TF.INHIBITOR_ACT] == 1.0) 
     
     # ==============[ DRIVER UPDATE INPUT FUNCTIONS ]===============
-    def update_input(self, as_DORA):                                    # Update all input in driver
+    def update_input(self, as_DORA):                                # Update all input in driver
         self.update_input_p_parent()
         self.update_input_p_child(as_DORA)
         self.update_input_rb(as_DORA)
         self.update_input_po(as_DORA)
 
-    def update_input_p_parent(self):                                    # P units in parent mode - driver
+    def update_input_p_parent(self):                                # P units in parent mode - driver
         # Exitatory: td (my Groups) / bu (my RBs)
         # Inhibitory: lateral (other P units in parent mode*3), inhibitor.
         # 1). get masks
-        p = self.get_mask(Type.P)                                       # Boolean mask for P nodes
-        p = tOps.refine_mask(self.nodes, p, TF.MODE, Mode.PARENT)       # Boolean mask for Parent P nodes
-        group = self.get_mask(Type.GROUP)                               # Boolean mask for GROUP nodes
-        rb = self.get_mask(Type.RB)                                     # Boolean mask for RB nodes
+        p = self.get_mask(Type.P)                                   # Boolean mask for P nodes
+        p = tOps.refine_mask(self.nodes, p, TF.MODE, Mode.PARENT)   # Boolean mask for Parent P nodes
+        group = self.get_mask(Type.GROUP)                           # Boolean mask for GROUP nodes
+        rb = self.get_mask(Type.RB)                                 # Boolean mask for RB nodes
 
         # Exitatory input:
         # 2). TD_INPUT: my_groups
@@ -375,7 +375,7 @@ class RecipientTensor(TokenTensor):
         self.update_input_rb(phase_set, lateral_input_level, mappings, driver)
         self.update_input_po(as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics)
 
-    def update_input_p_parent(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor):  # P units in parent mode
+    def update_input_p_parent(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor):  # P units in parent mode - recipient
         # Exitatory: td (my Groups), bu (my RBs), mapping input.
         # Inhibitory: lateral (other P units in parent mode*lat_input_level), inhibitor.
         # 1). get masks
@@ -413,7 +413,7 @@ class RecipientTensor(TokenTensor):
         inhib_input = self.nodes[p, TF.INHIBITOR_ACT]
         self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(10, inhib_input)
     
-    def update_input_p_child(self, as_DORA, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor):                                 # P Units in child mode:
+    def update_input_p_child(self, as_DORA, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor): # P Units in child mode - recipient:
         # Exitatory: td (RBs above me), mapping input, bu (my semantics [currently not implmented]).
         # Inhibitory: lateral (other Ps in child, and, if in DORA mode, other PO objects not connected to my RB, and 3*PO connected to my RB), inhibitor.
         # 1). get masks
@@ -473,7 +473,7 @@ class RecipientTensor(TokenTensor):
                 self.nodes[obj, TF.ACT]                             # sum(objects)x1 matrix, listing act of each object
             )
    
-    def update_input_rb(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor): # RB inputs in the recipient
+    def update_input_rb(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor): # RB inputs - recipient
         # Exitatory: td (my P units), bu (my pred and obj POs, and my child Ps), mapping input.
         # Inhibitory: lateral (other RBs*3), inhbitor.
         # 1). get masks
@@ -512,7 +512,7 @@ class RecipientTensor(TokenTensor):
         inhib_act = torch.mul(10, self.nodes[rb, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
         self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat inhibition
     
-    def update_input_po(self, as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics=False): # TODO: implement
+    def update_input_po(self, as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics=False): # PO units in - recipient
         # NOTE: Currently inferred nodes not updated so excluded from po mask. Inferred nodes do update other PO nodes - so all_po used for updating lat_input.
         # Exitatory: td (my RBs), bu (my semantics/sem_count[for normalisation]), mapping input.
         # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
