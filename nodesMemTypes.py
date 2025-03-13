@@ -299,9 +299,10 @@ class DriverTensor(TokenTensor):
         # 1). get masks
         rb = self.get_mask(Type.RB)
         po = self.get_mask(Type.PO)
-        pred_sub = (self.nodes[po, TF.PRED] == True)                # predicate sub mask of po nodes
+        pred_sub = (self.nodes[po, TF.PRED] == B.TRUE)                # predicate sub mask of po nodes
         obj = tOps.refine_mask(self.nodes, po, TF.PRED, B.FALSE)    # get object mask
         pred = tOps.refine_mask(self.nodes, po, TF.PRED, B.TRUE)    # get predicate mask
+        parent_cons = torch.transpose(self.connections)             # Transpose of connections matrix, so that index by child node (PO) to parent (RB)
 
         # Exitatory input:
         # 2). TD_INPUT: my_rb * gain(pred:2, obj:1)
@@ -313,21 +314,21 @@ class DriverTensor(TokenTensor):
             )
         
         # Inhibitory input:
-        # 4). LATERAL: 3 * (if DORA_mode: PO connected to same rb / Else: POs not connected to same RBs)
-        # 4a). find other PO connected to same RB     
+        # 3). LATERAL: 3 * (if DORA_mode: PO connected to same rb / Else: POs not connected to same RBs)
+        # 3a). find other PO connected to same RB     
         shared = torch.matmul(                                      # PxObject tensor, shared[i][j] > 1 if Po[i] and Po[j] share an RB, 0 o.w
-            self.connections[po, rb],
+            parent_cons[po, rb],
             self.connections[rb, po]
             ) 
         shared = torch.gt(shared, 0).int()                          # now shared[i][j] = 1 if p[i] and object[j] share an RB, 0 o.w
         diag_zeroes = tOps.diag_zeros(sum(po))                      # (po x po) matrix: 0 for po[i] -> po[i] connections, 1 o.w
         shared = torch.bitwise_and(shared, diag_zeroes)             # remove po[i] -> po[i] connections
-        # 4ai). if DORA: Other po connected to same rb / else: POs not connected to same RBs
+        # 3ai). if DORA: Other po connected to same rb / else: POs not connected to same RBs
         if as_DORA: # PO connected to same rb
             po_connections = shared                                 # shared PO
         else:       # POs not connected to same RBs
             po_connections = 1 - shared                             # non shared PO: mask[i][j] = 0 if p[i] and object[j] share an RB, 1 o.w
-        # 4aii). updaet lat input: 3 * (filtered nodes connected in po_connections)
+        # 3aii). updaet lat input: 3 * (filtered nodes connected in po_connections)
         self.nodes[po, TF.LATERAL_INPUT] -= torch.mult(
             3,
             torch.matmul(
@@ -511,7 +512,95 @@ class RecipientTensor(TokenTensor):
         inhib_act = torch.mul(10, self.nodes[rb, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
         self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat inhibition
     
-    def update_input_po(self, as_DORA, phase_set, lateral_input_level, ignore_object_semantics=False): # TODO: implement
+    def update_input_po(self, as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics=False): # TODO: implement
+        # NOTE: Currently inferred nodes not updated so excluded from po mask. Inferred nodes do update other PO nodes - so all_po used for updating lat_input.
+        # Exitatory: td (my RBs), bu (my semantics/sem_count[for normalisation]), mapping input.
+        # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
+        # Inhibitory: td (if asDORA: not-connected RB nodes)
+        # 1). get masks
+        rb = self.get_mask(Type.RB)
+        all_po = self.get_mask(Type.PO)                             # All POs
+        po = tOps.refine_mask(self.nodes, all_po, TF.INFERRED, B.FALSE) # Non inferred POs
+        pred_sub = (self.nodes[po, TF.PRED] == B.TRUE)              # predicate sub mask of po nodes
+        obj_sub = (self.nodes[po, TF.PRED] == B.FALSE)              # object sub mask of po nodes
+        obj = tOps.sub_union(po, obj_sub)                           # objects
+        parent_cons = torch.transpose(self.connections)             # Transpose of connections matrix, so that index by child node (PO) to parent (RB)
+        child_p = tOps.refine_mask(self.nodes, self.get_mask[Type.P], TF.MODE, Mode.CHILD) # P nodes in child mode
+        # Exitatory input:
+        # 2). TD_INPUT: my_rb * gain(pred:1, obj:1)  NOTE: neither change, so removed checking for type
+        if phase_set > 1:
+            self.nodes[po, TF.TD_INPUT] += torch.matmul(            # matmul outputs martix (sum(po) x 1) of values to add to current input value
+                parent_cons[po, rb],                                # Masks connections between po[i] and its parent rbs
+                self.nodes[rb, TF.ACT]                              # For each po node -> sum of act of connected rb nodes 
+                )
+        # 3). BU_INPUT: my_semantics [normalised by no. semantics po connects to]
+        sem_input = torch.matmul(
+            links[po],
+            semantics.nodes[:, SemanticFields.ACT]
+        )
+        self.nodes[po, TF.BU_INPUT] += sem_input / self.nodes[po, TF.SEM_COUNT]
+        # 4). Mapping input
+        self.nodes[po, TF.MAP_INPUT] += self.map_input(po, mappings, driver) 
+        # Inhibitory input:
+        # 5). LATERAL: PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)])
+        # 5a). find other PO connected to same RB
+        shared = torch.matmul(                                      # POxAll_PO tensor, shared[i][j] > 1 if po[i] and all_po[j] share an RB, 0 o.w
+            parent_cons[po, rb],
+            self.connections[rb, all_po]                            # NOTE: connecting from po -> all_po, as non inferred po not updated, but used in updating inferred
+            ) 
+        shared = torch.gt(shared, 0).int()                          # now shared[i][j] = 1 if p[i] and object[j] share an RB, 0 o.w
+        diag_zeroes = tOps.diag_zeros(sum(all_po))[po]              # (po x all_po) matrix: 0 for po[i] -> all_po[i] connections, 1 o.w NOTE: create (all_po x all_po) diagonal, then mask by [po, :] to get (po x all_po) tensor.
+        shared = torch.bitwise_and(shared, diag_zeroes)             # remove po[i] -> po[i] connections
+        # 5b). asDORA: sameRB * (2*lateral_input_level) // not_as_DORA (if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB))
+        if as_DORA: # 5bi). PO connected to same rb
+            po_connections = shared                                 # shared PO
+            self.nodes[po, TF.LATERAL_INPUT] -= torch.mul(
+                2*lateral_input_level,                              # NOTE: the 2 here is a place-holder for a multiplier for within RB inhibition (right now it is a bit higher than between RB inhibition).
+                torch.matmul(
+                    po_connections,                                 # po x all_po (connections)
+                    self.nodes[all_po, TF.ACT]                      # all_po x  1 (acts)
+                )
+            )
+        else: # 5bii). POs not connected to same RBs
+            po_connections = 1 - shared                             # non shared PO: mask[i][j] = 0 if p[i] and object[j] share an RB, 1 o.w
+            # if ignore_sem: Only connect nodes of same type
+            if ignore_object_semantics:
+                po_connections[pred_sub][obj_sub] = 0               # Remove pred -> obj connections
+                po_connections[obj_sub][pred_sub] = 0               # Remove obj -> pred connections
+            self.nodes[po, TF.LATERAL_INPUT] -= torch.matmul(
+                po_connections,                                     # po x all_po (connections)
+                self.nodes[all_po, TF.ACT]                          # all_po x  1 (acts)
+            )
+        # 6). LATERAL: (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p))
+        if as_DORA: # 6a). as_DORA: child p not connect same RB
+            shared = torch.matmul(                                  # POxChild_P tensor, shared[i][j] > 1 if po[i] and child_p[j] share an RB, 0 o.w
+            parent_cons[po, rb],
+            self.connections[rb, child_p]                              
+            ) 
+            shared = torch.gt(shared, 0).int()                      # now shared[i][j] = 1 if p[i] and child_p[j] share an RB, 0 o.w
+            non_shared = 1 - shared                                 # now maps po to (child_p not connected to same rb)
+            self.nodes[po, TF.LATERAL_INPUT] -= torch.mul(
+                3,
+                torch.matmul(
+                    non_shared,                                     # po x child_p
+                    self.nodes[child_p, TF.ACT]                     # child_p x 1
+                )
+            )
+        else: # 6b). not_as_DORA: if object: child_p
+            child_p_sum = self.nodes[child_p, TF.ACT].sum()         # Get act of all child_p
+            delta_input = lateral_input_level * child_p_sum
+            self.nodes[obj, TF.LATERAL_INPUT] -= delta_input        # Update just objects
+        # 7). TD: non-connected RB
+        if as_DORA:
+            non_connect_rb = 1 - parent_cons[po, rb]                # PO[i] -> non_connected_rb[j] = -1 // po is child so use parent_cons
+            #non_connect_rb = lateral_input_level * non_connect_rb  NOTE: you might want to set multiplyer on other RB inhibition to lateral_input_level
+            self.nodes[po, TF.TD_INPUT] += torch.matmul(            # NOTE: "+=" here as non_connect_rb = -1 for po->rb
+                non_connect_rb,
+                self.nodes[rb, TF.ACT]
+            )
+        # 8). LATERAL: ihibitior * 10
+        inhib_act = torch.mul(10, self.nodes[po, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
+        self.nodes[po, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat input
         pass
     # --------------------------------------------------------------
     
