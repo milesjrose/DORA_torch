@@ -369,11 +369,11 @@ class RecipientTensor(TokenTensor):
         super().__init__(floatTensor, boolTensor, connections)
 
     # ============[ RECIPIENT UPDATE INPUT FUNCTIONS ]==============
-    def update_input(self, as_DORA, phase_set, lateral_input_level, ignore_object_semantics=False): # Update all input in recipient
-        self.update_input_p_parent()
-        self.update_input_p_child(as_DORA)
-        self.update_input_rb(as_DORA)
-        self.update_input_po(as_DORA)
+    def update_input(self, as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics=False): # Update all input in recipient
+        self.update_input_p_parent(phase_set, lateral_input_level, mappings, driver)
+        self.update_input_p_child(as_DORA, phase_set, lateral_input_level, mappings, driver)
+        self.update_input_rb(phase_set, lateral_input_level, mappings, driver)
+        self.update_input_po(as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics)
 
     def update_input_p_parent(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor):  # P units in parent mode
         # Exitatory: td (my Groups), bu (my RBs), mapping input.
