@@ -472,7 +472,7 @@ class RecipientTensor(TokenTensor):
                 self.nodes[obj, TF.ACT]                             # sum(objects)x1 matrix, listing act of each object
             )
    
-    def update_input_rb(self, as_DORA, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor): # RB inputs in the recipient
+    def update_input_rb(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor): # RB inputs in the recipient
         # Exitatory: td (my P units), bu (my pred and obj POs, and my child Ps), mapping input.
         # Inhibitory: lateral (other RBs*3), inhbitor.
         # 1). get masks
