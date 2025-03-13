@@ -472,9 +472,44 @@ class RecipientTensor(TokenTensor):
                 self.nodes[obj, TF.ACT]                             # sum(objects)x1 matrix, listing act of each object
             )
    
-    
-    def update_input_rb(self, as_DORA, phase_set, lateral_input_level): # TODO: implement
-        pass
+    def update_input_rb(self, as_DORA, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor): # RB inputs in the recipient
+        # Exitatory: td (my P units), bu (my pred and obj POs, and my child Ps), mapping input.
+        # Inhibitory: lateral (other RBs*3), inhbitor.
+        # 1). get masks
+        rb = self.get_mask(Type.RB)
+        po = self.get_mask(Type.PO)
+        p = self.get_mask(Type.P)
+
+        # Exitatory input:
+        # 2). TD_INPUT: my_parent_p
+        if phase_set > 1:
+            t_con = torch.transpose(self.connections)               # Connnections: Parent -> child, take transpose to get list of parents instead
+            self.nodes[rb, TF.TD_INPUT] += torch.matmul(            # matmul outputs martix (sum(rb) x 1) of values to add to current input value
+                t_con[rb, p],                                       # Masks connections between rb[i] and its ps
+                self.nodes[p, TF.ACT]                               # For each rb node -> sum of act of connected p nodes
+                )
+        # 3). BU_INPUT: my_po, my_child_p                           # NOTE: Old function explicitly took myPred[0].act etc. as there should only be one pred/child/etc. This version sums all connections, so if rb mistakenly connected to multiple of a node type it will not give expected output.
+        po_p = torch.bitwise_or(po, p)                              # Get mask of both pos and ps
+        self.nodes[rb, TF.BU_INPUT] += torch.matmul(                # matmul outputs martix (sum(rb) x 1) of values to add to current input value
+            self.connections[rb, po_p],                             # Masks connections between rb[i] and its po and child p nodes
+            self.nodes[po_p, TF.ACT]                                # For each rb node -> sum of act of connected po and child p nodes
+            )
+        # 4). Mapping input
+        self.nodes[rb, TF.MAP_INPUT] += self.map_input(rb, mappings, driver) 
+        # Inhibitory input:
+        # 5). LATERAL: (other RBs*lat_input_level), inhibitor*10
+        # 5a). (other RBs*lat_input_level)
+        diag_zeroes = tOps.diag_zeros(sum(rb))                      # Connects each rb to every other rb, but not themself
+        self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= torch.mul(
+            lateral_input_level, 
+            torch.matmul(                                           # matmul outputs martix (sum(rb) x 1) of values to add to current input value
+                diag_zeroes,                                        # Connect rb[i] to every rb except rb[i]
+                self.nodes[rb, TF.ACT]                              # For each rb node -> sum of act of other rb nodes
+            )
+        )
+        # 5b). ihibitior * 10
+        inhib_act = torch.mul(10, self.nodes[rb, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
+        self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat inhibition
     
     def update_input_po(self, as_DORA, phase_set, lateral_input_level, ignore_object_semantics=False): # TODO: implement
         pass
