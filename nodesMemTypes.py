@@ -594,7 +594,7 @@ class RecipientTensor(TokenTensor):
         if as_DORA:
             non_connect_rb = 1 - parent_cons[po, rb]                # PO[i] -> non_connected_rb[j] = -1 // po is child so use parent_cons
             #non_connect_rb = lateral_input_level * non_connect_rb  NOTE: you might want to set multiplyer on other RB inhibition to lateral_input_level
-            self.nodes[po, TF.TD_INPUT] += torch.matmul(            # NOTE: "+=" here as non_connect_rb = -1 for po->rb
+            self.nodes[po, TF.TD_INPUT] += torch.matmul(            # "+=" here as non_connect_rb = -1 for po->rb
                 non_connect_rb,
                 self.nodes[rb, TF.ACT]
             )
