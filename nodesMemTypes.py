@@ -306,10 +306,10 @@ class DriverTensor(TokenTensor):
 
         # Exitatory input:
         # 2). TD_INPUT: my_rb * gain(pred:2, obj:1)
-        cons = self.connections[po, rb].copy()                      # get copy of connections matrix from po to rb
+        cons = parent_cons[po, rb].copy()                           # get copy of connections matrix from po to rb (child to parent connection)
         cons[pred_sub] = cons[pred_sub] * 2                         # multipy predicate -> rb connections by 2
         self.nodes[po, TF.TD_INPUT] += torch.matmul(                # matmul outputs martix (sum(po) x 1) of values to add to current input value
-            cons,                                                   # Masks connections between po[i] and its ps
+            cons,                                                   # Masks connections between po[i] and its rbs
             self.nodes[rb, TF.ACT]                                  # For each po node -> sum of act of connected rb nodes (multiplied by 2 for predicates)
             )
         
