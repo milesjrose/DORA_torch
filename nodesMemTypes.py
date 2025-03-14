@@ -3,7 +3,7 @@
 import torch
 from nodeEnums import *
 import tensorOps as tOps
-
+# note : ignore higher order semantics for now - breaks compression.
 
 class TokenTensor(object):
     def __init__(self, floatTensor, boolTensor, connections, links):
@@ -645,7 +645,7 @@ class SemanticTensor(TokenTensor):                                  # TODO: impl
     def initialise_sem():                                           # TODO: implement
         pass
 
-class Links(object):    # Weighted connections between nodes
+class Links(object):    # Weighted connections between nodes - want groups as well as placeholder.
     def __init__(self, driverLinks, recipientLinks, semLinks):  # Takes weighted adjacency matrices
         self: torch.Tensor = driverLinks
         self.recipient: torch.Tensor = recipientLinks
