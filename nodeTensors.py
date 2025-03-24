@@ -655,7 +655,7 @@ class SemanticTensor(TokenTensor):
             po_mask = tensor.get_mask(Type.PO)
         #group_mask = tensor.get_mask(Type.GROUP)
         #token_mask = torch.bitwise_or(po_mask, group_mask)         # In case groups used in future
-        
+
         links: torch.Tensor = self.links[set]
         connected_nodes = (links[:, po_mask] != 0).any(dim=1)       # Get mask of nodes linked to a sem
         connected_sem = (links != 0).any(dim=0)                     # Get mask of sems linked to a node
