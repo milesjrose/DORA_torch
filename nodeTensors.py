@@ -642,13 +642,28 @@ class SemanticTensor(TokenTensor):                                  # TODO: impl
         sem_mask = self.nodes[:, SF.MAX_INPUT] == 0                 # Get sem where max_input == 0       
         self.nodes[sem_mask, SF.ACT] = 0.0                          #  -  Set act of sem to 0
     
-    def update_input(self, driver, recipient, memory = None, ignore_object_semantics=False, ignore_memory_semantics=False):
-        self.update_input_from_driver(driver, ignore_object_semantics)
-        self.update_input_from_recipient(recipient, ignore_object_semantics)
-        if not ignore_memory_semantics:
-            self.update_input_from_memory(memory, ignore_object_semantics)
+    def update_input(self, driver, recipient, memory = None, ignore_obj=False, ignore_mem=False):
+        self.update_input_from_set(driver, Set.DRIVER, ignore_obj)
+        self.update_input_from_set(recipient, Set.RECIPIENT, ignore_obj)
+        if not ignore_mem:
+            self.update_input_from_set(memory, Set.MEMORY, ignore_obj)
 
-    def update_input_from_set(self, tensor: TokenTensor, set: Set, ignore_object_semantics=False):
-        pass
+    def update_input_from_set(self, tensor: TokenTensor, set: Set, ignore_obj=False):
+        # 1). Get mask of nodes in set, and semantics that have connections in links
+        if ignore_obj:
+            po_mask = tOps.refine_mask(po_mask, tensor.get_mask(Type.PO), TF.PRED, B.TRUE) # Get mask of POs non object POs
+        else:
+            po_mask = tensor.get_mask(Type.PO)
+        #group_mask = tensor.get_mask(Type.GROUP)
+        #token_mask = torch.bitwise_or(po_mask, group_mask)         # In case groups used in future
+        links: torch.Tensor = self.links[set]
+        connected_nodes = (links[:, po_mask] != 0).any(dim=1)       # Get mask of nodes linked to a sem
+        connected_sem = (links != 0).any(dim=0)                     # Get mask of sems linked to a node
 
+        # 2). Seminput = sum(act * link_weight)
+        sem_input = torch.matmul(                                   # Get sum of act * link_weight for all connected nodes and sems
+            links[connected_sem, connected_nodes],                  # connected_sem x connected_nodes matrix of link weights
+            tensor.nodes[connected_nodes, TF.ACT]                   # connected_nodes x 1 matrix of node acts
+        )
+        self.nodes[connected_sem, SF.INPUT] += sem_input            # Update input of connected sems
     # --------------------------------------------------------------
