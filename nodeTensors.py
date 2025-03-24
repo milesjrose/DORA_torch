@@ -514,7 +514,7 @@ class RecipientTensor(TokenTensor):
         # 3). BU_INPUT: my_semantics [normalised by no. semantics po connects to]
         sem_input = torch.matmul(
             links[po],
-            semantics.nodes[:, SemanticFields.ACT]
+            semantics.nodes[:, SF.ACT]
         )
         self.nodes[po, TF.BU_INPUT] += sem_input / self.nodes[po, TF.SEM_COUNT]
         # 4). Mapping input
