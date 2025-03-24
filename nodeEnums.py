@@ -43,7 +43,7 @@ class TF(IntEnum):
 
 
 # Enum to access semantic values
-class SemanticFields(IntEnum):
+class SF(IntEnum):
     # INT values:
     ID                  = 0
     TYPE                = 1
@@ -51,8 +51,8 @@ class SemanticFields(IntEnum):
 
     # FLOAT values:
     AMOUNT              = 3
-    MYINPUT             = 4
-    MAX_SEM_INPUT       = 5
+    INPUT               = 4
+    MAX_INPUT           = 5
     ACT                 = 6
 
 # Enum to access mapping values
