@@ -3,6 +3,7 @@
 import torch
 from nodeEnums import *
 import tensorOps as tOps
+from nodeMemObjects import *
 # note : ignore higher order semantics for now - breaks compression.
 
 class TokenTensor(object):
@@ -341,29 +342,6 @@ class DriverTensor(TokenTensor):
         self.nodes[po, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat input
     # --------------------------------------------------------------
 
-class Mappings(object): # 3D tensor storing mapping and hypothesis information
-    def __init__(self, connections):    # Takes 3D tensor, of stacked 2D adjacency matrices
-        # Takes 3D tensor, of stacked 2D adjacency matrices: Recipient -> driver
-        self.adj_matrix: torch.Tensor = connections
-    
-    def connections(self):
-        return self.adj_matrix[:, :, MappingFields.CONNETIONS]
-
-    def weights(self):
-        return self.adj_matrix[:, :, MappingFields.WEIGHT]
-    
-    def hypotheses(self):
-        return self.adj_matrix[:, :, MappingFields.HYPOTHESIS]
-    
-    def max_hyps(self):
-        return self.adj_matrix[:, :, MappingFields.MAX_HYP]
-    
-    def updateHypotheses(self, hypotheses):                         # TODO: implement
-        pass
-    
-    def add_mappings(self,  mappings):                              # TODO: implement
-        pass
-
 class RecipientTensor(TokenTensor):
     def __init__(self, floatTensor, boolTensor, connections):
         super().__init__(floatTensor, boolTensor, connections)
@@ -639,17 +617,38 @@ class RecipientTensor(TokenTensor):
     # --------------------------------------------------------------
 
 class SemanticTensor(TokenTensor):                                  # TODO: implement
-    def __init__(self):
-        pass
+    def __init__(self, nodes, connections, links: Links):
+        self.nodes: torch.Tensor = nodes
+        self.cache_masks()
+        self.connections: torch.Tensor = connections
+        self.links = links
     
-    def initialise_sem():                                           # TODO: implement
+    # ===================[ SEMANTIC FUNCTIONS ]=====================
+    def intitialse_sem(self):                                       # Set act and input to 0 TODO: Check how used
+        self.nodes[:, SF.ACT] = 0.0
+        self.nodes[:, SF.INPUT] = 0.0
+
+    def initialise_input(self, refresh):                            # Set nodes to refresh value TODO: Check how used
+        self.nodes[:, SF.INPUT] = refresh
+
+    def set_max_input(self, max_input):                             # TODO: Check how used
+        self.nodes[:, SF.MAX_INPUT] = max_input
+
+    def update_act(self):                                           # Update act of all sems
+        sem_mask = self.nodes[:, SF.MAX_INPUT] > 0                  # Get sem where max_input > 0
+        input = self.nodes[sem_mask, SF.INPUT]
+        max_input = self.nodes[sem_mask, SF.MAX_INPUT]
+        self.nodes[sem_mask, SF.ACT] = input / max_input            # - Set act of sem to input/max_input
+        sem_mask = self.nodes[:, SF.MAX_INPUT] == 0                 # Get sem where max_input == 0       
+        self.nodes[sem_mask, SF.ACT] = 0.0                          #  -  Set act of sem to 0
+    
+    def update_input(self, driver, recipient, memory = None, ignore_object_semantics=False, ignore_memory_semantics=False):
+        self.update_input_from_driver(driver, ignore_object_semantics)
+        self.update_input_from_recipient(recipient, ignore_object_semantics)
+        if not ignore_memory_semantics:
+            self.update_input_from_memory(memory, ignore_object_semantics)
+
+    def update_input_from_set(self, tensor: TokenTensor, set: Set, ignore_object_semantics=False):
         pass
 
-class Links(object):    # Weighted connections between nodes - want groups as well as placeholder.
-    def __init__(self, driverLinks, recipientLinks, semLinks):  # Takes weighted adjacency matrices
-        self: torch.Tensor = driverLinks
-        self.recipient: torch.Tensor = recipientLinks
-        self.semantics: torch.Tensor = semLinks
-    
-    def add_links(self, set: Set, links):                           # TODO: implement
-        pass
+    # --------------------------------------------------------------

@@ -2,7 +2,7 @@
 # Class for holding memTypes, and inter-set tensor operations
 import torch
 from nodeEnums import *
-from nodesMemTypes import *
+from nodeTensors import *
 
 class Nodes(object):
     def __init__(self, driver: DriverTensor, recipient: RecipientTensor, semantics: SemanticTensor, LTM: TokenTensor, mappings: Mappings, DORA_mode: bool):
