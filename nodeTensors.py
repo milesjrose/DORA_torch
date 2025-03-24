@@ -616,7 +616,7 @@ class RecipientTensor(TokenTensor):
         return (weight - tmax_map - dmax_map)                       
     # --------------------------------------------------------------
 
-class SemanticTensor(TokenTensor):                                  # TODO: implement
+class SemanticTensor(TokenTensor):
     def __init__(self, nodes, connections, links: Links):
         self.nodes: torch.Tensor = nodes
         self.cache_masks()
@@ -649,18 +649,17 @@ class SemanticTensor(TokenTensor):                                  # TODO: impl
             self.update_input_from_set(memory, Set.MEMORY, ignore_obj)
 
     def update_input_from_set(self, tensor: TokenTensor, set: Set, ignore_obj=False):
-        # 1). Get mask of nodes in set, and semantics that have connections in links
         if ignore_obj:
             po_mask = tOps.refine_mask(po_mask, tensor.get_mask(Type.PO), TF.PRED, B.TRUE) # Get mask of POs non object POs
         else:
             po_mask = tensor.get_mask(Type.PO)
         #group_mask = tensor.get_mask(Type.GROUP)
         #token_mask = torch.bitwise_or(po_mask, group_mask)         # In case groups used in future
+        
         links: torch.Tensor = self.links[set]
         connected_nodes = (links[:, po_mask] != 0).any(dim=1)       # Get mask of nodes linked to a sem
         connected_sem = (links != 0).any(dim=0)                     # Get mask of sems linked to a node
 
-        # 2). Seminput = sum(act * link_weight)
         sem_input = torch.matmul(                                   # Get sum of act * link_weight for all connected nodes and sems
             links[connected_sem, connected_nodes],                  # connected_sem x connected_nodes matrix of link weights
             tensor.nodes[connected_nodes, TF.ACT]                   # connected_nodes x 1 matrix of node acts
