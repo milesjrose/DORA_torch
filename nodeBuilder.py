@@ -8,47 +8,13 @@ import pdb
 import nodes as tt
 import dataTypes as dt
 from nodeEnums import *
+from nodeTensors import *
+from nodes import Nodes
 
-def buildNetFromFile(fileName):
-    try:
-        file = open(fileName, "r")
-    except IOError:
-        print("\nNo file called", fileName, ".")
-        return None
-    
-    # get props
-    simType = ""
-    di = {"simType": simType}  # porting from Python2 to Python3
-    file.seek(0)  # to get to the beginning of the file.
-    exec(file.readline(), di)  # porting from Python2 to Python3
-    if di["simType"] == "sym_file":  # porting from Python2 to Python3
-        symstring = ""
-        for line in file:
-            symstring += line
-        do_run = True
-        symProps = []  # porting from Python2 to Python3
-        di = {"symProps": symProps}  # porting from Python2 to Python3
-        exec(symstring, di)  # porting from Python2 to Python3
-        sym = di["symProps"]  # porting from Python2 to Python3
-    elif di["simType"] == "json_sym":  # porting from Python2 to Python3
-        # you've loaded a json generated sym file, which means that it's in json format, and thus must be loaded via the json.load() routine.
-        # load the second line of the sym file via json.load().
-        symProps = json.loads(file.readline())
-        sym = symProps
-    else:
-        print("\nThe sym file you have loaded is formatted incorrectly. \nPlease check your sym file and try again.")
-        return None
-    
-    # build net from props
-    sym = bn.interpretSymfile(sym)[0]
-    mem = bn.initializeMemorySet()
-    mem = bn.buildTheNetwork(sym, mem)
-    return mem
-
-class builder(object):
-    def __init__(self, mem: dt.memorySet):
+class Builder(object):
+    def __init__(self, fileName: str):
         # Memory data
-        self.mem = mem
+        self.mem = self.buildNetFromFile(fileName)
         self.tokenAmounts = [len(self.mem.semantics), 
                              len(self.mem.POs), 
                              len(self.mem.RBs), 
@@ -65,14 +31,28 @@ class builder(object):
         self.tokens = []                                    # List of all formatted nodes
         self.connections = {}                               # Weighted, directed adjacency list, stores weights and directions of connections
         self.mappings = {}                                  # Directed adjacency list for mappings, stores weights and hypothesis info in buckets
+    
 
     # TODO: Turn intermediatary format into single object containing tensor data structures
-    def tensorise(self):
-        memoryTensors = None
-        return memoryTensors                                # return tensorMemory object, containing full tensors, and supporting data structures
+    def build_tensors(self):
+        self.format_memory()
+
+        driver: DriverTensor = None
+
+        recipient: RecipientTensor = None
+
+        semantics: SemanticTensor = None
+
+        LTM: TokenTensor = None
+
+        mappings: Mappings = None
+
+        dora_mode: bool = True
+        nodes = Nodes(driver, recipient, semantics, LTM, mappings, dora_mode)
+        return nodes
 
     # Extract data into intermediatory format
-    def formatMemory(self):
+    def format_memory(self):
         self.identifyNodes()                                # generate IDs for nodes
 
         # Format semantics
@@ -95,72 +75,75 @@ class builder(object):
                     self.addMappings(token)                 # Add Mappings
                     self.addConnections(token)              # Add Connections
 
+    def format_bool(self, val: bool):
+        if val:
+            return B.TRUE
+        else:
+            return B.FALSE
+    
     # Returns formatted list of token values
     def formatToken(self, token: dt.TokenUnit, anumber):
-        tf = tf
-        tk = [None] * len(tf)                       # Empty token            
+        tk = [None] * len(TF)                       # Empty token            
         # ========        Set shared properties        ========
         self.names[self.IDs.get(token)] = token.name            # Map ID -> name
         # ----------------------[  INTs  ]----------------------
-        tk[tf.ID] = self.IDs.get(token)                         # ID
-        tk[tf.TYPE] = "TypeNotSet"                              # Type
-        tk[tf.SET] = self.sets.index(token.set)                 # Set
-        tk[tf.ANALOG] = anumber                                 # analog
-        tk[tf.MAX_MAP_UNIT] = self.IDs.get(token.max_map_unit)  # max_map_unit
-        tk[tf.MADE_UNIT] = self.IDs.get(token.my_made_unit)     # made_unit
-        tk[tf.MAKER_UNIT] = self.IDs.get(token.my_maker_unit)   # maker_unit
-        tk[tf.INHIBITOR_THRESHOLD] = token.inhibitorThreshold   # inhibitor_threshold
+        tk[TF.ID] = self.IDs.get(token)                         # ID
+        tk[TF.TYPE] = "TypeNotSet"                              # Type
+        tk[TF.SET] = self.sets.index(token.set)                 # Set
+        tk[TF.ANALOG] = anumber                                 # analog
+        tk[TF.MAX_MAP_UNIT] = self.IDs.get(token.max_map_unit)  # max_map_unit
+        tk[TF.MADE_UNIT] = self.IDs.get(token.my_made_unit)     # made_unit
+        tk[TF.MAKER_UNIT] = self.IDs.get(token.my_maker_unit)   # maker_unit
+        tk[TF.INHIBITOR_THRESHOLD] = token.inhibitorThreshold   # inhibitor_threshold
         # ---------------------[  BOOLs  ]----------------------
-        tk[tf.INFERRED] = token.inferred                        # inferred
-        tk[tf.RETRIEVED] = token.retrieved                      # retrieved
-        tk[tf.COPY_FOR_DR] = token.copy_for_DR                  # copy_for_dr
-        tk[tf.COPIED_DR_INDEX] = token.copied_DR_index          # copied_dr_index
-        tk[tf.SIM_MADE] = token.sim_made                        # sim_made
-        tk[tf.DELETED] = False                                  # isDeleted = False
+        tk[TF.INFERRED] = self.format_bool(token.inferred)                # inferred
+        tk[TF.RETRIEVED] = self.format_bool(token.retrieved)              # retrieved
+        tk[TF.COPY_FOR_DR] = self.format_bool(token.copy_for_DR)          # copy_for_dr
+        tk[TF.COPIED_DR_INDEX] = self.format_bool(token.copied_DR_index)  # copied_dr_index
+        tk[TF.SIM_MADE] = self.format_bool(token.sim_made)                # sim_made
+        tk[TF.DELETED] = self.format_bool(False)                          # isDeleted = False
         # ---------------------[  FLOATS  ]---------------------
-        tk[tf.ACT] = token.act                                  # act
-        tk[tf.MAX_ACT] = token.max_act                          # max_act
-        tk[tf.INHIBITOR_INPUT] = token.inhibitor_input          # inhibitor_input
-        tk[tf.INHIBITOR_ACT] = token.inhibitor_act              # inhibitor_act
-        tk[tf.MAX_MAP] = token.max_map                          # max_map
-        tk[tf.TD_INPUT] = token.td_input                        # td_input
-        tk[tf.BU_INPUT] = token.bu_input                        # bu_input
-        tk[tf.LATERAL_INPUT] = token.lateral_input              # lateral_input
-        tk[tf.MAP_INPUT] = token.map_input                      # map_input
-        tk[tf.NET_INPUT] = token.net_input                      # net_input
+        tk[TF.ACT] = token.act                                  # act
+        tk[TF.MAX_ACT] = token.max_act                          # max_act
+        tk[TF.INHIBITOR_INPUT] = token.inhibitor_input          # inhibitor_input
+        tk[TF.INHIBITOR_ACT] = token.inhibitor_act              # inhibitor_act
+        tk[TF.MAX_MAP] = token.max_map                          # max_map
+        tk[TF.TD_INPUT] = token.td_input                        # td_input
+        tk[TF.BU_INPUT] = token.bu_input                        # bu_input
+        tk[TF.LATERAL_INPUT] = token.lateral_input              # lateral_input
+        tk[TF.MAP_INPUT] = token.map_input                      # map_input
+        tk[TF.NET_INPUT] = token.net_input                      # net_input
         # =======         Set per type properties       ========
         match type(token):
             case dt.Groups:                                     # Groups:
-                tk[tf.TYPE] = 4                                 #   - token.set
-                tk[tf.GROUP_LAYER] = token.group_layer          #   - group layer - INT
+                tk[TF.TYPE] = 4                                 #   - token.set
+                tk[TF.GROUP_LAYER] = token.group_layer          #   - group layer - INT
             case dt.PUnit:                                      # P:
-                tk[tf.TYPE] = 3                                 #   - token.set
-                tk[tf.MODE] = token.mode                        #   - p.mode - INT
+                tk[TF.TYPE] = 3                                 #   - token.set
+                tk[TF.MODE] = token.mode                        #   - p.mode - INT
             case dt.RBUnit:                                     # RB:
-                tk[tf.TYPE] = 2                                 #   - token.set
-                tk[tf.TIMES_FIRED] = token.timesFired           #   - rb.timesfired - INT
+                tk[TF.TYPE] = 2                                 #   - token.set
+                tk[TF.TIMES_FIRED] = token.timesFired           #   - rb.timesfired - INT
             case dt.POUnit:                                     # PO:
-                tk[tf.TYPE] = 1                                 #   - token.set
-                tk[tf.SEM_COUNT] = token.semNormalization       #   - po.semNormalizatino - INT
-                tk[tf.PRED] = bool(token.predOrObj)             #   - po.predOrObj -> BOOL
-                tk[tf.MAX_SEM_WEIGHT] = token.max_sem_weight    #   - max_sem_weight - FLOAT
+                tk[TF.TYPE] = 1                                 #   - token.set
+                tk[TF.SEM_COUNT] = token.semNormalization       #   - po.semNormalizatino - INT
+                tk[TF.PRED] = bool(token.predOrObj)             #   - po.predOrObj -> BOOL
+                tk[TF.MAX_SEM_WEIGHT] = token.max_sem_weight    #   - max_sem_weight - FLOAT
         return tk
     
     # Return formatted list of semantic values
     def formatSemantic(self, sem: dt.Semantic):
-        sf = SemanticFields
+        sf = SF
         sm = [None] * len(sf)                    # Empty semantic
         ID = self.IDs.get(sem)
         self.semDims[ID] = sem.dimension                        # Add dimension to mapping
 
         # ---------------------[  FLOATS  ]---------------------
-        sm[sf.ID] = self.IDs.get(sem)                           # ID
-        sm[sf.AMOUNT] = sem.amount                              # Amount
-        sm[sf.MYINPUT] = sem.myinput                            # Input
-        sm[sf.MAX_SEM_INPUT] = sem.max_sem_input                # Max_input
-        sm[sf.ACT] = sem.act                                    # Act
+        sm[SF.ID] = self.IDs.get(sem)                           # ID
+        sm[SF.MAX_SEM_INPUT] = sem.max_sem_input                # Max_input
+        sm[SF.ACT] = sem.act                                    # Act
         # ----------------------[  INTs  ]----------------------
-        sm[sf.TYPE] = 0
+        sm[SF.TYPE] = 0
         match sem.ont_status:                                   # Ont_status: -> (state:0, value:1, SDM:2)
             case "state":               
                 sm[sf.ONT_STATUS] = 0
@@ -282,6 +265,42 @@ class builder(object):
         if type(val) != int:
             return 0
         return val
+
+    def buildNetFromFile(fileName):
+        try:
+            file = open(fileName, "r")
+        except IOError:
+            print("\nNo file called", fileName, ".")
+            return None
+        
+        # get props
+        simType = ""
+        di = {"simType": simType}  # porting from Python2 to Python3
+        file.seek(0)  # to get to the beginning of the file.
+        exec(file.readline(), di)  # porting from Python2 to Python3
+        if di["simType"] == "sym_file":  # porting from Python2 to Python3
+            symstring = ""
+            for line in file:
+                symstring += line
+            do_run = True
+            symProps = []  # porting from Python2 to Python3
+            di = {"symProps": symProps}  # porting from Python2 to Python3
+            exec(symstring, di)  # porting from Python2 to Python3
+            sym = di["symProps"]  # porting from Python2 to Python3
+        elif di["simType"] == "json_sym":  # porting from Python2 to Python3
+            # you've loaded a json generated sym file, which means that it's in json format, and thus must be loaded via the json.load() routine.
+            # load the second line of the sym file via json.load().
+            symProps = json.loads(file.readline())
+            sym = symProps
+        else:
+            print("\nThe sym file you have loaded is formatted incorrectly. \nPlease check your sym file and try again.")
+            return None
+        
+        # build net from props
+        sym = bn.interpretSymfile(sym)[0]
+        mem = bn.initializeMemorySet()
+        mem = bn.buildTheNetwork(sym, mem)
+        return mem
     
     # Print formated token in readable way for debugging
     def printNode(self, tk):
@@ -311,10 +330,10 @@ class builder(object):
         
         # Labels for properties
         vLabels = [""] * len(labels)
-        vLabels[SemanticFields.TYPE] = Type(tk[SemanticFields.TYPE])
+        vLabels[SF.TYPE] = Type(tk[SF.TYPE])
         if tk[1] == 0:
-            labels = SemanticFields
-            vLabels[SemanticFields.ONT_STATUS] = OntStatus(tk[SemanticFields.ONT_STATUS])
+            labels = SF
+            vLabels[SF.ONT_STATUS] = OntStatus(tk[SF.ONT_STATUS])
             token = False
         else:
             labels = TF
