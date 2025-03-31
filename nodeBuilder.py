@@ -317,7 +317,7 @@ class Build_connections(object):                        # Builds links and conne
         return links
 
 
-class Build_tensors(object):
+class Build_tensors(object):                            # Builds tensors for each set, memory, and semantic objects. Finally build the nodes object.
     def __init__(self, symProps: list[dict]):
         self.symProps = symProps
         self.token_sets = {}
