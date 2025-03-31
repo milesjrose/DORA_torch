@@ -73,7 +73,7 @@ class Type(IntEnum):
 # Enum to encode my_set field in tokenFields
 class Set(IntEnum):
     DRIVER      = 0
-    RECIPENT    = 1
+    RECIPIENT    = 1
     MEMORY      = 2
     NEW_SET     = 3
 
