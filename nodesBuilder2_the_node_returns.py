@@ -1,6 +1,9 @@
 from nodeEnums import *
 import numpy as np
 import torch
+from nodes import Nodes
+from nodeTensors import *
+from nodeMemObjects import Links
 
 # ===========[ INTERMIDIATE DATA STRUCTURES ]===========
 
@@ -105,6 +108,18 @@ class Token_set(object):
 
     def get_token_by_id(self, ID):
         return self.id_dict[ID] 
+    
+    def get_token_tensor(self):
+        token_tensor = torch.zeros((self.num_tokens, len(TF)))
+        for type in Type:
+            for token in self.tokens[type]:
+                token_tensor[token.ID] = torch.tensor(token.features)
+        return token_tensor
+    
+    def tensorise(self):
+        self.token_tensor = self.get_token_tensor()
+        self.connections_tensor = torch.tensor(self.connections)
+        self.links_tensor = torch.tensor(self.links)
 
 class Sem_set(object):
     def __init__(self, sems: list[Semantic], name_dict: dict[str, Semantic], id_dict: dict[int, Semantic]):
@@ -298,8 +313,6 @@ class Build_connections(object):                        # Builds links and conne
 class Build_tensors(object):
     def __init__(self, symProps: list[dict]):
         self.symProps = symProps
-        self.token_sets = {}     # Map set -> Token_set
-        self.sems = None         # Sem_set
         self.set_map = {
             "driver": Set.DRIVER,
             "recipient": Set.RECIPIENT,
@@ -307,7 +320,14 @@ class Build_tensors(object):
             "new_set": Set.NEW_SET
         }
 
-    def build_node_sets(self):   # Build sem_set, token_sets
+    def build_nodes(self):          # Build the nodes object
+        self.build_set_tensors()
+        self.build_mem_objects()
+        self.build_node_tensors()
+        self.nodes = Nodes(self.driver_tensor, self.recipient_tensor, self.memory_tensor, self.new_set_tensor, self.semantics, self.links, self.mappings)
+        return self.nodes
+
+    def build_set_tensors(self):    # Build sem_set, token_sets
         props = {}
 
         # 1). Build the sems
@@ -337,46 +357,35 @@ class Build_tensors(object):
             build_connections = Build_connections(self.token_sets[set], self.sems)
             build_connections.build_connections_links()
         
+        # 7). Tensorise the sets
+        for set in Set:
+            self.token_sets[set].tensorise()
+
+    def build_mem_objects(self):    # Build the mem objects
+        self.links = Links(self.token_sets[Set.DRIVER].links, self.token_sets[Set.RECIPIENT].links, self.token_sets[Set.MEMORY].links)
+        self.mappings = Mappings(torch.zeros(self.token_sets[Set.RECIPIENT].num_tokens, self.token_sets[Set.DRIVER].num_tokens, 3))
+
+    def build_node_tensors(self):   # Build the node tensor objects
+        driver_set = self.token_sets[Set.DRIVER]
+        self.driver_tensor = DriverTensor(driver_set.token_tensor, driver_set.connections_tensor)
+        
+        recipient_set = self.token_sets[Set.RECIPIENT]
+        self.recipient_tensor = RecipientTensor(recipient_set.token_tensor, recipient_set.connections_tensor)
+
+        memory_set = self.token_sets[Set.MEMORY]
+        self.memory_tensor = TokenTensor(memory_set.token_tensor, memory_set.connections_tensor)
+
+        new_set = self.token_sets[Set.NEW_SET]
+        self.new_set_tensor = TokenTensor(new_set.token_tensor, new_set.connections_tensor)
+
+        self.semantics = SemanticTensor(self.sems.nodes, self.sems.connections, self.links)
 # ------------------------------------------------------
 
 # ===================[ MAIN FUNCTION ]==================
 def main(symProps: list[dict]):
-    props = {}
-    token_sets = {}
-    sems = None
-    set_map = {
-        "driver": Set.DRIVER,
-        "recipient": Set.RECIPIENT,
-        "memory": Set.MEMORY,
-        "new_set": Set.NEW_SET
-    }
-
-    # 1). Build the sems
-    build_sems = Build_sems(symProps)
-    sems = build_sems.build()
-
-    # 2). Initiliase empty lists for each set
-    for set in Set:                                 
-        props[set] = []
-
-    # 3). Add the prop to the correct set
-    for prop in symProps:
-        props[set_map[prop["set"]]].append(prop)    
-    
-    # 4). Build the token_sets
-    for set in Set:                                
-        build_set = Build_set(props[set], set)
-        token_sets[set] = build_set.build_set()
-    
-    # 5). Build the children lists of IDs
-    for set in Set:
-        build_children = Build_children(set, token_sets[set], sems, props[set])
-        build_children.get_children()
-
-    # 6). Build the connections and links matrices
-    connections = Build_connections(token_sets, sems)
-    connections.build_connections_links()
-
+    builder = Build_tensors(symProps)
+    nodes = builder.build_nodes()
+    return nodes
 
 if __name__ == "__main__":
     symProps = [{'name': 'lovesMaryTom', 'RBs': [{'pred_name': 'lover', 'pred_sem': ['lover1', 'lover2', 'lover3'], 'higher_order': False, 'object_name': 'Mary', 'object_sem': ['mary1', 'mary2', 'mary3'], 'P': 'non_exist'}, {'pred_name': 'beloved', 'pred_sem': ['beloved1', 'beloved2', 'beloved3'], 'higher_order': False, 'object_name': 'Tom', 'object_sem': ['tom1', 'tom2', 'tome3'], 'P': 'non_exist'}], 'set': 'driver', 'analog': 0}, 
