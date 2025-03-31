@@ -7,11 +7,13 @@ from nodeMemObjects import *
 # note : ignore higher order semantics for now - breaks compression.
 
 class TokenTensor(object):
-    def __init__(self, floatTensor, boolTensor, connections, links):
+    def __init__(self, floatTensor, connections, links: Links, names= None):
+        self.names = names  # Mapping from token ID to token name
         self.nodes: torch.Tensor = floatTensor
-        self.nodesBool: torch.Tensor = boolTensor
         self.cache_masks()
-        self.analogs, self.analog_counts = self.analog_node_count()
+        self.analogs = None
+        self.analog_counts = None
+        self.analog_node_count()
 
         # Weighted undirected adj matrix (NxS), connections between set tokens and semantics
         self.links = links
@@ -25,7 +27,7 @@ class TokenTensor(object):
         masks = []
         for token_type in [Type.PO, Type.RB, Type.P, Type.GROUP]:
             if token_type in types_to_recompute:
-                masks.append(self.computeMasks(token_type))         # Recompute mask
+                masks.append(self.compute_mask(token_type))         # Recompute mask
             else:
                 masks.append(self.masks[token_type])                # Use cached mask
 
@@ -152,8 +154,8 @@ class TokenTensor(object):
     # ---------------------------------------------------------------
 
 class DriverTensor(TokenTensor):
-    def __init__(self, floatTensor, boolTensor, connections):   
-        super().__init__(floatTensor, boolTensor, connections)
+    def __init__(self, floatTensor, connections, links: Links, names= None):   
+        super().__init__(floatTensor, connections, links, names)
     
     def check_local_inhibitor(self):                                # Return true if any PO.inhibitor_act == 1.0
         po = self.get_mask(Type.PO)
@@ -343,8 +345,8 @@ class DriverTensor(TokenTensor):
     # --------------------------------------------------------------
 
 class RecipientTensor(TokenTensor):
-    def __init__(self, floatTensor, boolTensor, connections):
-        super().__init__(floatTensor, boolTensor, connections)
+    def __init__(self, floatTensor, connections, links: Links, names= None):
+        super().__init__(floatTensor, connections, links, names)
 
     # ============[ RECIPIENT UPDATE INPUT FUNCTIONS ]==============
     def update_input(self, as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics=False): # Update all input in recipient
@@ -616,10 +618,10 @@ class RecipientTensor(TokenTensor):
         return (weight - tmax_map - dmax_map)                       
     # --------------------------------------------------------------
 
-class SemanticTensor(TokenTensor):
-    def __init__(self, nodes, connections, links: Links):
+class SemanticTensor(object):
+    def __init__(self, nodes, connections, links: Links, names= None):
+        self.names = names  # Mapping from token ID to token name
         self.nodes: torch.Tensor = nodes
-        self.cache_masks()
         self.connections: torch.Tensor = connections
         self.links = links
     
