@@ -29,10 +29,11 @@ class Links(object):    # Weighted connections between nodes - want groups as we
         self.driver: torch.Tensor = driver_links
         self.recipient: torch.Tensor = recipient_links
         self.memory: torch.Tensor = memory_links
-        self.links = {}
-        self.add_links(Set.DRIVER, self.driver)
-        self.add_links(Set.RECIPIENT, self.recipient)
-        self.add_links(Set.MEMORY, self.memory)
+        self.sets = {
+            Set.DRIVER: self.driver,
+            Set.RECIPIENT: self.recipient,
+            Set.MEMORY: self.memory
+        }
     
     def add_links(self, set: Set, links):                           # TODO: implement
         pass
