@@ -5,7 +5,7 @@ from nodeEnums import *
 from nodeTensors import *
 
 class Nodes(object):
-    def __init__(self, driver: DriverTensor, recipient: RecipientTensor, semantics: SemanticTensor, LTM: TokenTensor, new_set: TokenTensor, mappings: Mappings, DORA_mode: bool):
+    def __init__(self, driver: DriverTensor, recipient: RecipientTensor, LTM: TokenTensor, new_set: TokenTensor, semantics: SemanticTensor, mappings: Mappings, DORA_mode: bool):
         # node tensors
         self.driver: DriverTensor = driver
         self.recipient: RecipientTensor = recipient
