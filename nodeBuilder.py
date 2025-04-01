@@ -328,8 +328,9 @@ class Build_connections(object):                        # Builds links and conne
 
 
 class nodeBuilder(object):                            # Builds tensors for each set, memory, and semantic objects. Finally build the nodes object.
-    def __init__(self, symProps: list[dict]):
+    def __init__(self, symProps: list[dict] = None, file_path: str = None):
         self.symProps = symProps
+        self.file_path = file_path
         self.token_sets = {}
         self.set_map = {
             "driver": Set.DRIVER,
@@ -339,11 +340,16 @@ class nodeBuilder(object):                            # Builds tensors for each 
         }
 
     def build_nodes(self, DORA_mode= True):          # Build the nodes object
-        self.build_set_tensors()
-        self.build_mem_objects()
-        self.build_node_tensors()
-        self.nodes = Nodes(self.driver_tensor, self.recipient_tensor, self.memory_tensor, self.new_set_tensor, self.semantics_tensor, self.mappings, DORA_mode)
-        return self.nodes
+        if self.file_path is not None:
+            self.get_symProps_from_file()
+        if self.symProps is not None:
+            self.build_set_tensors()
+            self.build_mem_objects()
+            self.build_node_tensors()
+            self.nodes = Nodes(self.driver_tensor, self.recipient_tensor, self.memory_tensor, self.new_set_tensor, self.semantics_tensor, self.mappings, DORA_mode)
+            return self.nodes
+        else:
+            raise ValueError("No symProps or file_path provided")
 
     def build_set_tensors(self):    # Build sem_set, token_sets
         props = {}
@@ -397,6 +403,46 @@ class nodeBuilder(object):                            # Builds tensors for each 
         self.new_set_tensor = TokenTensor(new_set.token_tensor, new_set.connections_tensor, self.links, new_set.id_dict)
 
         self.semantics_tensor = SemanticTensor(self.sems.node_tensor, self.sems.connections_tensor, self.links, self.sems.id_dict)
+    
+    def get_symProps_from_file(self):
+        import json
+        file = open(self.file_path, "r")    
+        if file:
+            simType = ""
+            di = {"simType": simType}  # porting from Python2 to Python3
+            file.seek(0)  # to get to the beginning of the file.
+            exec(file.readline(), di)  # porting from Python2 to Python3
+            if di["simType"] == "sym_file":  # porting from Python2 to Python3
+                symstring = ""
+                for line in file:
+                    symstring += line
+                do_run = True
+                symProps = []  # porting from Python2 to Python3
+                di = {"symProps": symProps}  # porting from Python2 to Python3
+                exec(symstring, di)  # porting from Python2 to Python3
+                self.symProps = di["symProps"]  # porting from Python2 to Python3
+            # now load the parameter file, if there is one.
+            # if self.parameterFile:
+            #     parameter_string = ''
+            #     for line in self.parameterFile:
+            #         parameter_string += line
+            #     try:
+            #         exec (parameter_string)
+            #     except:
+            #         print ('\nYour loaded paramter file is wonky. \nI am going to run anyway, but with preset parameters.')
+            #         keep_running = input('Would you like to continue? (Y) or any key to exit>')
+            #         if keep_running.upper() != 'Y':
+            #             do_run = False
+            elif di["simType"] == "json_sym":  # porting from Python2 to Python3
+                # you've loaded a json generated sym file, which means that it's in json format, and thus must be loaded via the json.load() routine.
+                # load the second line of the sym file via json.load().
+                symProps = json.loads(file.readline())
+                self.symProps = symProps
+            else:
+                print(
+                    "\nThe sym file you have loaded is formatted incorrectly. \nPlease check your sym file and try again."
+                )
+                input("Enter any key to return to the MainMenu>")
 # ------------------------------------------------------
 
 # ===================[ MAIN FUNCTION ]==================
