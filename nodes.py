@@ -5,12 +5,19 @@ from nodeEnums import *
 from nodeTensors import *
 
 class Nodes(object):
-    def __init__(self, driver: DriverTensor, recipient: RecipientTensor, semantics: SemanticTensor, LTM: TokenTensor, mappings: Mappings, DORA_mode: bool):
+    def __init__(self, driver: DriverTensor, recipient: RecipientTensor, semantics: SemanticTensor, LTM: TokenTensor, new_set: TokenTensor, mappings: Mappings, DORA_mode: bool):
         # node tensors
         self.driver: DriverTensor = driver
         self.recipient: RecipientTensor = recipient
         self.semantics: SemanticTensor = semantics
         self.memory: TokenTensor = LTM
+        self.new_set: TokenTensor = new_set
+        self.sets = {
+            Set.DRIVER: self.driver,
+            Set.RECIPIENT: self.recipient,
+            Set.MEMORY: self.memory,
+            Set.NEW_SET: self.new_set
+        }
         
         # inter-set connections
         self.mappings: Mappings = mappings
