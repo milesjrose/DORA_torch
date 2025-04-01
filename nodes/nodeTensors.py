@@ -4,6 +4,7 @@ import torch
 from .tensorOps import *
 from .nodeMemObjects import *
 from .nodeEnums import *
+import tensorOps as tOps
 # note : ignore higher order semantics for now - breaks compression.
 
 class TokenTensor(object):
