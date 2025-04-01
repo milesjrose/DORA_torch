@@ -11,14 +11,6 @@ class Node(object):
         self.name = name
         self.features = None
         self.ID = None
-
-    def floatate_features(self):
-        for feature in self.features:
-            if feature is not None:
-                feature = float(feature)
-            else:
-                print("None type in node:", self.name)
-                feature = 0.0
     
     def set(self, feature, value: float):
         self.features[feature] = value
@@ -40,6 +32,13 @@ class Semantic(Node):
         self.features[SF.INPUT] = 0
         self.features[SF.MAX_INPUT] = 0
         self.features[SF.ACT] = 0
+    
+    def floatate_features(self):
+        for feature in SF:
+            if self.features[feature] is not None:
+                self.features[feature] = float(self.features[feature])
+            else:
+                self.features[feature] = 0.0
 
 class Token(Node):
     def __init__(self, name, set: Set, analog: int):
@@ -78,6 +77,13 @@ class Token(Node):
         self.features[TF.DELETED] = False
         self.features[TF.PRED] = False
     
+    def floatate_features(self):
+        for feature in TF:
+            if self.features[feature] is not None:
+                self.features[feature] = float(self.features[feature])
+            else:
+                self.features[feature] = 0.0
+
 class Prop(Token):
     def __init__(self, name, set, analog):
         super().__init__(name, set, analog)
@@ -159,7 +165,7 @@ class Build_set(object):                                # Builds the nodes for a
     
     def build_set(self):    #  Returns a new token_set
         self.get_nodes()       # Get the nodes from the symProps
-        self.id_tokens()                    # Create basic tokens
+        self.id_tokens()       # Create basic tokens
         self.token_set = Token_set(self.set, self.tokens, self.name_dict, self.id_dict)   # Return new token_set
         return self.token_set
 
@@ -189,16 +195,18 @@ class Build_set(object):                                # Builds the nodes for a
         i = 0
         for name in self.names:
             node_obj =  self.name_dict[name]
-            node_obj.set(TF.ID, i)
+            node_obj.set_ID(i)
             i += 1
 
     def create_token(self, name, token_class, analog, is_pred = None): # Create a token and add it to the name/dict
-        if is_pred is not None:
-            obj = token_class(name, self.set, analog, is_pred)
-        else:
-            obj = token_class(name, self.set, analog)
-        self.name_dict[name] = obj
-        self.names.append(name)
+        if name not in self.names:
+            if is_pred is not None:
+                obj = token_class(name, self.set, analog, is_pred)
+            else:
+                obj = token_class(name, self.set, analog)
+            self.tokens[obj.features[TF.TYPE]].append(obj)
+            self.name_dict[name] = obj
+            self.names.append(name)
 
 
 class Build_sems(object):                               # Builds the semantic objects
@@ -302,9 +310,10 @@ class Build_connections(object):                        # Builds links and conne
         num_tks = token_set.num_tokens
         connections = np.zeros((num_tks, num_tks))          # len tokens x len tokens matrix for connections.
         for type in Type:
-            for node in token_set.tokens[type]:
-                for child in node.children:
-                    connections[node.ID][child.ID] = 1
+            if type != Type.PO:
+                for node in token_set.tokens[type]:
+                    for child in node.children:
+                        connections[node.ID][child] = 1
         return connections
     
     def build_set_links(self, token_set: Token_set):        # Returns matrix of all po -> sem links for a given set
@@ -313,11 +322,11 @@ class Build_connections(object):                        # Builds links and conne
         links = np.zeros((num_tks, num_sems))               # Len tokens x len sems matrix for links.
         for po in token_set.tokens[Type.PO]:
             for child in po.children:
-                links[po.ID][child.ID] = 1
+                links[po.ID][child] = 1
         return links
 
 
-class Build_tensors(object):                            # Builds tensors for each set, memory, and semantic objects. Finally build the nodes object.
+class nodeBuilder(object):                            # Builds tensors for each set, memory, and semantic objects. Finally build the nodes object.
     def __init__(self, symProps: list[dict]):
         self.symProps = symProps
         self.token_sets = {}
@@ -328,11 +337,11 @@ class Build_tensors(object):                            # Builds tensors for eac
             "new_set": Set.NEW_SET
         }
 
-    def build_nodes(self):          # Build the nodes object
+    def build_nodes(self, DORA_mode= True):          # Build the nodes object
         self.build_set_tensors()
         self.build_mem_objects()
         self.build_node_tensors()
-        self.nodes = Nodes(self.driver_tensor, self.recipient_tensor, self.memory_tensor, self.new_set_tensor, self.semantics_tensor, self.mappings)
+        self.nodes = Nodes(self.driver_tensor, self.recipient_tensor, self.memory_tensor, self.new_set_tensor, self.semantics_tensor, self.mappings, DORA_mode)
         return self.nodes
 
     def build_set_tensors(self):    # Build sem_set, token_sets
@@ -391,8 +400,12 @@ class Build_tensors(object):                            # Builds tensors for eac
 
 # ===================[ MAIN FUNCTION ]==================
 def main(symProps: list[dict]):
-    builder = Build_tensors(symProps)
+    from time import time
+    time_start = time()
+    builder = nodeBuilder(symProps)
     nodes = builder.build_nodes()
+    time_end = time()
+    print(f"Time taken: {time_end - time_start} seconds")
     return nodes
 
 if __name__ == "__main__":
