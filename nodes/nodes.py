@@ -1,8 +1,8 @@
 # nodes.py 
 # Class for holding memTypes, and inter-set tensor operations
 import torch
-from nodeEnums import *
-from nodeTensors import *
+from .nodeEnums import *
+from .nodeTensors import *
 
 class Nodes(object):
     def __init__(self, driver: DriverTensor, recipient: RecipientTensor, LTM: TokenTensor, new_set: TokenTensor, semantics: SemanticTensor, mappings: Mappings, DORA_mode: bool):

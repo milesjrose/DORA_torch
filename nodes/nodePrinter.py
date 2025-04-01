@@ -1,6 +1,7 @@
-from nodes import *
-from nodeEnums import *
+from .nodes import *
+from .nodeEnums import *
 import os
+import torch
 
 class nodePrinter(object):
     def __init__(self, nodes: Nodes, print_to_console: bool = True, log_file: str = None):

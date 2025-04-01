@@ -1,9 +1,9 @@
-from nodeEnums import *
 import numpy as np
 import torch
-from nodes import Nodes
-from nodeTensors import *
-from nodeMemObjects import Links
+from .nodeEnums import *
+from .nodes import Nodes
+from .nodeTensors import *
+from .nodeMemObjects import Links
 
 # ===========[ INTERMIDIATE DATA STRUCTURES ]===========
 class Node(object):

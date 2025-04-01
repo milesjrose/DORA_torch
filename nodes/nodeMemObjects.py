@@ -1,4 +1,4 @@
-from nodeEnums import *
+from .nodeEnums import *
 import torch
 
 class Mappings(object): # 3D tensor storing mapping and hypothesis information
