@@ -196,6 +196,7 @@ class Build_set(object):                                # Builds the nodes for a
         for name in self.names:
             node_obj =  self.name_dict[name]
             node_obj.set_ID(i)
+            self.id_dict[i] = name
             i += 1
 
     def create_token(self, name, token_class, analog, is_pred = None): # Create a token and add it to the name/dict
@@ -230,7 +231,7 @@ class Build_sems(object):                               # Builds the semantic ob
             new_sem = Semantic(sem)
             new_sem.set_ID(self.num_sems)
             self.nodes.append(new_sem)
-            self.id_dict[self.num_sems] = new_sem
+            self.id_dict[self.num_sems] = sem
             self.name_dict[sem] = new_sem
             self.num_sems += 1
     
@@ -384,18 +385,18 @@ class nodeBuilder(object):                            # Builds tensors for each 
 
     def build_node_tensors(self):   # Build the node tensor objects
         driver_set = self.token_sets[Set.DRIVER]
-        self.driver_tensor = DriverTensor(driver_set.token_tensor, driver_set.connections_tensor, self.links)
+        self.driver_tensor = DriverTensor(driver_set.token_tensor, driver_set.connections_tensor, self.links, driver_set.id_dict)
         
         recipient_set = self.token_sets[Set.RECIPIENT]
-        self.recipient_tensor = RecipientTensor(recipient_set.token_tensor, recipient_set.connections_tensor, self.links)
+        self.recipient_tensor = RecipientTensor(recipient_set.token_tensor, recipient_set.connections_tensor, self.links, recipient_set.id_dict)
 
         memory_set = self.token_sets[Set.MEMORY]
-        self.memory_tensor = TokenTensor(memory_set.token_tensor, memory_set.connections_tensor, self.links)
+        self.memory_tensor = TokenTensor(memory_set.token_tensor, memory_set.connections_tensor, self.links, memory_set.id_dict)
 
         new_set = self.token_sets[Set.NEW_SET]
-        self.new_set_tensor = TokenTensor(new_set.token_tensor, new_set.connections_tensor, self.links)
+        self.new_set_tensor = TokenTensor(new_set.token_tensor, new_set.connections_tensor, self.links, new_set.id_dict)
 
-        self.semantics_tensor = SemanticTensor(self.sems.node_tensor, self.sems.connections_tensor, self.links)
+        self.semantics_tensor = SemanticTensor(self.sems.node_tensor, self.sems.connections_tensor, self.links, self.sems.id_dict)
 # ------------------------------------------------------
 
 # ===================[ MAIN FUNCTION ]==================
