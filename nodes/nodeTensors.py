@@ -1,10 +1,9 @@
 # nodesMemTypes.py 
 # Classes for segments of memory, and set-specific tensor operations
 import torch
-from .tensorOps import *
 from .nodeMemObjects import *
 from .nodeEnums import *
-import tensorOps as tOps
+from . import tensorOps as tOps
 # note : ignore higher order semantics for now - breaks compression.
 
 class TokenTensor(object):
