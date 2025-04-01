@@ -6,21 +6,41 @@ from .nodeEnums import *
 from . import tensorOps as tOps
 # note : ignore higher order semantics for now - breaks compression.
 
-class TokenTensor(object):
-    def __init__(self, floatTensor, connections, links: Links, names= None):
+class Tokens(object):
+    """
+    A class for holding a tensor of tokens, and performing general tensor operations.
+
+    Attributes:
+        names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
+        nodes (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
+        analogs (torch.Tensor): An Ax1 tensor listing all analogs in the tensor.
+        analog_counts (torch.Tensor): An Ax1 tensor listing the number of tokens per analog
+        links (torch.Tensor): A Tensor of links from tokens in this set to the semantics.
+        connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
+        masks (torch.Tensor): A Tensor of masks for the tokens in this set.
+    """
+    def __init__(self, floatTensor, connections, links, names: dict[int, str] = None):
+        """
+        Initialize the TokenTensor object.
+
+        Args:
+            floatTensor (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
+            connections (torch.Tensor): An NxN tensor of connections between the tokens.
+            links (torch.Tensor): A Tensor of links between this set and the semantics.
+            names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
+
+        """
         self.names = names  # Mapping from token ID to token name
         self.nodes: torch.Tensor = floatTensor
         self.cache_masks()
         self.analogs = None
         self.analog_counts = None
         self.analog_node_count()
-
-        # Weighted undirected adj matrix (NxS), connections between set tokens and semantics
         self.links = links
-        # Unweighted directed connections between token of same set. Connetion is from parent to child (i.e [i, j] = 1 means “node i is the parent of node j”)
         self.connections = connections
 
-    def cache_masks(self, types_to_recompute = None):               # Compute and cache masks, specify types to recompute via list of tokenTypes
+    def cache_masks(self, types_to_recompute = None):
+        """Compute and cache masks, specify types to recompute via list of tokenTypes"""
         if types_to_recompute == None:                              #  If no type specified, recompute all
             types_to_recompute = [Type.PO, Type.RB, Type.P, Type.GROUP]
 
@@ -34,50 +54,88 @@ class TokenTensor(object):
         self.masks: torch.Tensor = torch.stack(masks, dim=0)
     
     def compute_mask(self, token_type: Type):                       # Compute the mask for a token type
+        """Compute the mask for a token type"""
         mask = (self.nodes[:, TF.TYPE] == token_type) 
         return mask
     
     def get_mask(self, token_type: Type):                           # Returns mask for given token type
+        """Return mask for given token type"""
         return self.masks[token_type]                   
 
     def get_combined_mask(self, n_types: list[Type]):               # Returns combined mask of give types
+        """Return combined mask of given types"""
         masks = [self.masks[i] for i in n_types]
         return torch.logical_or.reduce(masks)
 
     def add_nodes(self, nodes):                                     # TODO: Add nodes 
+        """Add nodes to tensor"""
         # As tensor is non-extensible, keep some headroom. If the tensor is full create new tensor with ratio 1.1, o.w just add node
         # TODO: allow for adding nodes - tensor non-extensible, so must create new tensor then add node
         return None
     
     def del_Nodes(self, nodes):                                     # TODO: Delete nodes
+        """Delete nodes from tensor"""
         # Tensor size is static, so just set the nodes deleted to zero - then recompute masks to exclude it.
         # TODO: When deleted nodes ratio hits threshold, compress the tensor to remove all deleted nodes.
         return None
     
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
+        """Update list of analogs in tensor, and their node counts"""
         self.analogs, self.analog_counts = torch.unique(self.nodes[:, TF.ANALOG], return_counts=True)
 
     # =====================[ TOKEN FUNCTIONS ]=======================
     def initialise_float(self, n_type: list[Type], features: list[TF]): # Initialise given features
+        """
+        Initialise given features
+        
+        Args:
+            n_type (list[Type]): The types of nodes to initialise.
+            features (list[TF]): The features to initialise.
+        """
         type_mask = self.get_combined_mask(n_type)                      # Get mask of nodes to update
         init_subt = self.nodes[type_mask, features]                     # Get subtensor of features to intialise
         self.nodes[type_mask, features] = torch.zeros_like(init_subt)   # Set features to 0
     
-    def initialise_input(self, n_type: list[Type], refresh):            # Initialize inputs to 0, and td_input to refresh.
+    def initialise_input(self, n_type: list[Type], refresh: float):     # Initialize inputs to 0, and td_input to refresh.
+        """ 
+        Initialize inputs to 0, and td_input to refresh
+        
+        Args:
+            n_type (list[Type]): The types of nodes to initialise.
+            refresh (float): The value to set the td_input to.
+        """
         type_mask = self.get_combined_mask(n_type)
         self.nodes[type_mask, TF.TD_INPUT] = refresh                    # Set td_input to refresh
         features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
         self.initialise_float(n_type, features)                         # Set types to 0.0
 
     def initialise_act(self, n_type: list[Type]):                       # Initialize act to 0.0,  and call initialise_inputs
+        """Initialize act to 0.0,  and call initialise_inputs
+        
+        Args:
+            n_type (list[Type]): The types of nodes to initialise.
+        """
         self.initialise_input(n_type, 0.0)
         self.initialise_float(n_type, [TF.ACT])
 
     def initialise_state(self, n_type: list[Type]):                     # Set self.retrieved to false, and call initialise_act
+        """Set self.retrieved to false, and call initialise_act
+        
+        Args:
+            n_type (list[Type]): The types of nodes to initialise.
+        """
         self.initialise_act(n_type)
         self.initialise_float(n_type, [TF.RETRIEVED])                       
         
-    def update_act(self, gamma, delta, HebbBias):                       # Update act of nodes
+    def update_act(self, gamma: float, delta: float, HebbBias: float):  # Update act of nodes
+        """
+        Update act of nodes
+        
+        Args:
+            gamma (float): Effects the increase in act for each unit.
+            delta (float): Effects the decrease in act for each unit.
+            HebbBias (float): The bias for mapping input relative to TD/BU/LATERAL inputs.
+        """
         net_input_types = [
             TF.TD_INPUT,
             TF.BU_INPUT,
@@ -92,19 +150,45 @@ class TokenTensor(object):
         self.nodes[(self.nodes[:, TF.ACT] > 1.0), TF.ACT] = 1.0             # Limit activation to 1.0 or below
         self.nodes[(self.nodes[:, TF.ACT] < 0.0), TF.ACT] = 0.0             # Limit activation to 0.0 or above                                      # update act
 
-    def zero_lateral_input(self, n_type: list[Type]):               # Set lateral_input to 0 (to allow synchrony at different levels by 0-ing lateral inhibition at that level (e.g., to bind via synchrony, 0 lateral inhibition in POs).
+    def zero_lateral_input(self, n_type: list[Type]):                   # Set lateral_input to 0 
+        """
+        Set lateral_input to 0;
+        to allow synchrony at different levels by 0-ing lateral inhibition at that level 
+        (e.g., to bind via synchrony, 0 lateral inhibition in POs).
+        
+        Args:
+            n_type (list[Type]): The types of nodes to set lateral_input to 0.
+        """
         self.initialise_float(n_type, [TF.LATERAL_INPUT])
     
-    def update_inhibitor_input(self, n_type: list[Type]):           # Update inputs to inhibitors by current activation for nodes of type n_type
+    def update_inhibitor_input(self, n_type: list[Type]):               # Update inputs to inhibitors by current activation for nodes of type n_type
+        """
+        Update inputs to inhibitors by current activation for nodes of type n_type
+        
+        Args:
+            n_type (list[Type]): The types of nodes to update inhibitor inputs.
+        """
         mask = self.get_combined_mask(n_type)
         self.nodes[mask, TF.INHIBITOR_INPUT] += self.nodes[mask, TF.ACT]
 
     def reset_inhibitor(self, n_type: list[Type]):                  # Reset the inhibitor input and act to 0.0 for given type
+        """
+        Reset the inhibitor input and act to 0.0 for given type
+        
+        Args:
+            n_type (list[Type]): The types of nodes to reset inhibitor inputs and acts.
+        """
         mask = self.get_combined_mask(n_type)
         self.nodes[mask, TF.INHIBITOR_INPUT] = 0.0
         self.nodes[mask, TF.INHIBITOR_ACT] = 0.0
     
     def update_inhibitor_act(self, n_type: list[Type]):             # Update the inhibitor act for given type
+        """
+        Update the inhibitor act for given type
+        
+        Args:
+            n_type (list[Type]): The types of nodes to update inhibitor acts.
+        """
         type_mask = self.get_combined_mask(n_type)
         input = self.nodes[type_mask, TF.INHIBITOR_INPUT]
         threshold = self.nodes[type_mask, TF.INHIBITOR_THRESHOLD]
@@ -114,10 +198,12 @@ class TokenTensor(object):
 
     # =======================[ P FUNCTIONS ]========================
     def p_initialise_mode(self):                                    # Initialize all p.mode back to neutral.
+        """Initialize mode to neutral for all P units."""
         p = self.get_mask(Type.P)
         self.nodes[p, TF.MODE] = Mode.NEUTRAL
 
     def p_get_mode(self):                                           # Set mode for all P units
+        """Set mode for all P units"""
         # Pmode = Parent: child RB act> parent RB act / Child: parent RB act > child RB act / Neutral: o.w
         p = self.get_mask(Type.P)
         rb = self.get_mask(Type.RB)
@@ -141,38 +227,56 @@ class TokenTensor(object):
     # ---------------------------------------------------------------
 
     # =======================[ PO FUNCTIONS ]========================
-    def po_get_weight_length(self, links):                              # Sum value of links with weight > 0.1 for all PO nodes
+    def po_get_weight_length(self):                              # Sum value of links with weight > 0.1 for all PO nodes
+        """Set sem count feature for all PO nodes"""
         po = self.get_mask(Type.PO)                                     # mask links with PO
         mask = self.links[po] > 0.1                                     # Create sub mask for links with weight > 0.1
         weights = (self.links[po] * mask).sum(dim=1, keepdim = True)    # Sum links > 0.1
         self.nodes[po, TF.SEM_COUNT] = weights                          # Set semNormalisation
 
     def po_get_max_semantic_weight(self):                               # Get max link weight for all PO nodes
+        """Set max link weight feature for all PO nodes"""
         po = self.get_mask(Type.PO)
         max_values, _ = torch.max(self.links[po], dim=1, keepdim=True)  # (max_values, _) unpacks tuple returned by torch.max
         self.nodes[po, TF.MAX_SEM_WEIGHT] = max_values                  # Set max
     # ---------------------------------------------------------------
 
-class DriverTensor(TokenTensor):
-    def __init__(self, floatTensor, connections, links: Links, names= None):   
+class Driver(Tokens):
+    """
+    A class for representing the driver set of tokens.
+
+    Attributes:
+        names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
+        nodes (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
+        analogs (torch.Tensor): An Ax1 tensor listing all analogs in the tensor.
+        analog_counts (torch.Tensor): An Ax1 tensor listing the number of tokens per analog
+        links (torch.Tensor): A Tensor of links from tokens in this set to the semantics.
+        connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
+        masks (torch.Tensor): A Tensor of masks for the tokens in this set.
+    """
+    def __init__(self, floatTensor, connections, links, names: dict[int, str] = None):   
         super().__init__(floatTensor, connections, links, names)
     
     def check_local_inhibitor(self):                                # Return true if any PO.inhibitor_act == 1.0
+        """Return true if any PO.inhibitor_act == 1.0"""
         po = self.get_mask(Type.PO)
         return torch.any(self.nodes[po, TF.INHIBITOR_ACT] == 1.0) 
 
     def check_global_inhibitor(self):                               # Return true if any RB.inhibitor_act == 1.0
+        """Return true if any RB.inhibitor_act == 1.0"""
         rb = self.get_mask(Type.RB)
         return torch.any(self.nodes[rb, TF.INHIBITOR_ACT] == 1.0) 
     
     # ==============[ DRIVER UPDATE INPUT FUNCTIONS ]===============
     def update_input(self, as_DORA):                                # Update all input in driver
+        """Update all input in driver"""
         self.update_input_p_parent()
         self.update_input_p_child(as_DORA)
         self.update_input_rb(as_DORA)
         self.update_input_po(as_DORA)
 
     def update_input_p_parent(self):                                # P units in parent mode - driver
+        """Update input in driver for P units in parent mode"""
         # Exitatory: td (my Groups) / bu (my RBs)
         # Inhibitory: lateral (other P units in parent mode*3), inhibitor.
         # 1). get masks
@@ -207,6 +311,7 @@ class DriverTensor(TokenTensor):
         )
 
     def update_input_p_child(self, as_DORA):                        # P units in child mode  - driver:
+        """Update input in driver for P units in child mode"""
         # Exitatory: td (my parent RBs), (if phase_set>1: my groups)
         # Inhibitory: lateral (Other p in child mode), (if DORA_mode: PO acts / Else: POs not connected to same RBs)
         # 1). get masks
@@ -260,6 +365,7 @@ class DriverTensor(TokenTensor):
             )
    
     def update_input_rb(self, as_DORA):                             # update RB inputs - driver:
+        """Update input in driver for RB units"""
         # Exitatory: td (my parent P), bu (my PO and child P).
         # Inhibitory: lateral (other RBs*3), inhibitor.
         # 1). get masks
@@ -297,6 +403,7 @@ class DriverTensor(TokenTensor):
         self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat input
     
     def update_input_po(self, as_DORA):                             # update PO inputs - driver:
+        """Update input in driver for PO units"""
         # Exitatory: td (my RB) * gain (2 for preds, 1 for objects).
         # Inhibitory: lateral (other POs not connected to my RB and Ps in child mode, if in DORA mode, then other PO connected to my RB), inhibitor.
         # 1). get masks
@@ -344,18 +451,50 @@ class DriverTensor(TokenTensor):
         self.nodes[po, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat input
     # --------------------------------------------------------------
 
-class RecipientTensor(TokenTensor):
-    def __init__(self, floatTensor, connections, links: Links, names= None):
+class Recipient(Tokens):
+    """
+    A class for representing the recipient set of tokens.
+    
+    Attributes:
+        names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
+        nodes (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
+        analogs (torch.Tensor): An Ax1 tensor listing all analogs in the tensor.
+        analog_counts (torch.Tensor): An Ax1 tensor listing the number of tokens per analog
+        links (torch.Tensor): A Tensor of links between tokens in this set and the semantics.
+        connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
+    """
+    def __init__(self, floatTensor, connections, links, names= None):
         super().__init__(floatTensor, connections, links, names)
 
     # ============[ RECIPIENT UPDATE INPUT FUNCTIONS ]==============
-    def update_input(self, as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics=False): # Update all input in recipient
+    def update_input(self, as_DORA, phase_set, lateral_input_level, semantics, mappings, driver, ignore_object_semantics=False): # Update all input in recipient
+        """
+        Update all input in recipient
+        
+        Args:
+            as_DORA (bool): Whether to use DORA mode
+            phase_set (int): The current phase set
+            lateral_input_level (float): The level of lateral input
+            semantics (Semantics): A Semantics object
+            mappings (Mappings): A Mappings object
+            driver (Driver): A Driver object
+            ignore_object_semantics (bool): Whether to ignore object semantics
+        """
         self.update_input_p_parent(phase_set, lateral_input_level, mappings, driver)
         self.update_input_p_child(as_DORA, phase_set, lateral_input_level, mappings, driver)
         self.update_input_rb(phase_set, lateral_input_level, mappings, driver)
-        self.update_input_po(as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics)
+        self.update_input_po(as_DORA, phase_set, lateral_input_level, semantics, mappings, driver, ignore_object_semantics)
 
-    def update_input_p_parent(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor):  # P units in parent mode - recipient
+    def update_input_p_parent(self, phase_set, lateral_input_level, mappings: Mappings, driver: Driver):  # P units in parent mode - recipient
+        """
+        Update input for P units in parent mode
+        
+        Args:
+            phase_set (int): The current phase set
+            lateral_input_level (float): The level of lateral input
+            mappings (Mappings): A Mappings object
+            driver (Driver): A Driver object
+        """
         # Exitatory: td (my Groups), bu (my RBs), mapping input.
         # Inhibitory: lateral (other P units in parent mode*lat_input_level), inhibitor.
         # 1). get masks
@@ -393,7 +532,17 @@ class RecipientTensor(TokenTensor):
         inhib_input = self.nodes[p, TF.INHIBITOR_ACT]
         self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(10, inhib_input)
     
-    def update_input_p_child(self, as_DORA, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor): # P Units in child mode - recipient:
+    def update_input_p_child(self, as_DORA, phase_set, lateral_input_level, mappings: Mappings, driver: Driver): # P Units in child mode - recipient:
+        """
+        Update input for P units in child mode
+
+        Args:
+            as_DORA (bool): Whether to use DORA mode
+            phase_set (int): The current phase set
+            lateral_input_level (float): The level of lateral input
+            mappings (Mappings): A Mappings object
+            driver (Driver): A Driver object
+        """
         # Exitatory: td (RBs above me), mapping input, bu (my semantics [currently not implmented]).
         # Inhibitory: lateral (other Ps in child, and, if in DORA mode, other PO objects not connected to my RB, and 3*PO connected to my RB), inhibitor.
         # 1). get masks
@@ -453,7 +602,16 @@ class RecipientTensor(TokenTensor):
                 self.nodes[obj, TF.ACT]                             # sum(objects)x1 matrix, listing act of each object
             )
    
-    def update_input_rb(self, phase_set, lateral_input_level, mappings: Mappings, driver: DriverTensor): # RB inputs - recipient
+    def update_input_rb(self, phase_set, lateral_input_level, mappings: Mappings, driver: Driver): # RB inputs - recipient
+        """
+        Update input for RB units
+
+        Args:
+            phase_set (int): The current phase set
+            lateral_input_level (float): The level of lateral input
+            mappings (Mappings): A Mappings object
+            driver (Driver): A Driver object
+        """
         # Exitatory: td (my P units), bu (my pred and obj POs, and my child Ps), mapping input.
         # Inhibitory: lateral (other RBs*3), inhbitor.
         # 1). get masks
@@ -492,7 +650,16 @@ class RecipientTensor(TokenTensor):
         inhib_act = torch.mul(10, self.nodes[rb, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
         self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat inhibition
     
-    def update_input_po(self, as_DORA, phase_set, lateral_input_level, links, semantics, mappings, driver, ignore_object_semantics=False): # PO units in - recipient
+    def update_input_po(self, as_DORA, phase_set, lateral_input_level, semantics, mappings, driver, ignore_object_semantics=False): # PO units in - recipient
+        """
+        Update input for PO units
+
+        Args:
+            as_DORA (bool): Whether to use DORA mode
+            phase_set (int): The current phase set
+            lateral_input_level (float): The level of lateral input
+        """
+        
         # NOTE: Currently inferred nodes not updated so excluded from po mask. Inferred nodes do update other PO nodes - so all_po used for updating lat_input.
         # Exitatory: td (my RBs), bu (my semantics/sem_count[for normalisation]), mapping input.
         # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
@@ -515,7 +682,7 @@ class RecipientTensor(TokenTensor):
                 )
         # 3). BU_INPUT: my_semantics [normalised by no. semantics po connects to]
         sem_input = torch.matmul(
-            links[po],
+            self.links[po],
             semantics.nodes[:, SF.ACT]
         )
         self.nodes[po, TF.BU_INPUT] += sem_input / self.nodes[po, TF.SEM_COUNT]
@@ -585,7 +752,18 @@ class RecipientTensor(TokenTensor):
     # --------------------------------------------------------------
     
     # =================[ MAPPING INPUT FUNCTION ]===================
-    def map_input(self, t_mask, mappings: Mappings, driver: DriverTensor):    # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
+    def map_input(self, t_mask, mappings: Mappings, driver: Driver):    # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
+        """
+        Calculate mapping input for tokens in mask
+
+        Args:
+            t_mask (torch.Tensor): A mask of tokens to calculate mapping input for
+            mappings (Mappings): A Mappings object
+            driver (Driver): A Driver object
+        
+        Returns:
+            torch.Tensor: A (sum(t_mask) x 1) matrix of mapping input for tokens in mask
+        """
         pmap_weights = mappings.weights()[t_mask] 
         pmap_connections = mappings.connections()[t_mask]
 
@@ -618,25 +796,47 @@ class RecipientTensor(TokenTensor):
         return (weight - tmax_map - dmax_map)                       
     # --------------------------------------------------------------
 
-class SemanticTensor(object):
+class Semantic(object):
+    """
+    A class for representing semantics nodes.
+
+    Attributes:
+        names (dict, optional): A dictionary mapping semantic IDs to semantic names. Defaults to None.
+        nodes (torch.Tensor): An NxSemanticFeatures tensor of floats representing the semantics.
+        connections (torch.Tensor): An NxN tensor of connections from parent to child for semantics in this set.
+        links (Links): A Links object containing links from token sets to semantics.
+    """
     def __init__(self, nodes, connections, links: Links, names= None):
-        self.names = names  # Mapping from token ID to token name
+        """
+        Initialise a Semantics object
+
+        Args:
+            nodes (torch.Tensor): An NxSemanticFeatures tensor of floats representing the semantics.
+            connections (torch.Tensor): An NxN tensor of connections from parent to child for semantics in this set.
+            links (Links): A Links object containing links from token sets to semantics.
+            names (dict, optional): A dictionary mapping semantic IDs to semantic names. Defaults to None.
+        """
+        self.names = names 
         self.nodes: torch.Tensor = nodes
         self.connections: torch.Tensor = connections
-        self.links = links
+        self.all_links = links
     
     # ===================[ SEMANTIC FUNCTIONS ]=====================
     def intitialse_sem(self):                                       # Set act and input to 0 TODO: Check how used
+        """Initialise the semantics """
         self.nodes[:, SF.ACT] = 0.0
         self.nodes[:, SF.INPUT] = 0.0
 
     def initialise_input(self, refresh):                            # Set nodes to refresh value TODO: Check how used
+        """Initialise the input of the semantics """
         self.nodes[:, SF.INPUT] = refresh
 
     def set_max_input(self, max_input):                             # TODO: Check how used
+        """Set the max input of the semantics """
         self.nodes[:, SF.MAX_INPUT] = max_input
 
     def update_act(self):                                           # Update act of all sems
+        """Update the acts of the semantics """
         sem_mask = self.nodes[:, SF.MAX_INPUT] > 0                  # Get sem where max_input > 0
         input = self.nodes[sem_mask, SF.INPUT]
         max_input = self.nodes[sem_mask, SF.MAX_INPUT]
@@ -645,12 +845,14 @@ class SemanticTensor(object):
         self.nodes[sem_mask, SF.ACT] = 0.0                          #  -  Set act of sem to 0
     
     def update_input(self, driver, recipient, memory = None, ignore_obj=False, ignore_mem=False):
+        """Update the input of the semantics """
         self.update_input_from_set(driver, Set.DRIVER, ignore_obj)
         self.update_input_from_set(recipient, Set.RECIPIENT, ignore_obj)
         if not ignore_mem:
             self.update_input_from_set(memory, Set.MEMORY, ignore_obj)
 
-    def update_input_from_set(self, tensor: TokenTensor, set: Set, ignore_obj=False):
+    def update_input_from_set(self, tensor: Tokens, set: Set, ignore_obj=False):
+        """Update the input of the semantics from a set of tokens """
         if ignore_obj:
             po_mask = tOps.refine_mask(po_mask, tensor.get_mask(Type.PO), TF.PRED, B.TRUE) # Get mask of POs non object POs
         else:
@@ -658,7 +860,7 @@ class SemanticTensor(object):
         #group_mask = tensor.get_mask(Type.GROUP)
         #token_mask = torch.bitwise_or(po_mask, group_mask)         # In case groups used in future
 
-        links: torch.Tensor = self.links[set]
+        links: torch.Tensor = self.all_links[set]
         connected_nodes = (links[:, po_mask] != 0).any(dim=1)       # Get mask of nodes linked to a sem
         connected_sem = (links != 0).any(dim=0)                     # Get mask of sems linked to a node
 
