@@ -48,12 +48,13 @@ class SF(IntEnum):
     ID                  = 0
     TYPE                = 1
     ONT_STATUS          = 2
+    DELETED             = 3
 
     # FLOAT values:
-    AMOUNT              = 3
-    INPUT               = 4
-    MAX_INPUT           = 5
-    ACT                 = 6
+    AMOUNT              = 4
+    INPUT               = 5
+    MAX_INPUT           = 6
+    ACT                 = 7
 
 # Enum to access mapping values
 class MappingFields(IntEnum):
