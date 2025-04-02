@@ -18,8 +18,9 @@ class Tokens(object):
         links (torch.Tensor): A Tensor of links from tokens in this set to the semantics.
         connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
         masks (torch.Tensor): A Tensor of masks for the tokens in this set.
+        IDs (dict): A dictionary mapping token IDs to index in the tensor.
     """
-    def __init__(self, floatTensor, connections, links, names: dict[int, str] = None):
+    def __init__(self, floatTensor, connections, links, IDs: dict[int, int],names: dict[int, str] = {}):
         """
         Initialize the TokenTensor object.
 
@@ -27,10 +28,29 @@ class Tokens(object):
             floatTensor (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
             connections (torch.Tensor): An NxN tensor of connections between the tokens.
             links (torch.Tensor): A Tensor of links between this set and the semantics.
+            IDs (dict): A dictionary mapping token IDs to index in the tensor.
             names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
-
+        Raises:
+            TypeError: If links, connections, or floatTensor are not torch.Tensor.
+            ValueError: If the number of tokens in floatTensor, links, and connections do not match.
+            ValueError: If the number of features in floatTensor does not match the number of features in TF enum.
         """
-        self.names = names  # Mapping from token ID to token name
+        # Validate input
+        if type(links) != torch.Tensor:
+            raise TypeError("Links must be torch.Tensor.")
+        if type(connections) != torch.Tensor:
+            raise TypeError("Connections must be torch.Tensor.")
+        if type(floatTensor) != torch.Tensor:
+            raise TypeError("floatTensor must be torch.Tensor.")
+        
+        if floatTensor.size(dim=0) != links.size(dim=0):
+            raise ValueError("floatTensor and links must have same number of tokens.")
+        if floatTensor.size(dim=0) != connections.size(dim=0):
+            raise ValueError("floatTensor and connections must have same number of tokens.")
+        if floatTensor.size(dim=1) != len(TF):
+            raise ValueError("floatTensor must have number of features listed in TF enum.")
+        
+        self.names = names
         self.nodes: torch.Tensor = floatTensor
         self.cache_masks()
         self.analogs = None
@@ -38,7 +58,74 @@ class Tokens(object):
         self.analog_node_count()
         self.links = links
         self.connections = connections
+        self.IDs = IDs
 
+    # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
+    def get(self, ID, feature):
+        """
+        Get a feature for a token with a given ID.
+        
+        Args:
+            ID (int): The ID of the token to get the feature for.
+            feature (TF): The feature to get.
+
+        Returns:
+            The feature for the token with the given ID.
+        """
+        try:
+            return self.nodes[self.IDs[ID], feature]
+        except:
+            raise ValueError("Invalid ID or feature.")
+
+    def set(self, ID, feature, value):
+        """
+        Set a feature for a token with a given ID.
+        
+        Args:
+            ID (int): The ID of the token to set the feature for.
+            feature (TF): The feature to set.
+            value (float): The value to set the feature to.
+        """
+        if type(feature) != TF:
+            raise TypeError("Feature must be a TF enum.")
+        try:
+            self.nodes[self.IDs[ID], feature] = float(value)
+        except:
+            raise ValueError("Invalid ID or feature.")
+
+    def get_name(self, ID):
+        """
+        Get the name for a token with a given ID.
+        
+        Args:
+            ID (int): The ID of the token to get the name for.
+        """
+        return self.names[ID]
+
+    def set_name(self, ID, name):
+        """
+        Set the name for a token with a given ID.
+        
+        Args:
+            ID (int): The ID of the token to set the name for.
+            name (str): The name to set the token to.
+        """
+        self.names[ID] = name
+    
+    def get_ID(self, name):
+        """
+        Get the ID for a token with a given name.
+        
+        Args:
+            name (str): The name of the token to get the ID for.
+        """
+        try:
+            return self.IDs.keys()[self.IDs.values().index(name)]
+        except:
+            raise ValueError("Invalid name.")
+    # --------------------------------------------------------------
+
+    # ====================[ TENSOR FUNCTIONS ]======================
     def cache_masks(self, types_to_recompute = None):
         """Compute and cache masks, specify types to recompute via list of tokenTypes"""
         if types_to_recompute == None:                              #  If no type specified, recompute all
@@ -82,8 +169,9 @@ class Tokens(object):
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
         """Update list of analogs in tensor, and their node counts"""
         self.analogs, self.analog_counts = torch.unique(self.nodes[:, TF.ANALOG], return_counts=True)
+    # --------------------------------------------------------------
 
-    # =====================[ TOKEN FUNCTIONS ]=======================
+    # ====================[ TOKEN FUNCTIONS ]=======================
     def initialise_float(self, n_type: list[Type], features: list[TF]): # Initialise given features
         """
         Initialise given features
@@ -253,9 +341,29 @@ class Driver(Tokens):
         links (torch.Tensor): A Tensor of links from tokens in this set to the semantics.
         connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
         masks (torch.Tensor): A Tensor of masks for the tokens in this set.
+        IDs (dict): A dictionary mapping token IDs to index in the tensor.
     """
-    def __init__(self, floatTensor, connections, links, names: dict[int, str] = None):   
-        super().__init__(floatTensor, connections, links, names)
+    def __init__(self, floatTensor, connections, links, IDs: dict[int, int], names: dict[int, str] = None):   
+        """
+        Initialize the Driver object.
+
+        Args:
+            floatTensor (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
+            connections (torch.Tensor): An NxN tensor of connections between the tokens.
+            links (torch.Tensor): A Tensor of links between driver tokens and the semantics.
+            IDs (dict): A dictionary mapping token IDs to index in the tensor.
+            names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
+        
+        Raises:
+            ValueError: If the number of tokens in floatTensor, links, and connections do not match.
+            ValueError: If the number of features in floatTensor does not match the number of features in TF enum.
+            ValueError: If all tokens in floatTensor do not have TF.SET == Set.DRIVER.
+            TypeError: If links is not a torch.Tensor.
+        """
+        super().__init__(floatTensor, connections, links, IDs, names)
+        if floatTensor.size(dim=0) > 0:
+            if not torch.all(floatTensor[:, TF.SET] == Set.DRIVER):
+                raise ValueError("All tokens in driver floatTensor must have TF.SET == Set.DRIVER.")
     
     def check_local_inhibitor(self):                                # Return true if any PO.inhibitor_act == 1.0
         """Return true if any PO.inhibitor_act == 1.0"""
@@ -462,9 +570,28 @@ class Recipient(Tokens):
         analog_counts (torch.Tensor): An Ax1 tensor listing the number of tokens per analog
         links (torch.Tensor): A Tensor of links between tokens in this set and the semantics.
         connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
+        IDs (dict): A dictionary mapping token IDs to index in the tensor.
     """
-    def __init__(self, floatTensor, connections, links, names= None):
-        super().__init__(floatTensor, connections, links, names)
+    def __init__(self, floatTensor, connections, links, IDs: dict[int, int], names= None):
+        """
+        Initialize the Recipient object.
+
+        Args:
+            floatTensor (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
+            connections (torch.Tensor): An NxN tensor of connections between the tokens.
+            links (torch.Tensor): A Tensor of links between tokens in this set and the semantics.
+            IDs (dict): A dictionary mapping token IDs to index in the tensor.
+            names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
+
+        Raises:
+            ValueError: If the number of tokens in floatTensor, links, and connections do not match.
+            ValueError: If the number of features in floatTensor does not match the number of features in TF enum.
+            ValueError: If all tokens in floatTensor do not have TF.SET == Set.RECIPIENT.
+        """
+        super().__init__(floatTensor, connections, links, IDs, names)
+        if floatTensor.size(dim=0) > 0:
+            if not torch.all(floatTensor[:, TF.SET] == Set.RECIPIENT):
+                raise ValueError("All tokens in recipient floatTensor must have TF.SET == Set.RECIPIENT.")
 
     # ============[ RECIPIENT UPDATE INPUT FUNCTIONS ]==============
     def update_input(self, as_DORA, phase_set, lateral_input_level, semantics, mappings, driver, ignore_object_semantics=False): # Update all input in recipient
@@ -796,17 +923,18 @@ class Recipient(Tokens):
         return (weight - tmax_map - dmax_map)                       
     # --------------------------------------------------------------
 
-class Semantic(object):
+class Semantics(object):
     """
     A class for representing semantics nodes.
 
     Attributes:
+        IDs (dict): A dictionary mapping semantic IDs to index in the tensor.
         names (dict, optional): A dictionary mapping semantic IDs to semantic names. Defaults to None.
         nodes (torch.Tensor): An NxSemanticFeatures tensor of floats representing the semantics.
         connections (torch.Tensor): An NxN tensor of connections from parent to child for semantics in this set.
         links (Links): A Links object containing links from token sets to semantics.
     """
-    def __init__(self, nodes, connections, links: Links, names= None):
+    def __init__(self, nodes, connections, links: Links, IDs: dict[int, int], names= None):
         """
         Initialise a Semantics object
 
@@ -814,13 +942,91 @@ class Semantic(object):
             nodes (torch.Tensor): An NxSemanticFeatures tensor of floats representing the semantics.
             connections (torch.Tensor): An NxN tensor of connections from parent to child for semantics in this set.
             links (Links): A Links object containing links from token sets to semantics.
+            IDs (dict): A dictionary mapping semantic IDs to index in the tensor.
             names (dict, optional): A dictionary mapping semantic IDs to semantic names. Defaults to None.
+        
+        Raises:
+            ValueError: If the number of semantics in nodes, connections, and links do not match.
+            ValueError: If the number of features in nodes does not match the number of features in SF enum.
+            ValueError: If the number of semantics in links tensors do not match the number of semantics in nodes.
         """
+        if nodes.size(dim=0) != connections.size(dim=0):
+            raise ValueError("nodes and connections must have the same number of semantics.")
+        if nodes.size(dim=1) != len(SF):
+            raise ValueError("nodes must have number of features listed in SF enum.")
+        if links.driver.size(dim=1) != nodes.size(dim=0):
+            raise ValueError("links tensors must have same number of semantics as semantics.nodes")
         self.names = names 
         self.nodes: torch.Tensor = nodes
         self.connections: torch.Tensor = connections
         self.all_links = links
+        self.IDs = IDs
+
+    # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
+    def get(self, ID, feature):
+        """
+        Get a feature for a semantic with a given ID.
+        
+        Args:
+            ID (int): The ID of the semantic to get the feature for.
+            feature (TF): The feature to get.
+
+        Returns:
+            The feature for the semantic with the given ID.
+        """
+        try:
+            return self.nodes[self.IDs[ID], feature]
+        except:
+            raise ValueError("Invalid ID or feature.")
+
+    def set(self, ID, feature, value):
+        """
+        Set a feature for a semantic with a given ID.
+        
+        Args:
+            ID (int): The ID of the semantic to set the feature for.
+            feature (TF): The feature to set.
+            value (float): The value to set the feature to.
+        """
+        if type(feature) != TF:
+            raise TypeError("Feature must be a TF enum.")
+        try:
+            self.nodes[self.IDs[ID], feature] = float(value)
+        except:
+            raise ValueError("Invalid ID or feature.")
+
+    def get_name(self, ID):
+        """
+        Get the name for a semantic with a given ID.
+        
+        Args:
+            ID (int): The ID of the semantic to get the name for.
+        """
+        return self.names[ID]
+
+    def set_name(self, ID, name):
+        """
+        Set the name for a semantic with a given ID.
+        
+        Args:
+            ID (int): The ID of the semantic to set the name for.
+            name (str): The name to set the semantic to.
+        """
+        self.names[ID] = name
     
+    def get_ID(self, name):
+        """
+        Get the ID for a semantic with a given name.
+        
+        Args:
+            name (str): The name of the semantic to get the ID for.
+        """
+        try:
+            return self.IDs.keys()[self.IDs.values().index(name)]
+        except:
+            raise ValueError("Invalid name.")
+    # --------------------------------------------------------------
+
     # ===================[ SEMANTIC FUNCTIONS ]=====================
     def intitialse_sem(self):                                       # Set act and input to 0 TODO: Check how used
         """Initialise the semantics """
