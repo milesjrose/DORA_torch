@@ -5,7 +5,7 @@ from .nodeMemObjects import *
 from .nodeEnums import *
 from . import tensorOps as tOps
 from .nodeParameters import NodeParameters
-# note : ignore higher order semantics for now - breaks compression.
+# NOTE : ignore higher order semantics for now - breaks compression.
 
 class Tokens(object):
     """
@@ -194,8 +194,8 @@ class Tokens(object):
         if new_count < 5:                                                   # minimum expansion is 5
             new_count = 5
         new_tensor = torch.zeros(new_count, self.nodes.size(dim=1))         # create new tensor with expansion factor
-        new_tensor[:, TF.DELETED] = B.TRUE                                  # set all new tokens to deleted
-        new_tensor[:self.nodes.size(dim=0), :] = self.nodes                 # copy over old tensor
+        new_tensor[current_count:, TF.DELETED] = B.TRUE                     # set deleted to true for all new tokens
+        new_tensor[:current_count, :] = self.nodes                          # copy over old tensor
         self.nodes = new_tensor                                             # update tensor
 
         new_links = torch.zeros(new_count, self.links.size(dim=1))          # update supporting data structures:
@@ -210,7 +210,7 @@ class Tokens(object):
         new_connections[:self.connections.size(dim=0), :self.connections.size(dim=1)] = self.connections
         self.connections = new_connections
 
-    def del_nodes(self, ID):                                        # Delete nodes from tensor     TODO: compress tensor if deleted nodes ratio hits threshold
+    def del_nodes(self, ID):                                        # Delete nodes from tensor     TODO: Remove connections, links, mappings etc.
         """
         Delete nodes from tensor
         
@@ -1000,8 +1000,7 @@ class New_Set(Tokens):
     def update_input_type(self, n_type: Type):
         """
         Update the input for a given type of token.
-        """
-        
+        """ 
 
 class Memory(Tokens):
     """
@@ -1333,9 +1332,63 @@ class Semantics(object):
         self.names = names 
         self.nodes: torch.Tensor = nodes
         self.connections: torch.Tensor = connections
-        self.all_links = links
+        self.links = links
         self.IDs = IDs
         self.params = params
+        self.expansion_factor = 1.1
+    
+    def add_semantic(self, semantic: New_Semantic):
+        """
+        Add a semantic to the semantics tensor.
+
+        Args:
+            semantic (New_Semantic): The semantic to add.
+        """
+        deleted_mask = self.nodes[:, SF.DELETED] == B.TRUE          # find all deleted semantics in nodes tensor
+        if not deleted_mask.any():                                  # if no deleted semantics, expand tensor
+            self.expand_tensor()
+        empty_rows = torch.where(deleted_mask)[0]                   # find all empty rows in nodes tensor
+        empty_row = empty_rows[0]                                   # find first empty row
+        self.nodes[empty_row, :] = semantic.nodes                   # add semantic to empty row
+        new_id = self.IDs.keys()[-1] + 1                            # get new id
+        self.IDs[new_id] = empty_row                                # add id to IDs
+        self.names[new_id] = semantic.name                          # add name to names
+        self.nodes[empty_row, SF.ID] = new_id                       # set node id feature
+
+    def expand_tensor(self):
+        """
+        Expand the nodes, connections, and links tensors by the expansion factor.
+        """
+        current_size = self.nodes.size(dim=0)
+        new_size = int(current_size * self.expansion_factor)        # calculate new size
+        new_nodes = torch.zeros(new_size, self.nodes.size(dim=1))   # create new nodes tensor
+        new_nodes[current_size:, SF.DELETED] = 1                    # set all deleted to 1 for all new nodes
+        new_nodes[:current_size, :] = self.nodes                    # copy over old nodes
+        self.nodes = new_nodes                                      # update nodes
+
+        new_cons = torch.zeros(new_size, new_size)                  # create new connections tensor
+        new_cons[:current_size, :current_size] = self.connections   # copy over old connections
+        self.connections = new_cons                                 # update connections
+
+        for set in Set:                                             # expand links for each set
+            self.expand_links(set, new_size)
+
+    def expand_links(self, set: Set, new_size: int):
+        """
+        Expand the links tensors to new_size
+        """
+        links = self.links[set]
+        current_num_token = links.size(dim=0)                       # links is Token x Semantics tensor
+        current_num_sem = links.size(dim=1)                         # expand by expansion factor
+        new_links = torch.zeros(current_num_token, new_size)        # create new links tensor (same number of tokens, new size for semantics)
+        new_links[:current_num_token, :current_num_sem] = links     # copy over old links
+        self.links[set] = new_links                                 # update links
+
+    def del_semantic(self, ID):                                     # Delete a semantic from the semantics tensor. TODO: Remove connections and links.
+        """
+        Delete a semantic from the semantics tensor.
+        """
+        self.nodes[self.IDs[ID], SF.DELETED] = B.TRUE
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
     def get(self, ID, feature):
@@ -1441,7 +1494,7 @@ class Semantics(object):
         #group_mask = tensor.get_mask(Type.GROUP)
         #token_mask = torch.bitwise_or(po_mask, group_mask)         # In case groups used in future
 
-        links: torch.Tensor = self.all_links[set]
+        links: torch.Tensor = self.links[set]
         connected_nodes = (links[:, po_mask] != 0).any(dim=1)       # Get mask of nodes linked to a sem
         connected_sem = (links != 0).any(dim=0)                     # Get mask of sems linked to a node
 
