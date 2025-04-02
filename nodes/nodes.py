@@ -2,7 +2,6 @@
 # Class for holding memTypes, and inter-set tensor operations
 import torch
 from .nodeEnums import *
-from .nodeEnums import Parameters as P
 from .nodeTensors import *
 
 
