@@ -46,7 +46,7 @@ class Node(object):
         self.ID = ID
         self.features[TF.ID] = ID
 
-class Semantic(Node):
+class Semantics(Node):
     """
     An intermediate class for representing a semantic node.
 
@@ -301,7 +301,7 @@ class Sem_set(object):
         num_sems (int): The number of semantics in the set.
         connections (np.ndarray): A matrix of connections between semantics.
     """
-    def __init__(self, sems: list[Semantic], name_dict: dict[str, Semantic], id_dict: dict[int, Semantic]):
+    def __init__(self, sems: list[Semantics], name_dict: dict[str, Semantics], id_dict: dict[int, Semantics]):
         """
         Initialise the semantic set with sems, name_dict, and id_dict.
 
@@ -480,7 +480,7 @@ class Build_sems(object):                               # Builds the semantic ob
         """
         self.num_sems = 0
         for sem in self.sems:
-            new_sem = Semantic(sem)
+            new_sem = Semantics(sem)
             new_sem.set_ID(self.num_sems)
             self.nodes.append(new_sem)
             self.id_dict[self.num_sems] = sem
@@ -742,7 +742,10 @@ class nodeBuilder(object):                            # Builds tensors for each 
         Build the mem objects. (links, mappings)
         """
         # Create links object
-        self.links = Links(self.token_sets[Set.DRIVER].links, self.token_sets[Set.RECIPIENT].links, self.token_sets[Set.MEMORY].links)
+        driver_links = self.token_sets[Set.DRIVER].links_tensor
+        recipient_links = self.token_sets[Set.RECIPIENT].links_tensor
+        memory_links = self.token_sets[Set.MEMORY].links_tensor
+        self.links = Links(driver_links, recipient_links, memory_links)
         # Create mapping tensors
         map_cons = torch.zeros(self.token_sets[Set.RECIPIENT].num_tokens, self.token_sets[Set.DRIVER].num_tokens, 2)
         map_weights = torch.zeros_like(map_cons)
@@ -756,18 +759,19 @@ class nodeBuilder(object):                            # Builds tensors for each 
         Build the per set tensor objects. (driver, recipient, memory, new_set, semantics)
         """
         driver_set = self.token_sets[Set.DRIVER]
-        self.driver_tensor = Driver(driver_set.token_tensor, driver_set.connections_tensor, self.links, driver_set.id_dict)
+        self.driver_tensor = Driver(driver_set.token_tensor, driver_set.connections_tensor, self.links.driver, driver_set.id_dict)
         
         recipient_set = self.token_sets[Set.RECIPIENT]
-        self.recipient_tensor = Recipient(recipient_set.token_tensor, recipient_set.connections_tensor, self.links, recipient_set.id_dict)
+        self.recipient_tensor = Recipient(recipient_set.token_tensor, recipient_set.connections_tensor, self.links.recipient, recipient_set.id_dict)
 
         memory_set = self.token_sets[Set.MEMORY]
-        self.memory_tensor = Tokens(memory_set.token_tensor, memory_set.connections_tensor, self.links, memory_set.id_dict)
+        self.memory_tensor = Tokens(memory_set.token_tensor, memory_set.connections_tensor, self.links.memory, memory_set.id_dict)
 
+        new_set_links = self.token_sets[Set.NEW_SET].links_tensor
         new_set = self.token_sets[Set.NEW_SET]
-        self.new_set_tensor = Tokens(new_set.token_tensor, new_set.connections_tensor, self.links, new_set.id_dict)
+        self.new_set_tensor = Tokens(new_set.token_tensor, new_set.connections_tensor, new_set_links, new_set.id_dict)
 
-        self.semantics_tensor = Semantic(self.sems.node_tensor, self.sems.connections_tensor, self.links, self.sems.id_dict)
+        self.semantics_tensor = Semantics(self.sems.node_tensor, self.sems.connections_tensor, self.links, self.sems.id_dict)
     
     def get_symProps_from_file(self):
         """
