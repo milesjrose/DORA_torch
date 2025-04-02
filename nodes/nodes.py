@@ -8,7 +8,7 @@ class Nodes(object):
     """
     A class for holding token tensors for each set, and accessing node operations.
     """
-    def __init__(self, driver: Driver, recipient: Recipient, LTM: Tokens, new_set: Tokens, semantics: Semantic, mappings: Mappings, DORA_mode: bool):
+    def __init__(self, driver: Driver, recipient: Recipient, LTM: Tokens, new_set: Tokens, semantics: Semantics, mappings: Mappings, DORA_mode: bool):
         """
         Initialize the Nodes object.
 
@@ -24,7 +24,7 @@ class Nodes(object):
         # node tensors
         self.driver: Driver = driver
         self.recipient: Recipient = recipient
-        self.semantics: Semantic = semantics
+        self.semantics: Semantics = semantics
         self.memory: Tokens = LTM
         self.new_set: Tokens = new_set
         self.sets = {
