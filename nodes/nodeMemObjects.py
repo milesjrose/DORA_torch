@@ -1,12 +1,11 @@
 from .nodeEnums import *
-from.nodeTensors import Driver, Semantics
 import torch
 
 class Mappings(object):
     """
     A class for storing mappings and hypothesis information.
     """
-    def __init__(self, driver: Driver, connections: torch.Tensor, weights: torch.Tensor, hypotheses: torch.Tensor, max_hyps: torch.Tensor):
+    def __init__(self, driver, connections: torch.Tensor, weights: torch.Tensor, hypotheses: torch.Tensor, max_hyps: torch.Tensor):
         """
         Initialize the Mappings object.
         Args:
@@ -24,8 +23,6 @@ class Mappings(object):
             raise ValueError("All tensors must be torch.Tensor.")
         if connections.shape != weights.shape or connections.shape != hypotheses.shape or connections.shape != max_hyps.shape:
             raise ValueError("All tensors must have the same shape.")
-        if type(driver) != Driver:
-            raise TypeError("Driver must be driver type object")
         # Stack the tensors along a new dimension based on MappingFields enum
         self.driver = driver
         self.adj_matrix: torch.Tensor = torch.stack([
@@ -77,7 +74,7 @@ class Links(object):    # Weighted connections between nodes - want groups as we
     """
     A class for representing weighted connections between token sets and semantics.
     """
-    def __init__(self, driver_links, recipient_links, memory_links, semantics: Semantics):  # Takes weighted adjacency matrices
+    def __init__(self, driver_links, recipient_links, memory_links, semantics):  # Takes weighted adjacency matrices
         """
         Initialize the Links object.
 
@@ -97,8 +94,6 @@ class Links(object):    # Weighted connections between nodes - want groups as we
             raise TypeError("Recipient links must be torch.Tensor.")
         if type(memory_links) != torch.Tensor:
             raise TypeError("Memory links must be torch.Tensor.")
-        if type(semantics) != Semantics:
-            raise TypeError("semantics must be Semandics object.")
         if driver_links.size(dim=1) != recipient_links.size(dim=1) or driver_links.size(dim=1) != memory_links.size(dim=1):
             raise ValueError("All link tensors must have the same number of semantics (columns).")
     
