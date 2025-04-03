@@ -3,6 +3,8 @@ class NodeParameters(object):
         """
         Holds parameters used by nodeTensors, to streamline passing parameters to nodes.
         """
+        # TODO: Document and organise parameters, move parameters not pertaining to nodes to seperate class.
+        # ===================[ PARAMETERS ]======================
         self.firingOrderRule = parameters["firingOrderRule"]
         """firingOrderRule (str): The rule for the firing order."""
         self.firingOrder = None
@@ -55,19 +57,37 @@ class NodeParameters(object):
         self.remove_compressed = parameters["remove_compressed"]  
         """ekaterina: allows to choose whether to delete or to leave the original compressed structure from LTM after do_unpacking()
         """
+
+        # ==============================[ GUI ]====================================
         if run_on_iphone:
             doGUI = False
         else:
             doGUI = parameters["doGUI"]
         self.doGUI = doGUI
         """doGUI (bool): Whether to display the GUI."""
+
         self.screen = 0
         """screen (int): The screen number."""
+
         self.screen_width = parameters["screen_width"]
         """screen_width (int): The width of the screen."""
+
         self.screen_height = parameters["screen_height"]
         """screen_height (int): The height of the screen."""
+
         self.GUI_update_rate = parameters["GUI_update_rate"]
         """GUI_update_rate (int): The rate at which the GUI updates."""
+        #-------------------------------------------------------------------------
+
+
         self.starting_iteration = parameters["starting_iteration"]
         """starting_iteration (int): The starting iteration."""
+
+        self.num_phase_sets_to_run = None
+        """num_phase_sets_to_run (int): The number of phase sets to run. Initialized to None."""
+
+        self.count_by_RBs = None
+        """count_by_RBs: Initialized to None."""
+
+        self.local_inhibitor_fired = False
+        """local_inhibitor_fired (bool): Whether the local inhibitor has fired. Initialized to False."""

@@ -47,8 +47,6 @@ class Tokens(object):
         if type(floatTensor) != torch.Tensor:
             raise TypeError("floatTensor must be torch.Tensor.")
         
-        if floatTensor.size(dim=0) != links.size(dim=0):
-            raise ValueError("floatTensor and links must have same number of tokens.")
         if floatTensor.size(dim=0) != connections.size(dim=0):
             raise ValueError("floatTensor and connections must have same number of tokens.")
         if floatTensor.size(dim=1) != len(TF):
@@ -68,7 +66,7 @@ class Tokens(object):
         self.token_set = None
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
-    def get(self, ID, feature):
+    def get_feature(self, ID, feature):                             # Get feature of single node
         """
         Get a feature for a token with a given ID.
         
@@ -84,7 +82,7 @@ class Tokens(object):
         except:
             raise ValueError("Invalid ID or feature.")
 
-    def set(self, ID, feature, value):
+    def set_feature(self, ID, feature, value):                      # Set feature of single node
         """
         Set a feature for a token with a given ID.
         
@@ -100,7 +98,7 @@ class Tokens(object):
         except:
             raise ValueError("Invalid ID or feature.")
 
-    def get_name(self, ID):
+    def get_name(self, ID):                                         # Get name of node by ID
         """
         Get the name for a token with a given ID.
         
@@ -109,7 +107,7 @@ class Tokens(object):
         """
         return self.names[ID]
 
-    def set_name(self, ID, name):
+    def set_name(self, ID, name):                                   # Set name of node by ID
         """
         Set the name for a token with a given ID.
         
@@ -119,7 +117,7 @@ class Tokens(object):
         """
         self.names[ID] = name
     
-    def get_ID(self, name):
+    def get_ID_from_name(self, name):                               # Get ID of node with given name
         """
         Get the ID for a token with a given name.
         
@@ -131,19 +129,19 @@ class Tokens(object):
         except:
             raise ValueError("Invalid name.")
     
-    def get_type_IDs(self, Type):
+    def get_IDs_from_type(self, Type):                              # Get list of IDs for all nodes of type
         """
         Get the IDs of the tokens of a given type.
         """
         return self.get_IDs_by_mask(self.get_mask(Type))
     
-    def get_IDs_by_mask(self, mask):
+    def get_IDs_by_mask(self, mask):                                # Get list of IDs for nodes in mask
         """
         Get the IDs of the tokens of a given mask.
         """
         return self.nodes[mask, TF.ID]
     
-    def get_index(self, ID):
+    def get_index(self, ID):                                        # Get index in tensor of node with given ID
         """
         Get index in tesor of node with ID.
         """
@@ -151,7 +149,7 @@ class Tokens(object):
     # --------------------------------------------------------------
 
     # ====================[ TENSOR FUNCTIONS ]======================
-    def cache_masks(self, types_to_recompute = None):
+    def cache_masks(self, types_to_recompute = None):               # Compute and cach masks for given types
         """Compute and cache masks, specify types to recompute via list of tokenTypes"""
         if types_to_recompute == None:                              #  If no type specified, recompute all
             types_to_recompute = [Type.PO, Type.RB, Type.P, Type.GROUP]
@@ -291,7 +289,7 @@ class Tokens(object):
         self.initialise_act(n_type)
         self.initialise_float(n_type, [TF.RETRIEVED])                       
         
-    def update_act(self):  # Update act of nodes
+    def update_act(self):                                               # Update act of nodes
         """Update act of nodes. Based on params.gamma, params.delta, and params.HebbBias."""
         net_input_types = [
             TF.TD_INPUT,
@@ -984,7 +982,7 @@ class New_Set(Tokens):
     """
     A class for representing a new set of tokens.
     """
-    def __init__(self, floatTensor, connections, links, IDs: dict[int, int], names: dict[int, str] = {}, params: NodeParameters = None):
+    def __init__(self, floatTensor, connections, links: Links, IDs: dict[int, int], names: dict[int, str] = {}, params: NodeParameters = None):
         super().__init__(floatTensor, connections, links, IDs, names, params)
         self.token_set = Set.NEW_SET
     
@@ -997,7 +995,7 @@ class Memory(Tokens):
     """
     A class for representing a memory of tokens.
     """
-    def __init__(self, floatTensor, connections, links, mappings, IDs: dict[int, int], names: dict[int, str] = {}, params: NodeParameters = None):
+    def __init__(self, floatTensor, connections, links: Links, mappings, IDs: dict[int, int], names: dict[int, str] = {}, params: NodeParameters = None):
         super().__init__(floatTensor, connections, links, IDs, names, params)
         self.mappings = mappings
         self.token_set = Set.MEMORY
@@ -1307,7 +1305,6 @@ class Memory(Tokens):
         # 4). map_input = (3*driver.act*mapping_weight) - max(mapping_weight_driver_unit) - max(own_mapping_weight)
         return (weight - tmax_map - dmax_map)                       
     # --------------------------------------------------------------
-
 
 class Semantics(object):
     """

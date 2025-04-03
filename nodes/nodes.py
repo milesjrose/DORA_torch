@@ -1,6 +1,5 @@
 # nodes.py 
 # Class for holding memTypes, and inter-set tensor operations
-import torch
 from .nodeEnums import *
 from .nodeTensors import *
 
@@ -9,7 +8,7 @@ class Nodes(object):
     """
     A class for holding token tensors for each set, and accessing node operations.
     """
-    def __init__(self, driver: Driver, recipient: Recipient, LTM: Tokens, new_set: Tokens, semantics: Semantics, mappings: Mappings, DORA_mode: bool, params: NodeParameters = None):
+    def __init__(self, driver: Driver, recipient: Recipient, LTM: Tokens, new_set: Tokens, semantics: Semantics, set_mappings: dict[int, Mappings] , DORA_mode: bool, params: NodeParameters = None):
         """
         Initialize the Nodes object.
 
@@ -37,7 +36,7 @@ class Nodes(object):
         self.params = params
         
         # inter-set connections
-        self.mappings: Mappings = mappings
+        self.set_mappings: Mappings = set_mappings
         self.DORA_mode: bool = DORA_mode
 
         # inhibitors
@@ -92,7 +91,7 @@ class Nodes(object):
         self.new_set.initialise_act()
         self.semantics.initialise_sem()
 
-    def update_inputs_am(self, as_DORA, phase_set, lateral_input_level, ignore_object_semantics=False): # TODO: Check if used
+    def update_inputs_am(self):                                             # TODO: Check if used
         """
         Update the inputs in the active memory.
         (driver, recipient, new_set, semantics)
@@ -103,8 +102,8 @@ class Nodes(object):
             lateral_input_level (float): The lateral input level.
             ignore_object_semantics (bool, optional): Whether to ignore object semantics input. Defaults to False.
         """
-        self.driver.update_act(as_DORA)
-        self.recipient.update_act(as_DORA, phase_set, lateral_input_level, ignore_object_semantics)
+        self.driver.update_act()
+        self.recipient.update_act()
 
     # =====================[ INHIBITOR FUNCTIONS ]=======================
     def update_inhibitors(self):                                            # Update inputs and acts of inhibitors

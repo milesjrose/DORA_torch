@@ -6,7 +6,7 @@ from .nodeTensors import *
 from .nodeMemObjects import Links, Mappings
 
 # ===========[ INTERMIDIATE DATA STRUCTURES ]===========
-class Node(object):
+class Inter_Node(object):
     """
     An intermediate class for representing a node in the network.
 
@@ -46,7 +46,7 @@ class Node(object):
         self.ID = ID
         self.features[TF.ID] = ID
 
-class Semantics(Node):
+class Inter_Semantics(Inter_Node):
     """
     An intermediate class for representing a semantic node.
 
@@ -87,7 +87,7 @@ class Semantics(Node):
             else:
                 self.features[feature] = 0.0
 
-class Token(Node):
+class Inter_Token(Inter_Node):
     """
     An intermediate class for representing a token node.
 
@@ -154,7 +154,7 @@ class Token(Node):
             else:
                 self.features[feature] = 0.0
 
-class Prop(Token):
+class Inter_Prop(Inter_Token):
     """
     An intermediate class for representing a Prop node.
 
@@ -176,7 +176,7 @@ class Prop(Token):
         super().__init__(name, set, analog)
         self.set(TF.TYPE, Type.P)
 
-class RB(Token):
+class Inter_RB(Inter_Token):
     """
     An intermediate class for representing a RB node.
 
@@ -198,7 +198,7 @@ class RB(Token):
         super().__init__(name, set, analog)
         self.set(TF.TYPE, Type.RB)
 
-class PO(Token):
+class Inter_PO(Inter_Token):
     """
     An intermediate class for representing a PO node.
 
@@ -235,7 +235,7 @@ class Token_set(object):
         connections (np.ndarray): A matrix of connections between tokens.
         links (np.ndarray): A matrix of links between tokens and semantics.
     """
-    def __init__(self, set: Set, tokens: dict[Type, list[Token]], name_dict: dict[str, Token], id_dict: dict[int, Token]):
+    def __init__(self, set: Set, tokens: dict[Type, list[Inter_Token]], name_dict: dict[str, Inter_Token], id_dict: dict[int, Inter_Token]):
         """
         Initialise the token set with set, tokens, name_dict, and id_dict.
 
@@ -301,7 +301,7 @@ class Sem_set(object):
         num_sems (int): The number of semantics in the set.
         connections (np.ndarray): A matrix of connections between semantics.
     """
-    def __init__(self, sems: list[Semantics], name_dict: dict[str, Semantics], id_dict: dict[int, Semantics]):
+    def __init__(self, sems: list[Inter_Semantics], name_dict: dict[str, Inter_Semantics], id_dict: dict[int, Inter_Semantics]):
         """
         Initialise the semantic set with sems, name_dict, and id_dict.
 
@@ -396,15 +396,15 @@ class Build_set(object):                                # Builds the nodes for a
             prop_name = prop['name']
             analog = prop['analog']
             if prop_name != non_exist:
-                self.create_token(prop_name, Prop, analog)
+                self.create_token(prop_name, Inter_Prop, analog)
             for rb in prop['RBs']:
                 pred_name = rb['pred_name']
                 obj_name = rb['object_name']
-                self.create_token(pred_name + "_" + obj_name, RB, analog)
+                self.create_token(pred_name + "_" + obj_name, Inter_RB, analog)
                 if pred_name != non_exist:
-                    self.create_token(pred_name, PO, analog, True)
+                    self.create_token(pred_name, Inter_PO, analog, True)
                 if obj_name != non_exist:
-                    self.create_token(obj_name, PO, analog, False)
+                    self.create_token(obj_name, Inter_PO, analog, False)
 
 
     def id_tokens(self):   # Give each token an ID
@@ -480,7 +480,7 @@ class Build_sems(object):                               # Builds the semantic ob
         """
         self.num_sems = 0
         for sem in self.sems:
-            new_sem = Semantics(sem)
+            new_sem = Inter_Semantics(sem)
             new_sem.set_ID(self.num_sems)
             self.nodes.append(new_sem)
             self.id_dict[self.num_sems] = sem
@@ -656,6 +656,7 @@ class nodeBuilder(object):                            # Builds tensors for each 
         symProps (list): A list of symProps.
         file_path (str): The path to the sym file.
         token_sets (dict): A dictionary of token sets, mapping set to token set object.
+        mappings (dict): A dictionary of mapping object, mappings sets to mapping object.
         set_map (dict): A dictionary of set mappings, mapping set name to set. Used for reading set from symProps file.
     """
     def __init__(self, symProps: list[dict] = None, file_path: str = None):
@@ -669,6 +670,7 @@ class nodeBuilder(object):                            # Builds tensors for each 
         self.symProps = symProps
         self.file_path = file_path
         self.token_sets = {}
+        self.mappings = {}
         self.set_map = {
             "driver": Set.DRIVER,
             "recipient": Set.RECIPIENT,
@@ -744,7 +746,7 @@ class nodeBuilder(object):                            # Builds tensors for each 
         driver_links = self.token_sets[Set.DRIVER].links_tensor
         recipient_links = self.token_sets[Set.RECIPIENT].links_tensor
         memory_links = self.token_sets[Set.MEMORY].links_tensor
-        self.links = Links(driver_links, recipient_links, memory_links, self.semantics_tensor)
+        self.links = Links(driver_links, recipient_links, memory_links, None)
         return self.links
     
     def build_map_object(self,set):
@@ -755,6 +757,7 @@ class nodeBuilder(object):                            # Builds tensors for each 
         map_max_hyp = torch.zeros_like(map_cons)
                 # Create mappings object
         mappings = Mappings(self.driver_tensor, map_cons, map_weights, map_hyp, map_max_hyp)
+        self.mappings[set] = mappings
         return mappings
         
 
@@ -762,9 +765,9 @@ class nodeBuilder(object):                            # Builds tensors for each 
         """
         Build the per set tensor objects. (driver, recipient, memory, new_set, semantics)
         """
-        self.semantics_tensor = Semantics(self.sems.node_tensor, self.sems.connections_tensor, self.links, self.sems.id_dict)
-
-        self.build_link_object(self.semantics_tensor)
+        self.build_link_object()
+        self.semantics_tensor: Semantics = Semantics(self.sems.node_tensor, self.sems.connections_tensor, self.links, self.sems.id_dict)
+        self.links.semantics = self.semantics_tensor
 
         driver_set = self.token_sets[Set.DRIVER]
         self.driver_tensor = Driver(driver_set.token_tensor, driver_set.connections_tensor, self.links, driver_set.id_dict)
