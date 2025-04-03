@@ -11,6 +11,7 @@ import numpy as np
 import dataTypes
 import DORA_GUI
 import buildNetwork
+from nodes.nodes import *
 
 if not run_on_iphone:
     import pygame
@@ -22,70 +23,45 @@ import pdb
 # screen_height = 700.0
 
 
-# class that performs all the run operations in DORA. In class form so that new operations (e.g., compression, predicate recognition) can be implemented as new functions in this class (under the phase set section).
+
 class runDORA(object):
-    def __init__(self, memory, parameters):
-        self.memory = memory
-        self.firingOrderRule = parameters["firingOrderRule"]
-        self.firingOrder = None  # initialized to None.
-        self.asDORA = parameters["asDORA"]
-        self.gamma = parameters["gamma"]
-        self.delta = parameters["delta"]
-        self.eta = parameters["eta"]
-        self.HebbBias = parameters["HebbBias"]
-        self.lateral_input_level = parameters["lateral_input_level"]
-        self.strategic_mapping = parameters["strategic_mapping"]
-        self.ignore_object_semantics = parameters["ignore_object_semantics"]
-        self.ignore_memory_semantics = parameters["ignore_memory_semantics"]
-        self.mag_decimal_precision = parameters["mag_decimal_precision"]
-        self.exemplar_memory = parameters["exemplar_memory"]
-        self.recent_analog_bias = parameters["recent_analog_bias"]
-        self.bias_retrieval_analogs = parameters["bias_retrieval_analogs"]
-        self.use_relative_act = parameters["use_relative_act"]
-        self.ho_sem_act_flow = parameters[
-            "ho_sem_act_flow"
-        ]  # allows flow of activation; -1: only from regular semantics to higher-order semantics; 1: only from higher-order semantics to regular semantics; 0: in both directions
-        self.tokenize = parameters[
-            "tokenize"
-        ]  # ekaterina: the parameter for unpacking; if tokenize == True: create two copies of unpacked object in memory bound to two roles in two different analogs; if tokenize == False: create one object bound to two unpacked roles in one analog
-        self.remove_uncompressed = parameters[
-            "remove_uncompressed"
-        ]  # ekaterina: allows to choose whether to delete or to leave the original uncompressed structure from LTM after do_compress()
-        self.remove_compressed = parameters[
-            "remove_compressed"
-        ]  # ekaterina: allows to choose whether to delete or to leave the original compressed structure from LTM after do_unpacking()
-        if run_on_iphone:
-            self.doGUI = False
-        else:
-            self.doGUI = parameters["doGUI"]
-        self.screen = 0
-        self.GUI_information = None  # initialize to None.
-        self.screen_width = parameters["screen_width"]
-        self.screen_height = parameters["screen_height"]
-        self.GUI_update_rate = parameters["GUI_update_rate"]
-        self.starting_iteration = parameters["starting_iteration"]
-        self.num_phase_sets_to_run = None
-        self.count_by_RBs = None  # initialize to None.
-        self.local_inhibitor_fired = False  # initialize to False.
+    """
+    class that performs all the run operations in DORA. 
+    In class form so that new operations (e.g., compression, predicate recognition) 
+    can be implemented as new functions in this class (under the phase set section).
+    """
+    def __init__(self, nodes: Nodes, memory, parameters: dict):
+        """
+        Initialize the runDORA object.
+
+        Args:
+            nodes (Nodes): The nodes object, holding sets of nodes.
+            memory (Memory): Deprecated. The memory object.
+            parameters (dict): The parameters.
+        """
+        self.memory = memory # TODO: remove
+        self.nodes = nodes
+        """Holds set of tokens/semantics."""
+        self.params = NodeParameters(parameters)
+        """Holds parameters used by nodeTensors, to streamline passing parameters to nodes."""
+        self.nodes.set_params(self.params)          # Pass params to nodes, then recursively to all sets.
 
     ######################################
     ###### DORA OPERATION FUNCTIONS ######
     ######################################
     # 1) Bring a prop or props into WM (driver). This step is completed by passing the variable memory as an argument to the function (memory contains the driver proposition(s)).
-    # function to prepare runDORA object for a run.
     def initialize_run(self, mapping):
-        # index memory.
-        self.memory = indexMemory(self.memory)
+        """
+        1). Prepare runDORA object for a run:
+        Bring a prop or props into WM (driver). 
+        This step is completed by passing the variable memory as an argument to the function 
+        (memory contains the driver proposition(s)).
+
+        Args:
+            mapping (bool): Whether to map.
+        """
         # set up driver and recipient.
-        self.memory.driver.Groups = []
-        self.memory.driver.Ps = []
-        self.memory.driver.RBs = []
-        self.memory.driver.POs = []
-        self.memory.recipient.Groups = []
-        self.memory.recipient.Ps = []
-        self.memory.recipient.RBs = []
-        self.memory.recipient.POs = []
-        if mapping == True and self.exemplar_memory == True:
+        if mapping == True and self.params.exemplar_memory == True:
             self.memory = make_AM_copy(self.memory)
         else:
             self.memory = make_AM(self.memory)
@@ -102,22 +78,26 @@ class runDORA(object):
 
     # 2) Initialize activations and inputs of all units to 0.
     def initialize_network_state(self):
-        self.memory = initialize_memorySet(self.memory)
-        self.inferred_new_P = False
+        """
+        2). Initialize activations and inputs of all units to 0.
+        """
+        self.nodes.initialise_act()
 
     # 3) Select firing order of RBs in the driver (for now this step is random or user determined).
     def create_firing_order(self):
+        """
+        3). Select firing order of RBs in the driver (for now this step is random or user determined).
+        """
         if len(self.memory.driver.RBs) > 0:
-            self.count_by_RBs = True
+            self.params.count_by_RBs = True
+            self.firingOrder = makeFiringOrder(self.memory, self.firingOrderRule)
         else:
-            self.count_by_RBs = False
+            self.params.count_by_RBs = False
             # and randomly assign the PO firing order.
             self.firingOrder = []
             for myPO in self.memory.driver.POs:
                 self.firingOrder.append(myPO)
             random.shuffle(self.firingOrder)
-        if self.count_by_RBs:
-            self.firingOrder = makeFiringOrder(self.memory, self.firingOrderRule)
 
     # function to perform steps 1-3 above.
     def do_1_to_3(self, mapping):
@@ -1738,9 +1718,14 @@ def check_sub_tokens(token):
     return go_on_flag
 
 
-# function to make copies of items from memory to enter AM.
 def make_AM_copy(memory):
-    # go through memory and make a list of all analogs to be copied. For each item, if it is to be retrieved into AM, then check if its analog is in the list of analogs to enter AM. If not, add it.
+    """
+    Make copies of items from memory to enter AM.
+    
+    Go through memory and make a list of all analogs to be copied. 
+    For each item, if it is to be retrieved into AM, then check if its analog is in the list of analogs to enter AM. 
+    If not, add it.
+    """
     analogs_to_copy = []
     for analog in memory.analogs:
         # check if the analog is to be copied, and if so, copy it.
@@ -1755,10 +1740,13 @@ def make_AM_copy(memory):
     # returns.
     return memory
 
-
-# function to check an analog for whether it contains any tokens to copy.
 def check_analog_for_tokens_to_copy(analog):
-    # check if analog is to be copied. Go through all tokens in the analog and see whether the .set field of any is NOT 'memory'. If it is not, break the loop and copy the analog to analogs_to_copy.
+    """
+    Check an analog for whether it contains any tokens to copy.
+    Check if analog is to be copied. Go through all tokens in the analog and see whether the .set field of any is NOT 'memory'. 
+    If it is not, break the loop and copy the analog to analogs_to_copy.
+    """
+
     copy_analog_flag = False
     # first check all the Groups.
     if not copy_analog_flag:
@@ -2220,82 +2208,121 @@ def findDriverRecipient(memory):
 
 
 # make firing order.
-def makeFiringOrder(memory, rule):
-    # set the firing order of the driver using rule.
-    # right now, the only rule is random, the default.
-    # you should add pragmatics.
-    if rule == "by_top_random":
-        # arrange RBs randomly within Ps or Groups.
-        if len(memory.driver.Groups) > 0:
-            # arrange by Groups.
-            # randomly arrange the Groups.
-            Gorder = memory.driver.Groups
-            random.shuffle(Gorder)
-            # now select RBs from Porder.
-            firingOrder = []
-            Porder = []
-            for Group in Gorder:
-                # order my Ps.
-                for myP in Group.myPs:
-                    Porder.append(myP)
-            # now add the RBs from each P in Porder to firingOrder.
-            for myP in Porder:
-                for myRB in myP.myRBs:
-                    # add RB to firingOrder.
-                    firingOrder.append(myRB)
-        elif len(memory.driver.Ps) > 0:  # arrange by Ps.
-            # randomly arrange the Ps.
-            Porder = memory.driver.Ps
-            random.shuffle(Porder)
-            # now select RBs from Porder.
-            firingOrder = []
-            for myP in Porder:
-                for myRB in myP.myRBs:
-                    # add RB to firingOrder.
-                    firingOrder.append(myRB)
-        else:
-            # arrange RBs or POs randomly.
-            firingOrder = []
-            if len(memory.driver.RBs) > 0:
-                for myRB in memory.driver.RBs:
-                    firingOrder.append(myRB)
-                random.shuffle(firingOrder)
+def makeFiringOrder(nodes: Nodes, rule):
+    """
+    Set the firing order of the nodes using rule.
+
+    right now, the only rule is random, the default.
+    TODO: Add pragmatics.
+
+    Args:
+        nodes (Nodes): The nodes object.
+        rule (str): The rule to use to make the firing order.
+    
+    Returns:
+        list: The firing order of node IDs.
+    """
+    # ==============[ FIRING ORDER TYPES]==============
+    def by_top_random(nodes):
+        """
+        Return by_top_random firing order
+
+        If groups exist, get list of Ps in random order, then get list of RBs in random order within each P.
+        Elif Ps exist, get list of RBs in random order.
+        arrange RBs randomly within Ps or Groups.
+        """
+        driver: Driver = nodes.driver
+        g_mask = driver.get_mask(Type.GROUP)
+        groups = driver.nodes[g_mask, TF.ID].tolist()
+        firing_order = []
+        
+        if len(groups) > 0:
+            random.shuffle(groups)                      # Get random order of groups
+            p_mask = driver.get_mask(Type.P)            # Get ps in driver
+            rb_mask = driver.get_mask(Type.RB)          # Get RBs in driver
+            
+            for group in groups:
+                group_index = driver.get_index(group)               # Get connections from this group to P nodes
+                cons = driver.connections[group_index, p_mask]
+                ps_mask = tOps.refine_mask(p_mask, torch.any(cons, dim=1))  # Get mask of P nodes that connect to this group
+                ps = driver.nodes[ps_mask, TF.ID].tolist()                  # Get IDs of P nodes connected to this group
+                random.shuffle(ps)                                          # Randomize P nodes within this group
+            
+                for p in ps:                                                # For each P node, get its RBs
+                    p_index = driver.get_index(p)
+                    rb_cons = driver.connections[p_index, rb_mask]                      # Get connections from this P to RB nodes
+                    p_rb_mask = tOps.refine_mask(rb_mask, torch.any(rb_cons, dim=1))    # Get mask of RB nodes that connect to this P
+                    p_rbs = driver.nodes[p_rb_mask, TF.ID].tolist()                     # Get IDs of RB nodes connected to this P
+                    random.shuffle(p_rbs)                                               # Randomize RBs within this P
+                    firing_order.extend(p_rbs)
+                    
+        elif len(driver.get_mask(Type.P)) > 0:          # If no groups but Ps exist
+            p_mask = driver.get_mask(Type.P)
+            rb_mask = driver.get_mask(Type.RB)
+            ps = driver.nodes[p_mask, TF.ID].tolist()
+            random.shuffle(ps)                          # Randomize P nodes
+            
+            for p in ps:                                                    # For each P node, get its RBs
+                p_index = driver.get_index(p)
+                rb_cons = driver.connections[p_index, rb_mask]                      # Get connections from this P to RB nodes
+                p_rb_mask = tOps.refine_mask(rb_mask, torch.any(rb_cons, dim=1))    # Get mask of RB nodes that connect to this P
+                p_rbs = driver.nodes[p_rb_mask, TF.ID].tolist()                     # Get IDs of RB nodes connected to this P
+                random.shuffle(p_rbs)                                               # Randomize RBs within this P
+                firing_order.extend(p_rbs)
+                
+        else:  # If no Ps or Groups, just get RBs or POs
+            rb_mask = driver.get_mask(Type.RB)
+            if torch.any(rb_mask):
+                rbs = driver.nodes[rb_mask, TF.ID].tolist()
+                random.shuffle(rbs)
+                firing_order.extend(rbs)
             else:
-                # arrange by POs.
-                for myPO in memory.driver.POs:
-                    firingOrder.append(myPO)
-                random.shuffle(firingOrder)
-    else:  # use a totally random firing order.
-        # if not rule == 'totally_random':
-        #     print ('\nYou have not input a valid firing rule. I am arranging RBs at random.\n') # ekaterina
-        firingOrder = []
-        if len(memory.driver.RBs) > 0:
-            for myRB in memory.driver.RBs:
-                firingOrder.append(myRB)
-            random.shuffle(firingOrder)
-        else:
-            # arrange by POs.
-            for myPO in memory.driver.POs:
-                firingOrder.append(myPO)
-            random.shuffle(firingOrder)
-    # returns.
-    return firingOrder
+                # If no RBs, get POs
+                po_mask = driver.get_mask(Type.PO)
+                if torch.any(po_mask):
+                    pos = driver.nodes[po_mask, TF.ID].tolist()
+                    random.shuffle(pos)
+                    firing_order.extend(pos)
+        return firing_order
 
+    def totally_random(nodes):
+        """
+        Creates a firing order by randomly shuffling either RB nodes or PO nodes.
+        If RB nodes exist, they are shuffled and added to the firing order.
+        Otherwise, PO nodes are shuffled and added to the firing order.
+        
+        Args:
+            nodes: The nodes object containing the tensor data structure
+            
+        Returns:
+            A list of node IDs representing the firing order
+        """
+        firing_order = []
+        rb_mask = nodes.get_mask(Type.RB)               # Get a mask of RB nodes
+        if rb_mask.any():                               # Check if there are any RB nodes
+            rb_ids = nodes.get_IDs_by_mask(rb_mask)     # Get IDs of RB nodes
+            rb_ids_list = rb_ids.tolist()               # Convert to list and shuffle
+            random.shuffle(rb_ids_list)
+            firing_order.extend(rb_ids_list)            # Add to firing order
+        else:                                       # If no RB nodes, use PO nodes
+            po_mask = nodes.get_mask(Type.PO)
+            po_ids = nodes.get_IDs_by_mask(po_mask)     # Get IDs of PO nodes
+            po_ids_list = po_ids.tolist()               # Convert to list and shuffle
+            random.shuffle(po_ids_list)
+            firing_order.extend(po_ids_list)            # Add to firing order
+        return firing_order
+    # -------------------------------------------------
 
-# index all items in memory.
-def indexMemory(memory):
-    for Group in memory.Groups:
-        Group.get_index(memory)
-    for myP in memory.Ps:
-        myP.get_index(memory)
-    for myRB in memory.RBs:
-        myRB.get_index(memory)
-    for myPO in memory.POs:
-        myPO.get_index(memory)
-    # returns.
-    return memory
+    match rule:
+        case "by_top_random":
+            return by_top_random(nodes)
+        case "totally_random":
+            return totally_random(nodes)
+        case _ :
+            # Default case, can update to print error or smt later.
+            return totally_random(nodes)
 
-
+     
 # update all the .same_RB_POs for all POs in memory.
 def update_same_RB_POs(memory):
     # clear the same_RB_PO field of all POs in memory.
