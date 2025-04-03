@@ -693,7 +693,6 @@ class nodeBuilder(object):                            # Builds tensors for each 
             self.get_symProps_from_file()
         if self.symProps is not None:
             self.build_set_tensors()
-            self.build_mem_objects()
             self.build_node_tensors()
             self.nodes = Nodes(self.driver_tensor, self.recipient_tensor, self.memory_tensor, self.new_set_tensor, self.semantics_tensor, self.mappings, DORA_mode)
             return self.nodes
@@ -737,7 +736,7 @@ class nodeBuilder(object):                            # Builds tensors for each 
             self.token_sets[set].tensorise()
         self.sems.tensorise()
 
-    def build_mem_objects(self):    # Build the mem objects
+    def build_link_object(self):    # Build the mem objects
         """
         Build the mem objects. (links, mappings)
         """
@@ -745,33 +744,41 @@ class nodeBuilder(object):                            # Builds tensors for each 
         driver_links = self.token_sets[Set.DRIVER].links_tensor
         recipient_links = self.token_sets[Set.RECIPIENT].links_tensor
         memory_links = self.token_sets[Set.MEMORY].links_tensor
-        self.links = Links(driver_links, recipient_links, memory_links)
+        self.links = Links(driver_links, recipient_links, memory_links, self.semantics_tensor)
+        return self.links
+    
+    def build_map_object(self,set):
         # Create mapping tensors
-        map_cons = torch.zeros(self.token_sets[Set.RECIPIENT].num_tokens, self.token_sets[Set.DRIVER].num_tokens, 2)
+        map_cons = torch.zeros(self.token_sets[set].num_tokens, self.token_sets[Set.DRIVER].num_tokens, 2)
         map_weights = torch.zeros_like(map_cons)
         map_hyp = torch.zeros_like(map_cons)
         map_max_hyp = torch.zeros_like(map_cons)
-        # Create mappings object
-        self.mappings = Mappings(map_cons, map_weights, map_hyp, map_max_hyp)
+                # Create mappings object
+        mappings = Mappings(self.driver_tensor, map_cons, map_weights, map_hyp, map_max_hyp)
+        return mappings
+        
 
     def build_node_tensors(self):   # Build the node tensor objects
         """
         Build the per set tensor objects. (driver, recipient, memory, new_set, semantics)
         """
+        self.semantics_tensor = Semantics(self.sems.node_tensor, self.sems.connections_tensor, self.links, self.sems.id_dict)
+
+        self.build_link_object(self.semantics_tensor)
+
         driver_set = self.token_sets[Set.DRIVER]
-        self.driver_tensor = Driver(driver_set.token_tensor, driver_set.connections_tensor, self.links.driver, driver_set.id_dict)
+        self.driver_tensor = Driver(driver_set.token_tensor, driver_set.connections_tensor, self.links, driver_set.id_dict)
         
         recipient_set = self.token_sets[Set.RECIPIENT]
-        self.recipient_tensor = Recipient(recipient_set.token_tensor, recipient_set.connections_tensor, self.links.recipient, recipient_set.id_dict)
+        recipient_maps = self.build_map_object(Set.RECIPIENT)
+        self.recipient_tensor = Recipient(recipient_set.token_tensor, recipient_set.connections_tensor, self.links, recipient_maps, recipient_set.id_dict)
 
         memory_set = self.token_sets[Set.MEMORY]
-        self.memory_tensor = Tokens(memory_set.token_tensor, memory_set.connections_tensor, self.links.memory, memory_set.id_dict)
+        mem_maps = self.build_map_object(Set.MEMORY)
+        self.memory_tensor = Tokens(memory_set.token_tensor, memory_set.connections_tensor, self.links, mem_maps, memory_set.id_dict)
 
-        new_set_links = self.token_sets[Set.NEW_SET].links_tensor
         new_set = self.token_sets[Set.NEW_SET]
-        self.new_set_tensor = Tokens(new_set.token_tensor, new_set.connections_tensor, new_set_links, new_set.id_dict)
-
-        self.semantics_tensor = Semantics(self.sems.node_tensor, self.sems.connections_tensor, self.links, self.sems.id_dict)
+        self.new_set_tensor = Tokens(new_set.token_tensor, new_set.connections_tensor, self.links, new_set.id_dict)
     
     def get_symProps_from_file(self):
         """

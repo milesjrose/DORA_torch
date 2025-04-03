@@ -17,14 +17,13 @@ class Tokens(object):
         analogs (torch.Tensor): An Ax1 tensor listing all analogs in the tensor.
         analog_counts (torch.Tensor): An Ax1 tensor listing the number of tokens per analog
         links (Links): A shared Links object containing interset links from tokens to semantics.
-        mappings (Mappings): A shared Mappings object containing interset mappings from tokens to driver.
         connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
         masks (torch.Tensor): A Tensor of masks for the tokens in this set.
         IDs (dict): A dictionary mapping token IDs to index in the tensor.
         params (NodeParameters): An object containing shared parameters.
         token_set (Set): This set's enum, used to access links and mappings for this set in shared mem objects.
     """
-    def __init__(self, floatTensor, connections, links: Links, mappings: Mappings, IDs: dict[int, int],names: dict[int, str] = {}, params: NodeParameters = None):
+    def __init__(self, floatTensor, connections, links: Links, IDs: dict[int, int],names: dict[int, str] = {}, params: NodeParameters = None):
         """
         Initialize the TokenTensor object.
 
@@ -32,7 +31,6 @@ class Tokens(object):
             floatTensor (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
             connections (torch.Tensor): An NxN tensor of connections between the tokens.
             links (Links): A shared Links object containing interset links from tokens to semantics.
-            mappings (Mappings): A shared Mappings object containing interset mappings from tokens to driver.
             IDs (dict): A dictionary mapping token IDs to index in the tensor.
             names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
             params (NodeParameters, optional): An object containing shared parameters. Defaults to None.
@@ -44,8 +42,6 @@ class Tokens(object):
         # Validate input
         if type(links) != Links:
             raise TypeError("Links must be Links object.")
-        if type(mappings) != Mappings:
-            raise TypeError("Mappings must be Mappings object.")
         if type(connections) != torch.Tensor:
             raise TypeError("Connections must be torch.Tensor.")
         if type(floatTensor) != torch.Tensor:
@@ -134,6 +130,24 @@ class Tokens(object):
             return self.IDs.keys()[self.IDs.values().index(name)]
         except:
             raise ValueError("Invalid name.")
+    
+    def get_type_IDs(self, Type):
+        """
+        Get the IDs of the tokens of a given type.
+        """
+        return self.get_IDs_by_mask(self.get_mask(Type))
+    
+    def get_IDs_by_mask(self, mask):
+        """
+        Get the IDs of the tokens of a given mask.
+        """
+        return self.nodes[mask, TF.ID]
+    
+    def get_index(self, ID):
+        """
+        Get index in tesor of node with ID.
+        """
+        return self.IDs[ID]
     # --------------------------------------------------------------
 
     # ====================[ TENSOR FUNCTIONS ]======================
@@ -653,34 +667,26 @@ class Recipient(Tokens):
             ValueError: If the number of features in floatTensor does not match the number of features in TF enum.
             ValueError: If all tokens in floatTensor do not have TF.SET == Set.RECIPIENT.
         """
-        super().__init__(floatTensor, connections, links, mappings, IDs, names, params)
+        super().__init__(floatTensor, connections, links, IDs, names, params)
         self.token_set = Set.RECIPIENT
+        self.mappings = mappings
         if floatTensor.size(dim=0) > 0:
             if not torch.all(floatTensor[:, TF.SET] == Set.RECIPIENT):
                 raise ValueError("All tokens in recipient floatTensor must have TF.SET == Set.RECIPIENT.")
 
     # ============[ RECIPIENT UPDATE INPUT FUNCTIONS ]==============
-    def update_input(self, semantics, mappings, driver):                # Update all input in recipient
+    def update_input(self):                # Update all input in recipient
         """
         Update all input in recipient
-        
-        Args:
-            semantics (Semantics): A Semantics object
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
         """
-        self.update_input_p_parent(mappings, driver)
-        self.update_input_p_child(mappings, driver)
-        self.update_input_rb(mappings, driver)
-        self.update_input_po(semantics, mappings, driver)
+        self.update_input_p_parent()
+        self.update_input_p_child()
+        self.update_input_rb()
+        self.update_input_po()
 
-    def update_input_p_parent(self, mappings: Mappings, driver: Driver):    # P units in parent mode - recipient
+    def update_input_p_parent(self):    # P units in parent mode - recipient
         """
         Update input for P units in parent mode
-        
-        Args:
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
         """
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
@@ -704,7 +710,7 @@ class Recipient(Tokens):
             self.nodes[rb, TF.ACT]                                  # Each p node -> sum of act of connected rb nodes
             )  
         # 4). Mapping input
-        self.nodes[p, TF.MAP_INPUT] += self.map_input(p, mappings, driver) 
+        self.nodes[p, TF.MAP_INPUT] += self.map_input(p) 
         # Inhibitory input:
         # 5). LATERAL_INPUT: (lat_input_level * other parent p nodes in recipient), inhibitor
         # 5a). Tensor to connect p nodes to each other
@@ -721,13 +727,9 @@ class Recipient(Tokens):
         inhib_input = self.nodes[p, TF.INHIBITOR_ACT]
         self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(10, inhib_input)
     
-    def update_input_p_child(self, mappings: Mappings, driver: Driver):     # P Units in child mode - recipient:
+    def update_input_p_child(self):     # P Units in child mode - recipient:
         """
         Update input for P units in child mode
-
-        Args:
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
         """
         as_DORA = self.params.as_DORA
         phase_set = self.params.phase_set
@@ -759,7 +761,7 @@ class Recipient(Tokens):
                 )
         # 3). BU_INPUT: Semantics                                     NOTE: not implenmented yet
         # 4). Mapping input
-        self.nodes[p, TF.MAP_INPUT] += self.map_input(p, mappings, driver) 
+        self.nodes[p, TF.MAP_INPUT] += self.map_input(p) 
         # Inhibitory input:
         # 5). LATERAL_INPUT: (Other p in child mode), (if DORA_mode: POs not connected to same RBs / Else: PO acts)
         # 5a). other p in child mode
@@ -791,13 +793,9 @@ class Recipient(Tokens):
                 self.nodes[obj, TF.ACT]                             # sum(objects)x1 matrix, listing act of each object
             )
    
-    def update_input_rb(self, mappings: Mappings, driver: Driver):          # RB inputs - recipient
+    def update_input_rb(self):                                              # RB inputs - recipient
         """
         Update input for RB units
-
-        Args:
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
         """
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
@@ -823,7 +821,7 @@ class Recipient(Tokens):
             self.nodes[po_p, TF.ACT]                                # For each rb node -> sum of act of connected po and child p nodes
             )
         # 4). Mapping input
-        self.nodes[rb, TF.MAP_INPUT] += self.map_input(rb, mappings, driver) 
+        self.nodes[rb, TF.MAP_INPUT] += self.map_input(rb) 
         # Inhibitory input:
         # 5). LATERAL: (other RBs*lat_input_level), inhibitor*10
         # 5a). (other RBs*lat_input_level)
@@ -839,20 +837,15 @@ class Recipient(Tokens):
         inhib_act = torch.mul(10, self.nodes[rb, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
         self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat inhibition
     
-    def update_input_po(self, semantics, mappings, driver):                 # PO units in - recipient
+    def update_input_po(self):                                      # PO units in - recipient
         """
         Update input for PO units
-
-        Args:
-            semantics (Semantics): A Semantics object
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
         """
         as_DORA = self.params.as_DORA
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
         ignore_object_semantics = self.params.ignore_object_semantics
-        
+        semantics = self.links.semantics
         # NOTE: Currently inferred nodes not updated so excluded from po mask. Inferred nodes do update other PO nodes - so all_po used for updating lat_input.
         # Exitatory: td (my RBs), bu (my semantics/sem_count[for normalisation]), mapping input.
         # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
@@ -880,7 +873,7 @@ class Recipient(Tokens):
         )
         self.nodes[po, TF.BU_INPUT] += sem_input / self.nodes[po, TF.SEM_COUNT]
         # 4). Mapping input
-        self.nodes[po, TF.MAP_INPUT] += self.map_input(po, mappings, driver) 
+        self.nodes[po, TF.MAP_INPUT] += self.map_input(po) 
         # Inhibitory input:
         # 5). LATERAL: PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)])
         # 5a). find other PO connected to same RB
@@ -945,20 +938,18 @@ class Recipient(Tokens):
     # --------------------------------------------------------------
     
     # =================[ MAPPING INPUT FUNCTION ]===================
-    def map_input(self, t_mask, mappings: Mappings, driver: Driver):        # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
+    def map_input(self, t_mask):        # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
         """
         Calculate mapping input for tokens in mask
 
         Args:
-            t_mask (torch.Tensor): A mask of tokens to calculate mapping input for
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
-        
+            t_mask (torch.Tensor): A mask of tokens to calculate mapping input for  
         Returns:
             torch.Tensor: A (sum(t_mask) x 1) matrix of mapping input for tokens in mask
         """
-        pmap_weights = mappings.weights()[t_mask] 
-        pmap_connections = mappings.connections()[t_mask]
+        driver = self.mappings.driver
+        pmap_weights = self.mappings.weights()[t_mask] 
+        pmap_connections = self.mappings.connections()[t_mask]
 
         # 1). weight = (3*map_weight*driverToken.act)
         weight = torch.mul(                                         
@@ -1006,39 +997,27 @@ class Memory(Tokens):
     """
     A class for representing a memory of tokens.
     """
-    def __init__(self, floatTensor, connections, links, IDs: dict[int, int], names: dict[int, str] = {}, params: NodeParameters = None):
+    def __init__(self, floatTensor, connections, links, mappings, IDs: dict[int, int], names: dict[int, str] = {}, params: NodeParameters = None):
         super().__init__(floatTensor, connections, links, IDs, names, params)
+        self.mappings = mappings
         self.token_set = Set.MEMORY
 
     # =========[ USES RECIPIENT UPDATE INPUT FUNCTIONS ]===========
-    def update_input(self, as_DORA, phase_set, lateral_input_level, semantics, mappings, driver, ignore_object_semantics=False): # Update all input in recipient
+    def update_input(self):                # Update all input in recipient
         """
         Update all input in recipient
-        
-        Args:
-            as_DORA (bool): Whether to use DORA mode
-            phase_set (int): The current phase set
-            lateral_input_level (float): The level of lateral input
-            semantics (Semantics): A Semantics object
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
-            ignore_object_semantics (bool): Whether to ignore object semantics
         """
-        self.update_input_p_parent(phase_set, lateral_input_level, mappings, driver)
-        self.update_input_p_child(as_DORA, phase_set, lateral_input_level, mappings, driver)
-        self.update_input_rb(phase_set, lateral_input_level, mappings, driver)
-        self.update_input_po(as_DORA, phase_set, lateral_input_level, semantics, mappings, driver, ignore_object_semantics)
+        self.update_input_p_parent()
+        self.update_input_p_child()
+        self.update_input_rb()
+        self.update_input_po()
 
-    def update_input_p_parent(self, phase_set, lateral_input_level, mappings: Mappings, driver: Driver):  # P units in parent mode - recipient
+    def update_input_p_parent(self):    # P units in parent mode - recipient
         """
         Update input for P units in parent mode
-        
-        Args:
-            phase_set (int): The current phase set
-            lateral_input_level (float): The level of lateral input
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
         """
+        phase_set = self.params.phase_set
+        lateral_input_level = self.params.lateral_input_level
         # Exitatory: td (my Groups), bu (my RBs), mapping input.
         # Inhibitory: lateral (other P units in parent mode*lat_input_level), inhibitor.
         # 1). get masks
@@ -1059,7 +1038,7 @@ class Memory(Tokens):
             self.nodes[rb, TF.ACT]                                  # Each p node -> sum of act of connected rb nodes
             )  
         # 4). Mapping input
-        self.nodes[p, TF.MAP_INPUT] += self.map_input(p, mappings, driver) 
+        self.nodes[p, TF.MAP_INPUT] += self.map_input(p) 
         # Inhibitory input:
         # 5). LATERAL_INPUT: (lat_input_level * other parent p nodes in recipient), inhibitor
         # 5a). Tensor to connect p nodes to each other
@@ -1076,17 +1055,13 @@ class Memory(Tokens):
         inhib_input = self.nodes[p, TF.INHIBITOR_ACT]
         self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(10, inhib_input)
     
-    def update_input_p_child(self, as_DORA, phase_set, lateral_input_level, mappings: Mappings, driver: Driver): # P Units in child mode - recipient:
+    def update_input_p_child(self):     # P Units in child mode - recipient:
         """
         Update input for P units in child mode
-
-        Args:
-            as_DORA (bool): Whether to use DORA mode
-            phase_set (int): The current phase set
-            lateral_input_level (float): The level of lateral input
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
         """
+        as_DORA = self.params.as_DORA
+        phase_set = self.params.phase_set
+        lateral_input_level = self.params.lateral_input_level
         # Exitatory: td (RBs above me), mapping input, bu (my semantics [currently not implmented]).
         # Inhibitory: lateral (other Ps in child, and, if in DORA mode, other PO objects not connected to my RB, and 3*PO connected to my RB), inhibitor.
         # 1). get masks
@@ -1114,7 +1089,7 @@ class Memory(Tokens):
                 )
         # 3). BU_INPUT: Semantics                                     NOTE: not implenmented yet
         # 4). Mapping input
-        self.nodes[p, TF.MAP_INPUT] += self.map_input(p, mappings, driver) 
+        self.nodes[p, TF.MAP_INPUT] += self.map_input(p) 
         # Inhibitory input:
         # 5). LATERAL_INPUT: (Other p in child mode), (if DORA_mode: POs not connected to same RBs / Else: PO acts)
         # 5a). other p in child mode
@@ -1146,16 +1121,12 @@ class Memory(Tokens):
                 self.nodes[obj, TF.ACT]                             # sum(objects)x1 matrix, listing act of each object
             )
    
-    def update_input_rb(self, phase_set, lateral_input_level, mappings: Mappings, driver: Driver): # RB inputs - recipient
+    def update_input_rb(self):                                              # RB inputs - recipient
         """
         Update input for RB units
-
-        Args:
-            phase_set (int): The current phase set
-            lateral_input_level (float): The level of lateral input
-            mappings (Mappings): A Mappings object
-            driver (Driver): A Driver object
         """
+        phase_set = self.params.phase_set
+        lateral_input_level = self.params.lateral_input_level
         # Exitatory: td (my P units), bu (my pred and obj POs, and my child Ps), mapping input.
         # Inhibitory: lateral (other RBs*3), inhbitor.
         # 1). get masks
@@ -1178,7 +1149,7 @@ class Memory(Tokens):
             self.nodes[po_p, TF.ACT]                                # For each rb node -> sum of act of connected po and child p nodes
             )
         # 4). Mapping input
-        self.nodes[rb, TF.MAP_INPUT] += self.map_input(rb, mappings, driver) 
+        self.nodes[rb, TF.MAP_INPUT] += self.map_input(rb) 
         # Inhibitory input:
         # 5). LATERAL: (other RBs*lat_input_level), inhibitor*10
         # 5a). (other RBs*lat_input_level)
@@ -1194,16 +1165,15 @@ class Memory(Tokens):
         inhib_act = torch.mul(10, self.nodes[rb, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
         self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat inhibition
     
-    def update_input_po(self, as_DORA, phase_set, lateral_input_level, semantics, mappings, driver, ignore_object_semantics=False): # PO units in - recipient
+    def update_input_po(self):                                      # PO units in - recipient
         """
         Update input for PO units
-
-        Args:
-            as_DORA (bool): Whether to use DORA mode
-            phase_set (int): The current phase set
-            lateral_input_level (float): The level of lateral input
         """
-        
+        as_DORA = self.params.as_DORA
+        phase_set = self.params.phase_set
+        lateral_input_level = self.params.lateral_input_level
+        ignore_object_semantics = self.params.ignore_object_semantics
+        semantics = self.links.semantics
         # NOTE: Currently inferred nodes not updated so excluded from po mask. Inferred nodes do update other PO nodes - so all_po used for updating lat_input.
         # Exitatory: td (my RBs), bu (my semantics/sem_count[for normalisation]), mapping input.
         # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
@@ -1231,7 +1201,7 @@ class Memory(Tokens):
         )
         self.nodes[po, TF.BU_INPUT] += sem_input / self.nodes[po, TF.SEM_COUNT]
         # 4). Mapping input
-        self.nodes[po, TF.MAP_INPUT] += self.map_input(po, mappings, driver) 
+        self.nodes[po, TF.MAP_INPUT] += self.map_input(po) 
         # Inhibitory input:
         # 5). LATERAL: PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)])
         # 5a). find other PO connected to same RB
@@ -1294,6 +1264,50 @@ class Memory(Tokens):
         self.nodes[po, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat input
         pass
     # --------------------------------------------------------------
+    
+    # =================[ MAPPING INPUT FUNCTION ]===================
+    def map_input(self, t_mask):        # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
+        """
+        Calculate mapping input for tokens in mask
+
+        Args:
+            t_mask (torch.Tensor): A mask of tokens to calculate mapping input for  
+        Returns:
+            torch.Tensor: A (sum(t_mask) x 1) matrix of mapping input for tokens in mask
+        """
+        driver = self.mappings.driver
+        pmap_weights = self.mappings.weights()[t_mask] 
+        pmap_connections = self.mappings.connections()[t_mask]
+
+        # 1). weight = (3*map_weight*driverToken.act)
+        weight = torch.mul(                                         
+            3,
+            torch.matmul(
+                pmap_weights,
+                driver.nodes[:, TF.ACT]
+            )
+        )
+
+        # 2). pmax_map = (self.max_map*driverToken.act)
+        act_sum = torch.matmul(                                     
+            pmap_connections,
+            driver.nodes[:, TF.ACT]
+        )
+        tmax_map = act_sum * self.nodes[t_mask, TF.MAX_MAP]
+
+        # 3). dmax_map = (driverToken.max_map*driverToken.act)
+        dmax_map = torch.mult(                                      
+            driver.nodes[:, TF.MAX_MAP],
+            driver.nodes[:, TF.ACT]
+        )
+        dmax_map = torch.mult(
+            pmap_connections,
+            dmax_map
+        )
+        # 4). map_input = (3*driver.act*mapping_weight) - max(mapping_weight_driver_unit) - max(own_mapping_weight)
+        return (weight - tmax_map - dmax_map)                       
+    # --------------------------------------------------------------
+
 
 class Semantics(object):
     """
