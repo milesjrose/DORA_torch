@@ -43,7 +43,7 @@ class Nodes(object):
         self.local_inhibitor = 0.0
         self.global_inhibitor = 0.0
     
-    def set_params(self, params: NodeParameters):
+    def set_params(self, params: NodeParameters):                           # Set the params for sets
         """
         Set the parameters for the nodes.
         """
@@ -55,7 +55,7 @@ class Nodes(object):
         self.semantics.params = params
     
     # ======================[ ACT FUNCTIONS ]============================
-    def initialise_act(self):                                                # Initialise acts in active memory/semantics
+    def initialise_act(self):                                               # Initialise acts in active memory/semantics
         """
         Initialise the acts in the active memory/semantics.
         (driver, recipient, new_set, semantics)
@@ -65,7 +65,7 @@ class Nodes(object):
         self.new_set.initialise_act()
         self.semantics.initialise_sem()
 
-    def update_acts_am(self, gamma, delta, hebb_bias):
+    def update_acts_am(self):                                               # Update acts in active memory/semantics
         """
         Update the acts in the active memory.
         (driver, recipient, new_set, semantics)
@@ -75,10 +75,10 @@ class Nodes(object):
             delta (float): Effects the decrease in act for each unit.
             hebb_bias (float): The bias for mapping input relative to TD/BU/LATERAL inputs.
         """
-        self.driver.update_act(gamma, delta, hebb_bias)
-        self.recipient.update_act(gamma, delta, hebb_bias)
-        self.new_set.update_act(gamma, delta, hebb_bias)
-        self.semantics.update_sem(gamma, delta, hebb_bias)
+        self.driver.update_act()
+        self.recipient.update_act()
+        self.new_set.update_act()
+        self.semantics.update_sem()
 
     # =======================[ INPUT FUNCTIONS ]=========================
     def initialise_input(self):                                             # Initialise inputs in active memory/semantics
@@ -133,23 +133,23 @@ class Nodes(object):
         self.memory.reset_inhibitor([Type.RB, Type.PO])
         self.new_set.reset_inhibitor([Type.RB, Type.PO])
 
-    def checkDriverPOs(self):
+    def check_local_inhibitor(self):                                        # Check local inhibition
         """Check local inhibitor activation."""
         if self.driver.check_local_inhibitor():
             self.local_inhibitor = 1.0
     
-    def fire_local_inhibitor(self):
+    def fire_local_inhibitor(self):                                         # Fire local inhibitor
         """Fire the local inhibitor."""
         self.driver.initialise_act(Type.PO)
         self.recipient.initialise_act(Type.PO)
         self.semantics.initialiseSem()
     
-    def checkDriverRBs(self):
+    def check_global_inhibitor(self):                                       # Check global inhibition
         """Check global inhibitor activation."""
         if self.driver.check_global_inhibitor():
             self.global_inhibitor = 1.0
         
-    def fire_global_inhibitor(self):
+    def fire_global_inhibitor(self):                                        # Fire global inhibitor
         """Fire the global inhibitor."""
         self.driver.initialise_act([Type.PO, Type.RB, Type.P])
         self.recipient.initialise_act([Type.PO, Type.RB, Type.P])
@@ -157,7 +157,7 @@ class Nodes(object):
         self.semantics.initialise_sem()
 
     # ========================[ NODE FUNCTIONS ]==========================
-    def get_pmode_dr(self):
+    def get_pmode_dr(self):                                                 # Get p_mode in driver
         """
         Get parent mode of P units in driver and recipient. Used in time steps activations.
         (driver, recipient)
@@ -165,7 +165,7 @@ class Nodes(object):
         self.driver.p_get_mode()
         self.recipient.p_get_mode()
     
-    def get_weight_lengths(self):
+    def get_weight_lengths(self):                                           # get weight lenghts in active memory
         """
         Get weight lengths of PO units. Used in run initialisation.
         (driver, recipient, memory, new_set)
