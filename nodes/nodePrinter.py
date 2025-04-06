@@ -1,4 +1,3 @@
-from .nodes import *
 from .nodeEnums import *
 import os
 import torch
@@ -8,28 +7,27 @@ class nodePrinter(object):
     This class is used to print the nodes and their tensors to the console or a file.
     
     Attributes:
-        nodes (Nodes): The nodes object to print.
         print_to_console (bool): Whether to print to the console.
         log_file (str): The file to print to.
+        default_feats (list): Types to print from tokens by default
     """
-    def __init__(self, nodes: Nodes, print_to_console: bool = True, log_file: str = None):
+    def __init__(self,print_to_console: bool = True, log_file: str = None):
         """
         Initialize the node printer.
 
         Args:
-            nodes (Nodes): The nodes object to print.
             print_to_console (bool): Whether to print to the console.
             log_file (str): The file to print to.
         """
-        self.nodes = nodes
+        self.default_feats = [TF.ID, TF.TYPE, TF.SET, TF.ANALOG, TF.PRED, TF.DELETED]
         self.print_to_console = print_to_console
         self.log_file = log_file
 
-    def print_token_tensor(self, set: Set, feature_types = None, mask = None, label_values = True, label_names = True, headers = None, print_cons = True, cons_headers = None, links_headers = None):
+    def print_set(self, tensor, feature_types = None, mask = None, label_values = True, label_names = True, headers = None, print_cons = True, cons_headers = None, links_headers = None):
         """
         Print the token tensor for a given set.
         Args:
-            set (Set): The set to print.
+            tensor (Token_Tensor): The set object to print
             feature_types (list): List of features to print. (IE: TF.SET, TF.ID, etc.)
             mask (torch.Tensor): Mask of subtensor to print.
             label_values (bool): Whether to convert features floats to their enum names. (IE: TF.TYPE == 0.0 -> TYPE(0.0).name)
@@ -39,39 +37,37 @@ class nodePrinter(object):
             cons_headers (list): The connections headers to print, defaults to "Set: {set.name} Connections" if left as None.
             links_headers (list): The links headers to print, defaults to "Set: {set.name} Links" if left as None.
         """
-        
-        tensor = self.nodes.sets[set]
+        token_set = tensor.token_set
         if headers is None:
-            headers = [f"{set.name} Tokens:"]
+            headers = [f"{token_set.name} Tokens:"]
             if cons_headers is None:
-                cons_headers = [f"{set.name} Connections:"]
+                cons_headers = [f"{token_set.name} Connections:"]
             if links_headers is None:
-                links_headers = [f"{set.name} Links:"]
+                links_headers = [f"{token_set.name} Links:"]
         
         if feature_types is None:
-            feature_types = [TF.ID, TF.TYPE, TF.SET, TF.ANALOG, TF.PRED]
+            feature_types = self.default_feats
         if mask is not None:
             tokens = tensor.nodes[mask]
             if print_cons:
                 cons = tensor.connections[mask, :]
-                links = tensor.links.sets[set]
+                links = tensor.links.sets[token_set]
         else:
             tokens = tensor.nodes
             if print_cons:
                 cons = tensor.connections
-                links = tensor.links.sets[set]
+                links = tensor.links.sets[token_set]
         if label_names:
             names = tensor.names
         else:
             names = None
         
-        self.print_tk_tensor(tokens, types=feature_types, label_values=label_values, names=names, headers=headers)
-        if print_cons:
-            self.print_con_tensor(cons, mask=mask, names=names, headers=cons_headers)
-            self.print_links_tensor(links, mask=mask, names=names, headers=links_headers)
+        if self.print_tk_tensor(tokens, types=feature_types, label_values=label_values, names=names, headers=headers): # Only print connctions etc, if there are nodes in tensor
+            if print_cons:
+                self.print_con_tensor(cons, mask=mask, names=names, headers=cons_headers)
+                sems = tensor.links.semantics
+                self.print_links_tensor(links, sems, mask=mask, names=names, headers=links_headers)
         
-        
-
     def print_tk_tensor(self, tensor: torch.Tensor, types = None, label_values = True, names = None, headers = None):
         """
         Print the given tensor of tokens.
@@ -92,8 +88,10 @@ class nodePrinter(object):
         token_tensor = tensor[:,types]
         rows = token_tensor.tolist()
         if len(rows) == 0:
-            print("No tokens found")
-            return
+            printer = tablePrinter(columns, rows, headers, self.log_file, self.print_to_console)
+            printer.print_header()
+            print("NO TOKENS FOUND")
+            return False
         if label_values:
             rows, success = self.label_values(rows, types, names)
             if names is not None:
@@ -101,6 +99,7 @@ class nodePrinter(object):
                     columns.insert(1, "Name")
         printer = tablePrinter(columns, rows, headers, self.log_file, self.print_to_console)
         printer.print_table()
+        return True
     
     def print_con_tensor(self, tensor: torch.Tensor, mask = None, names = None, headers = None):
         """
@@ -125,22 +124,25 @@ class nodePrinter(object):
                     row[i] = "x"
                 else:
                     row[i] = " "
-            if names is not None:
+            try:
                 row.insert(0, names[r])
-            else:
+            except:
                 row.insert(0, r)
         
         columns = ["P-> C:"]
-        for i in range(len(rows[0])-1):
-            if names is not None:
-                columns.append(names[i])
-            else:
-                columns.append(i)
+        if len(rows)>0:
+            for i in range(len(rows[0])-1):
+                try:
+                    columns.append(names[i])
+                except:
+                    columns.append(i)
+        else:
+            rows = [["Empty"]]
         
         printer = tablePrinter(columns, rows, headers, self.log_file, self.print_to_console)
         printer.print_table(split=True)
     
-    def print_links_tensor(self, tensor: torch.Tensor, mask = None, names = None, headers = None):
+    def print_links_tensor(self, tensor: torch.Tensor, semantics, mask = None, names = None, headers = None):
         """
         Print the given links tensor.
         Args:
@@ -151,7 +153,7 @@ class nodePrinter(object):
         """
         sem_names = None
         if names is not None:
-            sem_names = self.nodes.semantics.names
+            sem_names = semantics.names
         if headers is None:
             headers = ["Links:"]
         
@@ -165,22 +167,23 @@ class nodePrinter(object):
                     row[i] = "x"
                 else:
                     row[i] = " "
-            if names is not None:
+            try:
                 row.insert(0, names[r])
-            else:
+            except:
                 row.insert(0, r)
         
         columns = ["P-> C:"]
-        for i in range(len(rows[0])-1):
-            if names is not None:
-                columns.append(sem_names[i])
-            else:
-                columns.append(i)
+        if len(rows)>0:
+            for i in range(len(rows[0])-1):
+                try:
+                    columns.append(sem_names[i])
+                except:
+                    columns.append(i)
+        else:
+            rows=[["Empty"]]
 
         printer = tablePrinter(columns, rows, headers, self.log_file, self.print_to_console)
         printer.print_table(split=True)
-        
-            
 
     def print_tokens(self, set: Set, token_ids: list[int], types: list[TF]):
         """
@@ -327,7 +330,6 @@ class tablePrinter(object):
             else:
                 data[i] = str(value)
         return data
-
     
     def format_rows(self, rows: list[list[str]]):
         """
@@ -466,7 +468,6 @@ class tablePrinter(object):
                 f.write(str(line) + "\n")
         if self.print_to_console:
             print(line)
-
     
     def get_line_with_data(self, line_type: lineTypes, char_set: str, widths, format_data):
         """

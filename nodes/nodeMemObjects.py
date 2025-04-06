@@ -23,6 +23,8 @@ class Mappings(object):
             raise ValueError("All tensors must be torch.Tensor.")
         if connections.shape != weights.shape or connections.shape != hypotheses.shape or connections.shape != max_hyps.shape:
             raise ValueError("All tensors must have the same shape.")
+        if weights.dim() != 2:
+            raise ValueError("Tensors should be 2D")
         # Stack the tensors along a new dimension based on MappingFields enum
         self.driver = driver
         self.adj_matrix: torch.Tensor = torch.stack([
@@ -31,6 +33,9 @@ class Mappings(object):
             max_hyps,                   # MappingFields.MAX_HYP = 2
             connections                 # MappingFields.CONNETIONS = 3
         ], dim=-1)
+
+    def size(self, dim):
+        return self.adj_matrix.size(dim=dim)
     
     def connections(self):
         """
@@ -74,7 +79,7 @@ class Links(object):    # Weighted connections between nodes - want groups as we
     """
     A class for representing weighted connections between token sets and semantics.
     """
-    def __init__(self, driver_links, recipient_links, memory_links, semantics):  # Takes weighted adjacency matrices
+    def __init__(self, driver_links, recipient_links, memory_links, new_set_links, semantics):  # Takes weighted adjacency matrices
         """
         Initialize the Links object.
 
@@ -100,11 +105,13 @@ class Links(object):    # Weighted connections between nodes - want groups as we
         self.driver: torch.Tensor = driver_links
         self.recipient: torch.Tensor = recipient_links
         self.memory: torch.Tensor = memory_links
+        self.new_set: torch.Tensor = new_set_links
         self.semantics = semantics
         self.sets = {
             Set.DRIVER: self.driver,
             Set.RECIPIENT: self.recipient,
-            Set.MEMORY: self.memory
+            Set.MEMORY: self.memory,
+            Set.NEW_SET: self.new_set
         }
     
     def add_links(self, set: Set, links):
@@ -113,6 +120,12 @@ class Links(object):    # Weighted connections between nodes - want groups as we
         TODO: implement
         """
         pass
+
+    def __getitem__(self, key):                                     # Allows for links[set], instead of links.sets[set]
+        return self.sets[key]
+
+    def __setitem__(self, key, value):                              # Allows for links[set] = tensor, instead of links.sets[set] = tensor
+        self.sets[key] = value
 
 class New_Token(object):
     """

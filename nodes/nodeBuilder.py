@@ -746,12 +746,13 @@ class nodeBuilder(object):                            # Builds tensors for each 
         driver_links = self.token_sets[Set.DRIVER].links_tensor
         recipient_links = self.token_sets[Set.RECIPIENT].links_tensor
         memory_links = self.token_sets[Set.MEMORY].links_tensor
-        self.links = Links(driver_links, recipient_links, memory_links, None)
+        new_set_links = self.token_sets[Set.NEW_SET].links_tensor
+        self.links = Links(driver_links, recipient_links, memory_links, new_set_links, None)
         return self.links
     
     def build_map_object(self,set):
         # Create mapping tensors
-        map_cons = torch.zeros(self.token_sets[set].num_tokens, self.token_sets[Set.DRIVER].num_tokens, 2)
+        map_cons = torch.zeros(self.token_sets[set].num_tokens, self.token_sets[Set.DRIVER].num_tokens)
         map_weights = torch.zeros_like(map_cons)
         map_hyp = torch.zeros_like(map_cons)
         map_max_hyp = torch.zeros_like(map_cons)
@@ -778,10 +779,10 @@ class nodeBuilder(object):                            # Builds tensors for each 
 
         memory_set = self.token_sets[Set.MEMORY]
         mem_maps = self.build_map_object(Set.MEMORY)
-        self.memory_tensor = Tokens(memory_set.token_tensor, memory_set.connections_tensor, self.links, mem_maps, memory_set.id_dict)
+        self.memory_tensor = Memory(memory_set.token_tensor, memory_set.connections_tensor, self.links, mem_maps, memory_set.id_dict)
 
         new_set = self.token_sets[Set.NEW_SET]
-        self.new_set_tensor = Tokens(new_set.token_tensor, new_set.connections_tensor, self.links, new_set.id_dict)
+        self.new_set_tensor = New_Set(new_set.token_tensor, new_set.connections_tensor, self.links, new_set.id_dict)
     
     def get_symProps_from_file(self):
         """

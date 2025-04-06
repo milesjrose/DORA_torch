@@ -53,17 +53,31 @@ class Tokens(object):
             raise ValueError("floatTensor must have number of features listed in TF enum.")
         
         self.names = names
+        "Dict ID -> Name"
         self.nodes: torch.Tensor = floatTensor
+        "NxTF Tensor: Tokens"
         self.cache_masks()
         self.analogs = None
+        "Ax1 Tensor: Analogs in the set"
         self.analog_counts = None
+        "Ax1 Tensor: Node count for each analog in self.analogs"
         self.analog_node_count()
         self.links = links
+        """Links object for the set.
+            contains links.set[self.set]:  NxS tensor of connctions from Token to Semnatic
+        """
         self.connections = connections
+        "NxN tensor: Connections from parent to child"
         self.IDs = IDs
+        "Dict ID -> index"
         self.params = params
+        "Params object, holding parameters for tensor functions"
         self.expansion_factor = 1.1
+        """Factor used in expanding tensor. 
+            E.g: expansion_factor = 1.1 -> 10 percent increase in size on expansion
+        """
         self.token_set = None
+        """Set: This sets set type"""
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
     def get_feature(self, ID, feature):                             # Get feature of single node
@@ -187,7 +201,14 @@ class Tokens(object):
         spaces = torch.sum(self.nodes[:, TF.DELETED] == B.TRUE)             # Find number of spaces -> count of deleted nodes in the tensor
         if spaces == 0:                                                     # If no spaces, expand tensor
             self.expand_tensor()
-        ID = self.IDs.keys()[-1] + 1                                        # assign token a new ID.
+        if len(self.IDs) > 0:
+            self.print()
+            try:
+                ID = max(self.IDs.keys()) + 1                                   # assign token a new ID.
+            except Exception as e:
+                raise(e)
+        else:
+            ID = 2
         token.tensor[TF.ID] = ID
         deleted_nodes = torch.where(self.nodes[:, TF.DELETED] == B.TRUE)[0] #find first deleted node
         first_deleted = deleted_nodes[0]
@@ -201,6 +222,7 @@ class Tokens(object):
         Expand tensor by classes expansion factor. Minimum expansion is 5.
         Expands nodes, connections, links and mappings tensors.
         """
+                                                                        # Update node tensor:
         current_count = self.nodes.size(dim=0)
         new_count = int(current_count * self.expansion_factor)              # calculate new size
         if new_count < 5:                                                   # minimum expansion is 5
@@ -209,18 +231,33 @@ class Tokens(object):
         new_tensor[current_count:, TF.DELETED] = B.TRUE                     # set deleted to true for all new tokens
         new_tensor[:current_count, :] = self.nodes                          # copy over old tensor
         self.nodes = new_tensor                                             # update tensor
-
-        new_links = torch.zeros(new_count, self.links.size(dim=1))          # update supporting data structures:
-        new_links[:self.links.size(dim=0), :] = self.links
-        self.links.sets[self.token_set] = new_links
-
-        new_mappings = torch.zeros(new_count, self.mappings.size(dim=1))
-        new_mappings[:self.mappings.size(dim=0), :] = self.mappings
-        self.mappings.sets[self.token_set] = new_mappings
-
-        new_connections = torch.zeros(new_count, new_count)
-        new_connections[:self.connections.size(dim=0), :self.connections.size(dim=1)] = self.connections
-        self.connections = new_connections
+                                                                        # Update supporting data structures:
+                                                                        # Links:
+        semantic_count = self.links[self.token_set].size(dim=1)             # Get number of semantics in link tensor
+        new_links = torch.zeros(new_count, semantic_count)                  # new tensor (new number of tokens) x (number of semantics)
+        new_links[:current_count, :] = self.links[self.token_set]           # add current links to the tensor
+        self.links[self.token_set] = new_links                              # update links object with new tensor
+        if self.token_set not in [Set.DRIVER, Set.NEW_SET]:             # Mappings (if not driver):
+            self.mappings: Mappings = self.mappings
+            driver_count = self.mappings.size(dim=1)                        # Get number of tokens in driver
+            map_weights = torch.zeros(new_count, driver_count)              # new tensors (new number of tokens) x (number of driver tokens)
+            map_hypotheses = torch.zeros(new_count, driver_count)            
+            map_max_hyps = torch.zeros(new_count, driver_count)              
+            map_cons = torch.zeros(new_count, driver_count)           
+            new_adj_matrix: torch.Tensor = torch.stack([                    # stack into adj_matrix tensor
+                map_weights,       # MappingFields.WEIGHT = 0
+                map_hypotheses,    # MappingFields.HYPOTHESIS = 1
+                map_max_hyps,      # MappingFields.MAX_HYP = 2
+                map_cons           # MappingFields.CONNETIONS = 3
+            ], dim=-1)
+            print(f"self: {self.nodes.shape}. Should be {new_count}x{len(TF)}")
+            print(f"new: {new_adj_matrix.shape}, old: {self.mappings.adj_matrix.shape}")
+            new_adj_matrix[:current_count, :] = self.mappings.adj_matrix    # add current weights
+            self.mappings.adj_matrix = new_adj_matrix                       # update mappings object with new tensor
+                                                                        # Connections:
+        new_connections = torch.zeros(new_count, new_count)                 # new tensor (new num tokens) x (new num tokens)
+        new_connections[:current_count, :current_count] = self.connections  # add current connections
+        self.connections = new_connections                                  # update connections tensor, with new tensor
 
     def del_nodes(self, ID):                                        # Delete nodes from tensor     TODO: Remove connections, links, mappings etc.
         """
@@ -229,20 +266,29 @@ class Tokens(object):
         Args:
             ID (int or list[int]): The ID(s) of the node(s) to delete.
         """
-        if not isinstance(ID, list):
+        if not isinstance(ID, list):                                        # If input is single ID, turn into iteratable object.
             ID = [ID]
         
         cache_types = [] 
-        for id in ID:
-            cache_types.append(self.nodes[self.IDs[id], TF.TYPE])
-            self.nodes[self.IDs[id], TF.DELETED] = B.TRUE
+        for id in ID:                                                   # Delete nodes in nodes tensor:
+            cache_types.append(self.nodes[self.IDs[id], TF.TYPE])           # Keep list of types that have a deleted node to recache specific masks
+            self.nodes[self.IDs[id], TF.DELETED] = B.TRUE                   # 
 
-        cache_types = list(set(cache_types))
-        self.cache_masks(cache_types)
+        cache_types = list(set(cache_types))                            # Remove duplicates if multiple nodes deleted from same type
+        self.cache_masks(cache_types)                                   # Re-cache effected types
 
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
         """Update list of analogs in tensor, and their node counts"""
         self.analogs, self.analog_counts = torch.unique(self.nodes[:, TF.ANALOG], return_counts=True)
+   
+    def print(self, f_types=None):                                  # Here for testing atm
+        try:
+            printer = nodePrinter(print_to_console=True)
+            printer.print_set(self, feature_types=f_types)
+        except:
+            from .nodePrinter import nodePrinter
+            printer = nodePrinter(print_to_console=True)
+            printer.print_set(self, feature_types=f_types)
     # --------------------------------------------------------------
 
     # ====================[ TOKEN FUNCTIONS ]=======================
@@ -1343,7 +1389,7 @@ class Semantics(object):
         self.names = names 
         self.nodes: torch.Tensor = nodes
         self.connections: torch.Tensor = connections
-        self.links = links
+        self.links: Links = links
         self.IDs = IDs
         self.params = params
         self.expansion_factor = 1.1
