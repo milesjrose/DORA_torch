@@ -1,3 +1,6 @@
+# nodes/builder/build_sems.py
+# Builds the semantic objects.
+
 from .intermediate_types import *
 
 class Build_sems(object):                               # Builds the semantic objects

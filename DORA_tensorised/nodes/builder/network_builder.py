@@ -1,12 +1,11 @@
-# nodes/builder/node_builder.py
+# nodes/builder/network_builder.py
 # Builds the network object.
 
 import torch
 
 from nodes.enums import *
-from nodes.network import Network
-from nodes.sets import *
-from nodes.sets.connections import Links, Mappings
+from nodes.network import Network, Params, Links, Mappings
+from nodes.network.sets import *
 
 from nodes.builder import Build_set, Build_sems, Build_children, Build_connections
 
@@ -21,7 +20,7 @@ class NetworkBuilder(object):                              # Builds tensors for 
         mappings (dict): A dictionary of mapping object, mappings sets to mapping object.
         set_map (dict): A dictionary of set mappings, mapping set name to set. Used for reading set from symProps file.
     """
-    def __init__(self, symProps: list[dict] = None, file_path: str = None):
+    def __init__(self, symProps: list[dict] = None, file_path: str = None, params: Params = None):
         """
         Initialise the nodeBuilder with symProps and file_path.
 
@@ -33,6 +32,7 @@ class NetworkBuilder(object):                              # Builds tensors for 
         self.file_path = file_path
         self.token_sets = {}
         self.mappings = {}
+        self.params = params
         self.set_map = {
             "driver": Set.DRIVER,
             "recipient": Set.RECIPIENT,
@@ -58,7 +58,14 @@ class NetworkBuilder(object):                              # Builds tensors for 
         if self.symProps is not None:
             self.build_set_tensors()
             self.build_node_tensors()
-            self.network = Network(self.driver_tensor, self.recipient_tensor, self.memory_tensor, self.new_set_tensor, self.semantics_tensor, self.mappings, DORA_mode)
+            self.network = Network(
+                driver=self.driver_tensor, 
+                recipient=self.recipient_tensor, 
+                memory=self.memory_tensor, 
+                new_set=self.new_set_tensor, 
+                semantics=self.semantics_tensor, 
+                set_mappings=self.mappings, 
+                params=self.params)
             return self.network
         else:
             raise ValueError("No symProps or file_path provided")

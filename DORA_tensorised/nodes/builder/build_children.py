@@ -1,3 +1,6 @@
+# nodes/builder/build_children.py
+# Builds the children of each token.
+
 from .intermediate_types import *
 
 class Build_children(object):                           # Builds the children of each token

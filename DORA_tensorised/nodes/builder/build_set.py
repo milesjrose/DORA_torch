@@ -1,3 +1,6 @@
+# nodes/builder/build_set.py
+# Builds the nodes for a given set.
+
 from .intermediate_types import *
 
 class Build_set(object):                                # Builds the nodes for a given set

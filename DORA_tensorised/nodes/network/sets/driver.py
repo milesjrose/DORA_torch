@@ -1,15 +1,15 @@
-# nodes/sets/driver.py
+# nodes/network/sets/driver.py
 # Represents the driver set of tokens.
  
 import torch
 
 from nodes.enums import *
 from nodes.utils import tensorOps as tOps
-from nodes import Params
+from nodes.network import Params
 
-from nodes.sets import Tokens
+from .base_set import Base_Set
 
-class Driver(Tokens):
+class Driver(Base_Set):
     """
     A class for representing the driver set of tokens.
 

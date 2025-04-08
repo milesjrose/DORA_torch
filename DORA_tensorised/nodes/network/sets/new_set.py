@@ -1,13 +1,12 @@
-# nodes/sets/new_set.py
+# nodes/network/sets/new_set.py
 # Represents a new set of tokens.
 
-import torch
-from nodes.sets import Tokens
-from nodes.sets.connections import Links
 from nodes.enums import *
-from nodes import Params
+from nodes.network import Links, Params
 
-class New_Set(Tokens):
+from .base_set import Base_Set
+
+class New_Set(Base_Set):
     """
     A class for representing a new set of tokens.
     """

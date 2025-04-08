@@ -1,7 +1,13 @@
+# nodes/network/network_params.py
+# Holds parameters used by network.
+
 class Params(object):
+    """
+    Holds parameters used by network.
+    """
     def __init__(self, parameters: dict, run_on_iphone: bool):
         """
-        Holds parameters used by nodeTensors, to streamline passing parameters to nodes.
+        Holds parameters used by network, to streamline passing parameters to sets.
         """
         # TODO: Document and organise parameters, move parameters not pertaining to nodes to seperate class.
         # ===================[ PARAMETERS ]======================

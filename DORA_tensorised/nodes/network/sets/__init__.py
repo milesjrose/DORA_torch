@@ -18,8 +18,7 @@ from .recipient import Recipient
 from .memory import Memory
 from .new_set import New_Set
 from .semantics import Semantics
-from .tokens import Tokens
-from .connections import Links, Mappings
+from .base_set import Base_Set
 
 __all__ = [
     "Driver",
@@ -27,6 +26,4 @@ __all__ = [
     "Memory",
     "New_Set",
     "Semantics",
-    "Links",
-    "Mappings"
 ]

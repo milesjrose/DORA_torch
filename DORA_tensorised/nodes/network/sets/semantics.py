@@ -1,15 +1,13 @@
-# nodes/sets/semantics.py
+# nodes/network/sets/semantics.py
 # Represents the semantics set of tokens.
 
 import torch
 
-from nodes import Params
 from nodes.enums import *
 from nodes.utils import tensorOps as tOps
+from nodes.network import Links, Params, Semantic
 
-from nodes.sets import Tokens
-from nodes.sets.connections import Links
-from nodes.sets.node_representations import New_Semantic
+from .base_set import Base_Set
 
 class Semantics(object):
     """
@@ -53,12 +51,12 @@ class Semantics(object):
         self.params = params
         self.expansion_factor = 1.1
     
-    def add_semantic(self, semantic: New_Semantic):
+    def add_semantic(self, semantic: Semantic):
         """
         Add a semantic to the semantics tensor.
 
         Args:
-            semantic (New_Semantic): The semantic to add.
+            semantic (Semantic): The semantic to add.
         """
         deleted_mask = self.nodes[:, SF.DELETED] == B.TRUE          # find all deleted semantics in nodes tensor
         if not deleted_mask.any():                                  # if no deleted semantics, expand tensor
@@ -201,7 +199,7 @@ class Semantics(object):
         if not ignore_mem:
             self.update_input_from_set(memory, Set.MEMORY, ignore_obj)
 
-    def update_input_from_set(self, tensor: Tokens, set: Set, ignore_obj=False):
+    def update_input_from_set(self, tensor: Base_Set, set: Set, ignore_obj=False):
         """Update the input of the semantics from a set of tokens """
         if ignore_obj:
             po_mask = tOps.refine_mask(po_mask, tensor.get_mask(Type.PO), TF.PRED, B.TRUE) # Get mask of POs non object POs

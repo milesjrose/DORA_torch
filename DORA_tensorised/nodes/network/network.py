@@ -1,15 +1,17 @@
-# nodes/network.py
+# nodes/network/network.py
 # Class for holding network sets, and accessing operations on them.
 
-from nodes import Params
 from nodes.enums import *
-from nodes.sets import Driver, Recipient, Tokens, Semantics, Mappings
+
+from .sets import Driver, Recipient, Memory, New_Set, Semantics
+from .connections import Mappings
+from .network_params import Params
 
 class Network(object):
     """
     A class for holding set objects, and accessing node operations.
     """
-    def __init__(self, driver: Driver, recipient: Recipient, LTM: Tokens, new_set: Tokens, semantics: Semantics, set_mappings: dict[int, Mappings] , DORA_mode: bool, params: Params = None):
+    def __init__(self, driver: Driver, recipient: Recipient, LTM: Memory, new_set: New_Set, semantics: Semantics, set_mappings: dict[int, Mappings], params: Params = None):
         """
         Initialize the Nodes object.
 
@@ -26,8 +28,8 @@ class Network(object):
         self.driver: Driver = driver
         self.recipient: Recipient = recipient
         self.semantics: Semantics = semantics
-        self.memory: Tokens = LTM
-        self.new_set: Tokens = new_set
+        self.memory: Memory = LTM
+        self.new_set: New_Set = new_set
         self.sets = {
             Set.DRIVER: self.driver,
             Set.RECIPIENT: self.recipient,
@@ -38,12 +40,17 @@ class Network(object):
         
         # inter-set connections
         self.set_mappings: Mappings = set_mappings
-        self.DORA_mode: bool = DORA_mode
 
         # inhibitors
         self.local_inhibitor = 0.0
         self.global_inhibitor = 0.0
-    
+
+        if self.params is not None:
+            self.set_params(self.params)
+            self.DORA_mode = self.params.DORA_mode
+        else:
+            self.DORA_mode = True
+
     def set_params(self, params: Params):                           # Set the params for sets
         """
         Set the parameters for the nodes.

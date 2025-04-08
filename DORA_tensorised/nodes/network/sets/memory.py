@@ -1,14 +1,15 @@
-# nodes/sets/memory.py
+# nodes/network/sets/memory.py
 # Represents the memory set of tokens.
 
 import torch
-from nodes.sets import Tokens
-from nodes.sets.connections import Links, Mappings
-from nodes import Params
+
 from nodes.enums import *
 from nodes.utils import tensorOps as tOps
+from nodes.network import Links, Params
 
-class Memory(Tokens):
+from .base_set import Base_Set
+
+class Memory(Base_Set):
     """
     A class for representing a memory of tokens.
     """

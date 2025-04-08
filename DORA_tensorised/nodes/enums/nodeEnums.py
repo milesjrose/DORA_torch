@@ -1,5 +1,5 @@
-# nodeEnums
-# Stores enums for types of nodes
+# nodes/enums/nodeEnums.py
+# Stores enums to access token and semantic features, and to encode feature values.
 
 from enum import IntEnum
 

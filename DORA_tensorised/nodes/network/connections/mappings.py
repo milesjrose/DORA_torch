@@ -5,7 +5,6 @@
 import torch
 
 from nodes.enums import *
-from nodes.utils import tensorOps as tOps
 
 class Mappings(object):
     """

@@ -1,14 +1,13 @@
-# nodes/sets/tokens.py
-# base class for all set classes.
+# nodes/network/sets/base_set.py
+# Base class for all set classes.
 
 import torch
 
 from nodes.enums import *
-from nodes.sets.connections import Links, Mappings
-from nodes.sets.node_representations import New_Token
+from nodes.network import Links, Mappings
 from nodes import Params
 
-class Tokens(object):
+class Base_Set(object):
     """
     A class for holding a tensor of tokens, and performing general tensor operations.
 
@@ -192,7 +191,7 @@ class Tokens(object):
         masks = [self.masks[i] for i in n_types]
         return torch.logical_or.reduce(masks)
 
-    def add_token(self, token: New_Token):                          # Add a token to the tensor
+    def add_token(self, token: Token):                          # Add a token to the tensor
         """
         Add a token to the tensor. If tensor is full, expand it first.
 
@@ -287,7 +286,7 @@ class Tokens(object):
             printer = nodePrinter(print_to_console=True)
             printer.print_set(self, feature_types=f_types)
         except:
-            from ..printer.nodePrinter import nodePrinter
+            from nodes.utils import nodePrinter
             printer = nodePrinter(print_to_console=True)
             printer.print_set(self, feature_types=f_types)
     # --------------------------------------------------------------

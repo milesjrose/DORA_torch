@@ -1,11 +1,11 @@
-# nodes/sets/node_representations/new_nodes.py
-# Classes for representing new nodes, to make it easier to add to set tensors.
+# nodes/network/single_nodes/token.py
+# Represents a single token.
 
 import torch
 
 from nodes.enums import *
 
-class New_Token(object):
+class Token(object):
     """
     A class for representing a single token.
 
@@ -34,22 +34,22 @@ class New_Token(object):
         for feature in features:
             self.tensor[feature] = features[feature]
 
-class New_Semantic(object):
+class Ref_Token(object):
     """
-    A class for representing a single semantic.
-    
+    A class for referencing a single token, to make it easier to port old code.
+    Only holds set and ID, to find in tensors.
+
     Attributes:
-        tensor (torch.Tensor): A tensor of features for the semantic.
+        set (Set): The set of the node.
+        ID (int): The ID of the node.
     """
-    def __init__(self, name: str, features: dict[SF, float]):
+    def __init__(self, set: Set, ID: int):
         """
-        Initialize the New_Semantic object.
+        Initialize the Ref_Token object.
 
         Args:
-            features (dict[SF, float]): A dictionary of features for the semantic.
+            set (Set): The set of the node.
+            ID (int): The ID of the node.
         """
-        self.name = name
-        self.tensor = torch.zeros(len(SF))
-        self.tensor[SF.TYPE] = Type.SEMANTIC
-        for feature in features:
-            self.tensor[feature] = features[feature]
+        self.set = set
+        self.ID = ID

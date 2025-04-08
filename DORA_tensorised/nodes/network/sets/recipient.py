@@ -1,16 +1,14 @@
-# nodes/sets/recipient.py
+# nodes/network/sets/recipient.py
 # Represents the recipient set of tokens.
 import torch
 
-from nodes import Params
 from nodes.enums import *
 from nodes.utils import tensorOps as tOps
+from nodes.network import Links, Mappings, Params
 
-from nodes.sets import Tokens
-from nodes.sets.connections import Links, Mappings
+from .base_set import Base_Set
 
-
-class Recipient(Tokens):
+class Recipient(Base_Set):
     """
     A class for representing the recipient set of tokens.
     
