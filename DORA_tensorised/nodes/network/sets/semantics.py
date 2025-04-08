@@ -170,7 +170,7 @@ class Semantics(object):
     # --------------------------------------------------------------
 
     # ===================[ SEMANTIC FUNCTIONS ]=====================
-    def intitialse_sem(self):                                       # Set act and input to 0 TODO: Check how used
+    def intitialise_sem(self):                                      # Set act and input to 0 TODO: Check how used
         """Initialise the semantics """
         self.nodes[:, SF.ACT] = 0.0
         self.nodes[:, SF.INPUT] = 0.0
@@ -179,9 +179,13 @@ class Semantics(object):
         """Initialise the input of the semantics """
         self.nodes[:, SF.INPUT] = refresh
 
-    def set_max_input(self, max_input):                             # TODO: Check how used
+    def set_max_input(self, max_input):                             # set max input of all semantics
         """Set the max input of the semantics """
         self.nodes[:, SF.MAX_INPUT] = max_input
+    
+    def get_max_input(self):                                        # Get the max input in semantics
+        """Get the maximum input in semantics """
+        return self.nodes[:, SF.INPUT].max()
 
     def update_act(self):                                           # Update act of all sems
         """Update the acts of the semantics """
