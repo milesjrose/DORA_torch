@@ -3,8 +3,42 @@
 
 from enum import IntEnum
 
-# Enum to access token values
 class TF(IntEnum):
+    """
+    Enum to access token values
+
+    Features:
+    - ID: ID of token.
+    - TYPE: Type of token.
+    - SET: Set of token.
+    - ANALOG: Analog of token.
+    - MAX_MAP_UNIT: Maximum map unit of token.
+    - MADE_UNIT: Made unit of token.
+    - MAKER_UNIT: Maker unit of token.
+    - INHIBITOR_THRESHOLD: Inhibitor threshold of token.
+    - GROUP_LAYER: Group layer of token.
+    - MODE: Mode of token.
+    - TIMES_FIRED: Times fired of token.
+    - SEM_COUNT: Semantic count of token.
+    - ACT: Act of token.
+    - MAX_ACT: Maximum act of token.
+    - INHIBITOR_INPUT: Inhibitor input of token.
+    - INHIBITOR_ACT: Inhibitor act of token.
+    - MAX_MAP: Maximum map of token.
+    - TD_INPUT: TD input of token.
+    - BU_INPUT: BU input of token.
+    - LATERAL_INPUT: Lateral input of token.
+    - MAP_INPUT: Map input of token.
+    - NET_INPUT: Net input of token.
+    - MAX_SEM_WEIGHT: Maximum semantic weight of token.
+    - INFERRED: Inferred of token.
+    - RETRIEVED: Retrieved of token.
+    - COPY_FOR_DR: Copy for DR of token.
+    - COPIED_DR_INDEX: Copied DR index of token.
+    - SIM_MADE: Sim made of token.
+    - DELETED: Deleted of token.
+    - PRED: Pred of token.
+    """
     # INT values:
     ID                  = 0
     TYPE                = 1
@@ -42,8 +76,20 @@ class TF(IntEnum):
     PRED                = 29    # PO unit
 
 
-# Enum to access semantic values
 class SF(IntEnum):
+    """
+    Enum to access semantic values
+
+    Features:
+    - ID: ID of semantic.
+    - TYPE: Type of semantic.
+    - ONT_STATUS: Ontology status of semantic.
+    - DELETED: Deleted of semantic.
+    - AMOUNT: Amount of semantic.
+    - INPUT: Input of semantic.
+    - MAX_INPUT: Maximum input of semantic.
+    - ACT: Act of semantic.
+    """
     # INT values:
     ID                  = 0
     TYPE                = 1
@@ -56,36 +102,75 @@ class SF(IntEnum):
     MAX_INPUT           = 6
     ACT                 = 7
 
-# Enum to access mapping values
 class MappingFields(IntEnum):
+    """
+    Enum to access mapping values
+
+    Fields:
+    - WEIGHT: Weight of mapping.
+    - HYPOTHESIS: Hypothesis of mapping.
+    - MAX_HYP: Maximum hypothesis of mapping.
+    - CONNETIONS: Connections of mapping.
+    """
     WEIGHT      = 0
     HYPOTHESIS  = 1
     MAX_HYP     = 2
     CONNETIONS  = 3
 
-# Enum to encode my_type field in tokenFields
 class Type(IntEnum):
+    """
+    Enum to encode my_type field in tokenFields
+
+    Types:
+    - PO: PO token.
+    - RB: RB token.
+    - P: P token.
+    - GROUP: Group token.
+    - SEMANTIC: Semantic token.
+    """
     PO          = 0
     RB          = 1
     P           = 2
     GROUP       = 3
     SEMANTIC    = 4
 
-# Enum to encode my_set field in tokenFields
 class Set(IntEnum):
+    """
+    Enum to encode my_set field in tokenFields
+
+    Sets:
+    - DRIVER: Driver set.
+    - RECIPIENT: Recipient set.
+    - MEMORY: Memory set.
+    - NEW_SET: New set.
+    """
     DRIVER      = 0
     RECIPIENT    = 1
     MEMORY      = 2
     NEW_SET     = 3
 
-# Enum to encode p.mode field in tokenFields
 class Mode(IntEnum):
+    """
+    Enum to encode p.mode field in tokenFields
+
+    Modes:
+    - CHILD: Child mode.
+    - NEUTRAL: Neutral mode.
+    - PARENT: Parent mode.
+    """
     CHILD       = 0
     NEUTRAL     = 1
     PARENT      = 2
 
-# Enum to encode sem.ont_status in semanticFields
 class OntStatus(IntEnum):
+    """
+    Enum to encode sem.ont_status in semanticFields
+
+    Statuses:
+    - STATE: Semantic is a state.
+    - VALUE: Semantic is a value.
+    - SDM: Semantic is an SDM (greater than/less than/ect.)
+    """
     STATE       = 0
     VALUE       = 1
     SDM         = 2
