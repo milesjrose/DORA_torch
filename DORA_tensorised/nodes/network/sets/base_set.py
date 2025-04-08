@@ -4,7 +4,7 @@
 import torch
 
 from nodes.enums import *
-from nodes.network import Links, Mappings
+from nodes.network import Links, Mappings, Token
 from nodes import Params
 
 class Base_Set(object):
