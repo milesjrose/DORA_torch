@@ -6,23 +6,25 @@ from nodes.enums import *
 from .sets import Driver, Recipient, Memory, New_Set, Semantics
 from .connections import Mappings
 from .network_params import Params
+from .single_nodes import Token, Semantic
+from .single_nodes import Ref_Token, Ref_Semantic
 
 class Network(object):
     """
-    A class for holding set objects, and accessing node operations.
+    A class for holding set objects and operations.
     """
     def __init__(self, driver: Driver, recipient: Recipient, LTM: Memory, new_set: New_Set, semantics: Semantics, set_mappings: dict[int, Mappings], params: Params = None):
         """
-        Initialize the Nodes object.
+        Initialize the Network object.
 
         Args:
             driver (Driver): The driver object.
             recipient (Recipient): The recipient object.
             LTM (Tokens): The long-term memory object.
-            new_set (Tokens): The new set object. # TODO: check if this needed, or is just a temp set for new tokens
+            new_set (Tokens): The new set object.
             semantics (Semantics): The semantics object.
-            mappings (Mappings): The mappings object.
-            DORA_mode (bool): Whether to use DORA mode.
+            set_mappings (Mappings): The mappings object.
+            params (Params): The parameters object.
         """
         # node tensors
         self.driver: Driver = driver
@@ -51,9 +53,9 @@ class Network(object):
         else:
             self.DORA_mode = True
 
-    def set_params(self, params: Params):                           # Set the params for sets
+    def set_params(self, params: Params):                                   # Set the params for sets
         """
-        Set the parameters for the nodes.
+        Set the parameters for the network.
         """
         self.params = params
         self.driver.params = params
@@ -68,25 +70,34 @@ class Network(object):
         Initialise the acts in the active memory/semantics.
         (driver, recipient, new_set, semantics)
         """
-        self.driver.initialise_act()
-        self.recipient.initialise_act()
-        self.new_set.initialise_act()
-        self.semantics.initialise_sem()
+        sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
+        for set in sets:
+            self.sets[set].initialise_act()
+
+        self.semantics.intitialise_sem()
+    
+    def update_acts(self, set: Set):                                        # Update acts in given token set    
+        """
+        Update the acts in the given set.
+        """
+        self.sets[set].update_act()
+    
+    def update_acts_sem(self):                                              # Update acts in semantics
+        """
+        Update the acts in the semantics.
+        """
+        self.semantics.update_act()
 
     def update_acts_am(self):                                               # Update acts in active memory/semantics
         """
         Update the acts in the active memory.
         (driver, recipient, new_set, semantics)
-
-        Args:
-            gamma (float): Effects the increase in act for each unit.
-            delta (float): Effects the decrease in act for each unit.
-            hebb_bias (float): The bias for mapping input relative to TD/BU/LATERAL inputs.
         """
-        self.driver.update_act()
-        self.recipient.update_act()
-        self.new_set.update_act()
-        self.semantics.update_sem()
+        sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
+        for set in sets:
+            self.update_acts(set)
+        
+        self.update_acts_sem()
 
     # =======================[ INPUT FUNCTIONS ]=========================
     def initialise_input(self):                                             # Initialise inputs in active memory/semantics
@@ -94,32 +105,42 @@ class Network(object):
         Initialise the inputs in the active memory/semantics.
         (driver, recipient, new_set, semantics)
         """
-        self.driver.initialise_act()
-        self.recipient.initialise_act()
-        self.new_set.initialise_act()
+        sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
+        for set in sets:
+            self.sets[set].initialise_act()
+        
         self.semantics.initialise_sem()
+    
+    def update_inputs(self, set: Set):                                      # Update inputs in given token set
+        """
+        Update the inputs in the given token set.
+        """
+        self.sets[set].update_input()
+    
+    def update_inputs_sem(self):                                            # Update inputs in semantics               
+        """
+        Update the inputs in the semantics.
+        """
+        self.semantics.update_input()
 
-    def update_inputs_am(self):                                             # TODO: Check if used
+    def update_inputs_am(self):                                             # Update inputs in active memory
         """
         Update the inputs in the active memory.
         (driver, recipient, new_set, semantics)
-
-        Args:
-            as_DORA (bool): Whether to use DORA mode.
-            phase_set (Int): The current phase set.
-            lateral_input_level (float): The lateral input level.
-            ignore_object_semantics (bool, optional): Whether to ignore object semantics input. Defaults to False.
         """
-        self.driver.update_act()
-        self.recipient.update_act()
+        sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
+        for set in sets:
+            self.update_inputs(set)
+        
+        self.update_inputs_sem()
 
     # =====================[ INHIBITOR FUNCTIONS ]=======================
     def update_inhibitors(self):                                            # Update inputs and acts of inhibitors
         """
         Update the inputs and acts of the driver and recipient inhibitors.
         (driver, recipient).
-        Only updates act of PO if in DORA mode.
-        Only updates act of RB in driver.
+        - Only updates act of PO if in DORA mode.
+        - Only updates act of RB in driver.
         """
         #update input driver/recipient RBs, POs
         self.driver.update_inhibitor_input([Type.RB, Type.PO])
@@ -165,7 +186,7 @@ class Network(object):
         self.semantics.initialise_sem()
 
     # ========================[ NODE FUNCTIONS ]==========================
-    def get_pmode_dr(self):                                                 # Get p_mode in driver
+    def get_pmode(self):                                                    # Get p_mode in driver and recipient
         """
         Get parent mode of P units in driver and recipient. Used in time steps activations.
         (driver, recipient)
@@ -173,16 +194,73 @@ class Network(object):
         self.driver.p_get_mode()
         self.recipient.p_get_mode()
     
+    def initialise_p_mode(self, set: Set = Set.RECIPIENT):                  # Initialise p_mode in the given set
+        """
+        Initialise p_mode in the given set.
+        (default: recipient)
+        """
+        self.sets[set].initialise_p_mode()
+    
     def get_weight_lengths(self):                                           # get weight lenghts in active memory
         """
         Get weight lengths of PO units. Used in run initialisation.
         (driver, recipient, memory, new_set)
         """
-        self.driver.po_get_weight_length()
-        self.recipient.po_get_weight_length()
-        self.memory.po_get_weight_length()
-        self.new_set.po_get_weight_length()
+        sets = [Set.DRIVER, Set.RECIPIENT, Set.MEMORY, Set.NEW_SET]
+        for set in sets:
+            self.sets[set].po_get_weight_length()
     
-
-
+    def add_token(self, set: Set, token: Token):                            # Add a token to the given set
+        """
+        Add a token to the given set.
+        """
+        if token.tensor[TF.SET] != set:
+            raise ValueError("Token set does not match set type.")
         
+        self.sets[set].add_token(token)
+
+    def del_token(self, set: Set = None, ID = None, ref_token:Ref_Token = None):  # Delete a token
+        """
+        Delete a token from the given set.
+
+        - Either (set and ID) or (ref_token) must be provided.
+
+        Args:
+            set (Set, optional): The set to delete the token from.
+            ID (int, optional): The ID of the token to delete.
+            ref_token (Ref_Token, optional): A reference to the token to delete.
+        """
+        if ref_token is not None:
+            ID = ref_token.ID
+            set = ref_token.set
+        elif (set is None) or (ID is None):
+            raise ValueError("Either set and ID or ref_token must be provided.")
+        
+        self.sets[set].del_token(ID)
+
+    def add_semantic(self, semantic: Semantic):                             # Add a semantic
+        """
+        Add a semantic to the given set.
+        """
+        if semantic.tensor[SF.TYPE] != Type.SEMANTIC:
+            raise ValueError("Cannot add non-semantic to semantic set.")
+        
+        self.semantics.add_semantic(semantic)
+
+    def del_semantic(self, ID = None, ref_sem:Ref_Semantic = None):         # Delete a semantic
+        """
+        Delete a semantic from the semantics.
+        """
+        if ref_sem is not None:
+            ID = ref_sem.ID
+        elif ID is None:
+            raise ValueError("Either ID or ref_sem must be provided.")
+        
+        self.semantics.del_semantic(ID)
+
+    def set_sem_max_input(self):                                            # Set the maximum input for the semantics
+        """
+        Set the maximum input for the semantics.
+        """
+        max_input = self.semantics.get_max_input()
+        self.semantics.set_max_input(max_input)
