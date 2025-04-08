@@ -1,0 +1,187 @@
+DFS Call Graph:
+do_rel_gen -> ['set_trace', 'find_driver_analog_rel_gen', 'find_recip_analog', 'do_1_to_3', 'range', 'time_step_activations', 'rel_gen_routine', 'time_step_fire_local_inhibitor', 'time_step_doGUI', 'post_count_by_operations', 'post_phase_set_operations', 'newSet_items_to_analog']
+set_trace -> []
+find_driver_analog_rel_gen -> []
+find_recip_analog -> []
+do_1_to_3 -> ['initialize_run', 'initialize_network_state', 'create_firing_order']
+initialize_run -> ['indexMemory', 'make_AM_copy', 'make_AM', 'update_same_RB_POs', 'initialize_GUI', 'get_weight_length']
+indexMemory -> ['get_index']
+get_index -> []
+make_AM_copy -> ['check_analog_for_tokens_to_copy', 'append', 'copy_analog', 'findDriverRecipient']
+check_analog_for_tokens_to_copy -> []
+append -> []
+copy_analog -> ['Analog', 'copy_analog_tokens', 'clear_set', 'retrieve_all_relevant_tokens', 'delete_unretrieved_tokens']
+Analog -> []
+copy_analog_tokens -> ['PUnit', 'RBUnit', 'POUnit', 'Link', 'len']
+PUnit -> []
+RBUnit -> []
+POUnit -> []
+Link -> []
+len -> []
+clear_set -> []
+retrieve_all_relevant_tokens -> ['retrieve_lower_tokens']
+retrieve_lower_tokens -> []
+delete_unretrieved_tokens -> ['delete_token']
+delete_token -> ['remove']
+remove -> []
+findDriverRecipient -> []
+make_AM -> ['set_sub_tokens']
+set_sub_tokens -> ['check_sub_tokens']
+check_sub_tokens -> []
+update_same_RB_POs -> []
+initialize_GUI -> []
+get_weight_length -> []
+initialize_network_state -> ['initialize_memorySet']
+initialize_memorySet -> ['initialize_act']
+initialize_act -> []
+create_firing_order -> ['shuffle', 'makeFiringOrder']
+shuffle -> []
+makeFiringOrder -> []
+range -> []
+time_step_activations -> ['initialize_input', 'get_Pmode', 'update_driver_inputs', 'update_inhibitor_input', 'update_inhibitor_act', 'checkDriverPOs', 'checkDriverRBs', 'update_input', 'update_recipient_inputs', 'update_newSet_inputs', 'update_activations_run']
+initialize_input -> []
+get_Pmode -> []
+update_driver_inputs -> ['update_input_driver', 'update_input_driver_parent', 'update_input_driver_child']
+update_input_driver -> []
+update_input_driver_parent -> []
+update_input_driver_child -> []
+update_inhibitor_input -> []
+update_inhibitor_act -> []
+checkDriverPOs -> []
+checkDriverRBs -> []
+update_input -> []
+update_recipient_inputs -> ['update_input_recipient_parent', 'update_input_recipient_child', 'update_input_recipient']
+update_input_recipient_parent -> []
+update_input_recipient_child -> []
+update_input_recipient -> []
+update_newSet_inputs -> []
+update_activations_run -> ['update_act', 'get_max_sem_input', 'set_max_input']
+update_act -> []
+get_max_sem_input -> []
+set_max_input -> []
+rel_gen_routine -> ['get_most_active_unit', 'str', 'get_most_active_Punit']
+get_most_active_unit -> []
+str -> []
+get_most_active_Punit -> []
+time_step_fire_local_inhibitor -> ['fire_local_inhibitor']
+fire_local_inhibitor -> []
+time_step_doGUI -> ['get', 'hasattr', 'run_GUI']
+get -> []
+hasattr -> []
+run_GUI -> []
+post_count_by_operations -> ['fire_global_inhibitor', 'reset_inhibitor']
+fire_global_inhibitor -> []
+reset_inhibitor -> []
+post_phase_set_operations -> ['retrieve_tokens', 'initialize_Pmode', 'initialize_AM', 'print', 'del_small_link', 'round_big_link', 'update_mappingConnections', 'get_max_maps', 'reset_mappingHyps']
+retrieve_tokens -> ['mean', 'max', 'exp', 'sum', 'random', 'retrieve_analog_contents', 'sum_num_units']
+mean -> []
+max -> []
+exp -> []
+sum -> []
+random -> []
+retrieve_analog_contents -> []
+sum_num_units -> []
+initialize_Pmode -> []
+initialize_AM -> ['initializeSem']
+initializeSem -> []
+print -> []
+del_small_link -> []
+round_big_link -> []
+update_mappingConnections -> []
+get_max_maps -> []
+reset_mappingHyps -> []
+newSet_items_to_analog -> []
+
+Safe Topological Order (refactoring order):
+ 1. remove
+ 2. delete_token
+ 3. retrieve_lower_tokens
+ 4. len
+ 5. Link
+ 6. POUnit
+ 7. RBUnit
+ 8. PUnit
+ 9. check_sub_tokens
+10. delete_unretrieved_tokens
+11. retrieve_all_relevant_tokens
+12. clear_set
+13. copy_analog_tokens
+14. Analog
+15. initialize_act
+16. set_sub_tokens
+17. findDriverRecipient
+18. copy_analog
+19. append
+20. check_analog_for_tokens_to_copy
+21. get_index
+22. initializeSem
+23. sum_num_units
+24. retrieve_analog_contents
+25. random
+26. sum
+27. exp
+28. max
+29. mean
+30. set_max_input
+31. get_max_sem_input
+32. update_act
+33. update_input_recipient
+34. update_input_recipient_child
+35. update_input_recipient_parent
+36. update_input_driver_child
+37. update_input_driver_parent
+38. update_input_driver
+39. makeFiringOrder
+40. shuffle
+41. initialize_memorySet
+42. get_weight_length
+43. initialize_GUI
+44. update_same_RB_POs
+45. make_AM
+46. make_AM_copy
+47. indexMemory
+48. reset_mappingHyps
+49. get_max_maps
+50. update_mappingConnections
+51. round_big_link
+52. del_small_link
+53. print
+54. initialize_AM
+55. initialize_Pmode
+56. retrieve_tokens
+57. reset_inhibitor
+58. fire_global_inhibitor
+59. run_GUI
+60. hasattr
+61. get
+62. fire_local_inhibitor
+63. get_most_active_Punit
+64. str
+65. get_most_active_unit
+66. update_activations_run
+67. update_newSet_inputs
+68. update_recipient_inputs
+69. update_input
+70. checkDriverRBs
+71. checkDriverPOs
+72. update_inhibitor_act
+73. update_inhibitor_input
+74. update_driver_inputs
+75. get_Pmode
+76. initialize_input
+77. create_firing_order
+78. initialize_network_state
+79. initialize_run
+80. newSet_items_to_analog
+81. post_phase_set_operations
+82. post_count_by_operations
+83. time_step_doGUI
+84. time_step_fire_local_inhibitor
+85. rel_gen_routine
+86. time_step_activations
+87. range
+88. do_1_to_3
+89. find_recip_analog
+90. find_driver_analog_rel_gen
+91. set_trace
+92. do_rel_gen

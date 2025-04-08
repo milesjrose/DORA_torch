@@ -1,0 +1,57 @@
+DFS Call Graph:
+initialize_run -> ['indexMemory', 'make_AM_copy', 'make_AM', 'update_same_RB_POs', 'initialize_GUI', 'get_weight_length']
+indexMemory -> ['get_index']
+get_index -> []
+make_AM_copy -> ['check_analog_for_tokens_to_copy', 'append', 'copy_analog', 'findDriverRecipient']
+check_analog_for_tokens_to_copy -> []
+append -> []
+copy_analog -> ['Analog', 'copy_analog_tokens', 'clear_set', 'retrieve_all_relevant_tokens', 'delete_unretrieved_tokens']
+Analog -> []
+copy_analog_tokens -> ['PUnit', 'RBUnit', 'POUnit', 'Link', 'len']
+PUnit -> []
+RBUnit -> []
+POUnit -> []
+Link -> []
+len -> []
+clear_set -> []
+retrieve_all_relevant_tokens -> ['retrieve_lower_tokens']
+retrieve_lower_tokens -> []
+delete_unretrieved_tokens -> ['delete_token']
+delete_token -> ['remove']
+remove -> []
+findDriverRecipient -> []
+make_AM -> ['set_sub_tokens']
+set_sub_tokens -> ['check_sub_tokens']
+check_sub_tokens -> []
+update_same_RB_POs -> []
+initialize_GUI -> []
+get_weight_length -> []
+
+Safe Topological Order (refactoring order):
+ 1. remove
+ 2. delete_token
+ 3. retrieve_lower_tokens
+ 4. len
+ 5. Link
+ 6. POUnit
+ 7. RBUnit
+ 8. PUnit
+ 9. check_sub_tokens
+10. delete_unretrieved_tokens
+11. retrieve_all_relevant_tokens
+12. clear_set
+13. copy_analog_tokens
+14. Analog
+15. set_sub_tokens
+16. findDriverRecipient
+17. copy_analog
+18. append
+19. check_analog_for_tokens_to_copy
+20. get_index
+21. get_weight_length
+22. initialize_GUI
+23. update_same_RB_POs
+24. make_AM
+25. make_AM_copy
+26. indexMemory
+27. initialize_run

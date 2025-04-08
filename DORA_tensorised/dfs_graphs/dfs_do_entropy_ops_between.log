@@ -1,0 +1,37 @@
+DFS Call Graph:
+do_entropy_ops_between -> ['get_max_map_units', 'range', 'update_input', 'get_max_sem_input', 'set_max_input', 'update_act', 'ent_overall_same_diff', 'print', 'initialize_AM']
+get_max_map_units -> []
+range -> []
+update_input -> []
+get_max_sem_input -> []
+set_max_input -> []
+update_act -> []
+ent_overall_same_diff -> ['append', 'list', 'map', 'sum', 'float']
+append -> []
+list -> []
+map -> []
+sum -> []
+float -> []
+print -> []
+initialize_AM -> ['initialize_act', 'initializeSem']
+initialize_act -> []
+initializeSem -> []
+
+Safe Topological Order (refactoring order):
+ 1. initializeSem
+ 2. initialize_act
+ 3. float
+ 4. sum
+ 5. map
+ 6. list
+ 7. append
+ 8. initialize_AM
+ 9. print
+10. ent_overall_same_diff
+11. update_act
+12. set_max_input
+13. get_max_sem_input
+14. update_input
+15. range
+16. get_max_map_units
+17. do_entropy_ops_between

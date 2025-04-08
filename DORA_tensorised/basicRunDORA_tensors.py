@@ -11,7 +11,7 @@ import numpy as np
 import dataTypes
 import DORA_GUI
 import buildNetwork
-from nodes.nodes import *
+from nodes.network import *
 
 if not run_on_iphone:
     import pygame
@@ -30,7 +30,7 @@ class runDORA(object):
     In class form so that new operations (e.g., compression, predicate recognition) 
     can be implemented as new functions in this class (under the phase set section).
     """
-    def __init__(self, nodes: Nodes, memory, parameters: dict):
+    def __init__(self, nodes: Network, memory, parameters: dict):
         """
         Initialize the runDORA object.
 
@@ -2208,7 +2208,7 @@ def findDriverRecipient(memory):
 
 
 # make firing order.
-def makeFiringOrder(nodes: Nodes, rule):
+def makeFiringOrder(nodes: Network, rule):
     """
     Set the firing order of the nodes using rule.
 
