@@ -1,18 +1,19 @@
+# nodes/tests/test_build.py
+# Tests the build function.
+
 import pytest
-import os
-import json
-from nodes.nodeBuilder import nodeBuilder
-from nodes.nodeEnums import Set
+
+from nodes.builder import NetworkBuilder
 
 # Import the symProps from sim.py
-from .sim import symProps
+from .sims.sim import symProps
 
 def test_nodes_from_file():
     test_file = './nodes/nodeTests/sim.py'
 
     try:
         # Build nodes from the file
-        builder = nodeBuilder(file_path=test_file)
+        builder = NetworkBuilder(file_path=test_file)
         nodes = builder.build_nodes()
 
         # Verify that driver and recipient exist and have the correct properties
@@ -25,7 +26,7 @@ def test_nodes_from_file():
 def test_nodes_from_props():
     try:
         # Build nodes from the file
-        builder = nodeBuilder(symProps=symProps)
+        builder = NetworkBuilder(symProps=symProps)
         nodes = builder.build_nodes()
 
         # Verify that driver and recipient exist and have the correct properties

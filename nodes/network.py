@@ -1,14 +1,15 @@
-# nodes.py 
-# Class for holding memTypes, and inter-set tensor operations
-from .nodeEnums import *
-from .nodeTensors import *
+# nodes/network.py
+# Class for holding network sets, and accessing operations on them.
 
+from nodes import Params
+from nodes.enums import *
+from nodes.sets import Driver, Recipient, Tokens, Semantics, Mappings
 
-class Nodes(object):
+class Network(object):
     """
-    A class for holding token tensors for each set, and accessing node operations.
+    A class for holding set objects, and accessing node operations.
     """
-    def __init__(self, driver: Driver, recipient: Recipient, LTM: Tokens, new_set: Tokens, semantics: Semantics, set_mappings: dict[int, Mappings] , DORA_mode: bool, params: NodeParameters = None):
+    def __init__(self, driver: Driver, recipient: Recipient, LTM: Tokens, new_set: Tokens, semantics: Semantics, set_mappings: dict[int, Mappings] , DORA_mode: bool, params: Params = None):
         """
         Initialize the Nodes object.
 
@@ -43,7 +44,7 @@ class Nodes(object):
         self.local_inhibitor = 0.0
         self.global_inhibitor = 0.0
     
-    def set_params(self, params: NodeParameters):                           # Set the params for sets
+    def set_params(self, params: Params):                           # Set the params for sets
         """
         Set the parameters for the nodes.
         """

@@ -1,4 +1,4 @@
-class NodeParameters(object):
+class Params(object):
     def __init__(self, parameters: dict, run_on_iphone: bool):
         """
         Holds parameters used by nodeTensors, to streamline passing parameters to nodes.

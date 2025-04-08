@@ -1,16 +1,19 @@
+# nodes/tests/test_add_nodes.py
+# Tests for adding nodes to the network.
+
 import pytest
-import torch
-from ..nodeBuilder import nodeBuilder
-from ..nodeMemObjects import New_Token
-from ..nodeEnums import Type, TF, Set, B
+
+from nodes.builder import NetworkBuilder
+from nodes.sets.node_representations import New_Token
+from nodes.enums import *
 
 # Import the symProps from sim.py
-from .sim import symProps
+from .sims.sim import symProps
 
 @pytest.fixture
 def nodes():
     """Create a Nodes object using the sim.py data."""
-    builder = nodeBuilder(symProps=symProps)
+    builder = NetworkBuilder(symProps=symProps)
     return builder.build_nodes()
 
 def test_add_po_token_to_driver(nodes):
@@ -90,7 +93,7 @@ def test_add_p_token_to_memory(nodes):
     assert token_tensor[TF.ANALOG] == 0
     assert token_tensor[TF.INHIBITOR_THRESHOLD] == 440  # Default for P tokens
 
-def test_add_multiple_tokens(nodes):
+def test_add_multiple_tokens_new_set(nodes):
     """Test adding multiple tokens to the new_set tensor."""
     # Create multiple tokens
     tokens = [
@@ -171,3 +174,5 @@ def test_add_token_to_full_tensor(nodes):
     
     # Verify the tensor was expanded
     assert nodes.new_set.nodes.shape[0] > initial_size
+
+    

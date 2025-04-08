@@ -1,7 +1,11 @@
+# nodes/tests/test_mappings.py
+# Tests the mappings class.
+
 import pytest
 import torch
-from nodes.nodeMemObjects import Mappings
-from nodes.nodeEnums import MappingFields
+
+from nodes.enums import MappingFields
+from nodes.sets.connections import Mappings
 
 def test_mappings_initialization():
     # Create test tensors
