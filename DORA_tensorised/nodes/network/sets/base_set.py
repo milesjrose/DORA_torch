@@ -194,7 +194,7 @@ class Base_Set(object):
         masks = [self.masks[i] for i in n_types]
         return torch.logical_or.reduce(masks)
 
-    def add_token(self, token: Token):                          # Add a token to the tensor
+    def add_token(self, token: Token):                              # Add a token to the tensor
         """
         Add a token to the tensor. If tensor is full, expand it first.
 
@@ -240,21 +240,14 @@ class Base_Set(object):
         new_links = torch.zeros(new_count, semantic_count)                  # new tensor (new number of tokens) x (number of semantics)
         new_links[:current_count, :] = self.links[self.token_set]           # add current links to the tensor
         self.links[self.token_set] = new_links                              # update links object with new tensor
-        if self.token_set not in [Set.DRIVER, Set.NEW_SET]:             # Mappings (if not driver):
+
+        if self.token_set not in [Set.DRIVER, Set.NEW_SET]:             # Mappings (if not driver): TODO: See if new set needs mappings?
             self.mappings: Mappings = self.mappings
             driver_count = self.mappings.size(dim=1)                        # Get number of tokens in driver
-            map_weights = torch.zeros(new_count, driver_count)              # new tensors (new number of tokens) x (number of driver tokens)
-            map_hypotheses = torch.zeros(new_count, driver_count)            
-            map_max_hyps = torch.zeros(new_count, driver_count)              
-            map_cons = torch.zeros(new_count, driver_count)           
-            new_adj_matrix: torch.Tensor = torch.stack([                    # stack into adj_matrix tensor
-                map_weights,       # MappingFields.WEIGHT = 0
-                map_hypotheses,    # MappingFields.HYPOTHESIS = 1
-                map_max_hyps,      # MappingFields.MAX_HYP = 2
-                map_cons           # MappingFields.CONNETIONS = 3
-            ], dim=-1)
-            print(f"self: {self.nodes.shape}. Should be {new_count}x{len(TF)}")
-            print(f"new: {new_adj_matrix.shape}, old: {self.mappings.adj_matrix.shape}")
+            stack = []
+            for field in MappingFields:                                     # Create new tensor for each mapping field
+                stack.append(torch.zeros(new_count, driver_count))
+            new_adj_matrix: torch.Tensor = torch.stack(stack, dim=-1)       # Stack into adj_matrix tensor
             new_adj_matrix[:current_count, :] = self.mappings.adj_matrix    # add current weights
             self.mappings.adj_matrix = new_adj_matrix                       # update mappings object with new tensor
                                                                         # Connections:
@@ -285,13 +278,22 @@ class Base_Set(object):
         self.analogs, self.analog_counts = torch.unique(self.nodes[:, TF.ANALOG], return_counts=True)
    
     def print(self, f_types=None):                                  # Here for testing atm
+        """
+        Print the set.
+
+        Args:
+            f_types (list[TF], optional): The features to print.
+
+        Raises:
+            ValueError: If nodePrinter is not found.
+        """
+        
         try:
-            printer = nodePrinter(print_to_console=True)
-            printer.print_set(self, feature_types=f_types)
-        except:
             from nodes.utils import nodePrinter
             printer = nodePrinter(print_to_console=True)
             printer.print_set(self, feature_types=f_types)
+        except:
+            print("Error: nodePrinter not found. Nodes.utils.nodePrinter is required to use this function.")
     # --------------------------------------------------------------
 
     # ====================[ TOKEN FUNCTIONS ]=======================
