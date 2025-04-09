@@ -13,7 +13,7 @@ class Network(object):
     """
     A class for holding set objects and operations.
     """
-    def __init__(self, driver: Driver, recipient: Recipient, LTM: Memory, new_set: New_Set, semantics: Semantics, set_mappings: dict[int, Mappings], params: Params = None):
+    def __init__(self, driver: Driver, recipient: Recipient, memory: Memory, new_set: New_Set, semantics: Semantics, set_mappings: dict[int, Mappings], params: Params = None):
         """
         Initialize the Network object.
 
@@ -30,7 +30,7 @@ class Network(object):
         self.driver: Driver = driver
         self.recipient: Recipient = recipient
         self.semantics: Semantics = semantics
-        self.memory: Memory = LTM
+        self.memory: Memory = memory
         self.new_set: New_Set = new_set
         self.sets = {
             Set.DRIVER: self.driver,
