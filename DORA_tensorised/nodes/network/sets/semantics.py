@@ -5,7 +5,10 @@ import torch
 
 from nodes.enums import *
 from nodes.utils import tensorOps as tOps
-from nodes.network import Links, Params, Semantic
+
+from ..connections import Links
+from ..network_params import Params
+from ..single_nodes import Semantic
 
 from .base_set import Base_Set
 

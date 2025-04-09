@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from nodes.enums import MappingFields
-from nodes.sets.connections import Mappings
+from nodes.network.connections import Mappings
 
 def test_mappings_initialization():
     # Create test tensors

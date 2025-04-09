@@ -2,8 +2,9 @@
 # Represents a new set of tokens.
 
 from nodes.enums import *
-from nodes.network import Links, Params
 
+from ..connections import Links
+from ..network_params import Params
 from .base_set import Base_Set
 
 class New_Set(Base_Set):

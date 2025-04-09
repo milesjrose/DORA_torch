@@ -4,7 +4,7 @@
 import numpy as np
 from nodes.enums import *
 
-from nodes.builder.intermediate_types import *
+from .intermediate_types import *
 
 class Build_connections(object):                        # Builds links and connections for each set
     """

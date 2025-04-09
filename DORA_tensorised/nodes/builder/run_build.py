@@ -1,8 +1,8 @@
 # nodes/builder/run_build.py
 # Provides a simple function for building the network object.
 
-from nodes import Params
-from nodes.builder.network_builder import NetworkBuilder
+from nodes.network.network_params import Params
+from .network_builder import NetworkBuilder
 
 def build_network(file=None, props=None, params=None):
     """

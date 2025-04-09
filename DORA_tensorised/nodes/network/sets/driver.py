@@ -5,8 +5,8 @@ import torch
 
 from nodes.enums import *
 from nodes.utils import tensorOps as tOps
-from nodes.network import Params
 
+from ..network_params import Params
 from .base_set import Base_Set
 
 class Driver(Base_Set):

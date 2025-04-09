@@ -4,7 +4,7 @@
 import pytest
 
 from nodes.builder import NetworkBuilder
-from nodes.sets.node_representations import New_Token
+from nodes.network.single_nodes import Token
 from nodes.enums import *
 
 # Import the symProps from sim.py

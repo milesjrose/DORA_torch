@@ -4,8 +4,10 @@
 import torch
 
 from nodes.enums import *
-from nodes.network import Links, Mappings, Token
-from nodes import Params
+
+from ..connections import Links
+from ..network_params import Params
+from ..single_nodes import Token
 
 class Base_Set(object):
     """

@@ -7,7 +7,11 @@ from nodes.enums import *
 from nodes.network import Network, Params, Links, Mappings
 from nodes.network.sets import *
 
-from nodes.builder import Build_set, Build_sems, Build_children, Build_connections
+from .build_set import Build_set
+from .build_sems import Build_sems
+from .build_children import Build_children
+from .build_connections import Build_connections
+
 
 class NetworkBuilder(object):                              # Builds tensors for each set, memory, and semantic objects. Finally build the nodes object.
     """

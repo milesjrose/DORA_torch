@@ -9,7 +9,7 @@ from nodes.builder import NetworkBuilder
 from .sims.sim import symProps
 
 def test_nodes_from_file():
-    test_file = './nodes/nodeTests/sim.py'
+    test_file = './nodes/tests/sims/sim.py'
 
     try:
         # Build nodes from the file
