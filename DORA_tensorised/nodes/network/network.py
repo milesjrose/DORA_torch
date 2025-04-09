@@ -3,7 +3,7 @@
 
 from nodes.enums import *
 
-from .sets import Driver, Recipient, Memory, New_Set, Semantics
+from .sets import Driver, Recipient, Memory, New_Set, Semantics, Base_Set
 from .connections import Mappings
 from .network_params import Params
 from .single_nodes import Token, Semantic
@@ -32,7 +32,7 @@ class Network(object):
         self.semantics: Semantics = semantics
         self.memory: Memory = memory
         self.new_set: New_Set = new_set
-        self.sets = {
+        self.sets: dict[Set, Base_Set] = {
             Set.DRIVER: self.driver,
             Set.RECIPIENT: self.recipient,
             Set.MEMORY: self.memory,
@@ -79,6 +79,9 @@ class Network(object):
     def update_acts(self, set: Set):                                        # Update acts in given token set    
         """
         Update the acts in the given set.
+
+        Args:
+            set (Set): The set to update acts in.
         """
         self.sets[set].update_act()
     
@@ -114,6 +117,9 @@ class Network(object):
     def update_inputs(self, set: Set):                                      # Update inputs in given token set
         """
         Update the inputs in the given token set.
+
+        Args:
+            set (Set): The set to update inputs in.
         """
         self.sets[set].update_input()
     
@@ -198,6 +204,9 @@ class Network(object):
         """
         Initialise p_mode in the given set.
         (default: recipient)
+
+        Args:
+            set (Set, optional): The set to initialise p_mode in. (Defaults to recipient)
         """
         self.sets[set].initialise_p_mode()
     
@@ -213,6 +222,10 @@ class Network(object):
     def add_token(self, set: Set, token: Token):                            # Add a token to the given set
         """
         Add a token to the given set.
+
+        Args:
+            set (Set): The set to add the token to.
+            token (network.Token): The token to add.
         """
         if token.tensor[TF.SET] != set:
             raise ValueError("Token set does not match set type.")
@@ -228,7 +241,10 @@ class Network(object):
         Args:
             set (Set, optional): The set to delete the token from.
             ID (int, optional): The ID of the token to delete.
-            ref_token (Ref_Token, optional): A reference to the token to delete.
+            ref_token (network.Ref_Token, optional): A reference to the token to delete.
+        
+        Raises:
+            ValueError: If (set and ID) and ref_token are not provided.
         """
         if ref_token is not None:
             ID = ref_token.ID
@@ -241,6 +257,12 @@ class Network(object):
     def add_semantic(self, semantic: Semantic):                             # Add a semantic
         """
         Add a semantic to the given set.
+
+        Args:
+            semantic (network.Semantic): The semantic to add.
+        
+        Raises:
+            ValueError: If provided semantic is not semantic type.
         """
         if semantic.tensor[SF.TYPE] != Type.SEMANTIC:
             raise ValueError("Cannot add non-semantic to semantic set.")
@@ -250,6 +272,15 @@ class Network(object):
     def del_semantic(self, ID = None, ref_sem:Ref_Semantic = None):         # Delete a semantic
         """
         Delete a semantic from the semantics.
+        
+        - Either ID or ref_sem must be provided.
+
+        Args:
+            ID (int, optional): The ID of the semantic to delete.
+            ref_sem (network.Ref_Semantic, optional): A reference to the semantic to delete.
+        
+        Raises:
+            ValueError: If neither ID or ref_sem is provided.
         """
         if ref_sem is not None:
             ID = ref_sem.ID
@@ -264,3 +295,14 @@ class Network(object):
         """
         max_input = self.semantics.get_max_input()
         self.semantics.set_max_input(max_input)
+
+    # ----------------------------------------------------------------------
+    def print_set(self, set: Set, feature_types: list[TF] = None):
+        """
+        Print the given set.
+
+        Args:
+            set (Set): The set to print.
+            feature_types (list[TF], optional): List features to print, otherwise default features are printed.
+        """
+        self.sets[set].print(feature_types)
