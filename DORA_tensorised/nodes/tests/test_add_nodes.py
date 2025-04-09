@@ -19,7 +19,7 @@ def nodes():
 def test_add_po_token_to_driver(nodes):
     """Test adding a PO token to the driver tensor."""
     # Create a new PO token
-    token = New_Token(type=Type.PO, features={
+    token = Token(type=Type.PO, features={
         TF.SET: Set.DRIVER,
         TF.ANALOG: 0,
         TF.PRED: True
@@ -46,7 +46,7 @@ def test_add_po_token_to_driver(nodes):
 def test_add_rb_token_to_recipient(nodes):
     """Test adding a RB token to the recipient tensor."""
     # Create a new RB token
-    token = New_Token(type=Type.RB, features={
+    token = Token(type=Type.RB, features={
         TF.SET: Set.RECIPIENT,
         TF.ANALOG: 0
     })
@@ -71,7 +71,7 @@ def test_add_rb_token_to_recipient(nodes):
 def test_add_p_token_to_memory(nodes):
     """Test adding a P token to the memory tensor."""
     # Create a new P token
-    token = New_Token(type=Type.P, features={
+    token = Token(type=Type.P, features={
         TF.SET: Set.MEMORY,
         TF.ANALOG: 0
     })
@@ -97,9 +97,9 @@ def test_add_multiple_tokens_new_set(nodes):
     """Test adding multiple tokens to the new_set tensor."""
     # Create multiple tokens
     tokens = [
-        New_Token(type=Type.PO, features={TF.SET: Set.NEW_SET, TF.ANALOG: 0, TF.PRED: True}),
-        New_Token(type=Type.RB, features={TF.SET: Set.NEW_SET, TF.ANALOG: 0}),
-        New_Token(type=Type.P, features={TF.SET: Set.NEW_SET, TF.ANALOG: 0})
+        Token(type=Type.PO, features={TF.SET: Set.NEW_SET, TF.ANALOG: 0, TF.PRED: True}),
+        Token(type=Type.RB, features={TF.SET: Set.NEW_SET, TF.ANALOG: 0}),
+        Token(type=Type.P, features={TF.SET: Set.NEW_SET, TF.ANALOG: 0})
     ]
     
     nodes.new_set.print()
@@ -116,7 +116,7 @@ def test_add_multiple_tokens_new_set(nodes):
 def test_add_token_with_custom_features(nodes):
     """Test adding a token with custom features to the driver tensor."""
     # Create a new PO token with custom features
-    token = New_Token(type=Type.PO, features={
+    token = Token(type=Type.PO, features={
         TF.SET: Set.DRIVER,
         TF.ANALOG: 1,
         TF.PRED: True,
@@ -153,7 +153,7 @@ def test_add_token_to_full_tensor(nodes):
     
     # Add tokens until the tensor is full
     for i in range(initial_size):
-        token = New_Token(type=Type.PO, features={
+        token = Token(type=Type.PO, features={
             TF.SET: Set.NEW_SET,
             TF.ANALOG: 0,
             TF.PRED: True
@@ -161,7 +161,7 @@ def test_add_token_to_full_tensor(nodes):
         nodes.new_set.add_token(token)
     
     # Now add one more token, which should trigger tensor expansion
-    token = New_Token(type=Type.PO, features={
+    token = Token(type=Type.PO, features={
         TF.SET: Set.NEW_SET,
         TF.ANALOG: 0,
         TF.PRED: True
