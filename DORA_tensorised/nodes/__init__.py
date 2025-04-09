@@ -8,7 +8,7 @@ Classes:
 - Params: Holds shared parameters for the network.
 
 Functions:
-- build_network: Builds the network object, takes either a file or a list of symProps.
+- build_network: Builds the network object, takes either a file or a list of symProps. Params can be passed as dict, or added with network.add_params().
 
 node Enums:
 - semFields: Semantic fields.
