@@ -4,8 +4,9 @@
 import torch
 
 from nodes.enums import *
+from nodes.utils import tensorOps as tOps
 
-from ..connections import Links
+from ..connections import Links, Mappings
 from ..network_params import Params
 from ..single_nodes import Token
 
