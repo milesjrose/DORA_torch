@@ -16,17 +16,24 @@ class nodePrinter(object):
         log_file (str): The file to print to.
         default_feats (list): Types to print from tokens by default
     """
-    def __init__(self,print_to_console: bool = True, log_file: str = None):
+    def __init__(self,print_to_console: bool = True, print_to_file: bool = True, file_path: str = None):
         """
         Initialize the node printer.
 
         Args:
             print_to_console (bool): Whether to print to the console.
-            log_file (str): The file to print to.
+            print_to_file (bool): Whether to print to a file.
+            file_path (str) (Optional): The path to the file to print to. (Defaults to printer/output.log)
         """
         self.default_feats = [TF.ID, TF.TYPE, TF.SET, TF.ANALOG, TF.PRED, TF.DELETED]
         self.print_to_console = print_to_console
-        self.log_file = log_file
+        if self.print_to_file:
+            if file_path is None:
+                self.file_path = "./output/output.log"
+            else:
+                self.file_path = file_path
+        else:
+            self.file_path = None
 
     def print_set(self, tensor, feature_types = None, mask = None, label_values = True, label_names = True, headers = None, print_cons = True, cons_headers = None, links_headers = None):
         """
