@@ -1,7 +1,10 @@
 # nodes/builder/build_set.py
 # Builds the nodes for a given set.
 
-from .intermediate_types import *
+from nodes.enums import *
+
+from .inter_nodes import *
+from .inter_sets import Token_set
 
 class Build_set(object):                                # Builds the nodes for a given set
     """

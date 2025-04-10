@@ -1,7 +1,10 @@
 # nodes/builder/build_children.py
 # Builds the children of each token.
 
-from .intermediate_types import *
+from nodes.enums import *
+
+from .inter_nodes import *
+from .inter_sets import *
 
 class Build_children(object):                           # Builds the children of each token
     """
