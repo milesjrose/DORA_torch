@@ -47,10 +47,15 @@ class Semantics(object):
         if links.driver.size(dim=1) != nodes.size(dim=0):
             raise ValueError("links tensors must have same number of semantics as semantics.nodes")
         self.names = names 
+        """Map ID to name string"""
         self.nodes: torch.Tensor = nodes
+        """Semantic nodes tensor"""
         self.connections: torch.Tensor = connections
+        """Same-set connections for semantics"""
         self.links: Links = links
+        """Semantic links to each token set"""
         self.IDs = IDs
+        """Map ID to index in tensor"""
         self.params = params
         self.expansion_factor = 1.1
     
@@ -106,6 +111,13 @@ class Semantics(object):
         Delete a semantic from the semantics tensor.
         """
         self.nodes[self.IDs[ID], SF.DELETED] = B.TRUE
+        self.IDs.pop(ID)
+        self.names.pop(ID)
+        
+        for set in Set:
+            self.links[set][:, self.IDs[ID]] = 0.0
+        self.connections[self.IDs[ID], :] = 0.0
+        self.connections[:, self.IDs[ID]] = 0.0
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
     def get(self, ID, feature):
