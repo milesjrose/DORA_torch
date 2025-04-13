@@ -259,14 +259,14 @@ class Base_Set(object):
         new_connections[:current_count, :current_count] = self.connections  # add current connections
         self.connections = new_connections                                  # update connections tensor, with new tensor
 
-    def del_nodes(self, ref_tokens: list[Ref_Token]):                                        # Delete nodes from tensor     TODO: Remove connections, links, mappings etc.
+    def del_nodes(self, ref_tokens: list[Ref_Token]):               # Delete nodes from tensor   
         """
         Delete nodes from tensor
         
         Args:
             ref_tokens (list[Ref_Token]): The tokens to delete.
         """
-        if not isinstance(ref_tokens, list):                                        # If input is single ID, turn into iteratable object.
+        if not isinstance(ref_tokens, list):                                # If input is single ID, turn into iteratable object.
             ref_tokens = [ref_tokens]
         
         cache_types = [] 
@@ -276,8 +276,8 @@ class Base_Set(object):
             self.nodes[self.IDs[id], TF.DELETED] = B.TRUE                   # Mark as deleted
             self.IDs.pop(id)
             self.names.pop(id)
-            
-            self.links[self.token_set][self.IDs[id], :] = 0.0
+
+            self.links[self.token_set][self.IDs[id], :] = 0.0               # Remove links and connections
             self.connections[self.IDs[id], :] = 0.0
             self.connections[:, self.IDs[id]] = 0.0
 
