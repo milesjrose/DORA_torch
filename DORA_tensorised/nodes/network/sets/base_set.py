@@ -194,6 +194,10 @@ class Base_Set(object):
         masks = [self.masks[i] for i in n_types]
         return torch.logical_or.reduce(masks)
 
+    def get_all_nodes_mask(self):                                   # Returns a mask for all nodes (Exluding empty or deleted rows)
+        """Return mask for all non-deleted nodes"""
+        return (self.nodes[:, TF.DELETED] == B.FALSE)
+
     def add_token(self, token: Token):                              # Add a token to the tensor
         """
         Add a token to the tensor. If tensor is full, expand it first.
