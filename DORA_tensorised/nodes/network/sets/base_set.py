@@ -8,7 +8,7 @@ from nodes.utils import tensorOps as tOps
 
 from ..connections import Links, Mappings
 from ..network_params import Params
-from ..single_nodes import Token
+from ..single_nodes import Token, Ref_Token
 
 class Base_Set(object):
     """
@@ -203,7 +203,7 @@ class Base_Set(object):
         Add a token to the tensor. If tensor is full, expand it first.
 
         Returns:
-            ID (int): The ID of the added token.
+            Ref_Token: Reference to the token that was added.
         """
         spaces = torch.sum(self.nodes[:, TF.DELETED] == B.TRUE)             # Find number of spaces -> count of deleted nodes in the tensor
         if spaces == 0:                                                     # If no spaces, expand tensor
@@ -222,7 +222,7 @@ class Base_Set(object):
         self.nodes[first_deleted, :] = token.tensor                         # add token to tensor
         self.IDs[ID] = first_deleted                                        # update IDs
         self.cache_masks()                                                  # recompute masks
-        return ID
+        return Ref_Token(self.token_set, ID)
     
     def expand_tensor(self):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
         """
@@ -259,20 +259,27 @@ class Base_Set(object):
         new_connections[:current_count, :current_count] = self.connections  # add current connections
         self.connections = new_connections                                  # update connections tensor, with new tensor
 
-    def del_nodes(self, ID):                                        # Delete nodes from tensor     TODO: Remove connections, links, mappings etc.
+    def del_nodes(self, ref_tokens: list[Ref_Token]):                                        # Delete nodes from tensor     TODO: Remove connections, links, mappings etc.
         """
         Delete nodes from tensor
         
         Args:
-            ID (int or list[int]): The ID(s) of the node(s) to delete.
+            ref_tokens (list[Ref_Token]): The tokens to delete.
         """
-        if not isinstance(ID, list):                                        # If input is single ID, turn into iteratable object.
-            ID = [ID]
+        if not isinstance(ref_tokens, list):                                        # If input is single ID, turn into iteratable object.
+            ref_tokens = [ref_tokens]
         
         cache_types = [] 
-        for id in ID:                                                   # Delete nodes in nodes tensor:
+        for ref_token in ref_tokens:     
+            id = ref_token.ID                                               # Delete nodes in nodes tensor:
             cache_types.append(self.nodes[self.IDs[id], TF.TYPE])           # Keep list of types that have a deleted node to recache specific masks
-            self.nodes[self.IDs[id], TF.DELETED] = B.TRUE                   # 
+            self.nodes[self.IDs[id], TF.DELETED] = B.TRUE                   # Mark as deleted
+            self.IDs.pop(id)
+            self.names.pop(id)
+            
+            self.links[self.token_set][self.IDs[id], :] = 0.0
+            self.connections[self.IDs[id], :] = 0.0
+            self.connections[:, self.IDs[id]] = 0.0
 
         cache_types = list(set(cache_types))                            # Remove duplicates if multiple nodes deleted from same type
         self.cache_masks(cache_types)                                   # Re-cache effected types
