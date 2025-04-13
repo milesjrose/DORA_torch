@@ -45,12 +45,11 @@ class Links(object):
             Set.NEW_SET: self.new_set
         }
     
-    def add_links(self, set: Set, links):
+    def update_link(self, set, token_index, semantic_index, weight):
         """
-        Add links to the adjacency matrix.
-        TODO: implement
+        Update the link between a token and a semantic.
         """
-        pass
+        self.sets[set][token_index, semantic_index] = weight
 
     def __getitem__(self, key):                                     # Allows for links[set], instead of links.sets[set]
         return self.sets[key]
