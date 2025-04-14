@@ -4,7 +4,7 @@
 import torch
 
 from nodes.enums import *
-from DORA_tensorised.nodes.utils import tensor_ops as tOps
+from nodes.utils import tensor_ops as tOps
 
 from ..network_params import Params
 from .base_set import Base_Set

@@ -3,7 +3,7 @@
 import torch
 
 from nodes.enums import *
-from DORA_tensorised.nodes.utils import tensor_ops as tOps
+from nodes.utils import tensor_ops as tOps
 
 from ..connections import Links, Mappings
 from ..network_params import Params
