@@ -30,7 +30,9 @@ class Links(object):
             raise TypeError("Recipient links must be torch.Tensor.")
         if type(memory_links) != torch.Tensor:
             raise TypeError("Memory links must be torch.Tensor.")
-        if driver_links.size(dim=1) != recipient_links.size(dim=1) or driver_links.size(dim=1) != memory_links.size(dim=1):
+        if type(new_set_links) != torch.Tensor:
+            raise TypeError("New set links must be torch.Tensor.")
+        if driver_links.size(dim=1) != recipient_links.size(dim=1) or driver_links.size(dim=1) != memory_links.size(dim=1) or driver_links.size(dim=1) != new_set_links.size(dim=1):
             raise ValueError("All link tensors must have the same number of semantics (columns).")
     
         self.driver: torch.Tensor = driver_links
