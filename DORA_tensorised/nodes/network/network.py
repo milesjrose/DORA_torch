@@ -229,9 +229,15 @@ class Network(object):
         
         Returns:
             network.Ref_Token: A reference to the token.
+        
+        Raises:
+            ValueError: If the token set feature is not a valid set.
         """
-        set = token.tensor[TF.SET]
-        reference = self.sets[set].add_token(token)
+        add_set = int(token.tensor[TF.SET])
+        if add_set not in [set.value for set in Set]:
+            raise ValueError("Invalid set in token feature.")
+        
+        reference = self.sets[add_set].add_token(token)
         return reference
 
     def del_token(self, ref_token: Ref_Token):                              # Delete a token
