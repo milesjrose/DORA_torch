@@ -12,7 +12,7 @@ class Token(object):
     Attributes:
         tensor (torch.Tensor): A tensor of features for the token.
     """
-    def __init__(self, type: Type, features: dict[TF, float]):
+    def __init__(self, type: Type, features: dict[TF, float] = {}, name:str = None):
         """
         Initialize the New_Token object.
 
@@ -20,6 +20,7 @@ class Token(object):
             type (Type): The type of the token.
             features (dict[TF, float]): A dictionary of features for the token.
         """
+        self.name = name
         self.tensor = torch.zeros(len(TF))
         self.tensor[TF.TYPE] = type
         match type:
@@ -36,6 +37,9 @@ class Token(object):
     
     def __getitem__(self, key: TF):
         return self.tensor[key]
+
+    def __setitem__(self, key: TF, value: float):
+        self.tensor[key] = value
 
 class Ref_Token(object):
     """

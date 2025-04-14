@@ -12,7 +12,7 @@ class Semantic(object):
     Attributes:
         tensor (torch.Tensor): A tensor of features for the semantic.
     """
-    def __init__(self, name: str, features: dict[SF, float]):
+    def __init__(self, name: str, features: dict[SF, float] = {}):
         """
         Initialize the New_Semantic object.
 
@@ -27,6 +27,9 @@ class Semantic(object):
     
     def __getitem__(self, key: SF):
         return self.tensor[key]
+    
+    def __setitem__(self, key: SF, value: float):
+        self.tensor[key] = value
 
 class Ref_Semantic(object):
     """
