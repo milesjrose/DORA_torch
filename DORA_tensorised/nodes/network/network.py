@@ -219,40 +219,29 @@ class Network(object):
         for set in sets:
             self.sets[set].po_get_weight_length()
     
-    def add_token(self, set: Set, token: Token):                            # Add a token to the given set
+    def add_token(self, token: Token):                                      # Add a token to the given set
         """
-        Add a token to the given set.
+        Add a token to the network.
+        - Added to the set specified in the token.
 
         Args:
-            set (Set): The set to add the token to.
             token (network.Token): The token to add.
-        """
-        if token.tensor[TF.SET] != set:
-            raise ValueError("Token set does not match set type.")
         
-        self.sets[set].add_token(token)
-
-    def del_token(self, set: Set = None, ID = None, ref_token:Ref_Token = None):  # Delete a token
+        Returns:
+            network.Ref_Token: A reference to the token.
         """
-        Delete a token from the given set.
+        set = token.tensor[TF.SET]
+        reference = self.sets[set].add_token(token)
+        return reference
 
-        - Either (set and ID) or (ref_token) must be provided.
+    def del_token(self, ref_token: Ref_Token):                              # Delete a token
+        """
+        Delete a referenced token from the network.
 
         Args:
-            set (Set, optional): The set to delete the token from.
-            ID (int, optional): The ID of the token to delete.
-            ref_token (network.Ref_Token, optional): A reference to the token to delete.
-        
-        Raises:
-            ValueError: If (set and ID) and ref_token are not provided.
+            ref_token (network.Ref_Token): A reference to the token to delete.
         """
-        if ref_token is not None:
-            ID = ref_token.ID
-            set = ref_token.set
-        elif (set is None) or (ID is None):
-            raise ValueError("Either set and ID or ref_token must be provided.")
-        
-        self.sets[set].del_token(ID)
+        self.sets[ref_token.set].del_token(ref_token)
 
     def add_semantic(self, semantic: Semantic):                             # Add a semantic
         """
@@ -269,25 +258,17 @@ class Network(object):
         
         self.semantics.add_semantic(semantic)
 
-    def del_semantic(self, ID = None, ref_sem:Ref_Semantic = None):         # Delete a semantic
+    def del_semantic(self, ref_semantic: Ref_Semantic):                     # Delete a semantic
         """
         Delete a semantic from the semantics.
         
-        - Either ID or ref_sem must be provided.
-
         Args:
-            ID (int, optional): The ID of the semantic to delete.
-            ref_sem (network.Ref_Semantic, optional): A reference to the semantic to delete.
-        
+            ref_semantic (network.Ref_Semantic): A reference to the semantic to delete.
+
         Raises:
-            ValueError: If neither ID or ref_sem is provided.
+            ValueError: If ref_semantic is not provided.
         """
-        if ref_sem is not None:
-            ID = ref_sem.ID
-        elif ID is None:
-            raise ValueError("Either ID or ref_sem must be provided.")
-        
-        self.semantics.del_semantic(ID)
+        self.semantics.del_semantic(ref_semantic)
 
     def set_sem_max_input(self):                                            # Set the maximum input for the semantics
         """
@@ -295,7 +276,6 @@ class Network(object):
         """
         max_input = self.semantics.get_max_input()
         self.semantics.set_max_input(max_input)
-
     # ----------------------------------------------------------------------
     def print_set(self, set: Set, feature_types: list[TF] = None):
         """
