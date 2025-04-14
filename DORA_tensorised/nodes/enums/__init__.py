@@ -1,6 +1,6 @@
 # nodes/enums/__init__.py
 
-from .nodeEnums import SF, TF, MappingFields, Type, Set, Mode, OntStatus, B
+from .nodeEnums import SF, TF, MappingFields, Type, Set, Mode, OntStatus, B, null
 
 __all__ = [
     "SF",
@@ -10,5 +10,6 @@ __all__ = [
     "Set",
     "Mode",
     "OntStatus",
-    "B"
+    "B",
+    "null"
 ]

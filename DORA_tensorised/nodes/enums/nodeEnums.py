@@ -178,3 +178,5 @@ class OntStatus(IntEnum):
 class B(IntEnum):
     TRUE    = 1
     FALSE   = 0
+
+null = -99

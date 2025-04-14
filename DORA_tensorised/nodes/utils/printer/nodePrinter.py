@@ -27,9 +27,10 @@ class nodePrinter(object):
         """
         self.default_feats = [TF.ID, TF.TYPE, TF.SET, TF.ANALOG, TF.PRED, TF.DELETED]
         self.print_to_console = print_to_console
+        self.print_to_file = print_to_file
         if self.print_to_file:
             if file_path is None:
-                self.file_path = "./output/output.log"
+                self.file_path = "DORA_tensorised/nodes/utils/printer/output/output.log"
             else:
                 self.file_path = file_path
         else:
@@ -100,7 +101,7 @@ class nodePrinter(object):
         token_tensor = tensor[:,types]
         rows = token_tensor.tolist()
         if len(rows) == 0:
-            printer = tablePrinter(columns, rows, headers, self.log_file, self.print_to_console)
+            printer = tablePrinter(columns, rows, headers, self.file_path, self.print_to_console)
             printer.print_header()
             print("NO TOKENS FOUND")
             return False
@@ -109,7 +110,7 @@ class nodePrinter(object):
             if names is not None:
                 if success:
                     columns.insert(1, "Name")
-        printer = tablePrinter(columns, rows, headers, self.log_file, self.print_to_console)
+        printer = tablePrinter(columns, rows, headers, self.file_path, self.print_to_console)
         printer.print_table()
         return True
     
@@ -151,7 +152,7 @@ class nodePrinter(object):
         else:
             rows = [["Empty"]]
         
-        printer = tablePrinter(columns, rows, headers, self.log_file, self.print_to_console)
+        printer = tablePrinter(columns, rows, headers, self.file_path, self.print_to_console)
         printer.print_table(split=True)
     
     def print_links_tensor(self, tensor: torch.Tensor, semantics, mask = None, names = None, headers = None):
@@ -194,7 +195,7 @@ class nodePrinter(object):
         else:
             rows=[["Empty"]]
 
-        printer = tablePrinter(columns, rows, headers, self.log_file, self.print_to_console)
+        printer = tablePrinter(columns, rows, headers, self.file_path, self.print_to_console)
         printer.print_table(split=True)
 
     def print_tokens(self, set: Set, token_ids: list[int], types: list[TF]):
@@ -215,7 +216,7 @@ class nodePrinter(object):
             return
         
         headers = [f"Set:{set.name}"] + ["Tokens:"] +[f"{token_ids}"]
-        printer = tablePrinter(columns, rows, headers, self.log_file, self.print_to_console)
+        printer = tablePrinter(columns, rows, headers, self.file_path, self.print_to_console)
         printer.print_table()
     
     def label_values(self, row:list[float], types:list[TF], names:dict[int, str]):
@@ -244,10 +245,13 @@ class nodePrinter(object):
         # Label values
         for t, type in enumerate(types):
             for i, value in enumerate(row):
-                try:
-                    row[i][t] = labels[type](value[t]).name
-                except KeyError:
-                    pass
+                if value[t] == null:
+                    row[i][t] = "Null"
+                else:
+                    try:
+                        row[i][t] = labels[type](value[t]).name
+                    except KeyError:
+                        pass
                 success = True
     
         # Add name column to row
