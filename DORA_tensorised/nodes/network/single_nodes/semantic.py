@@ -32,6 +32,8 @@ class Ref_Semantic(object):
 
     Attributes:
         ID (int): The ID of the semantic.
+        name (str, optional): The name of the semantic. Defaults to None.
     """
-    def __init__(self, ID: int):
+    def __init__(self, ID: int, name: str = None):
         self.ID = ID
+        self.name = name

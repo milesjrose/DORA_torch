@@ -43,13 +43,15 @@ class Ref_Token(object):
         set (Set): The set of the node.
         ID (int): The ID of the node.
     """
-    def __init__(self, set: Set, ID: int):
+    def __init__(self, set: Set, ID: int, name: str = None):
         """
         Initialize the Ref_Token object.
 
         Args:
             set (Set): The set of the node.
             ID (int): The ID of the node.
+            name (str, optional): The name of the node. Defaults to None.
         """
         self.set = set
         self.ID = ID
+        self.name = name
