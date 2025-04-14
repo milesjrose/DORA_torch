@@ -4,7 +4,7 @@
 import torch
 
 from nodes.enums import *
-from DORA_tensorised.nodes.utils import tensor_ops as tOps
+from nodes.utils import tensor_ops as tOps
 
 from ..connections import Links, Mappings
 from ..network_params import Params
@@ -83,92 +83,182 @@ class Base_Set(object):
         """Set: This sets set type"""
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
-    def get_feature(self, ID, feature):                             # Get feature of single node
+    def get_feature(self, ref_token: Ref_Token, feature: TF):        # Get feature of single node
         """
-        Get a feature for a token with a given ID.
+        Get a feature for a referenced token.
         
         Args:
-            ID (int): The ID of the token to get the feature for.
+            ref_token (Ref_Token): Reference of token.
             feature (TF): The feature to get.
 
         Returns:
-            The feature for the token with the given ID.
+            The feature for the referenced token.
+
+        Raises:
+            ValueError: If the referenced token or feature is invalid.
         """
         try:
-            return self.nodes[self.IDs[ID], feature]
+            return self.nodes[self.get_index(ref_token), feature]
         except:
-            raise ValueError("Invalid ID or feature.")
+            raise ValueError("Invalid reference token or feature.")
 
-    def set_feature(self, ID, feature, value):                      # Set feature of single node
+    def set_feature(self, ref_token: Ref_Token, feature: TF, value): # Set feature of single node
         """
-        Set a feature for a token with a given ID.
+        Set a feature for a referenced token.
         
         Args:
-            ID (int): The ID of the token to set the feature for.
+            ref_token (Ref_Token): Reference of token.
             feature (TF): The feature to set.
             value (float): The value to set the feature to.
+
+        Raises:
+            ValueError: If the referenced token, feature, or value is invalid.
         """
-        if type(feature) != TF:
-            raise TypeError("Feature must be a TF enum.")
         try:
-            self.nodes[self.IDs[ID], feature] = float(value)
+            self.nodes[self.get_index(ref_token), feature] = float(value)
         except:
-            raise ValueError("Invalid ID or feature.")
+            raise ValueError("Invalid reference token, feature, or value.")
 
-    def get_name(self, ID):                                         # Get name of node by ID
+    def get_name(self, ref_token: Ref_Token):                       # Get name of node by reference token
         """
-        Get the name for a token with a given ID.
+        Get the name for a referenced token.
         
         Args:
-            ID (int): The ID of the token to get the name for.
-        """
-        return self.names[ID]
+            ref_token (Ref_Token): The token to get the name for.
+        
+        Returns:
+            The name of the token.
 
-    def set_name(self, ID, name):                                   # Set name of node by ID
+        Raises:
+            ValueError: If the referenced token is invalid.
         """
-        Set the name for a token with a given ID.
+        try:
+            return self.names[ref_token.ID]
+        except:
+            raise ValueError("Invalid reference token.")
+
+    def set_name(self, ref_token: Ref_Token, name):                 # Set name of node by reference token
+        """
+        Set the name for a referenced token.
         
         Args:
-            ID (int): The ID of the token to set the name for.
+            ref_token (Ref_Token): The token to set the name for.
             name (str): The name to set the token to.
         """
-        self.names[ID] = name
+        self.names[ref_token.ID] = name
     
-    def get_ID_from_name(self, name):                               # Get ID of node with given name
+    def get_index(self, ref_token: Ref_Token):                      # Get index in tensor of reference token
         """
-        Get the ID for a token with a given name.
-        
+        Get index in tensor of referenced token.
+
         Args:
-            name (str): The name of the token to get the ID for.
+            ref_token (Ref_Token): The token to get the index for.
+
+        Returns:
+            The index of the token in the tensor.
+
+        Raises:
+            ValueError: If the referenced token is invalid.
         """
         try:
-            return self.IDs.keys()[self.IDs.values().index(name)]
+            return self.IDs[ref_token.ID]
         except:
-            raise ValueError("Invalid name.")
+            raise ValueError("Invalid ID.")
+        
+    def get_reference(self, id=None, index=None, name=None):        # Get reference to token with given ID, index, or name
+        """
+        Get a reference to a token with a given ID, index, or name.
+
+        Args:
+            id (int, optional): The ID of the token to get the reference for.
+            index (int, optional): The index of the token to get the reference for.
+            name (str, optional): The name of the token to get the reference for.
+
+        Returns:
+            A Ref_Token object.
+
+        Raises:
+            ValueError: If the ID, index, or name is invalid. Or if none are provided.
+        """
+        if index is not None:
+            try:
+                id = self.nodes[index, TF.ID]
+            except:
+                raise ValueError("Invalid index.")
+        elif name is not None:
+            try:
+                # I feel like there is a better way to do this...
+                dict_index = list(self.names.values()).index(name)
+                id = list(self.names.keys())[dict_index]
+            except:
+                raise ValueError("Invalid name.")
+        elif id is not None:
+            try:
+                self.get_reference(id=id)                           # Check if ID is valid
+            except:
+                raise ValueError("Invalid ID.")
+        else:
+            raise ValueError("No ID, index, or name provided.")
+        
+        try:
+            name = self.names[id]
+        except:
+            name = None
+
+        return Ref_Token(self.token_set, id, name)
     
-    def get_IDs_from_type(self, Type):                              # Get list of IDs for all nodes of type
+    def get_single_token(self, ref_token: Ref_Token, copy=True):    # Get a single token from the tensor
         """
-        Get the IDs of the tokens of a given type.
+        Get a single token from the tensor.
+
+        - If copy is set to False, changes to the returned token will affect the tensor.
+
+        Args:
+            ref_token (Ref_Token): The token to get.
+            copy (bool, optional): Whether to return a copy of the token. Defaults to True.
+
         """
-        return self.get_IDs_by_mask(self.get_mask(Type))
+        tensor = self.nodes[self.get_index(ref_token), :]
+        token = Token(self.token_set, {TF.PRED: tensor[TF.PRED]})
+        if copy:
+            token.tensor = tensor.clone()
+        else:
+            token.tensor = tensor
+        return token
     
-    def get_IDs_by_mask(self, mask):                                # Get list of IDs for nodes in mask
+    def get_reference_multiple(self, mask=None, types: list[Type] = None):  # Get references to tokens in tensor
         """
-        Get the IDs of the tokens of a given mask.
+        Get references to tokens in the tensor. Must provide either mask or types.
+
+        Args:
+            mask (torch.Tensor, optional): A mask to apply to the tensor. Defaults to None.
+            types (list[Type], optional): A list of types to filter by. Defaults to None.
+
+        Returns:
+            A list of references to the tokens in the tensor.
+
+        Raises:
+            ValueError: If no mask or types are provided.
         """
-        return self.nodes[mask, TF.ID]
-    
-    def get_index(self, ID):                                        # Get index in tensor of node with given ID
-        """
-        Get index in tesor of node with ID.
-        """
-        return self.IDs[ID]
+        if types is not None:
+            mask = self.get_combined_mask(types)
+        elif mask is None:
+            raise ValueError("No mask or types provided.")
+        
+        indices = torch.where(mask)[0]
+        references = [self.get_reference(index=i) for i in indices]
+        return references
     # --------------------------------------------------------------
 
     # ====================[ TENSOR FUNCTIONS ]======================
-    def cache_masks(self, types_to_recompute = None):               # Compute and cach masks for given types
-        """Compute and cache masks, specify types to recompute via list of tokenTypes"""
-        if types_to_recompute == None:                              #  If no type specified, recompute all
+    def cache_masks(self, types_to_recompute: list[Type] = None):   # Compute and cach masks for given types
+        """
+        Compute and cache masks
+        
+        Args:
+            types_to_recompute (list[Type], optional): The types to recompute the mask for. Defaults to All types.
+        """
+        if types_to_recompute is None:                              #  If no type specified, recompute all
             types_to_recompute = [Type.PO, Type.RB, Type.P, Type.GROUP]
 
         masks = []
@@ -181,16 +271,46 @@ class Base_Set(object):
         self.masks: torch.Tensor = torch.stack(masks, dim=0)
     
     def compute_mask(self, token_type: Type):                       # Compute the mask for a token type
-        """Compute the mask for a token type"""
+        """
+        Compute the mask for a token type
+        
+        Args:
+            token_type (Type): The type to get the mask for.
+
+        Returns:
+            A mask of nodes with given type.   
+        """
         mask = (self.nodes[:, TF.TYPE] == token_type) & (self.nodes[:, TF.DELETED] == B.FALSE)
         return mask
     
     def get_mask(self, token_type: Type):                           # Returns mask for given token type
-        """Return mask for given token type"""
+        """
+        Return cached mask for given token type
+        
+        Args:
+            token_type (Type): The type to get the mask for.
+
+        Returns:
+            The cached mask for the given token type.
+        """
         return self.masks[token_type]                   
 
     def get_combined_mask(self, n_types: list[Type]):               # Returns combined mask of give types
-        """Return combined mask of given types"""
+        """
+        Return combined mask of given types
+
+        Args:
+            n_types (list[Type]): The types to get the mask for.
+
+        Returns:
+            A mask of the given types.
+
+        Raises:
+            TypeError: If n_types is not a list.
+        """
+        if not isinstance(n_types, list):
+            raise TypeError("n_types must be a list of types")
+    
         masks = [self.masks[i] for i in n_types]
         return torch.logical_or.reduce(masks)
 
@@ -198,12 +318,19 @@ class Base_Set(object):
         """Return mask for all non-deleted nodes"""
         return (self.nodes[:, TF.DELETED] == B.FALSE)
 
-    def add_token(self, token: Token):                              # Add a token to the tensor
+    def add_token(self, token: Token, name = None):                 # Add a token to the tensor
         """
         Add a token to the tensor. If tensor is full, expand it first.
 
+        Args:
+            token (Token): The token to add.
+            name (str, optional): The name of the token. Defaults to None.
+
         Returns:
             Ref_Token: Reference to the token that was added.
+
+        Raises:
+            ValueError: If the token is invalid.
         """
         spaces = torch.sum(self.nodes[:, TF.DELETED] == B.TRUE)             # Find number of spaces -> count of deleted nodes in the tensor
         if spaces == 0:                                                     # If no spaces, expand tensor
@@ -222,6 +349,8 @@ class Base_Set(object):
         self.nodes[first_deleted, :] = token.tensor                         # add token to tensor
         self.IDs[ID] = first_deleted                                        # update IDs
         self.cache_masks()                                                  # recompute masks
+        if name is not None:
+            self.names[ID] = name
         return Ref_Token(self.token_set, ID)
     
     def expand_tensor(self):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor

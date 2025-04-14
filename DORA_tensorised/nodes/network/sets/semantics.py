@@ -4,8 +4,9 @@
 import torch
 
 from nodes.enums import *
-from DORA_tensorised.nodes.utils import tensor_ops as tOps
+from nodes.utils import tensor_ops as tOps
 
+from ..single_nodes import Ref_Semantic
 from ..connections import Links
 from ..network_params import Params
 from ..single_nodes import Semantic
@@ -120,68 +121,128 @@ class Semantics(object):
         self.connections[:, self.IDs[ID]] = 0.0
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
-    def get(self, ID, feature):
+    def get(self, ref_semantic: Ref_Semantic, feature):
         """
         Get a feature for a semantic with a given ID.
         
         Args:
-            ID (int): The ID of the semantic to get the feature for.
+            ref_semantic (Ref_Semantic): The semantic to get the feature for.
             feature (TF): The feature to get.
 
         Returns:
-            The feature for the semantic with the given ID.
+            The feature for the semantic.
         """
-        try:
-            return self.nodes[self.IDs[ID], feature]
-        except:
-            raise ValueError("Invalid ID or feature.")
 
-    def set(self, ID, feature, value):
+        try:
+            return self.nodes[self.get_index(ref_semantic), feature]
+        except:
+            raise ValueError("Invalid reference semantic or feature.")
+
+    def set(self, ref_semantic: Ref_Semantic, feature, value):
         """
         Set a feature for a semantic with a given ID.
         
         Args:
-            ID (int): The ID of the semantic to set the feature for.
+            ref_semantic (Ref_Semantic): The semantic to set the feature for.
             feature (TF): The feature to set.
             value (float): The value to set the feature to.
+
+        Raises:
+            TypeError: If the feature is not a TF enum.
+            ValueError: If the ID or feature is invalid.
         """
-        if type(feature) != TF:
-            raise TypeError("Feature must be a TF enum.")
+
         try:
-            self.nodes[self.IDs[ID], feature] = float(value)
+            self.nodes[self.get_index(ref_semantic), feature] = float(value)
         except:
-            raise ValueError("Invalid ID or feature.")
-
-    def get_name(self, ID):
-        """
-        Get the name for a semantic with a given ID.
+            raise ValueError("Invalid reference semantic or feature.")
         
-        Args:
-            ID (int): The ID of the semantic to get the name for.
+    def get_index(self, ref_semantic: Ref_Semantic):
         """
-        return self.names[ID]
+        Get the index for a semantic based on a reference semantic.
 
-    def set_name(self, ID, name):
-        """
-        Set the name for a semantic with a given ID.
-        
         Args:
-            ID (int): The ID of the semantic to set the name for.
-            name (str): The name to set the semantic to.
+            ref_semantic (Ref_Semantic): The reference semantic.
+
+        Returns:
+            The index of the semantic.
+
+        Raises:
+            ValueError: If the reference semantic is invalid.
         """
-        self.names[ID] = name
+        try:
+            return self.IDs[ref_semantic.ID]
+        except:
+            raise ValueError("Invalid reference semantic.")
     
-    def get_ID(self, name):
+    def get_reference(self, id=None, index=None, name=None):
         """
-        Get the ID for a semantic with a given name.
-        
+        Get the reference for a semantic using any of the following:
+        - ID
+        - index
+        - name
+
         Args:
-            name (str): The name of the semantic to get the ID for.
+            id (int, optional): The ID of the semantic.
+            index (int, optional): The index of the semantic.
+            name (str, optional): The name of the semantic.
+
+        Returns:
+            A Ref_Semantic object.
+
+        Raises:
+            ValueError: If the ID, index, or name is invalid. Or if none are provided.
         """
+        if index is not None:
+            try:
+                id = self.nodes[index, SF.ID]
+            except:
+                raise ValueError("Invalid index.")
+        elif name is not None:
+            try:
+                # I feel like there is a better way to do this
+                dict_index = list(self.names.values()).index(name)
+                id = list(self.names.keys())[dict_index]
+            except:
+                raise ValueError("Invalid name.")
+        elif id is not None:
+            try:
+                self.get_reference(id=id)                           # check if id is valid
+            except:
+                raise ValueError("Invalid ID.")
+        else:
+            raise ValueError("No ID, index, or name provided.")
+        
         try:
-            return self.IDs.keys()[self.IDs.values().index(name)]
+            name = self.names[id]
         except:
-            raise ValueError("Invalid name.")
+            name = None
+
+        return Ref_Semantic(id, name)
+    
+    def get_single_semantic(self, ref_semantic: Ref_Semantic, copy=True):
+        """
+        Get a single semantic from the semantics tensor.
+
+        - If copy is set to False, changes to the returned semantic will affect the semantic set tensor.
+
+        Args:
+            ref_semantic (Ref_Semantic): The reference semantic.
+            copy (bool, optional): Whether to use a copy of the semantic sub-tensor. Defaults to True.
+
+        Returns:
+            A Semantic object.
+        
+        Raises:
+            ValueError: If the reference semantic is invalid.
+        """
+        tensor = self.nodes[self.get_index(ref_semantic), :]
+        sem = Semantic(self.names[ref_semantic.ID], {SF.TYPE: Type.SEMANTIC})
+        if copy:
+            sem.tensor = tensor.clone()
+        else:
+            sem.tensor = tensor
+        return sem
     # --------------------------------------------------------------
 
     # ===================[ SEMANTIC FUNCTIONS ]=====================
