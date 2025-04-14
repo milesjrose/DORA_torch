@@ -120,7 +120,7 @@ class Recipient(Base_Set):
         obj = tOps.refine_mask(self.nodes, po, TF.PRED, B.FALSE)    # get object mask
         # Exitatory input:
         # 2). TD_INPUT: my_groups and my_parent_RBs
-        """ NOTE: Says this should be input in comments, but not in code?
+        """ NOTE: Says this should be input in comments, but not implemented in code.
         # 2a). groups
         self.nodes[p, TF.TD_INPUT] += torch.matmul(                 # matmul outputs martix (sum(p) x 1) of values to add to current input value
             self.connections[p, group],                             # Masks connections between p[i] and its groups
@@ -138,35 +138,33 @@ class Recipient(Base_Set):
         # 4). Mapping input
         self.nodes[p, TF.MAP_INPUT] += self.map_input(p) 
         # Inhibitory input:
-        # 5). LATERAL_INPUT: (Other p in child mode), 
-        # (if DORA_mode: POs not connected to same RBs / 
-        #  Else: PO acts)
+        # 5). LATERAL_INPUT: (Other child p), (if DORA_mode: POs not connected to same RBs / Else: All Objects)
         # 5a). other p in child mode
-        diag_zeroes = tOps.diag_zeros(sum(p))                       # adj matrix connection connecting child ps to all but themselves
+        diag_zeroes = tOps.diag_zeros(sum(p))                       # PxP, child p -> all other child p
         self.nodes[p, TF.LATERAL_INPUT] -= torch.mul(
             lateral_input_level,
             torch.matmul(
-                diag_zeroes,                                        # Tensor size sum(p)xsum(p), to ignore p[i] -> p[i] connections
-                self.nodes[p, TF.ACT]                               # Each parent p node -> (sum of all other parent p nodes)
+                diag_zeroes,                                        # PxP, child p -> all other child p
+                self.nodes[p, TF.ACT]                               # Px1, act of each p
             )
         )
         # 5b). if not as_DORA: Object acts
         if not as_DORA:                
             obj_sum = self.nodes[obj, TF.ACT].sum()                 # sum of all object acts
-            ones = torch.ones((sum(p), 1))                          # Ones tensor size of p
-            sum_tensor = torch.mul(ones, obj_sum)                   # Tensor of size p, giving sum of object acts for each p
+            ones = torch.ones((sum(p), 1))                          # Px1, ones tensor
+            sum_tensor = torch.mul(ones, obj_sum)                   # Px1, sum of object acts for each p
             self.nodes[p, TF.LATERAL_INPUT] -= sum_tensor           # Update lateral input
         # 5c). Else(asDORA): POs not connected to same RBs
         else: 
             # 5ci). Find POs not connected to same RBs              NOTE: Should this use my parent RBs?
             cons = self.connections
-            shared = torch.matmul(cons[p, rb], cons[rb, po])        # PxObject tensor, shared[i][j] > 1 if p[i] and object[j] share an RB, 0 o.w
-            shared = torch.greater(shared, 0).int()                 # now shared[i][j] = 1 if p[i] and object[j] share an RB, 0 o.w
-            non_shared = 1 - shared                                 # non_shared[i][j] = 0 if p[i] and object[j] share an RB, 1 o.w
+            shared = torch.matmul(cons[p, rb], cons[rb, po])        # PxPO, shared[i][j] > 1 if p[i], po[j] share RB, 0 o.w
+            shared = torch.greater(shared, 0).int()                 # shared[i][j] = 1 if p[i], po[j] share RB, 0 o.w
+            non_shared = 1 - shared                                 # non_shared[i][j] = 0 if p[i], po[j] share RB, 1 o.w
             # 5cii). update input using non shared POs
             self.nodes[p, TF.LATERAL_INPUT] -= torch.matmul(
-                non_shared,                                         # sum(p)xsum(object) matrix, listing non shared objects for each p
-                self.nodes[po, TF.ACT]                             # sum(objects)x1 matrix, listing act of each object
+                non_shared,                                         # PxPO, non shared POs for each p
+                self.nodes[po, TF.ACT]                              # POx1, act of each PO
             )
    
     def update_input_rb(self):                                              # RB inputs - recipient
