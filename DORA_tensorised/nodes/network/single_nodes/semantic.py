@@ -24,6 +24,9 @@ class Semantic(object):
         self.tensor[SF.TYPE] = Type.SEMANTIC
         for feature in features:
             self.tensor[feature] = features[feature]
+    
+    def __getitem__(self, key: SF):
+        return self.tensor[key]
 
 class Ref_Semantic(object):
     """

@@ -33,6 +33,9 @@ class Token(object):
                     raise ValueError("TF.PRED must be included for PO tokens.")
         for feature in features:
             self.tensor[feature] = features[feature]
+    
+    def __getitem__(self, key: TF):
+        return self.tensor[key]
 
 class Ref_Token(object):
     """
