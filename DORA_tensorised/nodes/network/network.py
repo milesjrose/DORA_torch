@@ -277,7 +277,7 @@ class Network(object):
         max_input = self.semantics.get_max_input()
         self.semantics.set_max_input(max_input)
     
-    def get_value(self, reference, feature):
+    def get_value(self, reference, feature):                                # Get the value of a feature for a referenced token or semantic
         """
         Get the value of a feature for a referenced token or semantic.
 
@@ -304,7 +304,7 @@ class Network(object):
         else:
             raise ValueError("Invalid reference type.")
     
-    def set_value(self, reference, feature, value):
+    def set_value(self, reference, feature, value):                         # Set the value of a feature for a referenced token or semantic
         """
         Set the value of a feature for a referenced token or semantic.
 
