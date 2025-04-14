@@ -259,7 +259,10 @@ class nodePrinter(object):
             try:
                 if types[0] == TF.ID:
                     for i in range(len(row)):
-                        row[i].insert(1, names[row[i][0]])
+                        try:
+                            row[i].insert(1, names[row[i][0]])
+                        except:
+                            row[i].insert(1, row[i][0])
             except:
                 success = False
 
