@@ -55,6 +55,8 @@ class Base_Set(object):
         if floatTensor.size(dim=1) != len(TF):
             raise ValueError("floatTensor must have number of features listed in TF enum.")
         
+        if names is None:
+            names = {}
         self.names = names
         "Dict ID -> Name"
         self.nodes: torch.Tensor = floatTensor
@@ -318,7 +320,7 @@ class Base_Set(object):
         """Return mask for all non-deleted nodes"""
         return (self.nodes[:, TF.DELETED] == B.FALSE)
 
-    def add_token(self, token: Token, name = None):                 # Add a token to the tensor
+    def add_token(self, token: Token):                              # Add a token to the tensor
         """
         Add a token to the tensor. If tensor is full, expand it first.
 
@@ -336,21 +338,23 @@ class Base_Set(object):
         if spaces == 0:                                                     # If no spaces, expand tensor
             self.expand_tensor()
         if len(self.IDs) > 0:
-            self.print()
             try:
                 ID = max(self.IDs.keys()) + 1                                   # assign token a new ID.
             except Exception as e:
                 raise(e)
         else:
             ID = 1
-        token.tensor[TF.ID] = ID
+        token[TF.ID] = ID
         deleted_nodes = torch.where(self.nodes[:, TF.DELETED] == B.TRUE)[0] #find first deleted node
-        first_deleted = deleted_nodes[0]
-        self.nodes[first_deleted, :] = token.tensor                         # add token to tensor
-        self.IDs[ID] = first_deleted                                        # update IDs
+        first_deleted = deleted_nodes[0]                                    # Get index of first deleted node
+        self.nodes[first_deleted, :] = token.tensor                         # Replace first deleted node with token
+        self.IDs[ID] = first_deleted                                        # map: new ID -> index of replaced node
         self.cache_masks()                                                  # recompute masks
-        if name is not None:
-            self.names[ID] = name
+        if token.name is None:
+            token.name = f"Token {ID}"
+        if self.names is None:
+            raise ValueError("Names dictionary is not initialised.")
+        self.names[ID] = token.name
         return Ref_Token(self.token_set, ID)
     
     def expand_tensor(self):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
@@ -363,8 +367,8 @@ class Base_Set(object):
         new_count = int(current_count * self.expansion_factor)              # calculate new size
         if new_count < 5:                                                   # minimum expansion is 5
             new_count = 5
-        new_tensor = torch.zeros(new_count, self.nodes.size(dim=1))         # create new tensor with expansion factor
-        new_tensor[current_count:, TF.DELETED] = B.TRUE                     # set deleted to true for all new tokens
+        new_tensor = torch.full((new_count, self.nodes.size(dim=1)), null)  # null-filled tensor, increased by expansion factor
+        new_tensor[current_count:, TF.DELETED] = B.TRUE                     #  deleted = true -> all new tokens
         new_tensor[:current_count, :] = self.nodes                          # copy over old tensor
         self.nodes = new_tensor                                             # update tensor
                                                                         # Update supporting data structures:
@@ -388,30 +392,54 @@ class Base_Set(object):
         new_connections[:current_count, :current_count] = self.connections  # add current connections
         self.connections = new_connections                                  # update connections tensor, with new tensor
 
-    def del_nodes(self, ref_tokens: list[Ref_Token]):               # Delete nodes from tensor   
+    def del_token(self, ref_tokens: Ref_Token):                     # Delete nodes from tensor   
         """
-        Delete nodes from tensor
+        Delete tokens from tensor. Pass in a list of Ref_Tokens to delete multiple tokens at once.
         
         Args:
-            ref_tokens (list[Ref_Token]): The tokens to delete.
+            ref_tokens (Ref_Token): The token(s) to delete. 
         """
-        if not isinstance(ref_tokens, list):                                # If input is single ID, turn into iteratable object.
+
+        if not isinstance(ref_tokens, list):                            # If input is single ID, turn into iteratable object.
             ref_tokens = [ref_tokens]
         
+        self.del_connections(ref_tokens)                                # Delete connections first, as requires ID in self.IDs
+
         cache_types = [] 
-        for ref_token in ref_tokens:     
-            id = ref_token.ID                                               # Delete nodes in nodes tensor:
-            cache_types.append(self.nodes[self.IDs[id], TF.TYPE])           # Keep list of types that have a deleted node to recache specific masks
-            self.nodes[self.IDs[id], TF.DELETED] = B.TRUE                   # Mark as deleted
+        for ref_token in ref_tokens:
+            index = self.get_index(ref_token)
+            id = ref_token.ID                                           # Delete nodes in nodes tensor:
+            cache_types.append(self.nodes[index, TF.TYPE])              # Keep list of types that have a deleted node to recache specific masks
+            self.nodes[index, TF.ID] = null                             # Set to null ID
+            self.nodes[index, TF.DELETED] = B.TRUE                      # Set to deleted
+            self.IDs[id] = null
             self.IDs.pop(id)
+            self.names[id] = null
             self.names.pop(id)
 
-            self.links[self.token_set][self.IDs[id], :] = 0.0               # Remove links and connections
-            self.connections[self.IDs[id], :] = 0.0
-            self.connections[:, self.IDs[id]] = 0.0
-
+        
         cache_types = list(set(cache_types))                            # Remove duplicates if multiple nodes deleted from same type
         self.cache_masks(cache_types)                                   # Re-cache effected types
+
+    def del_connections(self, ref_tokens: Ref_Token):
+        """
+        Delete connection from tensor. Pass in a list of Ref_Tokens to delete multiple connections at once.
+        
+        Args:
+            ref_tokens (Ref_Token): The connection to delete.
+        """
+        for ref_token in ref_tokens:
+            id = ref_token.ID
+            if self.token_set not in [Set.DRIVER, Set.NEW_SET]:             # No links in driver or new set
+                self.links[self.token_set][self.IDs[id], :] = 0.0           # Remove links
+            try:
+                self.connections[self.IDs[id], :] = 0.0                     # Remove children
+                self.connections[:, self.IDs[id]] = 0.0                     # Remove parents
+            except:
+                if len(self.IDs) == 0:
+                    raise KeyError("IDs dictionary is empty.")
+                else:
+                    raise KeyError("Key error in del_token, connection tensor.")
 
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
         """Update list of analogs in tensor, and their node counts"""
@@ -427,13 +455,17 @@ class Base_Set(object):
         Raises:
             ValueError: If nodePrinter is not found.
         """
-        
         try:
             from nodes.utils import nodePrinter
-            printer = nodePrinter(print_to_console=True)
-            printer.print_set(self, feature_types=f_types)
         except:
             print("Error: nodePrinter not found. Nodes.utils.nodePrinter is required to use this function.")
+        else:
+            try:
+                printer = nodePrinter(print_to_console=True)
+                printer.print_set(self, feature_types=f_types)
+            except Exception as e:
+                print("Error: NodePrinter failed to print set.")
+                print(e)
     # --------------------------------------------------------------
 
     # ====================[ TOKEN FUNCTIONS ]=======================
