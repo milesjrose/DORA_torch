@@ -75,6 +75,8 @@ class Semantics(object):
         self.nodes[empty_row, :] = semantic.nodes                   # add semantic to empty row
         new_id = self.IDs.keys()[-1] + 1                            # get new id
         self.IDs[new_id] = empty_row                                # add id to IDs
+        if semantic.name is None:
+            semantic.name = f"Semantic {new_id}"
         self.names[new_id] = semantic.name                          # add name to names
         self.nodes[empty_row, SF.ID] = new_id                       # set node id feature
 
