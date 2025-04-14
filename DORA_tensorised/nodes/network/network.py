@@ -276,6 +276,59 @@ class Network(object):
         """
         max_input = self.semantics.get_max_input()
         self.semantics.set_max_input(max_input)
+    
+    def get_value(self, reference, feature):
+        """
+        Get the value of a feature for a referenced token or semantic.
+
+        Args:
+            reference (Ref_Token or Ref_Semantic): A reference to the token or semantic to get the value of.
+            feature (TF or SF): The feature to get the value of.
+
+        Returns:
+            float: The value of the feature.
+
+        Raises:
+            ValueError: If the reference is not a token or semantic. Or feature type and reference type mismatch.
+        """
+        if isinstance(reference, Ref_Token):
+            if isinstance(feature, TF):
+                return self.sets[reference.set].get_feature(reference, feature)
+            else:
+                raise ValueError("Referenced a token, but feature is not a token feature.")
+        elif isinstance(reference, Ref_Semantic):
+            if isinstance(feature, SF):
+                return self.semantics.get_feature(reference, feature)
+            else:
+                raise ValueError("Referenced a semantic, but feature is not a semantic feature.")
+        else:
+            raise ValueError("Invalid reference type.")
+    
+    def set_value(self, reference, feature, value):
+        """
+        Set the value of a feature for a referenced token or semantic.
+
+        Args:
+            reference (Ref_Token or Ref_Semantic): A reference to the token or semantic to set the value of.
+            feature (TF or SF): The feature to set the value of.
+            value (float or Enum): The value to set the feature to.
+
+        Raises:
+            ValueError: If the reference is not a token or semantic. Or feature type and reference type mismatch.
+        """
+        if isinstance(reference, Ref_Token):
+            if isinstance(feature, TF):
+                self.sets[reference.set].set_feature(reference, feature, value)
+            else:
+                raise ValueError("Referenced a token, but feature is not a token feature.")
+        elif isinstance(reference, Ref_Semantic):
+            if isinstance(feature, SF):
+                self.semantics.set_feature(reference, feature, value)
+            else:
+                raise ValueError("Referenced a semantic, but feature is not a semantic feature.")
+        else:
+            raise ValueError("Invalid reference type.")
+    
     # ----------------------------------------------------------------------
     def print_set(self, set: Set, feature_types: list[TF] = None):
         """
