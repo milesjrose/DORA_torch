@@ -179,4 +179,4 @@ class B(IntEnum):
     TRUE    = 1
     FALSE   = 0
 
-null = -99
+null = -99.99
