@@ -3,7 +3,7 @@
 import torch
 import numpy as np
 
-from nodes.enums import *
+from ...enums import *
 
 from ..inter_nodes import Inter_Token
 
@@ -35,8 +35,8 @@ class Token_set(object):
         self.name_dict = name_dict
         self.id_dict = id_dict
         self.num_tokens = sum([len(self.tokens[type]) for type in Type])
-        self.connections = np.zeros((self.num_tokens, self.num_tokens))
-        self.links = np.zeros((self.num_tokens, self.num_tokens))
+        self.connections = None
+        self.links = None
     
     def get_token(self, name):
         """
@@ -60,11 +60,11 @@ class Token_set(object):
         """
         Get the token tensor for the token set.
         """
-        token_tensor = torch.zeros((self.num_tokens, len(TF)))
+        token_tensor = torch.zeros((self.num_tokens, len(TF)), dtype=tensor_type)
         for type in Type:
             for token in self.tokens[type]:
                 token.floatate_features()
-                token_tensor[token.ID] = torch.tensor(token.features)
+                token_tensor[token.ID] = torch.tensor(token.features, dtype=tensor_type)
         return token_tensor
     
     def tensorise(self):
@@ -72,5 +72,3 @@ class Token_set(object):
         Tensorise the token set, creating a tensor of tokens, and tensors of connections and links to semantics.
         """
         self.token_tensor = self.get_token_tensor()
-        self.connections_tensor = torch.tensor(self.connections)
-        self.links_tensor = torch.tensor(self.links)

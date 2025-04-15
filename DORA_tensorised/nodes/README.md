@@ -40,7 +40,7 @@ All functions from types in dataTypes that are covered in the DORA paper have be
 network.set.function()
 
 # E.g, to update po tokens in the driver:
-network.driver.update_input_po()
+network.sets[Set.DRIVER].update_input_po()
 ```
 
 However, to keep the code modular, and allow for easy future modifications to the nodes backend, it is preferred to use the network methods:
@@ -59,5 +59,19 @@ network.update_acts_sem()
 network.update_acts_am()
 ```
 
-### 2.2.1) Add/Remove nodes
-Nodes 
+## 2). Nodes:
+Nodes are added by using the single node classes. Adding a node returns a reference to later access token information. This can be used to set/get values or remove the token.
+
+```
+# Token
+token = network.token(Type.PO, {TF.SET = Set.DRIVER})
+
+# Add to set
+ref_token = network.add_token(token)
+
+# Set a token value
+network.set(ref_token, TF.ACT, 0.9)
+
+# Delete a token
+network.del_token(ref_token)
+```

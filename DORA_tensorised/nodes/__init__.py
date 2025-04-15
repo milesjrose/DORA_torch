@@ -9,6 +9,7 @@ Classes:
 
 Functions:
 - build_network: Builds the network object, takes either a file or a list of symProps. Params can be passed as dict, or added with network.add_params().
+- default_params: Returns an object of Params with the default parameters.
 
 node Enums:
 - semFields: Semantic fields.
@@ -27,6 +28,7 @@ from .network.network import Network
 from .network.network_params import Params
 from .builder.run_build import build_network
 from .enums import SF as semFields, TF as tokenFields, MappingFields, Type, Set, Mode, OntStatus
+from .network.network_params import default_params
 
 __all__ = [
     "Network",
@@ -38,6 +40,7 @@ __all__ = [
     "Type",
     "Set",
     "Mode",
-    "OntStatus"
+    "OntStatus",
+    "default_params"
 ]
 

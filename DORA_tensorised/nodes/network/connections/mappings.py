@@ -4,68 +4,66 @@
 
 import torch
 
-from nodes.enums import *
+from ...enums import *
 
 class Mappings(object):
     """
     A class for storing mappings and hypothesis information.
     """
-    def __init__(self, driver, connections: torch.Tensor, weights: torch.Tensor, hypotheses: torch.Tensor, max_hyps: torch.Tensor):
+    def __init__(self, driver, map_fields: dict[MappingFields, torch.Tensor]):
         """
         Initialize the Mappings object.
         Args:
             driver (Driver): driver that mappings map to.
-            connections (torch.Tensor): adjacency matrix of connections from recipient to driver.
-            weights (torch.Tensor): weight matrix for connections from recipient to driver.
-            hypotheses (torch.Tensor): hypothesis values matrix for connections from recipient to driver.
-            max_hyps (torch.Tensor): max hypothesis values matrix for connections from recipient to driver.
+            map_fields (dict[MappingFields, torch.Tensor]): dictionary of tensors for each mapping field.
         
         Raises:
-            ValueError: If the tensors are not torch.Tensor.
-            ValueError: If the tensors do not have the same shape.
+            ValueError: If the tensors are not torch.Tensor. Or have incorrect shape.
         """
-        if type(connections) != torch.Tensor or type(weights) != torch.Tensor or type(hypotheses) != torch.Tensor or type(max_hyps) != torch.Tensor:
-            raise ValueError("All tensors must be torch.Tensor.")
-        if connections.shape != weights.shape or connections.shape != hypotheses.shape or connections.shape != max_hyps.shape:
-            raise ValueError("All tensors must have the same shape.")
-        if weights.dim() != 2:
-            raise ValueError("Tensors should be 2D")
+        # Check tensors are correct type and shape
+        con_shape = map_fields[MappingFields.CONNETIONS].shape[0] # Used to check all tensors have same shape
+        for field in map_fields:
+            # Check tensor is correct type
+            if type(map_fields[field]) != torch.Tensor:
+                raise ValueError("All tensors must be torch.Tensor.")
+            
+            # Check tensor is 2D
+            if map_fields[field].dim() != 2:
+                raise ValueError("Tensors should be 2D")
+            
+            # Check all tensors have same shape
+            shape = map_fields[field].shape[0]
+            if shape != con_shape:
+                raise ValueError(f"{field} field tensor shape: {shape}, but connections tensor shape: {con_shape}.")
+            
+            # Check driver nodes match
+            driver_count = driver.nodes.shape[0]
+            if map_fields[field].shape[1] != driver_count:
+                raise ValueError(f"{field} field tensor shape: {shape}, but driver nodes shape: {driver_count}.")
+        
         # Stack the tensors along a new dimension based on MappingFields enum
         self.driver = driver
-        self.adj_matrix: torch.Tensor = torch.stack([
-            weights,                    # MappingFields.WEIGHT = 0
-            hypotheses,                 # MappingFields.HYPOTHESIS = 1
-            max_hyps,                   # MappingFields.MAX_HYP = 2
-            connections                 # MappingFields.CONNETIONS = 3
-        ], dim=-1)
-
+        field_list = []
+        for field in MappingFields:
+            field_list.append(map_fields[field])                            # Add each tensor to the list, indexed by MappingFields enum
+        self.adj_matrix: torch.Tensor = torch.stack(field_list, dim=-1)     # Stack the tensors, last dimension is the field
+        """ Stacked tensor of shape (N, D, F):
+        - N: number of nodes in this set
+        - D: number of nodes in driver set
+        - F: number of fields in MappingFields enum
+        """
+    
+    # ===================[ Getters and setters ]====================
     def size(self, dim):
         return self.adj_matrix.size(dim=dim)
     
-    def connections(self):
-        """
-        Return the connections matrix from the adjacency matrix.
-        """
-        return self.adj_matrix[:, :, MappingFields.CONNETIONS]
-
-    def weights(self):
-        """
-        Return the weights matrix from the adjacency matrix.
-        """
-        return self.adj_matrix[:, :, MappingFields.WEIGHT]
+    def __getitem__(self, mappingField: MappingFields):
+        return self.adj_matrix[:, :, mappingField]
     
-    def hypotheses(self):
-        """
-        Return the hypotheses matrix from the adjacency matrix.
-        """
-        return self.adj_matrix[:, :, MappingFields.HYPOTHESIS]
+    def __setitem__(self, mappingField: MappingFields, value):
+        self.adj_matrix[:, :, mappingField] = value
     
-    def max_hyps(self):
-        """
-        Return the max hypotheses matrix from the adjacency matrix.
-        """
-        return self.adj_matrix[:, :, MappingFields.MAX_HYP]
-    
+    # =====================[ Update functions ]======================
     def updateHypotheses(self, hypotheses):
         """
         Update the hypotheses matrix.
@@ -79,3 +77,4 @@ class Mappings(object):
         TODO: implement
         """
         pass
+    # ----------------------------------------------------------------

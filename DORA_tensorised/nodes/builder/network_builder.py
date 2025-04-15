@@ -2,15 +2,17 @@
 # Builds the network object.
 
 import torch
+from time import monotonic
 
-from nodes.enums import *
-from nodes.network import Network, Params, Links, Mappings
-from nodes.network.sets import *
+from ..enums import *
+from ..network import Network, Params, Links, Mappings
+from ..network.sets import *
 
 from .build_set import Build_set
 from .build_sems import Build_sems
 from .build_children import Build_children
-from .build_connections import Build_connections
+from .build_connections import build_con_tensors, build_links_tensors
+from ..network.network_params import default_params
 
 
 class NetworkBuilder(object):                              # Builds tensors for each set, memory, and semantic objects. Finally build the nodes object.
@@ -24,19 +26,23 @@ class NetworkBuilder(object):                              # Builds tensors for 
         mappings (dict): A dictionary of mapping object, mappings sets to mapping object.
         set_map (dict): A dictionary of set mappings, mapping set name to set. Used for reading set from symProps file.
     """
-    def __init__(self, symProps: list[dict] = None, file_path: str = None, params: Params = None):
+    def __init__(self, symProps: list[dict] = None, file_path: str = None, params: Params = None, do_timing: bool = False):
         """
         Initialise the nodeBuilder with symProps and file_path.
 
         Args:
             symProps (list): A list of symProps.
             file_path (str): The path to the sym file.
+            params (Params, optional): The parameters for the network.
+            do_timing (bool, optional): Whether to record timing of the build process.
         """
+        self.do_timing = do_timing
+        self.last_time = {0: monotonic()}
         self.symProps = symProps
         self.file_path = file_path
         self.token_sets = {}
         self.mappings = {}
-        self.params = params
+        self.params = params if params is not None else default_params()
         self.set_map = {
             "driver": Set.DRIVER,
             "recipient": Set.RECIPIENT,
@@ -44,33 +50,41 @@ class NetworkBuilder(object):                              # Builds tensors for 
             "new_set": Set.NEW_SET
         }
 
-    def build_nodes(self, DORA_mode= True):          # Build the nodes object
-        """
-        Build the nodes object.
+        # Built objects
+        self.built_sets = {}
+        self.built_mappings = {}
+        self.built_links = None
 
-        Args:
-            DORA_mode (bool): Whether to use DORA mode.
-        
+    def build_network(self):          # Build the network object
+        """
+        Build the network object.
+
         Returns:
             network (Network): The network object.
         
         Raises:
             ValueError: If no symProps or file_path set.
         """
+        
         if self.file_path is not None:
+            read_time = []
+            self.timer(read_time, start = True)
             self.get_symProps_from_file()
+            self.timer(read_time)
+
         if self.symProps is not None:
-            self.build_set_tensors()
-            self.build_node_tensors()
+            set_times = self.build_set_tensors()
+            node_times = self.build_set_objects()
+            con_times = self.build_inter_set_connections()
             self.network = Network(
-                driver=self.driver_tensor, 
-                recipient=self.recipient_tensor, 
-                memory=self.memory_tensor, 
-                new_set=self.new_set_tensor, 
-                semantics=self.semantics_tensor, 
-                set_mappings=self.mappings, 
+                dict_sets=self.built_sets, 
+                semantics=self.built_semantics, 
+                mappings=self.built_mappings, 
+                links=self.built_links, 
                 params=self.params)
+            self.network.set_params(self.params)
             return self.network
+        
         else:
             raise ValueError("No symProps or file_path provided")
 
@@ -79,84 +93,113 @@ class NetworkBuilder(object):                              # Builds tensors for 
         Build the sem_set and token_sets.
         """
         props = {}
+        times = []
+        self.timer(times, start = True)
 
         # 1). Build the sems
         build_sems = Build_sems(self.symProps)
         self.sems = build_sems.build_sems()
+        self.timer(times)
 
         # 2). Initiliase empty lists for each set
         for set in Set:                                 
             props[set] = []
+        self.timer(times)
 
         # 3). Add the prop to the correct set
         for prop in self.symProps:
             props[self.set_map[prop["set"]]].append(prop)    
+        self.timer(times)
         
         # 4). Build the basic token sets
         for set in Set:                                
             build_set = Build_set(props[set], set)
             self.token_sets[set] = build_set.build_set()
-        
+        self.timer(times)
+
         # 5). Build the children lists of IDs
         for set in Set:
             build_children = Build_children(set, self.token_sets[set], self.sems, props[set])
             build_children.get_children()
-        
-        # 6). Build the connections and links matrices                              
-        build_connections = Build_connections(self.token_sets, self.sems)
-        build_connections.build_connections_links()
-        
-        # 7). Tensorise the sets
+        self.timer(times)
+
+        # 7). Tensorise the sets 
         for set in Set:
             self.token_sets[set].tensorise()
         self.sems.tensorise()
 
-    def build_link_object(self):    # Build the mem objects
+        self.timer(times)
+        return times
+
+    def build_set_objects(self):   # Build the set objects
         """
-        Build the mem objects. (links, mappings)
+        Build the set objects.
         """
-        # Create links object
-        driver_links = self.token_sets[Set.DRIVER].links_tensor
-        recipient_links = self.token_sets[Set.RECIPIENT].links_tensor
-        memory_links = self.token_sets[Set.MEMORY].links_tensor
-        new_set_links = self.token_sets[Set.NEW_SET].links_tensor
-        self.links = Links(driver_links, recipient_links, memory_links, new_set_links, None)
-        return self.links
+        # Function to build a given set
+        def build_set(token_set, Set_Class):
+            if not isinstance(token_set.connections, torch.Tensor):
+                raise TypeError(f"connections must be torch.Tensor, not {type(token_set.connections)}.")
+            return Set_Class(
+                token_set.token_tensor, 
+                token_set.connections, 
+                token_set.id_dict, 
+                token_set.name_dict
+                )
+        set_classes = {
+            Set.DRIVER: Driver,
+            Set.RECIPIENT: Recipient,
+            Set.MEMORY: Memory,
+            Set.NEW_SET: New_Set
+        }
+        # Set timer
+        times = []
+        self.timer(times, start = True)
+        # Build the connections tensors
+        build_con_tensors(self.token_sets, self.sems)
+        self.timer(times)
+
+        # Build Semantics
+        self.built_semantics: Semantics = Semantics(self.sems.node_tensor, self.sems.connections_tensor, self.sems.id_dict, self.sems.name_dict)
+        self.timer(times)
+
+        # Build the sets
+        for set in Set:
+            self.built_sets[set] = build_set(self.token_sets[set], set_classes[set])
+            self.timer(times)
+
+        return times
     
-    def build_map_object(self,set):
-        # Create mapping tensors
-        map_cons = torch.zeros(self.token_sets[set].num_tokens, self.token_sets[Set.DRIVER].num_tokens)
-        map_weights = torch.zeros_like(map_cons)
-        map_hyp = torch.zeros_like(map_cons)
-        map_max_hyp = torch.zeros_like(map_cons)
-                # Create mappings object
-        mappings = Mappings(self.driver_tensor, map_cons, map_weights, map_hyp, map_max_hyp)
-        self.mappings[set] = mappings
-        return mappings
+    def build_inter_set_connections(self):
+        """Build the inter set connections."""
+        times = []
+        self.timer(times, start = True)
+        # =============== Build tensors ================
+        build_links_tensors(self.token_sets, self.sems)
+        self.timer(times)
+
+        # ============ Build the links object ============
+        links = {}
+        for set in Set:
+            links[set] = self.token_sets[set].links
+        self.built_links = Links(links, self.built_semantics)
+        self.timer(times)
+
+        # ============ Build the mapping dictionary ============
+        for set in [Set.RECIPIENT, Set.MEMORY]:
+            # Get sizes of tensors
+            map_size = torch.zeros(self.built_sets[set].nodes.shape[0], self.built_sets[Set.DRIVER].nodes.shape[0], dtype=tensor_type)
+
+            # Make tensor for each mapping field
+            mapping_tensors = {}
+            for field in MappingFields:
+                mapping_tensors[field] = torch.zeros_like(map_size, dtype=tensor_type)
+
+            # Create mappings object
+            self.built_mappings[set] = Mappings(self.built_sets[Set.DRIVER], mapping_tensors)
+        self.timer(times)
         
+        return times
 
-    def build_node_tensors(self):   # Build the node tensor objects
-        """
-        Build the per set tensor objects. (driver, recipient, memory, new_set, semantics)
-        """
-        self.build_link_object()
-        self.semantics_tensor: Semantics = Semantics(self.sems.node_tensor, self.sems.connections_tensor, self.links, self.sems.id_dict)
-        self.links.semantics = self.semantics_tensor
-
-        driver_set = self.token_sets[Set.DRIVER]
-        self.driver_tensor = Driver(driver_set.token_tensor, driver_set.connections_tensor, self.links, driver_set.id_dict)
-        
-        recipient_set = self.token_sets[Set.RECIPIENT]
-        recipient_maps = self.build_map_object(Set.RECIPIENT)
-        self.recipient_tensor = Recipient(recipient_set.token_tensor, recipient_set.connections_tensor, self.links, recipient_maps, recipient_set.id_dict)
-
-        memory_set = self.token_sets[Set.MEMORY]
-        mem_maps = self.build_map_object(Set.MEMORY)
-        self.memory_tensor = Memory(memory_set.token_tensor, memory_set.connections_tensor, self.links, mem_maps, memory_set.id_dict)
-
-        new_set = self.token_sets[Set.NEW_SET]
-        self.new_set_tensor = New_Set(new_set.token_tensor, new_set.connections_tensor, self.links, new_set.id_dict)
-    
     def get_symProps_from_file(self):
         """
         Read the symProps from the file into a list of dicts.
@@ -199,3 +242,10 @@ class NetworkBuilder(object):                              # Builds tensors for 
                     "\nThe sym file you have loaded is formatted incorrectly. \nPlease check your sym file and try again."
                 )
                 input("Enter any key to return to the MainMenu>")
+
+    def timer(self, times, timer_index = 0, start = False, ):
+        """Get time since last timer call."""
+        if self.do_timing:  
+            if not start:
+                times.append(monotonic() - self.last_time[timer_index])
+            self.last_time[timer_index] = monotonic()

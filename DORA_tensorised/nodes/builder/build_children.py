@@ -1,7 +1,7 @@
 # nodes/builder/build_children.py
 # Builds the children of each token.
 
-from nodes.enums import *
+from ..enums import *
 
 from .inter_nodes import *
 from .inter_sets import *
@@ -58,7 +58,7 @@ class Build_children(object):                           # Builds the children of
         pred_name = rb['pred_name']
         obj_name = rb['object_name']
         rb_obj = self.get_object(pred_name + "_" + obj_name)
-        child_pred = self.get_po_children(pred_name, rb['pred_sem'])      # Get children of pred, return pred ID
+        child_pred = self.get_po_children(pred_name, rb['pred_sem'])   # Get children of pred, return pred ID
         child_obj = self.get_po_children(obj_name, rb['object_sem'])   # Get children of obj, return obj ID
         rb_obj.children.append(child_pred)
         rb_obj.children.append(child_obj)

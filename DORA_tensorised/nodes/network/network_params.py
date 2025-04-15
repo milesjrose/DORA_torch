@@ -1,21 +1,21 @@
 # nodes/network/network_params.py
 # Holds parameters used by network.
-
+from .default_parameters import parameters
 class Params(object):
     """
     Holds parameters used by network.
     """
-    def __init__(self, parameters: dict, run_on_iphone: bool):
+    def __init__(self, parameters: dict, run_on_iphone: bool = False):
         """
         Holds parameters used by network, to streamline passing parameters to sets.
         """
         # TODO: Document and organise parameters, move parameters not pertaining to nodes to seperate class.
         # ===================[ PARAMETERS ]======================
-        self.firingOrderRule = parameters["firingOrderRule"]
+        self.firing_order_rule = parameters["firingOrderRule"]
         """firingOrderRule (str): The rule for the firing order."""
-        self.firingOrder = None
+        self.firing_order = None
         """firingOrder (list): The firing order. Initialized to None."""
-        self.asDORA = parameters["asDORA"]
+        self.as_DORA = parameters["asDORA"]
         """asDORA (bool): Whether to run as DORA, or in LISA mode if False."""
         self.gamma = parameters["gamma"]
         """gamma (float): Effects the increase in act for each unit."""
@@ -97,3 +97,13 @@ class Params(object):
 
         self.local_inhibitor_fired = False
         """local_inhibitor_fired (bool): Whether the local inhibitor has fired. Initialized to False."""
+
+        self.phase_set = 0
+        """phase_set (int): The current phase set."""
+
+
+def default_params():
+    """
+    Returns an object of Params with the default parameters.
+    """
+    return Params(parameters)

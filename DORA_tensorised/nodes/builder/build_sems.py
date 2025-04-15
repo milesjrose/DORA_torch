@@ -1,7 +1,7 @@
 # nodes/builder/build_sems.py
 # Builds the semantic objects.
 
-from nodes.enums import *
+from ..enums import *
 
 from .inter_nodes import Inter_Semantics
 from .inter_sets import Sem_set

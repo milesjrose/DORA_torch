@@ -2,9 +2,10 @@
 # Builds connections for each set.
 
 import numpy as np
-from nodes.enums import *
+from ..enums import *
 
 from .inter_sets import *
+import torch
 class Build_connections(object):                        # Builds links and connections for each set
     """
     A class for building the links and connections for each set.    
@@ -30,36 +31,48 @@ class Build_connections(object):                        # Builds links and conne
         """
         for set in Set:
             token_set = self.token_sets[set]
-            token_set.connections = self.build_set_connections(token_set)
-            token_set.links = self.build_set_links(token_set)
+            self.build_set_connections(token_set)
+            self.build_set_links(token_set)
 
     def build_set_connections(self, token_set: Token_set):  # Returns matrix of all connections for a given set
         """
         Build the connections matrix for a given set.
         
         Returns:
-            connections (np.ndarray): The NxN connections matrix for the set.
+            connections (torch.Tensor): The NxN connections matrix for the set.
         """
         num_tks = token_set.num_tokens
-        connections = np.zeros((num_tks, num_tks))          # len tokens x len tokens matrix for connections.
+        token_set.connections = torch.zeros((num_tks, num_tks), dtype=tensor_type)  # len tokens x len tokens matrix for connections.
         for type in Type:
             if type != Type.PO:
                 for node in token_set.tokens[type]:
                     for child in node.children:
-                        connections[node.ID][child] = 1
-        return connections
+                        token_set.connections[node.ID][child] = 1.0
     
     def build_set_links(self, token_set: Token_set):        # Returns matrix of all po -> sem links for a given set
         """
         Build the links matrix for a given set.
 
         Returns:
-            links (np.ndarray): The NxM links matrix for the set.
+            links (torch.Tensor): The NxM links matrix for the set.
         """
         num_tks = token_set.num_tokens
         num_sems = self.sems.num_sems
-        links = np.zeros((num_tks, num_sems))               # Len tokens x len sems matrix for links.
+        token_set.links = torch.zeros((num_tks, num_sems), dtype=tensor_type)    # Len tokens x len sems matrix for links.
         for po in token_set.tokens[Type.PO]:
             for child in po.children:
-                links[po.ID][child] = 1
-        return links
+                token_set.links[po.ID][child] = 1.0
+
+
+# ====================[ RUN FUNCTION ]======================
+def build_con_tensors(token_sets: dict[Set, Token_set], sems: Sem_set):
+    """Build the connections tensors for the inter set."""
+    builder = Build_connections(token_sets, sems)
+    for set in Set:
+        builder.build_set_connections(token_sets[set])
+
+def build_links_tensors(token_sets: dict[Set, Token_set], sems: Sem_set):
+    """Build the links tensors for the inter set."""
+    builder = Build_connections(token_sets, sems)
+    for set in Set:
+        builder.build_set_links(token_sets[set])

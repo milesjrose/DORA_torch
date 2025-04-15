@@ -4,7 +4,7 @@
 import torch
 import numpy as np
 
-from nodes.enums import SF
+from ...enums import SF
 
 from ..inter_nodes import Inter_Semantics
 

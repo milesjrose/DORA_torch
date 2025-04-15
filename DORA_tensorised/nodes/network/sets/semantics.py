@@ -3,8 +3,8 @@
 
 import torch
 
-from nodes.enums import *
-from nodes.utils import tensor_ops as tOps
+from ...enums import *
+from ...utils import tensor_ops as tOps
 
 from ..single_nodes import Ref_Semantic
 from ..connections import Links
@@ -25,40 +25,37 @@ class Semantics(object):
         links (Links): A Links object containing links from token sets to semantics.
         params (Params): An object containing shared parameters. Defaults to None.
     """
-    def __init__(self, nodes, connections, links: Links, IDs: dict[int, int], names= None, params: Params = None):
+    def __init__(self, nodes, connections, IDs: dict[int, int], names= None):
         """
         Initialise a Semantics object
 
         Args:
             nodes (torch.Tensor): An NxSemanticFeatures tensor of floats representing the semantics.
             connections (torch.Tensor): An NxN tensor of connections from parent to child for semantics in this set.
-            links (Links): A Links object containing links from token sets to semantics.
             IDs (dict): A dictionary mapping semantic IDs to index in the tensor.
             names (dict, optional): A dictionary mapping semantic IDs to semantic names. Defaults to None.
-            params (Params, optional): An object containing shared parameters. Defaults to None.
         Raises:
             ValueError: If the number of semantics in nodes, connections, and links do not match.
             ValueError: If the number of features in nodes does not match the number of features in SF enum.
-            ValueError: If the number of semantics in links tensors do not match the number of semantics in nodes.
         """
         if nodes.size(dim=0) != connections.size(dim=0):
             raise ValueError("nodes and connections must have the same number of semantics.")
         if nodes.size(dim=1) != len(SF):
             raise ValueError("nodes must have number of features listed in SF enum.")
-        if links.driver.size(dim=1) != nodes.size(dim=0):
-            raise ValueError("links tensors must have same number of semantics as semantics.nodes")
         self.names = names 
         """Map ID to name string"""
         self.nodes: torch.Tensor = nodes
         """Semantic nodes tensor"""
         self.connections: torch.Tensor = connections
         """Same-set connections for semantics"""
-        self.links: Links = links
+        self.links: Links = None
         """Semantic links to each token set"""
         self.IDs = IDs
         """Map ID to index in tensor"""
-        self.params = params
+        self.params = None
+        """Shared parameters"""
         self.expansion_factor = 1.1
+        """Factor to expand when adding sem to full tensor"""
     
     def add_semantic(self, semantic: Semantic):
         """
@@ -95,8 +92,9 @@ class Semantics(object):
         new_cons[:current_size, :current_size] = self.connections   # copy over old connections
         self.connections = new_cons                                 # update connections
 
-        for set in Set:                                             # expand links for each set
-            self.expand_links(set, new_size)
+        if self.links is not None:
+            for set in Set:                                         # expand links for each set
+                self.expand_links(set, new_size)
 
     def expand_links(self, set: Set, new_size: int):
         """
@@ -117,8 +115,10 @@ class Semantics(object):
         self.IDs.pop(ID)
         self.names.pop(ID)
         
-        for set in Set:
-            self.links[set][:, self.IDs[ID]] = 0.0
+        if self.links is not None:
+            for set in Set:
+                self.links[set][:, self.IDs[ID]] = 0.0
+
         self.connections[self.IDs[ID], :] = 0.0
         self.connections[:, self.IDs[ID]] = 0.0
 
@@ -274,30 +274,50 @@ class Semantics(object):
         sem_mask = self.nodes[:, SF.MAX_INPUT] == 0                 # Get sem where max_input == 0       
         self.nodes[sem_mask, SF.ACT] = 0.0                          #  -  Set act of sem to 0
     
-    def update_input(self, driver, recipient, memory = None, ignore_obj=False, ignore_mem=False):
-        """Update the input of the semantics """
+    def update_input(self, driver, recipient, memory = None, ignore_obj=False):
+        """
+        Update the input of the semantics
+        - Note, if memory is not provided, equivalent to "ignore_mem = True"
+        
+        Args:
+            driver (Base_Set): The driver set.
+            recipient (Base_Set): The recipient set.
+            memory (Base_Set, optional): The memory set. Defaults to None.
+            ignore_obj (bool, optional): Whether to ignore the object set. Defaults to False.
+
+        Raises:
+            ValueError: If ignore_obj is set to False and no memory is provided.
+        """
         self.update_input_from_set(driver, Set.DRIVER, ignore_obj)
         self.update_input_from_set(recipient, Set.RECIPIENT, ignore_obj)
-        if not ignore_mem:
+        if memory is not None:
             self.update_input_from_set(memory, Set.MEMORY, ignore_obj)
 
     def update_input_from_set(self, tensor: Base_Set, set: Set, ignore_obj=False):
         """Update the input of the semantics from a set of tokens """
+        if self.links is None:
+            raise ValueError("Links not initialised. Should be set when network is created.")
+        
+        # Get mask of POs
         if ignore_obj:
             po_mask = tOps.refine_mask(po_mask, tensor.get_mask(Type.PO), TF.PRED, B.TRUE) # Get mask of POs non object POs
         else:
             po_mask = tensor.get_mask(Type.PO)
         #group_mask = tensor.get_mask(Type.GROUP)
-        #token_mask = torch.bitwise_or(po_mask, group_mask)         # In case groups used in future
+        #token_mask = torch.bitwise_or(po_mask, group_mask)             # In case groups used in future
 
+        # Update based on linked tokens
         links: torch.Tensor = self.links[set]
-        connected_nodes = (links[:, po_mask] != 0).any(dim=1)       # Get mask of nodes linked to a sem
-        connected_sem = (links != 0).any(dim=0)                     # Get mask of sems linked to a node
+        connected_nodes_sub = (links[po_mask, :] != 0).any(dim=1)       # Mask all PO that have a link to a sem
+        connected_nodes = tOps.sub_union(po_mask, connected_nodes_sub)  # Resize mask to full tensor size
+        connected_sem = (links[po_mask, :] != 0).any(dim=0)             # Mask all sems that have a link to a PO
 
-        sem_input = torch.matmul(                                   # Get sum of act * link_weight for all connected nodes and sems
-            links[connected_sem, connected_nodes],                  # connected_sem x connected_nodes matrix of link weights
-            tensor.nodes[connected_nodes, TF.ACT]                   # connected_nodes x 1 matrix of node acts
+        links_cons = torch.transpose(links[connected_nodes][:, connected_sem], 0, 1)
+
+        sem_input = torch.matmul(                                       # Get sum of act * link_weight for all connected nodes and sems
+            links_cons,                                                 # connected_sem x connected_nodes matrix of link weights
+            tensor.nodes[connected_nodes, TF.ACT]                       # connected_nodes x 1 matrix of node acts
         )
-        self.nodes[connected_sem, SF.INPUT] += sem_input            # Update input of connected sems
+        self.nodes[connected_sem, SF.INPUT] += sem_input                # Update input of connected sems
     # --------------------------------------------------------------
 

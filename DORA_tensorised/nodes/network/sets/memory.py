@@ -3,8 +3,8 @@
 
 import torch
 
-from nodes.enums import *
-from nodes.utils import tensor_ops as tOps
+from ...enums import *
+from ...utils import tensor_ops as tOps
 
 from ..network_params import Params
 from ..connections import Links
@@ -15,9 +15,8 @@ class Memory(Base_Set):
     """
     A class for representing a memory of tokens.
     """
-    def __init__(self, floatTensor, connections, links: Links, mappings, IDs: dict[int, int], names: dict[int, str] = {}, params: Params = None):
-        super().__init__(floatTensor, connections, links, IDs, names, params)
-        self.mappings = mappings
+    def __init__(self, floatTensor, connections, IDs: dict[int, int], names: dict[int, str] = {}):
+        super().__init__(floatTensor, connections, IDs, names)
         self.token_set = Set.MEMORY
 
     # =========[ USES RECIPIENT UPDATE INPUT FUNCTIONS ]===========
@@ -191,7 +190,11 @@ class Memory(Base_Set):
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
         ignore_object_semantics = self.params.ignore_object_semantics
-        semantics = self.links.semantics
+        try:
+            semantics = self.links.semantics
+            sem_links = self.links[self.token_set]
+        except:
+            raise ValueError("Links are not initialised, update_input_po.")
         # NOTE: Currently inferred nodes not updated so excluded from po mask. Inferred nodes do update other PO nodes - so all_po used for updating lat_input.
         # Exitatory: td (my RBs), bu (my semantics/sem_count[for normalisation]), mapping input.
         # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
@@ -214,7 +217,7 @@ class Memory(Base_Set):
                 )
         # 3). BU_INPUT: my_semantics [normalised by no. semantics po connects to]
         sem_input = torch.matmul(
-            self.links[po],
+            sem_links[po],
             semantics.nodes[:, SF.ACT]
         )
         self.nodes[po, TF.BU_INPUT] += sem_input / self.nodes[po, TF.SEM_COUNT]
@@ -293,9 +296,15 @@ class Memory(Base_Set):
         Returns:
             torch.Tensor: A (sum(t_mask) x 1) matrix of mapping input for tokens in mask
         """
-        driver = self.mappings.driver
-        pmap_weights = self.mappings.weights()[t_mask] 
-        pmap_connections = self.mappings.connections()[t_mask]
+        try:
+            driver = self.mappings.driver
+            pmap_weights = self.mappings[MappingFields.WEIGHTS][t_mask] 
+            pmap_connections = self.mappings[MappingFields.CONNECTIONS][t_mask]
+        except Exception as e:
+            if type(e) == KeyError:
+                raise KeyError("Error accesing mapping fields, map_input.")
+            else:
+                raise ValueError("Mapping fields are not initialised, map_input.")
 
         # 1). weight = (3*map_weight*driverToken.act)
         weight = torch.mul(                                         

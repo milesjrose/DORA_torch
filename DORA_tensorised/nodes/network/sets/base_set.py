@@ -3,8 +3,8 @@
 
 import torch
 
-from nodes.enums import *
-from nodes.utils import tensor_ops as tOps
+from ...enums import *
+from ...utils import tensor_ops as tOps
 
 from ..connections import Links, Mappings
 from ..network_params import Params
@@ -26,37 +26,41 @@ class Base_Set(object):
         - params (Params): An object containing shared parameters.
         - token_set (Set): This set's enum, used to access links and mappings for this set in shared mem objects.
     """
-    def __init__(self, floatTensor, connections, links: Links, IDs: dict[int, int],names: dict[int, str] = {}, params: Params = None):
+    def __init__(self, floatTensor, connections, IDs: dict[int, int], names: dict[int, str] = {}):
         """
         Initialize the TokenTensor object.
 
         Args:
             floatTensor (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
             connections (torch.Tensor): An NxN tensor of connections between the tokens.
-            links (Links): A shared Links object containing interset links from tokens to semantics.
             IDs (dict): A dictionary mapping token IDs to index in the tensor.
-            names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
-            params (Params, optional): An object containing shared parameters. Defaults to None.
+            names (dict, optional): A dictionary mapping token IDs to token names. Defaults to empty dict.
         Raises:
-            TypeError: If links, connections, or floatTensor are not torch.Tensor.
-            ValueError: If the number of tokens in floatTensor, links, and connections do not match.
+            TypeError: If connections, or floatTensor are not torch.Tensor.
+            ValueError: If the number of tokens in floatTensor, connections do not match.
             ValueError: If the number of features in floatTensor does not match the number of features in TF enum.
         """
-        # Validate input
-        if type(links) != Links:
-            raise TypeError("Links must be Links object.")
-        if type(connections) != torch.Tensor:
-            raise TypeError("Connections must be torch.Tensor.")
-        if type(floatTensor) != torch.Tensor:
-            raise TypeError("floatTensor must be torch.Tensor.")
+        # check types
+        c_type = type(connections)
+        if c_type != torch.Tensor:
+            raise TypeError(f"Connections must be torch.Tensor, not {c_type}.")
+        f_type = type(floatTensor)
+        if f_type != torch.Tensor:
+            raise TypeError(f"floatTensor must be torch.Tensor, not {f_type}.")
+        # check sizes
+        f_size = floatTensor.size(dim=0)
+        c_size = connections.size(dim=0)
+        if f_size != c_size:
+            raise ValueError(f"floatTensor and connections must have same number of tokens. {f_size} != {c_size}")
+        f_features = floatTensor.size(dim=1)
+        if f_features != len(TF):
+            raise ValueError(f"floatTensor must have number of features listed in TF enum. {f_features} != {len(TF)}")
+        if floatTensor.dtype != torch.float:
+            raise TypeError(f"floatTensor must be torch.float, not {floatTensor.dtype}.")
+        if connections.dtype != torch.float:
+            raise TypeError(f"connections must be torch.float, not {connections.dtype}.")
         
-        if floatTensor.size(dim=0) != connections.size(dim=0):
-            raise ValueError("floatTensor and connections must have same number of tokens.")
-        if floatTensor.size(dim=1) != len(TF):
-            raise ValueError("floatTensor must have number of features listed in TF enum.")
-        
-        if names is None:
-            names = {}
+        # intialise attributes
         self.names = names
         "Dict ID -> Name"
         self.nodes: torch.Tensor = floatTensor
@@ -67,15 +71,15 @@ class Base_Set(object):
         self.analog_counts = None
         "Ax1 Tensor: Node count for each analog in self.analogs"
         self.analog_node_count()
-        self.links = links
+        self.links = None
         """Links object for the set.
-            contains links.set[self.set]:  NxS tensor of connctions from Token to Semnatic
+            - Links[set] gives set's links to semantics
         """
-        self.connections = connections
+        self.connections = connections.float()
         "NxN tensor: Connections from parent to child"
         self.IDs = IDs
         "Dict ID -> index"
-        self.params = params
+        self.params = None
         "Params object, holding parameters for tensor functions"
         self.expansion_factor = 1.1
         """Factor used in expanding tensor. 
@@ -235,12 +239,8 @@ class Base_Set(object):
         Args:
             mask (torch.Tensor, optional): A mask to apply to the tensor. Defaults to None.
             types (list[Type], optional): A list of types to filter by. Defaults to None.
-
         Returns:
             A list of references to the tokens in the tensor.
-
-        Raises:
-            ValueError: If no mask or types are provided.
         """
         if types is not None:
             mask = self.get_combined_mask(types)
@@ -368,29 +368,40 @@ class Base_Set(object):
         if new_count < 5:                                                   # minimum expansion is 5
             new_count = 5
         new_tensor = torch.full((new_count, self.nodes.size(dim=1)), null)  # null-filled tensor, increased by expansion factor
-        new_tensor[current_count:, TF.DELETED] = B.TRUE                     #  deleted = true -> all new tokens
+        new_tensor[current_count:, TF.DELETED] = B.TRUE                     # deleted = true -> all new tokens
         new_tensor[:current_count, :] = self.nodes                          # copy over old tensor
-        self.nodes = new_tensor                                             # update tensor
-                                                                        # Update supporting data structures:
-                                                                        # Links:
-        semantic_count = self.links[self.token_set].size(dim=1)             # Get number of semantics in link tensor
-        new_links = torch.zeros(new_count, semantic_count)                  # new tensor (new number of tokens) x (number of semantics)
-        new_links[:current_count, :] = self.links[self.token_set]           # add current links to the tensor
-        self.links[self.token_set] = new_links                              # update links object with new tensor
+        if self.nodes.dtype != torch.float:                               # make sure correct type
+            raise TypeError("nodes must be torch.float.")
+        self.nodes = new_tensor
 
-        if self.token_set not in [Set.DRIVER, Set.NEW_SET]:             # Mappings (if not driver): TODO: See if new set needs mappings?
-            self.mappings: Mappings = self.mappings
+        # Update supporting data structures:
+        if self.links is not None:                                      # Links:
+            semantic_count = self.links[self.token_set].size(dim=1)         # Get number of semantics in link tensor
+            new_links = torch.zeros(new_count, semantic_count).float()      # new tensor (new number of tokens) x (number of semantics)
+            new_links[:current_count, :] = self.links[self.token_set]       # add current links to the tensor
+            self.links[self.token_set] = new_links                          # update links object with float tensor
+
+        try:                                                            # Mappings:         
+            self.mappings: Mappings = self.mappings                         # If no mappings, skip.
+        except:
+            pass
+        else:                                    
             driver_count = self.mappings.size(dim=1)                        # Get number of tokens in driver
             stack = []
             for field in MappingFields:                                     # Create new tensor for each mapping field
-                stack.append(torch.zeros(new_count, driver_count))
+                stack.append(torch.zeros(
+                    new_count, 
+                    driver_count, 
+                    dtype=torch.float)
+                    )
             new_adj_matrix: torch.Tensor = torch.stack(stack, dim=-1)       # Stack into adj_matrix tensor
             new_adj_matrix[:current_count, :] = self.mappings.adj_matrix    # add current weights
             self.mappings.adj_matrix = new_adj_matrix                       # update mappings object with new tensor
+        
                                                                         # Connections:
-        new_connections = torch.zeros(new_count, new_count)                 # new tensor (new num tokens) x (new num tokens)
-        new_connections[:current_count, :current_count] = self.connections  # add current connections
-        self.connections = new_connections                                  # update connections tensor, with new tensor
+        new_cons = torch.zeros(new_count, new_count, dtype=torch.float)     # new tensor (new num tokens) x (new num tokens)
+        new_cons[:current_count, :current_count] = self.connections         # add current connections
+        self.connections = new_cons                                         # update connections tensor, with new tensor
 
     def del_token(self, ref_tokens: Ref_Token):                     # Delete nodes from tensor   
         """
@@ -421,25 +432,41 @@ class Base_Set(object):
         cache_types = list(set(cache_types))                            # Remove duplicates if multiple nodes deleted from same type
         self.cache_masks(cache_types)                                   # Re-cache effected types
 
-    def del_connections(self, ref_tokens: Ref_Token):
+    def del_connections(self, ref_token: Ref_Token):
         """
-        Delete connection from tensor. Pass in a list of Ref_Tokens to delete multiple connections at once.
+        Delete connection from tensor.
         
         Args:
-            ref_tokens (Ref_Token): The connection to delete.
+            ref_token (Ref_Token): Refence to token, to delete connections from.
         """
-        for ref_token in ref_tokens:
-            id = ref_token.ID
-            if self.token_set not in [Set.DRIVER, Set.NEW_SET]:             # No links in driver or new set
-                self.links[self.token_set][self.IDs[id], :] = 0.0           # Remove links
-            try:
-                self.connections[self.IDs[id], :] = 0.0                     # Remove children
-                self.connections[:, self.IDs[id]] = 0.0                     # Remove parents
-            except:
-                if len(self.IDs) == 0:
-                    raise KeyError("IDs dictionary is empty.")
-                else:
-                    raise KeyError("Key error in del_token, connection tensor.")
+        if isinstance(ref_token, list):
+            for token in ref_token:
+                self.del_connections(token)
+            return
+        id = ref_token.ID
+        try:                                                        # Mappings:
+            if self.token_set == Set.DRIVER:
+                for field in MappingFields:
+                    self.mappings[field][:, self.IDs[id]] = 0.0        # Dim 1 is driver nodes
+            else:
+                for field in MappingFields:
+                    self.mappings[field][self.IDs[id], :] = 0.0        # Dim 0 is non-driver sets
+        except:
+            pass
+
+        try:                                                        # Links:
+            self.links[self.token_set][self.IDs[id], :] = 0.0           # Dim 0 is set nodes
+        except:
+            raise KeyError("Key error in del_token, link tensor.")
+        
+        try:                                                        # Connections:
+            self.connections[self.IDs[id], :] = 0.0                     # Remove children
+            self.connections[:, self.IDs[id]] = 0.0                     # Remove parents
+        except:
+            if len(self.IDs) == 0:
+                raise KeyError("IDs dictionary is empty.")
+            else:
+                raise KeyError("Key error in del_token, connection tensor.")
 
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
         """Update list of analogs in tensor, and their node counts"""
@@ -607,17 +634,24 @@ class Base_Set(object):
         self.nodes[neutral_p, TF.MODE] = Mode.NEUTRAL
     # ---------------------------------------------------------------
 
-    # =======================[ PO FUNCTIONS ]========================
+    # =======================[ PO FUNCTIONS ]======================== # TODO: Can move out of tensor to save memory, as shared values.
     def po_get_weight_length(self):                                     # Sum value of links with weight > 0.1 for all PO nodes
-        """Set sem count feature for all PO nodes"""
+        """Sum value of links with weight > 0.1 for all PO nodes - Used for semNormalisation"""
+        if self.links is None:
+            raise ValueError("Links is not initialised, po_get_weight_length.")
+        
         po = self.get_mask(Type.PO)                                     # mask links with PO
         mask = self.links[po] > 0.1                                     # Create sub mask for links with weight > 0.1
         weights = (self.links[po] * mask).sum(dim=1, keepdim = True)    # Sum links > 0.1
         self.nodes[po, TF.SEM_COUNT] = weights                          # Set semNormalisation
-
+            
     def po_get_max_semantic_weight(self):                               # Get max link weight for all PO nodes
-        """Set max link weight feature for all PO nodes"""
+        """Get max link weight for all PO nodes - Used for semNormalisation"""
+        if self.links is None:
+            raise ValueError("Links is not initialised, po_get_max_semantic_weight.")
+        
         po = self.get_mask(Type.PO)
         max_values, _ = torch.max(self.links[po], dim=1, keepdim=True)  # (max_values, _) unpacks tuple returned by torch.max
         self.nodes[po, TF.MAX_SEM_WEIGHT] = max_values                  # Set max
+
     # ---------------------------------------------------------------

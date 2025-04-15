@@ -4,54 +4,64 @@
 import pytest
 import torch
 
-from nodes.enums import MappingFields
-from nodes.network.connections import Mappings
+from ..enums import MappingFields, Set
+from ..network.connections import Mappings
+from ..builder import NetworkBuilder
+from ..network import Network
 
-def test_mappings_initialization():
+
+# Import the symProps from sim.py
+from .sims.sim import symProps
+
+
+@pytest.fixture
+def network():
+    builder = NetworkBuilder(symProps=symProps)
+    return builder.build_network()
+
+def test_mappings_initialization(network: Network):
     # Create test tensors
     size = 3
-    connections = torch.ones(size, size)
-    weights = torch.ones(size, size)
-    hypotheses = torch.ones(size, size)
-    max_hyps = torch.ones(size, size)
-    driver = None
+    fields = {}
+
+    driver = network.sets[Set.DRIVER]
+    size = driver.nodes.shape[0]
+    for field in MappingFields:
+        fields[field] = torch.ones(size, size)
     
     # Test initialization
-    mappings = Mappings(driver, connections, weights, hypotheses, max_hyps)
+    mappings = Mappings(driver, fields)
     
     # Test tensor shape
     assert mappings.adj_matrix.shape == (size, size, len(MappingFields))
+
+    assert mappings.adj_matrix.dtype == torch.float32
     
     # Test accessor methods
-    assert torch.all(mappings.connections() == connections)
-    assert torch.all(mappings.weights() == weights)
-    assert torch.all(mappings.hypotheses() == hypotheses)
-    assert torch.all(mappings.max_hyps() == max_hyps)
+    for field in MappingFields:
+        assert torch.all(mappings[field] == fields[field])
 
-def test_mappings_invalid_input():
+    # Test size method
+    assert mappings.size(0) == size
+    assert mappings.size(1) == size
+    assert mappings.size(2) == len(MappingFields)
+
+def test_mappings_invalid_input(network: Network):
     # Test with mismatched tensor shapes
-    size1, size2 = 3, 4
-    connections = torch.ones(size1, size2)
-    weights = torch.ones(size1, size2)
-    hypotheses = torch.ones(size2, size1)
-    max_hyps = torch.ones(size1, size2)
-    driver = None
-    
-    # Should raise error for invalid shapes
-    with pytest.raises(ValueError):
-        Mappings(driver, connections, weights, hypotheses, max_hyps)
+    driver = network.sets[Set.DRIVER]
+    size = driver.nodes.shape[0]
 
-def test_mappings_update():
-    # Create test tensors
-    size1 , size2 = 3, 4
-    connections = torch.zeros(size1, size2)
-    weights = torch.zeros(size1, size2)
-    hypotheses = torch.zeros(size1, size2)
-    max_hyps = torch.zeros(size1, size2)
-    driver = None
+    # Should raise error for invalid shapes
+    fields = {}
+    for i, field in enumerate(MappingFields):
+        fields[field] = torch.ones(size, size + i)
+    with pytest.raises(ValueError):
+        Mappings(driver, fields)
+
+    # Should raise error for driver nodes mismatch
+    fields = {}
+    for field in MappingFields:
+        fields[field] = torch.ones(size, size + 1)
+    with pytest.raises(ValueError):
+        Mappings(driver, fields)
     
-    mappings = Mappings(driver, connections, weights, hypotheses, max_hyps)
-    
-    # Test update methods (once implemented)
-    # mappings.updateHypotheses(new_hypotheses)
-    # mappings.add_mappings(new_mappings) 

@@ -1,7 +1,7 @@
 # nodes/builder/build_set.py
 # Builds the nodes for a given set.
 
-from nodes.enums import *
+from ..enums import *
 
 from .inter_nodes import *
 from .inter_sets import Token_set
@@ -64,7 +64,6 @@ class Build_set(object):                                # Builds the nodes for a
                     self.create_token(pred_name, Inter_PO, analog, True)
                 if obj_name != non_exist:
                     self.create_token(obj_name, Inter_PO, analog, False)
-
 
     def id_tokens(self):   # Give each token an ID
         """

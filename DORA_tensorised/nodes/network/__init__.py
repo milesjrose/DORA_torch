@@ -10,6 +10,7 @@ Provides classes for representing the network.
 - Sets: Represents the sets of tokens in the network.
 - Token/Semantic: Represents a token/semantic, with a 1D tensor of features.
 - Ref_Token/Ref_Semantic: Reference to a token/semantic in any set tensor.
+- default_params: Returns an object of Params with the default parameters.
 """
 
 from .network import Network
@@ -17,6 +18,7 @@ from .sets import Driver, Recipient, Memory, New_Set, Semantics
 from .connections import Links, Mappings
 from .network_params import Params
 from .single_nodes import Token, Semantic, Ref_Token, Ref_Semantic
+from .network_params import default_params
 
 __all__ = [
     "Network",
@@ -31,5 +33,6 @@ __all__ = [
     "Token",
     "Semantic",
     "Ref_Token",
-    "Ref_Semantic"
+    "Ref_Semantic",
+    "default_params"
 ]

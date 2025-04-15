@@ -1,10 +1,10 @@
 # nodes/network/network.py
 # Class for holding network sets, and accessing operations on them.
 
-from nodes.enums import *
+from ..enums import *
 
 from .sets import Driver, Recipient, Memory, New_Set, Semantics, Base_Set
-from .connections import Mappings
+from .connections import Mappings, Links
 from .network_params import Params
 from .single_nodes import Token, Semantic
 from .single_nodes import Ref_Token, Ref_Semantic
@@ -13,56 +13,77 @@ class Network(object):
     """
     A class for holding set objects and operations.
     """
-    def __init__(self, driver: Driver, recipient: Recipient, memory: Memory, new_set: New_Set, semantics: Semantics, set_mappings: dict[int, Mappings], params: Params = None):
+    def __init__(self, dict_sets: dict[Set, Base_Set], semantics: Semantics, mappings: dict[int, Mappings], links: Links, params: Params = None):
         """
-        Initialize the Network object.
+        Initialize the Network object. Checks types; sets inter-set connections and params.
 
         Args:
-            driver (Driver): The driver object.
-            recipient (Recipient): The recipient object.
-            LTM (Tokens): The long-term memory object.
-            new_set (Tokens): The new set object.
+            dict_sets (dict[Set, Base_Set]): The dictionary of set objects.
             semantics (Semantics): The semantics object.
-            set_mappings (Mappings): The mappings object.
+            mappings (dict[int, Mappings]): The mappings objects.
+            links (Links): The links object.
             params (Params): The parameters object.
         """
-        # node tensors
-        self.driver: Driver = driver
-        self.recipient: Recipient = recipient
+        # Check types
+        if not isinstance(dict_sets, dict):
+            raise ValueError("dict_sets must be a dictionary.")
+        if not isinstance(semantics, Semantics):
+            raise ValueError("semantics must be a Semantics object.")
+        if not isinstance(mappings, dict):
+            raise ValueError("mappings must be a dictionary.")
+        if not isinstance(links, Links):
+            raise ValueError("links must be a Links object.")
+        if not isinstance(params, Params):
+            raise ValueError("params must be a Params object.")
+
+        # set objects
         self.semantics: Semantics = semantics
-        self.memory: Memory = memory
-        self.new_set: New_Set = new_set
-        self.sets: dict[Set, Base_Set] = {
-            Set.DRIVER: self.driver,
-            Set.RECIPIENT: self.recipient,
-            Set.MEMORY: self.memory,
-            Set.NEW_SET: self.new_set
-        }
-        self.params = params
-        
+        """ Semantics object for the network. """
+        self.sets: dict[Set, Base_Set] = dict_sets
+        """ Dictionary of set objects for the network. """
+        self.params: Params = params
+        """ Parameters object for the network. """
+
+        # add links, params, and mappings to each set
+        for set in Set:
+            try:
+                self.sets[set].links = links
+            except:
+                raise ValueError(f"Error setting links for {set}")
+            try:
+                self.sets[set].params = params
+            except:
+                raise ValueError(f"Error setting params for {set}")
+            try:
+                self.sets[set].mappings = mappings[set]
+            except:
+                if set in MAPPING_SETS:
+                    raise ValueError(f"Error setting mappings for {set}")
+
         # inter-set connections
-        self.set_mappings: Mappings = set_mappings
+        self.mappings: dict[Set, Mappings] = mappings
+        """ Dictionary of mappings for each set. """
+        self.links: Links = links
+        """ Links object for the network. """
 
         # inhibitors
         self.local_inhibitor = 0.0
         self.global_inhibitor = 0.0
-
-        if self.params is not None:
-            self.set_params(self.params)
-            self.DORA_mode = self.params.DORA_mode
-        else:
-            self.DORA_mode = True
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """
         Set the parameters for the network.
         """
         self.params = params
-        self.driver.params = params
-        self.recipient.params = params
-        self.memory.params = params
-        self.new_set.params = params
+        for set in Set:
+            self.sets[set].params = params
         self.semantics.params = params
+    
+    def __getitem__(self, key: Set):
+        """
+        Get the set object for the given set.
+        """
+        return self.sets[key]
     
     # ======================[ ACT FUNCTIONS ]============================
     def initialise_act(self):                                               # Initialise acts in active memory/semantics
@@ -127,7 +148,7 @@ class Network(object):
         """
         Update the inputs in the semantics.
         """
-        self.semantics.update_input()
+        self.semantics.update_input(self.driver, self.recipient)
 
     def update_inputs_am(self):                                             # Update inputs in active memory
         """

@@ -17,7 +17,7 @@ import torch
 def network():
     """Create a Nodes object using the sim.py data."""
     builder = NetworkBuilder(symProps=symProps)
-    return builder.build_nodes()
+    return builder.build_network()
 
 def test_add_po_token_to_driver(network):
     """Test adding a PO token to the driver tensor."""
@@ -36,7 +36,7 @@ def test_add_po_token_to_driver(network):
     assert token_reference.set == Set.DRIVER
     
     # Get the token from the tensor
-    token = network.driver.get_single_token(token_reference)
+    token = network.sets[Set.DRIVER].get_single_token(token_reference)
     
     
     # Verify the token properties
@@ -62,7 +62,7 @@ def test_add_rb_token_to_recipient(network):
     assert token_reference.set == Set.RECIPIENT
     
     # Get the token from the tensor
-    token = network.recipient.get_single_token(token_reference)
+    token = network.sets[Set.RECIPIENT].get_single_token(token_reference)
     
     # Verify the token properties
     assert token[TF.TYPE] == Type.RB
@@ -86,7 +86,7 @@ def test_add_p_token_to_memory(network):
     assert token_reference.set == Set.MEMORY
     
     # Get the token from the tensor
-    token = network.memory.get_single_token(token_reference)
+    token = network.sets[Set.MEMORY].get_single_token(token_reference)
     
     # Verify the token properties
     assert token[TF.TYPE] == Type.P
@@ -103,7 +103,7 @@ def test_add_multiple_tokens_new_set(network):
         Token(type=Type.P, features={TF.SET: Set.NEW_SET, TF.ANALOG: 0})
     ]
     
-    network.new_set.print()
+    network[Set.NEW_SET].print()
     # Add the tokens to the new_set tensor
     token_references: list[Ref_Token] = [network.add_token(token) for token in tokens]
     
@@ -129,13 +129,13 @@ def test_add_token_with_custom_features(network):
     # Add the token to the driver tensor
     token_reference: Ref_Token = network.add_token(token)
     
-    network.driver.print(f_types=[TF.ID, TF.TYPE, TF.SET, TF.ANALOG, TF.PRED, TF.ACT, TF.MAX_ACT, TF.NET_INPUT, TF.INHIBITOR_THRESHOLD])
+    network.sets[Set.DRIVER].print(f_types=[TF.ID, TF.TYPE, TF.SET, TF.ANALOG, TF.PRED, TF.ACT, TF.MAX_ACT, TF.NET_INPUT, TF.INHIBITOR_THRESHOLD])
     # Verify the token was added correctly
     assert token_reference is not None
     assert token_reference.set == Set.DRIVER
     
     # Get the token from the tensor
-    token = network.driver.get_single_token(token_reference)
+    token = network.sets[Set.DRIVER].get_single_token(token_reference)
     
     # Verify the token properties
     assert token[TF.TYPE] == Type.PO
@@ -150,9 +150,9 @@ def test_add_token_with_custom_features(network):
 def test_add_token_to_full_tensor(network):
     """Test adding a token when the tensor is full."""
     # First, fill up the new_set tensor
-    initial_count = network.new_set.nodes.size(dim=0)
+    initial_count = network[Set.NEW_SET].nodes.size(dim=0)
 
-    new_count = int(initial_count * network.new_set.expansion_factor) 
+    new_count = int(initial_count * network[Set.NEW_SET].expansion_factor) 
     if new_count < 5:                                                   # minimum expansion is 5
             new_count = 5
 
@@ -181,13 +181,13 @@ def test_add_token_to_full_tensor(network):
     assert token_reference is not None
     assert token_reference.set == Set.NEW_SET
     
-    network.new_set.print()
+    network[Set.NEW_SET].print()
     # Verify the tensor was expanded
-    assert network.new_set.nodes.size(dim=0) > initial_count
-    assert network.new_set.nodes.size(dim=0) == new_count
-    print(network.new_set.nodes.size(dim=0))
-    print(network.new_set.links.new_set.size(dim=0), print(network.new_set.links.new_set))
-    assert network.new_set.nodes.size(dim=0) == network.new_set.links[Set.NEW_SET].size(dim=0)
+    assert network[Set.NEW_SET].nodes.size(dim=0) > initial_count
+    assert network[Set.NEW_SET].nodes.size(dim=0) == new_count
+    print(network[Set.NEW_SET].nodes.size(dim=0))
+    print(network[Set.NEW_SET].links[Set.NEW_SET].size(dim=0), network[Set.NEW_SET].links[Set.NEW_SET])
+    assert network[Set.NEW_SET].nodes.size(dim=0) == network[Set.NEW_SET].links[Set.NEW_SET].size(dim=0)
 
     # Verify references still give the same tokens
     for reference, token in zip(references, tokens):
@@ -198,8 +198,8 @@ def test_add_token_to_full_tensor(network):
 
 def test_type_after_expansion(network):
     """Test that the type of a nodes tensor is the same after expansion."""
-    network.driver.print()
-    assert type(network.driver.nodes[0, TF.ACT].item()) == float
-    network.driver.expand_tensor()
-    network.driver.print()
-    assert type(network.driver.nodes[0, TF.ACT].item()) == float
+    network.sets[Set.DRIVER].print()
+    assert type(network.sets[Set.DRIVER].nodes[0, TF.ACT].item()) == float
+    network.sets[Set.DRIVER].expand_tensor()
+    network.sets[Set.DRIVER].print()
+    assert type(network.sets[Set.DRIVER].nodes[0, TF.ACT].item()) == float

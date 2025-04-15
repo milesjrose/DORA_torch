@@ -180,3 +180,11 @@ class B(IntEnum):
     FALSE   = 0
 
 null = -99.99
+"""Null value for float tensors: -99.99"""
+
+from torch import float32
+tensor_type = float32
+"""Tensor type for float tensors: torch.float32"""
+
+MAPPING_SETS = [Set.MEMORY, Set.RECIPIENT]
+"""Sets that have mappings"""

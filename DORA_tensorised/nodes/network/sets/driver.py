@@ -3,8 +3,8 @@
  
 import torch
 
-from nodes.enums import *
-from nodes.utils import tensor_ops as tOps
+from ...enums import *
+from ...utils import tensor_ops as tOps
 
 from ..network_params import Params
 from .base_set import Base_Set
@@ -19,29 +19,28 @@ class Driver(Base_Set):
         analogs (torch.Tensor): An Ax1 tensor listing all analogs in the tensor.
         analog_counts (torch.Tensor): An Ax1 tensor listing the number of tokens per analog
         links (torch.Tensor): A Tensor of links from tokens in this set to the semantics.
+            NOTE: ^ Not used in driver set. Could remove to save memory? ^
         connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
         masks (torch.Tensor): A Tensor of masks for the tokens in this set.
         IDs (dict): A dictionary mapping token IDs to index in the tensor.
         params (Params): An object containing shared parameters.
     """
-    def __init__(self, floatTensor, connections, links, IDs: dict[int, int], names: dict[int, str] = {}, params: Params = None):   
+    def __init__(self, floatTensor, connections, IDs: dict[int, int], names: dict[int, str] = {}):   
         """
         Initialize the Driver object.
 
         Args:
             floatTensor (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
             connections (torch.Tensor): An NxN tensor of connections between the tokens.
-            links (torch.Tensor): A Tensor of links between driver tokens and the semantics.
             IDs (dict): A dictionary mapping token IDs to index in the tensor.
             names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
-            params (Params, optional): An object containing shared parameters. Defaults to None.
         Raises:
-            ValueError: If the number of tokens in floatTensor, links, and connections do not match.
+            ValueError: If the number of tokens in floatTensor, and connections do not match.
             ValueError: If the number of features in floatTensor does not match the number of features in TF enum.
             ValueError: If all tokens in floatTensor do not have TF.SET == Set.DRIVER.
-            TypeError: If links is not a torch.Tensor.
+            TypeError: If connections is not a torch.Tensor.
         """
-        super().__init__(floatTensor, connections, links, IDs, names, params)
+        super().__init__(floatTensor, connections, IDs, names)
         self.token_set = Set.DRIVER
         if floatTensor.size(dim=0) > 0:
             if not torch.all(floatTensor[:, TF.SET] == Set.DRIVER):
@@ -77,13 +76,15 @@ class Driver(Base_Set):
 
         # Exitatory input:
         # 2). TD_INPUT: my_groups
+        p_shape = p.shape[0]
+        group_shape = group.shape[0]
         self.nodes[p, TF.TD_INPUT] += torch.matmul(                 # matmul outputs martix (sum(p) x 1) of values to add to current input value
-            self.connections[p, group],                             # Masks connections between p[i] and its groups
+            self.connections[p][:, group],                             # Masks connections between p[i] and its groups
             self.nodes[group, TF.ACT]                               # each p node -> sum of act of connected group nodes
             )
         # 3). BU_INPUT: my_RBs
         self.nodes[p, TF.BU_INPUT] += torch.matmul(                 # matmul outputs martix (sum(p) x 1) of values to add to current input value
-            self.connections[p, rb],                                # Masks connections between p[i] and its rbs
+            self.connections[p][:, rb],                                # Masks connections between p[i] and its rbs
             self.nodes[rb, TF.ACT]                                  # Each p node -> sum of act of connected rb nodes
             )  
         
@@ -117,13 +118,13 @@ class Driver(Base_Set):
         # 2). TD_INPUT: my_groups and my_parent_RBs
         # 2a). groups
         self.nodes[p, TF.TD_INPUT] += torch.matmul(                 # matmul outputs martix (sum(p) x 1) of values to add to current input value
-            self.connections[p, group],                             # Masks connections between p[i] and its groups
+            self.connections[p][:, group],                             # Masks connections between p[i] and its groups
             self.nodes[group, TF.ACT]                               # For each p node -> sum of act of connected group nodes
             )
         # 2b). parent_rbs
-        t_con = torch.transpose(self.connections)                   # transpose, so gives child -> parent connections
+        t_con = torch.transpose(self.connections, 0 , 1)                   # transpose, so gives child -> parent connections
         self.nodes[p, TF.TD_INPUT] += torch.matmul(                 # matmul outputs matrix (sum(p) x 1) of values to add to current input value
-            t_con[p, rb],                                           # Masks connections between p[i] and its rbs
+            t_con[p][:, rb],                                           # Masks connections between p[i] and its rbs
             self.nodes[rb, TF.ACT]                                  # For each p node -> sum of act of connected parent rb nodes
             )
         
@@ -166,15 +167,15 @@ class Driver(Base_Set):
 
         # Exitatory input:
         # 2). TD_INPUT: my_parent_p
-        t_con = torch.transpose(self.connections)                   # Connnections: Parent -> child, take transpose to get list of parents instead
+        t_con = torch.transpose(self.connections, 0 , 1)                   # Connnections: Parent -> child, take transpose to get list of parents instead
         self.nodes[rb, TF.TD_INPUT] += torch.matmul(                # matmul outputs martix (sum(rb) x 1) of values to add to current input value
-            t_con[rb, p],                                           # Masks connections between rb[i] and its ps
+            t_con[rb][:, p],                                           # Masks connections between rb[i] and its ps
             self.nodes[p, TF.ACT]                                   # For each rb node -> sum of act of connected p nodes
             )
         # 3). BU_INPUT: my_po, my_child_p                           # NOTE: Old function explicitly took myPred[0].act etc. as there should only be one pred/child/etc. This version sums all connections, so if rb mistakenly connected to multiple of a node type it will not give expected output.
         po_p = torch.bitwise_or(po, p)                              # Get mask of both pos and ps
         self.nodes[rb, TF.BU_INPUT] += torch.matmul(                # matmul outputs martix (sum(rb) x 1) of values to add to current input value
-            self.connections[rb, po_p],                             # Masks connections between rb[i] and its po and child p nodes
+            self.connections[rb][:, po_p],                             # Masks connections between rb[i] and its po and child p nodes
             self.nodes[po_p, TF.ACT]                                # For each rb node -> sum of act of connected po and child p nodes
             )
         
@@ -182,7 +183,7 @@ class Driver(Base_Set):
         # 4). LATERAL: (other RBs*3), inhibitor*10
         # 4a). (other RBs*3)
         diag_zeroes = tOps.diag_zeros(sum(rb))                      # Connects each rb to every other rb, but not themself
-        self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= torch.mul(
+        self.nodes[rb, TF.LATERAL_INPUT] -= torch.mul(
             3, 
             torch.matmul(                                           # matmul outputs martix (sum(rb) x 1) of values to add to current input value
                 diag_zeroes,                                        # Masks connections between rb[i] and its po and child p nodes
@@ -191,7 +192,7 @@ class Driver(Base_Set):
         )
         # 4b). ihibitior * 10
         inhib_act = torch.mul(10, self.nodes[rb, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
-        self.nodes[rb, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat input
+        self.nodes[rb, TF.LATERAL_INPUT] -= inhib_act         # Update lat input
     
     def update_input_po(self):                                      # update PO inputs - driver:
         """Update input in driver for PO units"""
@@ -201,14 +202,14 @@ class Driver(Base_Set):
         # 1). get masks
         rb = self.get_mask(Type.RB)
         po = self.get_mask(Type.PO)
-        pred_sub = (self.nodes[po, TF.PRED] == B.TRUE)                # predicate sub mask of po nodes
+        pred_sub = (self.nodes[po, TF.PRED] == B.TRUE)              # predicate sub mask of po nodes
         obj = tOps.refine_mask(self.nodes, po, TF.PRED, B.FALSE)    # get object mask
         pred = tOps.refine_mask(self.nodes, po, TF.PRED, B.TRUE)    # get predicate mask
-        parent_cons = torch.transpose(self.connections)             # Transpose of connections matrix, so that index by child node (PO) to parent (RB)
+        parent_cons = torch.transpose(self.connections, 0 , 1)      # Transpose of connections matrix, so that index by child node (PO) to parent (RB)
 
         # Exitatory input:
         # 2). TD_INPUT: my_rb * gain(pred:2, obj:1)
-        cons = parent_cons[po, rb].copy()                           # get copy of connections matrix from po to rb (child to parent connection)
+        cons = parent_cons[po][:, rb].clone()                           # get copy of connections matrix from po to rb (child to parent connection)
         cons[pred_sub] = cons[pred_sub] * 2                         # multipy predicate -> rb connections by 2
         self.nodes[po, TF.TD_INPUT] += torch.matmul(                # matmul outputs martix (sum(po) x 1) of values to add to current input value
             cons,                                                   # Masks connections between po[i] and its rbs
@@ -219,26 +220,23 @@ class Driver(Base_Set):
         # 3). LATERAL: 3 * (if DORA_mode: PO connected to same rb / Else: POs not connected to same RBs)
         # 3a). find other PO connected to same RB     
         shared = torch.matmul(                                      # PxObject tensor, shared[i][j] > 1 if Po[i] and Po[j] share an RB, 0 o.w
-            parent_cons[po, rb],
-            self.connections[rb, po]
+            parent_cons[po][:, rb],
+            self.connections[rb][:, po]
             ) 
         shared = torch.gt(shared, 0).int()                          # now shared[i][j] = 1 if p[i] and object[j] share an RB, 0 o.w
         diag_zeroes = tOps.diag_zeros(sum(po))                      # (po x po) matrix: 0 for po[i] -> po[i] connections, 1 o.w
-        shared = torch.bitwise_and(shared, diag_zeroes)             # remove po[i] -> po[i] connections
+        shared = torch.bitwise_and(shared.int(), diag_zeroes.int()).float() # remove po[i] -> po[i] connections
         # 3ai). if DORA: Other po connected to same rb / else: POs not connected to same RBs
         if as_DORA: # PO connected to same rb
             po_connections = shared                                 # shared PO
         else:       # POs not connected to same RBs
             po_connections = 1 - shared                             # non shared PO: mask[i][j] = 0 if p[i] and object[j] share an RB, 1 o.w
         # 3aii). updaet lat input: 3 * (filtered nodes connected in po_connections)
-        self.nodes[po, TF.LATERAL_INPUT] -= torch.mult(
-            3,
-            torch.matmul(
-                po_connections,
-                self.nodes[po, TF.ACT]
-            )
+        self.nodes[po, TF.LATERAL_INPUT] -= 3 * torch.matmul(
+            po_connections,
+            self.nodes[po, TF.ACT]
         )
         # 4b). ihibitior * 10
         inhib_act = torch.mul(10, self.nodes[po, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
-        self.nodes[po, TF.LATERAL_INPUT_INPUT] -= inhib_act         # Update lat input
+        self.nodes[po, TF.LATERAL_INPUT] -= inhib_act         # Update lat input
     # --------------------------------------------------------------

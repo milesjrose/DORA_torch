@@ -3,7 +3,7 @@
 
 import torch
 
-from nodes.enums import *
+from ...enums import *
 
 class Semantic(object):
     """
