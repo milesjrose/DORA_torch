@@ -8,10 +8,7 @@ run_on_iphone = False
 # imports.
 import random, numbers, math, operator, copy, json
 import numpy as np
-import dataTypes
-import DORA_GUI
-import buildNetwork
-from nodes.network import *
+from nodes import Network, Params
 
 if not run_on_iphone:
     import pygame
@@ -42,7 +39,7 @@ class runDORA(object):
         self.memory = memory # TODO: remove
         self.nodes = nodes
         """Holds set of tokens/semantics."""
-        self.params = NodeParameters(parameters)
+        self.params = Params(parameters)
         """Holds parameters used by nodeTensors, to streamline passing parameters to nodes."""
         self.nodes.set_params(self.params)          # Pass params to nodes, then recursively to all sets.
 

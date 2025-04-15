@@ -6,8 +6,8 @@ from DORA_tensorised.nodes.tests.sims.sim import symProps
 
 from DORA.synthetic_workload import test_update_inputs as oop_test_update_inputs
 import DORA.buildNetwork as oop_build
-from generate_network import expand_network
-from generate_props import generate_props
+from .get_objects.generate_network import expand_network
+from .get_objects.generate_props import generate_props
 from time import monotonic
 import torch
 
