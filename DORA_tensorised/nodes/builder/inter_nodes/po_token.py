@@ -1,7 +1,7 @@
 # nodes/builder/nodes/po_token.py
 # Intermediate class for representing a PO node.
 
-from nodes.enums import *
+from ...enums import *
 
 from .token import Inter_Token
 

@@ -1,7 +1,7 @@
 # nodes/builder/nodes/rb_token.py
 # Intermediate class for representing a RB token node.
 
-from nodes.enums import *
+from ...enums import *
 
 from .token import Inter_Token
 

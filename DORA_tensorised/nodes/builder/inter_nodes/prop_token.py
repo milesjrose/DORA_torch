@@ -1,7 +1,7 @@
 # nodes/builder/nodes/prop_token.py
 # Intermediate class for representing a Prop token node.
 
-from nodes.enums import *
+from ...enums import *
 
 from .token import Inter_Token
 

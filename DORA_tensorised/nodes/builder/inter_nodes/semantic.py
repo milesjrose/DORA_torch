@@ -1,7 +1,7 @@
 # nodes/builder/nodes/semantic.py
 # Intermediate class for representing a semantic node.
 
-from nodes.enums import *
+from ...enums import *
 
 from .node import Inter_Node
 

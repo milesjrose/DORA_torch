@@ -1,7 +1,7 @@
 # nodes/builder/nodes/token.py
 # Intermediate class for representing a token node.
 
-from nodes.enums import *
+from ...enums import *
 
 from .node import Inter_Node
 

@@ -1,6 +1,6 @@
 # nodes/builder/nodes/base_node.py
 # Base node class for all nodes in the network.
-from nodes.enums import *
+from ...enums import *
 
 class Inter_Node(object):
     """
