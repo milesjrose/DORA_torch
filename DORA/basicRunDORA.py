@@ -6,11 +6,7 @@
 run_on_iphone = False
 
 # imports.
-import random, numbers, math, operator, copy, json
-import numpy as np
-import dataTypes
-import DORA_GUI
-import buildNetwork
+
 
 if not run_on_iphone:
     import pygame

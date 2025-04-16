@@ -10,7 +10,7 @@
 
 # imports.
 import random
-import dataTypes
+import DORA.dataTypes as dataTypes
 import pdb
 
 # create the currentsym class. It will have fields, driver (containing driver sym props to be made), recipent(containing recipient sym props to be made), and memory (containing memory sym props to be made).

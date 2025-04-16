@@ -52,24 +52,28 @@ def fill_IDs(target_set_obj: Base_Set, new_IDs: dict, new_names: dict, new_nodes
     
     return new_IDs, new_names, new_nodes
 
-def fill_dim_0(old_tensor: torch.Tensor, new_tensor: torch.Tensor):
+def fill_slice(old_tensor: torch.Tensor, new_tensor: torch.Tensor, start_slice_index: int, end_slice_index: int, dim: int):
+    """
+    Fill a slice of a tensor with a smaller tensor
+    """
+    if dim == 0:
+        new_tensor[start_slice_index:end_slice_index, :] = old_tensor
+    elif dim == 1:
+        new_tensor[:, start_slice_index:end_slice_index] = old_tensor
+    else:
+        raise ValueError(f"Invalid dimension: {dim}")
+    return new_tensor
+
+def fill(old_tensor: torch.Tensor, new_tensor: torch.Tensor, dim: int):
     """
     Fill a tensor with a smaller tensor along the first dimension
     """
-    original_size = old_tensor.size(0)
-    num_duplicates = new_tensor.size(0) // original_size
-    for i in range(num_duplicates):
-        new_tensor[original_size + i * original_size: (original_size + (i + 1) * original_size)] = old_tensor
-    return new_tensor
-
-def fill_dim_1(old_tensor: torch.Tensor, new_tensor: torch.Tensor):
-    """
-    Fill a tensor with a smaller tensor along the second dimension
-    """
-    original_size = old_tensor.size(1)
-    num_duplicates = new_tensor.size(1) // original_size
-    for i in range(num_duplicates):
-        new_tensor[:, original_size + i * original_size: (original_size + (i + 1) * original_size)] = old_tensor
+    original_size = old_tensor.size(dim)
+    num_duplicates = new_tensor.size(dim) // original_size
+    for i in range(num_duplicates - 1):
+        slice_start = original_size + (i * original_size)
+        slice_end = slice_start + original_size
+        fill_slice(old_tensor, new_tensor, slice_start, slice_end, dim)
     return new_tensor
 
 def fill_square(old_tensor: torch.Tensor, new_tensor: torch.Tensor):
@@ -83,12 +87,13 @@ def fill_square(old_tensor: torch.Tensor, new_tensor: torch.Tensor):
     
     original_size = old_tensor.size(0)
     num_duplicates = new_tensor.size(0) // original_size
-    for i in range(num_duplicates):
-        new_tensor[original_size + i * original_size: (original_size + (i + 1) * original_size), 
-                   original_size + i * original_size: (original_size + (i + 1) * original_size)] = old_tensor
+    for i in range(num_duplicates-1):
+        slice_start = original_size + (i * original_size)
+        slice_end = slice_start + original_size
+        new_tensor[slice_start:slice_end, slice_start:slice_end] = old_tensor
     return new_tensor
         
-def new_mapping_driver(original_network: Network, new_nodes: torch.Tensor):
+def new_mapping_driver(original_network: Network, new_nodes: torch.Tensor, driver):
     """
     Create new mappings for the driver set
 
@@ -100,23 +105,25 @@ def new_mapping_driver(original_network: Network, new_nodes: torch.Tensor):
     new_mappings = {}
     for set in Set:
         try:
-            mapping = original_network.sets[set].mappings
+            mapping = original_network.mappings[set]
             if mapping is not None:
                 new_tensors = {}
                 for map_field in MappingFields:
                     # Expand the tensor in dim=1 to size of new driver
                     old_tensor = mapping.adj_matrix[:, :, map_field]
-                    new_tensor = torch.zeros(old_tensor.size(0), new_nodes.size(0))
-                    new_tensor = fill_dim_1(old_tensor, new_tensor)
+                    new_tensor = torch.zeros(old_tensor.size(0), new_nodes.size(0), dtype=tensor_type)
+                    new_tensor = fill(old_tensor, new_tensor, 1)
                     new_tensors[map_field] = new_tensor
-                new_mappings[set] = new_tensors
+                    #print(f"DRIVER: {set.name}{map_field} tensor shape: {new_tensor.shape}, old tensor shape: {old_tensor.shape}")
+                new_map_obj = Mappings(driver, new_tensors)
+                original_network.mappings[set] = new_map_obj
         except:
             if set in [Set.MEMORY, Set.RECIPIENT]:
                 raise ValueError(f"Mapping for {set} is not found")
         
     return new_mappings
 
-def new_mapping_other(original_network: Network, new_nodes: torch.Tensor, set: Set):
+def new_mapping_other(original_network: Network, new_nodes: torch.Tensor, set: Set, driver):
     """
     Create new mappings for a non-driver set
 
@@ -124,20 +131,23 @@ def new_mapping_other(original_network: Network, new_nodes: torch.Tensor, set: S
         dict(MappingField -> torch.Tensor): A dictionary of new mappings for given set
     """
     try:
-        mapping = original_network.sets[set].mappings
+        mapping = original_network.mappings[set]
         if mapping is not None:
             new_tensors = {}
             for map_field in MappingFields:
-                # Expand the tensor in dim=1 to size of new driver
+                # Expand the tensor in dim=0 to size of new nodes
                 old_tensor = mapping.adj_matrix[:, :, map_field]
-                new_tensor = torch.zeros(new_nodes.size(0), old_tensor.size(1))
-                new_tensor = fill_dim_0(old_tensor, new_tensor)
+                new_tensor = torch.zeros(new_nodes.size(0), old_tensor.size(1), dtype=tensor_type)
+                new_tensor = fill(old_tensor, new_tensor, 0)
+                #print(f"OTHER: {set.name}{map_field} tensor shape: {new_tensor.shape}, old tensor shape: {old_tensor.shape}")
                 new_tensors[map_field] = new_tensor
+            new_map_obj = Mappings(driver, new_tensors)
+            original_network.mappings[set] = new_map_obj
             return new_tensors
     except:
         raise ValueError(f"Mapping for {set} is not found")
 
-def expand_token_set(original_network: Network, num_duplicates, target_set):
+def expand_token_set(original_network: Network, num_analogs, target_set):
     """
     Efficiently expand an existing network by duplicating nodes in the target set.
     
@@ -152,133 +162,73 @@ def expand_token_set(original_network: Network, num_duplicates, target_set):
     Returns:
         Network: A new network with expanded target set
     """
+    if original_network[target_set].nodes.shape[0] == 0:
+        return original_network
+
     start_time = time.time()
     
     # Get the target set to expand
     target_set_obj: Base_Set = original_network.sets[target_set]
     
     # Calculate new sizes
-    original_size = target_set_obj.nodes.size(0)
-    new_size = int(original_size * num_duplicates)
+    original_count = target_set_obj.nodes.size(0)
+    new_count = int(original_count * num_analogs/2.5)
     
-    # Create new tensors with expanded size
-    new_nodes, new_connections, new_IDs, new_names = new_token_data(original_size, new_size, target_set_obj)
-    
-    # Fill the tensors with the original data
-    new_nodes = fill_dim_0(target_set_obj.nodes, new_nodes)
-    new_connections = fill_square(target_set_obj.connections, new_connections)
+    # =======================[ Token Data ]========================
+    new_nodes, new_connections, new_IDs, new_names = new_token_data(original_count, new_count, target_set_obj)
+    new_nodes = fill(target_set_obj.nodes, new_nodes, 0)                                 # Fill the nodes tensor
+    new_IDs, new_names, new_nodes = fill_IDs(target_set_obj, new_IDs, new_names, new_nodes) # Fill the IDs and names
+    # =======================[ Connections ]========================
+    new_connections = fill_square(target_set_obj.connections, new_connections)              # Fill the connections tensor
 
-    # Fill the IDs and names
-    new_IDs, new_names, new_nodes = fill_IDs(target_set_obj, new_IDs, new_names, new_nodes)
+    # =======================[ Set ]========================
+    # Create new set object based on target set
+    object_dict = {
+        Set.DRIVER: Driver,
+        Set.RECIPIENT: Recipient,
+        Set.MEMORY: Memory,
+        Set.NEW_SET: New_Set
+    }
+    new_set_obj = object_dict[target_set](new_nodes, new_connections, new_IDs, new_names)
     
+    # ==========================[ Links ]===========================
     # Create new links tensor for the target set
-    new_links_tensor = torch.zeros(new_size, original_network.semantics.nodes.size(0))
-    new_links_tensor[:original_size] = target_set_obj.links[target_set]
-    # Fill the links tensor
-    new_links_tensor = fill_dim_0(target_set_obj.links[target_set], new_links_tensor)
-    
+    new_links_tensor = torch.zeros(new_count, original_network.semantics.nodes.size(0))      # New links tensor
+    new_links_tensor[:original_count] = target_set_obj.links[target_set]                     # Copy original links
+    new_links_tensor = fill(target_set_obj.links[target_set], new_links_tensor, 0)           # Fill the links tensor
     # Create new links object with updated target set links
     new_links = Links(
-        original_network[Set.DRIVER ].links.driver, 
-        original_network[Set.RECIPIENT].links.recipient, 
-        original_network[Set.MEMORY].links.memory,
-        original_network[Set.NEW_SET].links.new_set, 
+        original_network.links.sets, 
         original_network.semantics
         )
     # Update the links for the target set
     new_links[target_set] = new_links_tensor
     
+    # =========================[ Mappings ]========================
     # Create new mappings if needed
-    new_mappings = None
-    
+    new_map_obj = None
     # Handle mappings based on which set is being expanded
     if target_set == Set.DRIVER:
-        new_mappings = new_mapping_driver(original_network, new_nodes)
-    
+        new_mappings = new_mapping_driver(original_network, new_nodes, new_set_obj) # Pass updated driver set object
+
     elif target_set in [Set.MEMORY, Set.RECIPIENT]:
-        new_mappings = new_mapping_other(original_network, new_nodes, target_set)
+        new_mappings = new_mapping_other(original_network, new_nodes, target_set, original_network[Set.DRIVER])   # Pass current driver set object
     
-    # Create new mappings object
-    mapping_tensors = {
-        MappingFields.CONNETIONS: new_mappings[MappingFields.CONNETIONS],
-        MappingFields.WEIGHT: new_mappings[MappingFields.WEIGHT],
-        MappingFields.HYPOTHESIS: new_mappings[MappingFields.HYPOTHESIS],
-        MappingFields.MAX_HYP: new_mappings[MappingFields.MAX_HYP]
-    }
-    new_mappings = Mappings(original_network[Set.DRIVER], mapping_tensors)
-    
-    # Create new set object based on target set
-    match target_set:
-        case Set.DRIVER:
-            new_set_obj = Driver(new_nodes, new_connections, new_links, new_IDs, new_names, original_network.params)
-        case Set.RECIPIENT:
-            new_set_obj = Recipient(new_nodes, new_connections, new_links, new_mappings, new_IDs, new_names, original_network.params)
-        case Set.MEMORY:
-            new_set_obj = Memory(new_nodes, new_connections, new_links, new_mappings, new_IDs, new_names, original_network.params)
-        case Set.NEW_SET:
-            new_set_obj = New_Set(new_nodes, new_connections, new_links, new_IDs, new_names, original_network.params)
-        case _:
-            raise ValueError(f"Unsupported target set: {target_set}")
-    
+    # =======================[ Network ]========================
     # Create new network with expanded set
     original_network.sets[target_set] = new_set_obj
     new_network = Network(
         original_network.sets,
         original_network.semantics,
-        new_mappings,
+        original_network.mappings,
         new_links,
         original_network.params
     )
-    if target_set == Set.DRIVER:
-        new_network.sets[Set.RECIPIENT].mappings.driver = new_set_obj
-        new_network.sets[Set.MEMORY].mappings.driver = new_set_obj
-        new_network.sets[Set.NEW_SET].mappings.driver = new_set_obj
-
-    new_network.set_params(original_network.params)
-    
-    # Update set_mappings if needed
-    if target_set in [Set.MEMORY, Set.RECIPIENT]:
-        new_network.mappings[target_set] = new_mappings
-    
-    # Update links in the new network
-    new_network.links = new_links
-    
-    # Update links in the sets
-    for set in Set:
-        if set == target_set:
-            new_network.sets[set].links = new_links
-        else:
-            new_network.sets[set].links = original_network.sets[set].links
-    
-    # Update links in semantics
-    new_network.semantics.links = new_links
-    
-    # Ensure all links tensors have the correct dimensions
-    # This is crucial to prevent dimension mismatch errors in semantics.update_input_from_set
-    for set in Set:
-        set_obj = new_network.sets[set]
-        set_size = set_obj.nodes.size(0)
-        sem_size = new_network.semantics.nodes.size(0)
-        
-        # Check if the links tensor has the correct dimensions
-        if new_links[set].size(0) != set_size:
-            # Create a new links tensor with the correct dimensions
-            new_set_links = torch.zeros(set_size, sem_size)
-            # Copy the original data
-            new_set_links[:min(original_network.sets[set].nodes.size(0), set_size), 
-                         :min(original_network.semantics.nodes.size(0), sem_size)] = \
-                original_network.sets[set].links[set][:min(original_network.sets[set].nodes.size(0), set_size), 
-                                                    :min(original_network.semantics.nodes.size(0), sem_size)]
-            # Update the links for this set
-            new_links[set] = new_set_links
-    
-    end_time = time.time()
-    
     return new_network
 
-def create_large_network(base_network, target_size, target_set=Set.DRIVER):
+def create_large_network(base_network, no_analogs):
     """
-    Create a large network by repeatedly expanding a base network until it reaches the target size.
+    Create a large network by expanding base network to target size.
     
     Args:
         base_network (Network): The base network to expand
@@ -288,25 +238,8 @@ def create_large_network(base_network, target_size, target_set=Set.DRIVER):
     Returns:
         Network: A new network with the target size
     """
-    current_network = base_network
-    current_size = current_network.sets[target_set].nodes.size(0)
+    # Expand network
+    for set in Set:
+        current_network = expand_token_set(base_network, no_analogs, set)
 
-    if current_size > 0:
-        while current_size < target_size:
-            # Calculate expansion factor needed
-            expansion_factor = target_size / current_size
-            if expansion_factor > 10:  # Limit expansion factor to avoid memory issues
-                expansion_factor = 10
-            
-            # Expand network
-            current_network = expand_token_set(current_network, expansion_factor, target_set)
-            current_size = current_network.sets[target_set].nodes.size(0)
-            
-        
     return current_network
-
-if __name__ == "__main__":
-    # Example usage
-    print("This module provides functions for generating and manipulating networks.")
-    print("Import and use the functions in your code:")
-    print("  from generate_network import expand_network, duplicate_nodes_in_memory, create_large_network")

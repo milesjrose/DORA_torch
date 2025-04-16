@@ -1,16 +1,128 @@
-Running test with start: 10, end: 1000, step: 100, iterations: 100
-Running test with start: 10, end: 1000, step: 100, iterations: 100
-Running test with start: 10, end: 1000, step: 100, iterations: 100
-Running test with start: 10, end: 1000, step: 100, iterations: 100
-Running test with start: 10, end: 1000, step: 100, iterations: 100
-Running test with start: 10, expansion_factor: 2, runs: 5, iterations: 100
-Running test with start: 10, expansion_factor: 2, runs: 5, iterations: 100
-Running test with start: 10, expansion_factor: 2, runs: 5, iterations: 100
-Running test with start: 500, expansion_factor: 1.1, runs: 10, iterations: 100
-Running test with start: 500, expansion_factor: 1.1, runs: 10, iterations: 100
-Running test with start: 500, expansion_factor: 1.1, runs: 50, iterations: 100
-Running test with start: 500, expansion_factor: 1.1, runs: 50, iterations: 100
-Running test with start: 500, expansion_factor: 1.1, runs: 10, iterations: 100
-Running test with start: 500, expansion_factor: 1.1, runs: 100, iterations: 100
-Running test with start: 500, expansion_factor: 1.1, runs: 100, iterations: 100
-Running test with start: 500, expansion_factor: 1.1, runs: 100, iterations: 100
+20250416_023621: Running test with start: 100, end: 2000, step: 100, iterations: 2
+20250416_023621: Params: cuda=True, gen=False, mem=False, net=True, build_time=False
+Analogs: 100, net_time: 0.2970, net_count: 1109
+Analogs: 200, net_time: 0.3440, net_count: 2189
+Analogs: 300, net_time: 0.5000, net_count: 3269
+Analogs: 400, net_time: 0.6410, net_count: 4349
+Analogs: 500, net_time: 0.7500, net_count: 5429
+Analogs: 600, net_time: 0.9070, net_count: 6509
+Analogs: 700, net_time: 1.1250, net_count: 7589
+Analogs: 800, net_time: 1.2340, net_count: 8669
+Analogs: 900, net_time: 1.2500, net_count: 9749
+Analogs: 1000, net_time: 1.4530, net_count: 10829
+Analogs: 1100, net_time: 1.4680, net_count: 11909
+Analogs: 1200, net_time: 1.6400, net_count: 12989
+Analogs: 1300, net_time: 1.7500, net_count: 14069
+Analogs: 1400, net_time: 1.9060, net_count: 15149
+Analogs: 1500, net_time: 2.2970, net_count: 16229
+Analogs: 1600, net_time: 4.5150, net_count: 17309
+Analogs: 1700, net_time: 30.0310, net_count: 18389
+Analogs: 1800, net_time: 37.1870, net_count: 19469
+Analogs: 1900, net_time: 39.9840, net_count: 20549
+20250416_024410: Running test with start: 100, end: 200, step: 100, iterations: 2
+20250416_024410: Params: cuda=True, gen=False, mem=False, net=True, build_time=False
+Analogs: 100, net_time: 0.2970, net_count: 1109
+20250416_024450: Running test with start: 100, end: 300, step: 100, iterations: 2
+20250416_024450: Params: cuda=True, gen=False, mem=False, net=True, build_time=False
+Analogs: 100, net_time: 0.3120, net_count: 1109
+Analogs: 200, net_time: 0.3590, net_count: 2189
+20250416_024530: Running test with start: 100, end: 300, step: 100, iterations: 2
+20250416_024530: Params: cuda=True, gen=False, mem=False, net=True, build_time=False
+Analogs: 100, net_time: 0.3120, net_count: 1109
+Analogs: 200, net_time: 0.3590, net_count: 2189
+20250416_024554: Running test with start: 100, end: 300, step: 100, iterations: 2
+20250416_024554: Params: cuda=True, gen=False, mem=False, net=True, build_time=False
+Analogs: 100, net_time: 0.2820, net_count: 1109
+Analogs: 200, net_time: 0.3900, net_count: 2189
+20250416_024618: Running test with start: 100, end: 300, step: 100, iterations: 2
+20250416_024618: Params: cuda=True, gen=False, mem=False, net=True, build_time=False
+Analogs: 100, net_time: 0.3120, net_count: 1109
+Analogs: 200, net_time: 0.3750, net_count: 2189
+_20250416_02_46_58: Running test with start: 100, end: 300, step: 100, iterations: 2
+_20250416_02_46_58: Params: cuda=True, gen=False, mem=False, net=True, build_time=False
+Analogs: 100, net_time: 0.3280, net_count: 1109
+Analogs: 200, net_time: 0.3430, net_count: 2189
+_20250416_02_47_12: Running test with start: 100, end: 2000, step: 100, iterations: 2
+_20250416_02_47_12: Params: cuda=True, gen=False, mem=False, net=True, build_time=False
+Analogs: 100, net_time: 0.2960, net_count: 1109
+Analogs: 200, net_time: 0.3440, net_count: 2189
+Analogs: 300, net_time: 0.5310, net_count: 3269
+Analogs: 400, net_time: 0.6250, net_count: 4349
+Analogs: 500, net_time: 0.7820, net_count: 5429
+Analogs: 600, net_time: 0.8750, net_count: 6509
+Analogs: 700, net_time: 1.1560, net_count: 7589
+Analogs: 800, net_time: 1.2500, net_count: 8669
+Analogs: 900, net_time: 1.3280, net_count: 9749
+Analogs: 1000, net_time: 1.5160, net_count: 10829
+Analogs: 1100, net_time: 1.6400, net_count: 11909
+Analogs: 1200, net_time: 1.7190, net_count: 12989
+Analogs: 1300, net_time: 1.7970, net_count: 14069
+Analogs: 1400, net_time: 1.8590, net_count: 15149
+Analogs: 1500, net_time: 2.4220, net_count: 16229
+Analogs: 1600, net_time: 8.2810, net_count: 17309
+Analogs: 1700, net_time: 34.2340, net_count: 18389
+Analogs: 1800, net_time: 40.2660, net_count: 19469
+Analogs: 1900, net_time: 47.9060, net_count: 20549
+_20250416_02_54_08: Running test with start: 100, end: 2000, step: 100, iterations: 2
+_20250416_02_54_08: Params: cuda=False, gen=False, mem=False, net=True, build_time=False
+Analogs: 100, net_time: 0.1090, net_count: 1109
+Analogs: 200, net_time: 0.2340, net_count: 2189
+Analogs: 300, net_time: 0.3600, net_count: 3269
+Analogs: 400, net_time: 0.5000, net_count: 4349
+Analogs: 500, net_time: 0.6560, net_count: 5429
+Analogs: 600, net_time: 0.8130, net_count: 6509
+Analogs: 700, net_time: 1.0930, net_count: 7589
+Analogs: 800, net_time: 1.2810, net_count: 8669
+Analogs: 900, net_time: 1.5630, net_count: 9749
+Analogs: 1000, net_time: 1.7970, net_count: 10829
+Analogs: 1100, net_time: 2.1250, net_count: 11909
+Analogs: 1200, net_time: 2.4540, net_count: 12989
+Analogs: 1300, net_time: 2.8590, net_count: 14069
+Analogs: 1400, net_time: 3.5780, net_count: 15149
+Analogs: 1500, net_time: 4.1880, net_count: 16229
+Analogs: 1600, net_time: 4.6880, net_count: 17309
+Analogs: 1700, net_time: 5.2810, net_count: 18389
+Analogs: 1800, net_time: 5.9850, net_count: 19469
+Analogs: 1900, net_time: 6.6720, net_count: 20549
+_20250416_02_56_57: Running test with start: 100, end: 2000, step: 100, iterations: 2
+_20250416_02_56_57: Params: cuda=False, gen=False, mem=True, net=False, build_time=False
+Analogs: 100, mem_time: 0.1100, mem_count: 1046
+Analogs: 200, mem_time: 0.4540, mem_count: 2046
+Analogs: 300, mem_time: 1.0320, mem_count: 3046
+Analogs: 400, mem_time: 1.8900, mem_count: 4046
+Analogs: 500, mem_time: 2.9840, mem_count: 5046
+Analogs: 600, mem_time: 4.5470, mem_count: 6046
+Analogs: 700, mem_time: 5.9840, mem_count: 7046
+Analogs: 800, mem_time: 8.3600, mem_count: 8046
+Analogs: 900, mem_time: 10.1250, mem_count: 9046
+Analogs: 1000, mem_time: 12.9530, mem_count: 10046
+Analogs: 1100, mem_time: 15.4690, mem_count: 11046
+Analogs: 1200, mem_time: 18.7660, mem_count: 12046
+Analogs: 1300, mem_time: 22.0000, mem_count: 13046
+Analogs: 1400, mem_time: 26.0940, mem_count: 14046
+Analogs: 1500, mem_time: 28.7660, mem_count: 15046
+Analogs: 1600, mem_time: 33.5160, mem_count: 16046
+Analogs: 1700, mem_time: 36.1250, mem_count: 17046
+Analogs: 1800, mem_time: 42.6560, mem_count: 18046
+Analogs: 1900, mem_time: 46.8440, mem_count: 19046
+_20250416_03_07_44: Running test with start: 100, end: 2000, step: 100, iterations: 2
+_20250416_03_07_44: Params: cuda=False, gen=False, mem=True, net=False, build_time=False
+Analogs: 100, mem_time: 0.0940, mem_count: 1046
+Analogs: 200, mem_time: 0.4220, mem_count: 2046
+Analogs: 300, mem_time: 1.0160, mem_count: 3046
+Analogs: 400, mem_time: 1.7660, mem_count: 4046
+Analogs: 500, mem_time: 2.8440, mem_count: 5046
+Analogs: 600, mem_time: 4.3130, mem_count: 6046
+Analogs: 700, mem_time: 5.7660, mem_count: 7046
+Analogs: 800, mem_time: 8.0630, mem_count: 8046
+Analogs: 900, mem_time: 9.7180, mem_count: 9046
+Analogs: 1000, mem_time: 12.3590, mem_count: 10046
+Analogs: 1100, mem_time: 14.9530, mem_count: 11046
+Analogs: 1200, mem_time: 18.0470, mem_count: 12046
+Analogs: 1300, mem_time: 20.6720, mem_count: 13046
+Analogs: 1400, mem_time: 24.4060, mem_count: 14046
+Analogs: 1500, mem_time: 27.0160, mem_count: 15046
+Analogs: 1600, mem_time: 31.4070, mem_count: 16046
+Analogs: 1700, mem_time: 34.0310, mem_count: 17046
+Analogs: 1800, mem_time: 39.8120, mem_count: 18046
+Analogs: 1900, mem_time: 43.6250, mem_count: 19046

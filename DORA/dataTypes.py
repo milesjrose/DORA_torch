@@ -93,12 +93,14 @@ class Groups(TokenUnit):
             self.inhibitor_act = 1
 
     def update_input_driver(self, memory, asDORA):
+        print("update_input_driver")
         # sources of input:
         # Exitatory: td (Groups above me), bu (my Ps or Groups below me).
         # Inhibitory: lateral (other Group units in same layer as me*3), inhibitor.
         pass
 
     def update_input_recipient(self, memory, asDORA, phase_set, lateral_input_level):
+        print("update_input_recipient")
         # sources of input:
         # Exitatory: td (Groups above me), bu (my Ps or Groups below me, my semantics), mapping input.
         # Inhibitory: lateral (other Group units in same layer as me*3), inhibitor.
@@ -726,6 +728,15 @@ class memorySet(object):
         self.to_add_RBs = []
         self.to_add_POs = []
         self.analogs = []
+    
+    def get_count(self, semantics = True):
+        count = 0
+        for analog in self.analogs:
+            analog.sum_num_units()
+            count += analog.num_units
+        if semantics:
+            count += len(self.semantics)
+        return count
 
 
 # simple node class for doing basic similarity network computations.

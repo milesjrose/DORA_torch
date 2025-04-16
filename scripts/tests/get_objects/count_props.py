@@ -57,12 +57,15 @@ def count_props(symProps):
         Type.SEMANTIC: len(sets[Set.SEMANTIC][Type.SEMANTIC])
     }
 
+    set_counts = {}
     total = 0
     for set in Set:
+        set_counts[set] = 0
         for type in Type:
-            total += len(sets[set][type])
+            set_counts[set] += len(sets[set][type])
+        total += set_counts[set]
 
-    return counts, total
+    return counts, set_counts, total
     
 
 

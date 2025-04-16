@@ -14,8 +14,8 @@ def make_analog(symProps, analog_num):
         prop['analog'] = analog_num
         for rb in prop['RBs']:
             rb['object_name'] = name(rb['object_name'])
-            rb['object_sem'] = name(rb['object_sem'])
-            rb['pred_sem'] = name(rb['pred_sem'])
+            rb['object_sem'] = rb['object_sem']
+            rb['pred_sem'] = rb['pred_sem']
             rb['pred_name'] = name(rb['pred_name'])
 
     return props
