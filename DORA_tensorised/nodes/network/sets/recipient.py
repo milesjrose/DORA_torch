@@ -5,9 +5,6 @@ import torch
 from ...enums import *
 from ...utils import tensor_ops as tOps
 
-from ..connections import Links, Mappings
-from ..network_params import Params
-
 from .base_set import Base_Set
 
 class Recipient(Base_Set):
@@ -321,8 +318,8 @@ class Recipient(Base_Set):
             torch.Tensor: (sum(t_mask) x 1) matrix of mapping input.
         """
         driver = self.mappings.driver
-        map_weights = self.mappings.weights()[t_mask] 
-        map_connections = self.mappings.connections()[t_mask]
+        map_weights = self.mappings[MappingFields.WEIGHT][t_mask] 
+        map_connections = self.mappings[MappingFields.CONNECTIONS][t_mask]
 
         # 1). weight = (3*map_weight*driverToken.act)
         weight = torch.mul(                                         

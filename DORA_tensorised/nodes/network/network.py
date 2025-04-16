@@ -60,6 +60,8 @@ class Network(object):
                 if set in MAPPING_SETS:
                     raise ValueError(f"Error setting mappings for {set}")
 
+        self.semantics.params = params
+        self.semantics.links = links
         # inter-set connections
         self.mappings: dict[Set, Mappings] = mappings
         """ Dictionary of mappings for each set. """
@@ -84,6 +86,15 @@ class Network(object):
         Get the set object for the given set.
         """
         return self.sets[key]
+    
+    def get_count(self, semantics = True):
+        """Get the number of nodes in the network."""
+        count = 0
+        for set in Set:
+            count += self.sets[set].get_count()
+        if semantics:
+            count += self.semantics.get_count()
+        return count
     
     # ======================[ ACT FUNCTIONS ]============================
     def initialise_act(self):                                               # Initialise acts in active memory/semantics
@@ -148,7 +159,7 @@ class Network(object):
         """
         Update the inputs in the semantics.
         """
-        self.semantics.update_input(self.driver, self.recipient)
+        self.semantics.update_input(self.sets[Set.DRIVER], self.sets[Set.RECIPIENT])
 
     def update_inputs_am(self):                                             # Update inputs in active memory
         """
@@ -170,46 +181,46 @@ class Network(object):
         - Only updates act of RB in driver.
         """
         #update input driver/recipient RBs, POs
-        self.driver.update_inhibitor_input([Type.RB, Type.PO])
-        self.recipient.update_inhibitor_input([Type.RB, Type.PO])
+        self.sets[Set.DRIVER].update_inhibitor_input([Type.RB, Type.PO])
+        self.sets[Set.RECIPIENT].update_inhibitor_input([Type.RB, Type.PO])
         #update driver rb, PO inhibitor act only if in DORA mode
         if self.DORA_mode:
-            self.driver.update_inhibitor_act([Type.RB, Type.PO])
-            self.recipient.update_inhibitor_act([Type.PO])
+            self.sets[Set.DRIVER].update_inhibitor_act([Type.RB, Type.PO])
+            self.sets[Set.RECIPIENT].update_inhibitor_act([Type.PO])
         else:
-            self.driver.update_inhibitor_act([Type.RB])
+            self.sets[Set.DRIVER].update_inhibitor_act([Type.RB])
 
     def reset_inhibitors(self):                                             # Reset inhibitors (for RB and PO units) NOTE: Check if required to set for memory and new_set
         """
         Reset the inhibitors (for RB and PO units).
         (driver, recipient, new_set, memory)
         """
-        self.driver.reset_inhibitor([Type.RB, Type.PO])
-        self.recipient.reset_inhibitor([Type.RB, Type.PO])
-        self.memory.reset_inhibitor([Type.RB, Type.PO])
-        self.new_set.reset_inhibitor([Type.RB, Type.PO])
+        self.sets[Set.DRIVER].reset_inhibitor([Type.RB, Type.PO])
+        self.sets[Set.RECIPIENT].reset_inhibitor([Type.RB, Type.PO])
+        self.sets[Set.MEMORY].reset_inhibitor([Type.RB, Type.PO])
+        self.sets[Set.NEW_SET].reset_inhibitor([Type.RB, Type.PO])
 
     def check_local_inhibitor(self):                                        # Check local inhibition
         """Check local inhibitor activation."""
-        if self.driver.check_local_inhibitor():
+        if self.sets[Set.DRIVER].check_local_inhibitor():
             self.local_inhibitor = 1.0
     
     def fire_local_inhibitor(self):                                         # Fire local inhibitor
         """Fire the local inhibitor."""
-        self.driver.initialise_act(Type.PO)
-        self.recipient.initialise_act(Type.PO)
+        self.sets[Set.DRIVER].initialise_act(Type.PO)
+        self.sets[Set.RECIPIENT].initialise_act(Type.PO)
         self.semantics.initialiseSem()
     
     def check_global_inhibitor(self):                                       # Check global inhibition
         """Check global inhibitor activation."""
-        if self.driver.check_global_inhibitor():
+        if self.sets[Set.DRIVER].check_global_inhibitor():
             self.global_inhibitor = 1.0
         
     def fire_global_inhibitor(self):                                        # Fire global inhibitor
         """Fire the global inhibitor."""
-        self.driver.initialise_act([Type.PO, Type.RB, Type.P])
-        self.recipient.initialise_act([Type.PO, Type.RB, Type.P])
-        self.memory.initialise_act([Type.PO, Type.RB, Type.P])
+        self.sets[Set.DRIVER].initialise_act([Type.PO, Type.RB, Type.P])
+        self.sets[Set.RECIPIENT].initialise_act([Type.PO, Type.RB, Type.P])
+        self.sets[Set.MEMORY].initialise_act([Type.PO, Type.RB, Type.P])
         self.semantics.initialise_sem()
 
     # ========================[ NODE FUNCTIONS ]==========================
@@ -218,8 +229,8 @@ class Network(object):
         Get parent mode of P units in driver and recipient. Used in time steps activations.
         (driver, recipient)
         """
-        self.driver.p_get_mode()
-        self.recipient.p_get_mode()
+        self.sets[Set.DRIVER].p_get_mode()
+        self.sets[Set.RECIPIENT].p_get_mode()
     
     def initialise_p_mode(self, set: Set = Set.RECIPIENT):                  # Initialise p_mode in the given set
         """

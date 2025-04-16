@@ -493,6 +493,10 @@ class Base_Set(object):
             except Exception as e:
                 print("Error: NodePrinter failed to print set.")
                 print(e)
+    
+    def get_count(self):
+        """Get the number of nodes in the set."""
+        return self.nodes.shape[0]
     # --------------------------------------------------------------
 
     # ====================[ TOKEN FUNCTIONS ]=======================

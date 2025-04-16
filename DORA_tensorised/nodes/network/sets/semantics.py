@@ -122,6 +122,10 @@ class Semantics(object):
         self.connections[self.IDs[ID], :] = 0.0
         self.connections[:, self.IDs[ID]] = 0.0
 
+    def get_count(self):
+        """Get the number of semantics in the semantics tensor."""
+        return self.nodes.shape[0]
+    
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
     def get(self, ref_semantic: Ref_Semantic, feature):
         """

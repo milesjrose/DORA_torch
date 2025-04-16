@@ -13,6 +13,7 @@ The nodes package provides classes for the network used in DORA, implemented usi
 	- Single_nodes: 
 		- Token/Semantic: Hold a 1D tensor, representing a single node
 		- Ref_Token/Ref_Semantic: Hold Set/ID to reference a node in the network
+- Tests: Collection of PyTest files
 - Utils:
 	- Printer: Classes for printing/logging tensors.
 	- TensorOps: Contains useful tensor operations
@@ -22,7 +23,7 @@ The nodes package provides classes for the network used in DORA, implemented usi
 ### 1.1). Generating a network:
 
 A network can be generated from a sim file or list of props using "build_network".
-A parameters file must be provided to run most network functions. This can be included in generation, or added later. E.g:
+A parameters file must be provided to run most network functions. This will be set to default values if not provided, but can be set later:
 
 ```
 network = nodes.build_network(file="sims/testsim.py", params=parameters)
@@ -33,20 +34,7 @@ network.set_params(parameters)
 
 ## 2). Network operations:
 
-### 2.1). Direct access to set functions
-All functions from types in dataTypes that are covered in the DORA paper have been ported over, and can be directly accessed by:
-
-```
-network.set.function()
-
-# E.g, to update po tokens in the driver:
-network.sets[Set.DRIVER].update_input_po()
-```
-
-However, to keep the code modular, and allow for easy future modifications to the nodes backend, it is preferred to use the network methods:
-###  2.2). Network methods
-
-Set operations can be accessed through network methods, by providing a set, or using "_am"  or "_sem" versions of the function:
+All the functions from the basic datatypes have been ported over. After building the network, these can be accesed through network methods:
 
 ```
 # Update acts in the driver:
@@ -59,9 +47,31 @@ network.update_acts_sem()
 network.update_acts_am()
 ```
 
-## 2). Nodes:
-Nodes are added by using the single node classes. Adding a node returns a reference to later access token information. This can be used to set/get values or remove the token.
 
+It's still possible to access set functions directly, but should be avoided if possible.
+
+```
+network.sets[Set.set].function()
+or
+network[Set.set].function()
+
+# E.g, to update po tokens in the driver:
+network.sets[Set.DRIVER].update_input_po()
+```
+
+## 3). Nodes:
+### 3.1). Node Features
+Node features are give by: 
+	- tokens: nodes.enums.TF
+	- semantics : nodes.enums.SF
+Hovering over an enum class reference will show the hover-over documentation listing all features. 
+For features that encode a value, for example p_mode, these can be referenced using a matching enum. E.g.,
+```
+token[TF.MODE] = Mode.PARENT
+```
+
+### 3.2). Single Nodes
+Nodes can be added to a set using the single node classes. Adding a node returns a reference that can be used to set/get values or remove the token.
 ```
 # Token
 token = network.token(Type.PO, {TF.SET = Set.DRIVER})
@@ -75,3 +85,18 @@ network.set(ref_token, TF.ACT, 0.9)
 # Delete a token
 network.del_token(ref_token)
 ```
+
+## 4). Cuda:
+Network performance can be improved by running with CUDA on a GPU. Once the model grows large enough to use up all dedicated vram, the gpu will start using system memory. This ruins performance, and so for models larger than around 10-15k nodes it will likely be better to run on the CPU instead.
+
+To enable CUDA, include the following before running the network:
+```
+if torch.cuda.is_available():
+	torch.set_default_tensor_type('torch.cuda.FloatTensor')
+	# Or to use a specific device:
+	# torch.cuda.set_device(0)  # Use GPU 0
+	print(f"Using GPU: {torch.cuda.get_device_name(0)}")
+```
+
+## 5). Inter-set connections:
+Adding/Removing links and mappings, as well as mapping updates, are not currently implemented. However, links included in a props file or links/mappings that are manually added will affect node updates.

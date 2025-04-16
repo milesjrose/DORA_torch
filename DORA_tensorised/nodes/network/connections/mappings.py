@@ -21,15 +21,15 @@ class Mappings(object):
             ValueError: If the tensors are not torch.Tensor. Or have incorrect shape.
         """
         # Check tensors are correct type and shape
-        con_shape = map_fields[MappingFields.CONNETIONS].shape[0] # Used to check all tensors have same shape
-        for field in map_fields:
+        con_shape = map_fields[MappingFields.CONNECTIONS].shape[0] # Used to check all tensors have same shape
+        for field in MappingFields:
             # Check tensor is correct type
             if type(map_fields[field]) != torch.Tensor:
-                raise ValueError("All tensors must be torch.Tensor.")
+                raise ValueError(f"{field} tensor must be torch.Tensor, but is {type(map_fields[field])}.")
             
             # Check tensor is 2D
             if map_fields[field].dim() != 2:
-                raise ValueError("Tensors should be 2D")
+                raise ValueError(f"{field} tensor should be 2D, but has {map_fields[field].dim()} dimensions.")
             
             # Check all tensors have same shape
             shape = map_fields[field].shape[0]
@@ -39,7 +39,7 @@ class Mappings(object):
             # Check driver nodes match
             driver_count = driver.nodes.shape[0]
             if map_fields[field].shape[1] != driver_count:
-                raise ValueError(f"{field} field tensor shape: {shape}, but driver nodes shape: {driver_count}.")
+                raise ValueError(f"{field} field tensor shape: {map_fields[field].shape}, but driver nodes shape: {driver.nodes.shape}.")
         
         # Stack the tensors along a new dimension based on MappingFields enum
         self.driver = driver
