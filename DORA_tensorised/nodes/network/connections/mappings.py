@@ -4,7 +4,10 @@
 
 import torch
 
+from ..sets import Recipient
+
 from ...enums import *
+from ...utils import tensor_ops as tOps
 
 class Mappings(object):
     """
@@ -64,17 +67,67 @@ class Mappings(object):
         self.adj_matrix[:, :, mappingField] = value
     
     # =====================[ Update functions ]======================
-    def updateHypotheses(self, hypotheses):
+    def updateHypotheses(self, recipient: Recipient):
         """
         Update the hypotheses matrix.
-        TODO: implement
+        NOTE: Seems very inefficient
+        TODO: Implement a more efficient method, and add tests.
         """
-        pass
-    
+        Recipient: recipient = recipient
+        # Need to check that the type of p/po nodes match.
+        # Can do this by refining masks to type, then updating the these masks first. So only matching node types will be included
+        r_p = recipient.get_mask(Type.P)
+        d_p = self.driver.get_mask(Type.P)
+
+        r_po = recipient.get_mask(Type.PO)
+        d_po = self.driver.get_mask(Type.PO)
+
+        # Update child p
+        r_pc = tOps.refine_mask(recipient.nodes, r_p, TF.MODE, Mode.CHILD)
+        d_pc = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.CHILD)
+        self.updateHypothesis(r_pc, d_pc)
+
+        # Update parent p
+        r_pp = tOps.refine_mask(recipient.nodes, r_p, TF.MODE, Mode.PARENT)
+        d_pp = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.PARENT)
+        self.updateHypothesis(r_pp, d_pp)
+
+        # Update neutral p
+        r_pn = tOps.refine_mask(recipient.nodes, r_p, TF.MODE, Mode.NEUTRAL)
+        d_pn = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.NEUTRAL)
+        self.updateHypothesis(r_pn, d_pn)
+
+        # Update Pred
+        r_pr = tOps.refine_mask(recipient.nodes, r_po, TF.MODE, Mode.PRED)
+        d_pr = tOps.refine_mask(self.driver.nodes, d_po, TF.MODE, Mode.PRED)
+        self.updateHypothesis(r_pr, d_pr)
+
+        # Update Obj
+        r_ob = tOps.refine_mask(recipient.nodes, r_po, TF.MODE, Mode.OBJ)
+        d_ob = tOps.refine_mask(self.driver.nodes, d_po, TF.MODE, Mode.OBJ)
+        self.updateHypothesis(r_ob, d_ob)
+
+        # Update other
+        r_other = r_p - (r_pc + r_pp + r_pn + r_pr + r_ob)
+        d_other = d_p - (d_pc + d_pp + d_pn + d_pr + d_ob)
+        self.updateHypothesis(r_other, d_other)
+
+    def updateHypothesis(self, driver_mask, recipient_mask):
+        """
+        Update the hypothesis matrix, for nodes in given masks.
+        NOTE: Also infefficient as only one mapping connection per node, but uses matrix multiplication on NxM matrix.
+        """
+        # Hypothesis = hypothesis + (driver_token.act * recipient_token.act)
+        self[MappingFields.HYPOTHESIS] += torch.matmul(
+            self.driver.nodes[driver_mask],
+            self.recipient.nodes[recipient_mask]
+        )
+
     def add_mappings(self,  mappings):
         """
-        Add mappings to the adjacency matrix.
+        [Not implemented] Add mappings to the adjacency matrix.
         TODO: implement
         """
         pass
+
     # ----------------------------------------------------------------
