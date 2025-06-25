@@ -67,7 +67,7 @@ class Mappings(object):
         self.adj_matrix[:, :, mappingField] = value
     
     # =====================[ Update functions ]======================
-    def updateHypotheses(self, recipient: Recipient):
+    def update_hypotheses(self, recipient: Recipient):
         """
         Update the hypotheses matrix.
         NOTE: Seems very inefficient
@@ -112,7 +112,7 @@ class Mappings(object):
         d_other = d_p - (d_pc + d_pp + d_pn + d_pr + d_ob)
         self.updateHypothesis(r_other, d_other)
 
-    def updateHypothesis(self, driver_mask, recipient_mask):
+    def update_hypothesis(self, driver_mask, recipient_mask):
         """
         Update the hypothesis matrix, for nodes in given masks.
         NOTE: Also infefficient as only one mapping connection per node, but uses matrix multiplication on NxM matrix.
@@ -122,6 +122,13 @@ class Mappings(object):
             self.driver.nodes[driver_mask],
             self.recipient.nodes[recipient_mask]
         )
+
+    def reset_hypotheses(self):
+        """
+        Reset the hypotheses/max hypotheses to 0.
+        """
+        self[MappingFields.HYPOTHESIS] = 0.0
+        self[MappingFields.MAX_HYPOTHESIS] = 0.0
 
     def add_mappings(self,  mappings):
         """
