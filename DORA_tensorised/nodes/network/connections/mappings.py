@@ -4,8 +4,6 @@
 
 import torch
 
-from ..sets import Recipient
-
 from ...enums import *
 from ...utils import tensor_ops as tOps
 
@@ -67,13 +65,12 @@ class Mappings(object):
         self.adj_matrix[:, :, mappingField] = value
     
     # =====================[ Update functions ]======================
-    def update_hypotheses(self, recipient: Recipient):
+    def update_hypotheses(self, recipient):
         """
         Update the hypotheses matrix.
         NOTE: Seems very inefficient
         TODO: Implement a more efficient method, and add tests.
         """
-        Recipient: recipient = recipient
         # Need to check that the type of p/po nodes match.
         # Can do this by refining masks to type, then updating the these masks first. So only matching node types will be included
         r_p = recipient.get_mask(Type.P)
@@ -138,3 +135,25 @@ class Mappings(object):
         pass
 
     # ----------------------------------------------------------------
+
+    def print(self, f_types=None):                                  # Here for testing atm
+        """
+        Print the mappings.
+
+        Args:
+            f_types (list[TF], optional): The features to print.
+
+        Raises:
+            ValueError: If nodePrinter is not found.
+        """
+        try:
+            from nodes.utils import nodePrinter
+        except:
+            print("Error: nodePrinter not found. Nodes.utils.nodePrinter is required to use this function.")
+        else:
+            try:
+                printer = nodePrinter(print_to_console=True)
+                printer.print_con_tensor(self.adj_matrix)
+            except Exception as e:
+                print("Error: NodePrinter failed to print set.")
+                print(e)

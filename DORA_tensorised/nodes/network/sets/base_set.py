@@ -186,9 +186,11 @@ class Base_Set(object):
         Raises:
             ValueError: If the ID, index, or name is invalid. Or if none are provided.
         """
+        source = ""
         if index is not None:
             try:
-                id = self.nodes[index, TF.ID]
+                id = self.nodes[index, TF.ID].item()
+                source = "index"    
             except:
                 raise ValueError("Invalid index.")
         elif name is not None:
@@ -196,11 +198,13 @@ class Base_Set(object):
                 # I feel like there is a better way to do this...
                 dict_index = list(self.names.values()).index(name)
                 id = list(self.names.keys())[dict_index]
+                source = "name"
             except:
                 raise ValueError("Invalid name.")
         elif id is not None:
             try:
                 self.get_reference(id=id)                           # Check if ID is valid
+                source = "id"
             except:
                 raise ValueError("Invalid ID.")
         else:
@@ -210,6 +214,9 @@ class Base_Set(object):
             name = self.names[id]
         except:
             name = None
+
+        if not isinstance(id, int):
+            raise ValueError("Get reference trying to return non-integer ID. Source: ", source, "Type: ", type(id))
 
         return Ref_Token(self.token_set, id, name)
     
@@ -444,6 +451,8 @@ class Base_Set(object):
                 self.del_connections(token)
             return
         id = ref_token.ID
+        if not isinstance(id, int):
+            raise ValueError("ID is not an integer.")
         try:                                                        # Mappings:
             if self.token_set == Set.DRIVER:
                 for field in MappingFields:
@@ -455,9 +464,9 @@ class Base_Set(object):
             pass
 
         try:                                                        # Links:
-            self.links[self.token_set][self.IDs[id], :] = 0.0           # Dim 0 is set nodes
+            self.links[self.token_set][self.IDs[int(id)], :] = 0.0           # Dim 0 is set nodes
         except:
-            raise KeyError("Key error in del_token, link tensor.")
+            raise KeyError("Key error in del_token, link tensor. ID: ", id, "IDs: ", self.IDs)
         
         try:                                                        # Connections:
             self.connections[self.IDs[id], :] = 0.0                     # Remove children
@@ -466,7 +475,7 @@ class Base_Set(object):
             if len(self.IDs) == 0:
                 raise KeyError("IDs dictionary is empty.")
             else:
-                raise KeyError("Key error in del_token, connection tensor.")
+                raise KeyError("Key error in del_token, connection tensor. ID: ", id, "IDs: ", self.IDs)
 
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
         """Update list of analogs in tensor, and their node counts"""

@@ -4,10 +4,10 @@
 import pytest
 import torch
 
-from ..enums import MappingFields, Set
+from ..enums import MappingFields, Set, Type, B, TF
 from ..network.connections import Mappings
 from ..builder import NetworkBuilder
-from ..network import Network
+from ..network import Network, Token, Ref_Token
 
 
 # Import the symProps from sim.py
@@ -64,4 +64,48 @@ def test_mappings_invalid_input(network: Network):
         fields[field] = torch.ones(size, size + 1)
     with pytest.raises(ValueError):
         Mappings(driver, fields)
+
+def test_mappings_update_hypotheses(network: Network):
+    driver = network.sets[Set.DRIVER]
+    recipient = network.sets[Set.RECIPIENT]
+    mappings = network.mappings[Set.RECIPIENT]
+
+    # First update nodes to have known nodes values (and make pairs of nodes that can map to each other - same mode/type)
+    driver_node = Token(Type.PO, {TF.PRED: B.TRUE, TF.ACT: 0.6, TF.SET: Set.DRIVER}) # Pred PO for driver
+    driver_node.name = "Driver Node"
+
+    recipient_node = Token(Type.PO, {TF.PRED: B.TRUE, TF.ACT: 0.7, TF.SET: Set.RECIPIENT}) # Pred PO for recipient
+    recipient_node.name = "Recipient Node"
+
+    # First make space for nodes
+    driver.del_token(driver.get_reference(index=2))
+    print("deleted driver node")
+    recipient.del_token(recipient.get_reference(index=2))
+    print("deleted recipient node")
+    """
+    # Add nodes to network
+    driver_node: Ref_Token = driver.add_token(driver_node)
+    driver_index = driver.get_index(driver_node)
+    recipient_node: Ref_Token = recipient.add_token(recipient_node)
+    recipient_index = recipient.get_index(recipient_node)
+
+    recipient.print()
+    print(recipient_index)
+    driver.print()
+    print(driver_index)
+    mappings.print()
+
+    # Add mapping connections between nodes
+    mappings[MappingFields.CONNECTIONS][driver_index, recipient_index] = 1.0
+    mappings[MappingFields.HYPOTHESIS][driver_index, recipient_index] = 0.5
+
+    # Update hypotheses
+    mappings.update_hypotheses(recipient)
+
+    # New values should be hyp += (driver_act * recipient_act)
+    expected_hyp = 0.5 + (0.6 * 0.7)
+    assert mappings[MappingFields.HYPOTHESIS][driver_index, recipient_index] == expected_hyp
+    """
+
     
+
