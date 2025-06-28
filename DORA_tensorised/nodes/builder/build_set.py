@@ -74,7 +74,7 @@ class Build_set(object):                                # Builds the nodes for a
         for name in self.names:
             node_obj =  self.name_dict[name]
             node_obj.set_ID(i)
-            self.id_dict[i] = name
+            self.id_dict[i] = node_obj  # Store the token object, not the name
             i += 1
 
     def create_token(self, name, token_class, analog, is_pred = None): # Create a token and add it to the name/dict

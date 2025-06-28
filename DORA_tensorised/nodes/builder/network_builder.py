@@ -139,11 +139,20 @@ class NetworkBuilder(object):                              # Builds tensors for 
         def build_set(token_set, Set_Class):
             if not isinstance(token_set.connections, torch.Tensor):
                 raise TypeError(f"connections must be torch.Tensor, not {type(token_set.connections)}.")
+            
+            # Convert id_dict from dict[int, Inter_Token] to dict[int, int] (ID -> tensor index)
+            # Convert name_dict from dict[str, Inter_Token] to dict[int, str] (ID -> name)
+            IDs = {}
+            names = {}
+            for token_id, token_obj in token_set.id_dict.items():
+                IDs[token_id] = token_obj.ID  # token_obj.ID is the tensor index
+                names[token_id] = token_obj.name
+            
             return Set_Class(
                 token_set.token_tensor, 
                 token_set.connections, 
-                token_set.id_dict, 
-                token_set.name_dict
+                IDs, 
+                names
                 )
         set_classes = {
             Set.DRIVER: Driver,
