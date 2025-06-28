@@ -203,7 +203,9 @@ class Base_Set(object):
                 raise ValueError("Invalid name.")
         elif id is not None:
             try:
-                self.get_reference(id=id)                           # Check if ID is valid
+                # Check if ID exists in the IDs dictionary instead of recursive call
+                if id not in self.IDs:
+                    raise ValueError("Invalid ID.")
                 source = "id"
             except:
                 raise ValueError("Invalid ID.")
@@ -214,9 +216,6 @@ class Base_Set(object):
             name = self.names[id]
         except:
             name = None
-
-        if not isinstance(id, int):
-            raise ValueError("Get reference trying to return non-integer ID. Source: ", source, "Type: ", type(id))
 
         return Ref_Token(self.token_set, id, name)
     
