@@ -1,6 +1,6 @@
 # nodes/sets/connections/mappings.py
 # Mappings between nodes and semantics.
-# TODO: Implement add_mappings, updateHypotheses
+# TODO: Implement add_mappings
 
 import torch
 
@@ -78,7 +78,7 @@ class Mappings(object):
         """
         Update the hypotheses matrix.
         NOTE: Seems very inefficient
-        TODO: Implement a more efficient method, and add tests.
+        TODO: Implement a more efficient method
         """
         # Need to check that the type of p/po nodes match.
         # Can do this by refining masks to type, then updating the these masks first. So only matching node types will be included
