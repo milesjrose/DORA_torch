@@ -220,3 +220,14 @@ def test_delete_and_reuse_token_slot(network):
     
     # The new token should be in the IDs dictionary
     assert new_token_reference.ID in network[Set.NEW_SET].IDs 
+
+def test_delete_existing_token(network):
+    """Test deleting an existing token from the network."""
+    # Create a token
+    token = network.sets[Set.DRIVER].get_reference(id=2)
+    network.del_token(token)
+
+    # Verify the token was deleted
+    assert token.ID not in network.sets[Set.DRIVER].IDs
+
+    
