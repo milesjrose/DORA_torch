@@ -52,6 +52,8 @@ def sub_union(mask, submask, in_place = False):
         torch.Tensor: Mask(size of input mask) with union of input mask and submask
     """
     if not in_place:
-        mmask = mask.clone()
-    mmask[mask] &= submask
-    return mask
+        new_mask = mask.clone()
+    else:
+        new_mask = mask
+    new_mask[mask] &= submask
+    return new_mask
