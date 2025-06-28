@@ -64,6 +64,9 @@ class Network(object):
         self.semantics.links = links
         # inter-set connections
         self.mappings: dict[Set, Mappings] = mappings
+            # Set the map_from attribute for each mapping
+        self.mappings[Set.RECIPIENT].set_map_from(self.sets[Set.RECIPIENT]) 
+        self.mappings[Set.MEMORY].set_map_from(self.sets[Set.MEMORY])
         """ Dictionary of mappings for each set. """
         self.links: Links = links
         """ Links object for the network. """

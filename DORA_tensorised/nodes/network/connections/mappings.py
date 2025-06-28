@@ -44,6 +44,7 @@ class Mappings(object):
         
         # Stack the tensors along a new dimension based on MappingFields enum
         self.driver = driver
+        self.map_from = None # Set to recipient/memory/new_set by network
         field_list = []
         for field in MappingFields:
             field_list.append(map_fields[field])                            # Add each tensor to the list, indexed by MappingFields enum
@@ -64,8 +65,16 @@ class Mappings(object):
     def __setitem__(self, mappingField: MappingFields, value):
         self.adj_matrix[:, :, mappingField] = value
     
+    def set_map_from(self, map_from):
+        """
+        Set the map_from attribute.
+        Args:
+            map_from (Set): The set that the mappings map from (e.g recipient, memory, new_set).
+        """
+        self.map_from = map_from
+
     # =====================[ Update functions ]======================
-    def update_hypotheses(self, recipient):
+    def update_hypotheses(self):
         """
         Update the hypotheses matrix.
         NOTE: Seems very inefficient
@@ -73,52 +82,61 @@ class Mappings(object):
         """
         # Need to check that the type of p/po nodes match.
         # Can do this by refining masks to type, then updating the these masks first. So only matching node types will be included
-        r_p = recipient.get_mask(Type.P)
+        r_p = self.map_from.get_mask(Type.P)
         d_p = self.driver.get_mask(Type.P)
 
-        r_po = recipient.get_mask(Type.PO)
+        r_po = self.map_from.get_mask(Type.PO)
         d_po = self.driver.get_mask(Type.PO)
 
+        print("r_po.shape: ", r_po.shape)
+        print("recipient shape: ", self.map_from.nodes.shape)
+        print("d_po.shape: ", d_po.shape)
+        print("driver shape: ", self.driver.nodes.shape)
+
         # Update child p
-        r_pc = tOps.refine_mask(recipient.nodes, r_p, TF.MODE, Mode.CHILD)
+        r_pc = tOps.refine_mask(self.map_from.nodes, r_p, TF.MODE, Mode.CHILD)
         d_pc = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.CHILD)
-        self.updateHypothesis(r_pc, d_pc)
+        self.update_hypothesis(d_pc, r_pc)
 
         # Update parent p
-        r_pp = tOps.refine_mask(recipient.nodes, r_p, TF.MODE, Mode.PARENT)
+        r_pp = tOps.refine_mask(self.map_from.nodes, r_p, TF.MODE, Mode.PARENT)
         d_pp = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.PARENT)
-        self.updateHypothesis(r_pp, d_pp)
+        self.update_hypothesis(d_pp, r_pp)
 
         # Update neutral p
-        r_pn = tOps.refine_mask(recipient.nodes, r_p, TF.MODE, Mode.NEUTRAL)
+        r_pn = tOps.refine_mask(self.map_from.nodes, r_p, TF.MODE, Mode.NEUTRAL)
         d_pn = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.NEUTRAL)
-        self.updateHypothesis(r_pn, d_pn)
+        self.update_hypothesis(d_pn, r_pn)
 
         # Update Pred
-        r_pr = tOps.refine_mask(recipient.nodes, r_po, TF.MODE, Mode.PRED)
-        d_pr = tOps.refine_mask(self.driver.nodes, d_po, TF.MODE, Mode.PRED)
-        self.updateHypothesis(r_pr, d_pr)
+        r_pr = tOps.refine_mask(self.map_from.nodes, r_po, TF.PRED, B.TRUE)
+        d_pr = tOps.refine_mask(self.driver.nodes, d_po, TF.PRED, B.TRUE)
+        self.update_hypothesis(d_pr, r_pr)
 
         # Update Obj
-        r_ob = tOps.refine_mask(recipient.nodes, r_po, TF.MODE, Mode.OBJ)
-        d_ob = tOps.refine_mask(self.driver.nodes, d_po, TF.MODE, Mode.OBJ)
-        self.updateHypothesis(r_ob, d_ob)
+        r_ob = tOps.refine_mask(self.map_from.nodes, r_po, TF.PRED, B.FALSE)
+        d_ob = tOps.refine_mask(self.driver.nodes, d_po, TF.PRED, B.FALSE)
+        self.update_hypothesis(d_ob, r_ob)
 
         # Update other
-        r_other = r_p - (r_pc + r_pp + r_pn + r_pr + r_ob)
-        d_other = d_p - (d_pc + d_pp + d_pn + d_pr + d_ob)
-        self.updateHypothesis(r_other, d_other)
+        r_other = r_p & ~(r_pc | r_pp | r_pn | r_pr | r_ob)
+        d_other = d_p & ~(d_pc | d_pp | d_pn | d_pr | d_ob)
+        self.update_hypothesis(d_other, r_other)
 
-    def update_hypothesis(self, driver_mask, recipient_mask):
+    def update_hypothesis(self, driver_mask, map_from_mask):
         """
         Update the hypothesis matrix, for nodes in given masks.
-        NOTE: Also infefficient as only one mapping connection per node, but uses matrix multiplication on NxM matrix.
         """
         # Hypothesis = hypothesis + (driver_token.act * recipient_token.act)
-        self[MappingFields.HYPOTHESIS] += torch.matmul(
-            self.driver.nodes[driver_mask],
-            self.recipient.nodes[recipient_mask]
-        )
+        driver_acts = self.driver.nodes[:, TF.ACT]
+        map_from_acts = self.map_from.nodes[:, TF.ACT]
+        
+        # Create outer product of activations for all combinations
+        activation_product = torch.outer(map_from_acts, driver_acts)
+        
+        # Apply masks to only update the relevant node combinations
+        mask_2d = torch.outer(map_from_mask, driver_mask)
+        self[MappingFields.HYPOTHESIS] += activation_product * mask_2d
 
     def reset_hypotheses(self):
         """
