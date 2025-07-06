@@ -29,14 +29,14 @@ def test_add_po_token_to_driver(network):
     })
     
     # Add the token to the driver tensor
-    token_reference: Ref_Token = network.add_token(token)
+    token_reference: Ref_Token = network.node.add_token(token)
     
     # Verify the token was added correctly
     assert token_reference is not None
     assert token_reference.set == Set.DRIVER
     
     # Get the token from the tensor
-    token = network.sets[Set.DRIVER].get_single_token(token_reference)
+    token = network.sets[Set.DRIVER].token_op.get_single_token(token_reference)
     
     
     # Verify the token properties
@@ -55,14 +55,14 @@ def test_add_rb_token_to_recipient(network):
     })
     
     # Add the token to the recipient tensor
-    token_reference: Ref_Token = network.add_token(token)
+    token_reference: Ref_Token = network.node.add_token(token)
     
     # Verify the token was added correctly
     assert token_reference is not None
     assert token_reference.set == Set.RECIPIENT
     
     # Get the token from the tensor
-    token = network.sets[Set.RECIPIENT].get_single_token(token_reference)
+    token = network.sets[Set.RECIPIENT].token_op.get_single_token(token_reference)
     
     # Verify the token properties
     assert token[TF.TYPE] == Type.RB
@@ -79,14 +79,14 @@ def test_add_p_token_to_memory(network):
     })
     
     # Add the token to the memory tensor
-    token_reference: Ref_Token = network.add_token(token)
+    token_reference: Ref_Token = network.node.add_token(token)
     
     # Verify the token was added correctly
     assert token_reference is not None
     assert token_reference.set == Set.MEMORY
     
     # Get the token from the tensor
-    token = network.sets[Set.MEMORY].get_single_token(token_reference)
+    token = network.sets[Set.MEMORY].token_op.get_single_token(token_reference)
     
     # Verify the token properties
     assert token[TF.TYPE] == Type.P
@@ -105,7 +105,7 @@ def test_add_multiple_tokens_new_set(network):
     
     network[Set.NEW_SET].print()
     # Add the tokens to the new_set tensor
-    token_references: list[Ref_Token] = [network.add_token(token) for token in tokens]
+    token_references: list[Ref_Token] = [network.node.add_token(token) for token in tokens]
     
     # Verify all tokens were added correctly
     assert len(token_references) == 3
@@ -127,7 +127,7 @@ def test_add_token_with_custom_features(network):
     })
     
     # Add the token to the driver tensor
-    token_reference: Ref_Token = network.add_token(token)
+    token_reference: Ref_Token = network.node.add_token(token)
     
     network.sets[Set.DRIVER].print(f_types=[TF.ID, TF.TYPE, TF.SET, TF.ANALOG, TF.PRED, TF.ACT, TF.MAX_ACT, TF.NET_INPUT, TF.INHIBITOR_THRESHOLD])
     # Verify the token was added correctly
@@ -135,7 +135,7 @@ def test_add_token_with_custom_features(network):
     assert token_reference.set == Set.DRIVER
     
     # Get the token from the tensor
-    token = network.sets[Set.DRIVER].get_single_token(token_reference)
+    token = network.sets[Set.DRIVER].token_op.get_single_token(token_reference)
     
     # Verify the token properties
     assert token[TF.TYPE] == Type.PO
@@ -165,9 +165,9 @@ def test_add_token_to_full_tensor(network):
             TF.ANALOG: 0,
             TF.PRED: True
         })
-        reference: Ref_Token = network.add_token(token)
+        reference: Ref_Token = network.node.add_token(token)
         references.append(reference)
-        tokens.append(network.get_single_token(reference))
+        tokens.append(network.token_op.get_single_token(reference))
     
     # Now add one more token, which should trigger tensor expansion
     token = Token(type=Type.PO, features={
@@ -175,7 +175,7 @@ def test_add_token_to_full_tensor(network):
         TF.ANALOG: 0,
         TF.PRED: True
     })
-    token_reference: Ref_Token = network.add_token(token)
+    token_reference: Ref_Token = network.node.add_token(token)
     
     # Verify the token was added correctly
     assert token_reference is not None
@@ -191,7 +191,7 @@ def test_add_token_to_full_tensor(network):
 
     # Verify references still give the same tokens
     for reference, token in zip(references, tokens):
-        new_token = network.get_single_token(reference)
+        new_token = network.token_op.get_single_token(reference)
         assert torch.equal(new_token.tensor, token.tensor)
         assert new_token.ID == token.ID
         assert new_token.set == token.set

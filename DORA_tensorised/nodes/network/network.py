@@ -8,6 +8,7 @@ from .connections import Mappings, Links
 from .network_params import Params
 from .single_nodes import Token, Semantic
 from .single_nodes import Ref_Token, Ref_Semantic
+from .operations import MemoryOperations, UpdateOperations, MappingOperations, RetrievalOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
 
 class Network(object):
     """
@@ -75,6 +76,26 @@ class Network(object):
         self.local_inhibitor = 0.0
         self.global_inhibitor = 0.0
 
+        # operations
+        self.memory = MemoryOperations(self)
+        """ Memory operations object for the network. """
+        self.update = UpdateOperations(self)
+        """ Update operations object for the network. """
+        self.mapping = MappingOperations(self)
+        """ Mapping operations object for the network. """
+        self.retrieval = RetrievalOperations(self)
+        """ Retrieval operations object for the network. """
+        self.firing = FiringOperations(self)
+        """ Firing operations object for the network. """
+        self.analog = AnalogOperations(self)
+        """ Analog operations object for the network. """
+        self.entropy = EntropyOperations(self)
+        """ Entropy operations object for the network. """
+        self.node = NodeOperations(self)
+        """ Node operations object for the network. """
+        self.inhibitor = InhibitorOperations(self)
+        """ Inhibitor operations object for the network. """
+
     def set_params(self, params: Params):                                   # Set the params for sets
         """
         Set the parameters for the network.
@@ -105,11 +126,7 @@ class Network(object):
         Initialise the acts in the active memory/semantics.
         (driver, recipient, new_set, semantics)
         """
-        sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
-        for set in sets:
-            self.sets[set].initialise_act()
-
-        self.semantics.intitialise_sem()
+        self.update.initialise_act()
     
     def update_acts(self, set: Set):                                        # Update acts in given token set    
         """
@@ -118,24 +135,20 @@ class Network(object):
         Args:
             set (Set): The set to update acts in.
         """
-        self.sets[set].update_act()
+        self.update.acts(set)
     
     def update_acts_sem(self):                                              # Update acts in semantics
         """
         Update the acts in the semantics.
         """
-        self.semantics.update_act()
+        self.update.acts_sem()
 
     def update_acts_am(self):                                               # Update acts in active memory/semantics
         """
         Update the acts in the active memory.
         (driver, recipient, new_set, semantics)
         """
-        sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
-        for set in sets:
-            self.update_acts(set)
-        
-        self.update_acts_sem()
+        self.update.acts_am()
 
     # =======================[ INPUT FUNCTIONS ]=========================
     def initialise_input(self):                                             # Initialise inputs in active memory/semantics
@@ -143,11 +156,7 @@ class Network(object):
         Initialise the inputs in the active memory/semantics.
         (driver, recipient, new_set, semantics)
         """
-        sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
-        for set in sets:
-            self.sets[set].initialise_act()
-        
-        self.semantics.initialise_sem()
+        self.update.initialise_input()
     
     def update_inputs(self, set: Set):                                      # Update inputs in given token set
         """
@@ -156,24 +165,20 @@ class Network(object):
         Args:
             set (Set): The set to update inputs in.
         """
-        self.sets[set].update_input()
+        self.update.inputs(set)
     
     def update_inputs_sem(self):                                            # Update inputs in semantics               
         """
         Update the inputs in the semantics.
         """
-        self.semantics.update_input(self.sets[Set.DRIVER], self.sets[Set.RECIPIENT])
+        self.update.inputs_sem()
 
     def update_inputs_am(self):                                             # Update inputs in active memory
         """
         Update the inputs in the active memory.
         (driver, recipient, new_set, semantics)
         """
-        sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
-        for set in sets:
-            self.update_inputs(set)
-        
-        self.update_inputs_sem()
+        self.update.inputs_am()
 
     # =====================[ INHIBITOR FUNCTIONS ]=======================
     def update_inhibitors(self):                                            # Update inputs and acts of inhibitors
@@ -183,48 +188,30 @@ class Network(object):
         - Only updates act of PO if in DORA mode.
         - Only updates act of RB in driver.
         """
-        #update input driver/recipient RBs, POs
-        self.sets[Set.DRIVER].update_inhibitor_input([Type.RB, Type.PO])
-        self.sets[Set.RECIPIENT].update_inhibitor_input([Type.RB, Type.PO])
-        #update driver rb, PO inhibitor act only if in DORA mode
-        if self.DORA_mode:
-            self.sets[Set.DRIVER].update_inhibitor_act([Type.RB, Type.PO])
-            self.sets[Set.RECIPIENT].update_inhibitor_act([Type.PO])
-        else:
-            self.sets[Set.DRIVER].update_inhibitor_act([Type.RB])
+        self.inhibitor.update()
 
     def reset_inhibitors(self):                                             # Reset inhibitors (for RB and PO units) NOTE: Check if required to set for memory and new_set
         """
         Reset the inhibitors (for RB and PO units).
         (driver, recipient, new_set, memory)
         """
-        self.sets[Set.DRIVER].reset_inhibitor([Type.RB, Type.PO])
-        self.sets[Set.RECIPIENT].reset_inhibitor([Type.RB, Type.PO])
-        self.sets[Set.MEMORY].reset_inhibitor([Type.RB, Type.PO])
-        self.sets[Set.NEW_SET].reset_inhibitor([Type.RB, Type.PO])
+        self.inhibitor.reset()
 
     def check_local_inhibitor(self):                                        # Check local inhibition
         """Check local inhibitor activation."""
-        if self.sets[Set.DRIVER].check_local_inhibitor():
-            self.local_inhibitor = 1.0
+        self.inhibitor.check_local()
     
     def fire_local_inhibitor(self):                                         # Fire local inhibitor
         """Fire the local inhibitor."""
-        self.sets[Set.DRIVER].initialise_act(Type.PO)
-        self.sets[Set.RECIPIENT].initialise_act(Type.PO)
-        self.semantics.initialiseSem()
+        self.inhibitor.fire_local()
     
     def check_global_inhibitor(self):                                       # Check global inhibition
         """Check global inhibitor activation."""
-        if self.sets[Set.DRIVER].check_global_inhibitor():
-            self.global_inhibitor = 1.0
+        self.inhibitor.check_global()
         
     def fire_global_inhibitor(self):                                        # Fire global inhibitor
         """Fire the global inhibitor."""
-        self.sets[Set.DRIVER].initialise_act([Type.PO, Type.RB, Type.P])
-        self.sets[Set.RECIPIENT].initialise_act([Type.PO, Type.RB, Type.P])
-        self.sets[Set.MEMORY].initialise_act([Type.PO, Type.RB, Type.P])
-        self.semantics.initialise_sem()
+        self.inhibitor.fire_global()
 
     # ========================[ NODE FUNCTIONS ]==========================
     def get_pmode(self):                                                    # Get p_mode in driver and recipient
@@ -232,8 +219,7 @@ class Network(object):
         Get parent mode of P units in driver and recipient. Used in time steps activations.
         (driver, recipient)
         """
-        self.sets[Set.DRIVER].p_get_mode()
-        self.sets[Set.RECIPIENT].p_get_mode()
+        self.node.get_pmode()
     
     def initialise_p_mode(self, set: Set = Set.RECIPIENT):                  # Initialise p_mode in the given set
         """
@@ -243,16 +229,14 @@ class Network(object):
         Args:
             set (Set, optional): The set to initialise p_mode in. (Defaults to recipient)
         """
-        self.sets[set].initialise_p_mode()
+        self.node.initialise_p_mode(set)
     
     def get_weight_lengths(self):                                           # get weight lenghts in active memory
         """
         Get weight lengths of PO units. Used in run initialisation.
         (driver, recipient, memory, new_set)
         """
-        sets = [Set.DRIVER, Set.RECIPIENT, Set.MEMORY, Set.NEW_SET]
-        for set in sets:
-            self.sets[set].po_get_weight_length()
+        self.node.get_weight_lengths()
     
     def add_token(self, token: Token):                                      # Add a token to the given set
         """
@@ -268,12 +252,7 @@ class Network(object):
         Raises:
             ValueError: If the token set feature is not a valid set.
         """
-        add_set = int(token.tensor[TF.SET])
-        if add_set not in [set.value for set in Set]:
-            raise ValueError("Invalid set in token feature.")
-        
-        reference = self.sets[add_set].add_token(token)
-        return reference
+        self.node.add_token(token)
 
     def del_token(self, ref_token: Ref_Token):                              # Delete a token
         """
@@ -282,7 +261,7 @@ class Network(object):
         Args:
             ref_token (network.Ref_Token): A reference to the token to delete.
         """
-        self.sets[ref_token.set].del_token(ref_token)
+        self.node.del_token(ref_token)
 
     def add_semantic(self, semantic: Semantic):                             # Add a semantic
         """
@@ -294,10 +273,7 @@ class Network(object):
         Raises:
             ValueError: If provided semantic is not semantic type.
         """
-        if semantic.tensor[SF.TYPE] != Type.SEMANTIC:
-            raise ValueError("Cannot add non-semantic to semantic set.")
-        
-        self.semantics.add_semantic(semantic)
+        self.node.add_semantic(semantic)
 
     def del_semantic(self, ref_semantic: Ref_Semantic):                     # Delete a semantic
         """
@@ -309,14 +285,13 @@ class Network(object):
         Raises:
             ValueError: If ref_semantic is not provided.
         """
-        self.semantics.del_semantic(ref_semantic)
+        self.node.del_semantic(ref_semantic)
 
     def set_sem_max_input(self):                                            # Set the maximum input for the semantics
         """
         Set the maximum input for the semantics.
         """
-        max_input = self.semantics.get_max_input()
-        self.semantics.set_max_input(max_input)
+        self.node.set_sem_max_input()
     
     def get_value(self, reference, feature):                                # Get the value of a feature for a referenced token or semantic
         """
@@ -332,18 +307,7 @@ class Network(object):
         Raises:
             ValueError: If the reference is not a token or semantic. Or feature type and reference type mismatch.
         """
-        if isinstance(reference, Ref_Token):
-            if isinstance(feature, TF):
-                return self.sets[reference.set].get_feature(reference, feature)
-            else:
-                raise ValueError("Referenced a token, but feature is not a token feature.")
-        elif isinstance(reference, Ref_Semantic):
-            if isinstance(feature, SF):
-                return self.semantics.get_feature(reference, feature)
-            else:
-                raise ValueError("Referenced a semantic, but feature is not a semantic feature.")
-        else:
-            raise ValueError("Invalid reference type.")
+        self.node.get_value(reference, feature)
     
     def set_value(self, reference, feature, value):                         # Set the value of a feature for a referenced token or semantic
         """
@@ -357,18 +321,7 @@ class Network(object):
         Raises:
             ValueError: If the reference is not a token or semantic. Or feature type and reference type mismatch.
         """
-        if isinstance(reference, Ref_Token):
-            if isinstance(feature, TF):
-                self.sets[reference.set].set_feature(reference, feature, value)
-            else:
-                raise ValueError("Referenced a token, but feature is not a token feature.")
-        elif isinstance(reference, Ref_Semantic):
-            if isinstance(feature, SF):
-                self.semantics.set_feature(reference, feature, value)
-            else:
-                raise ValueError("Referenced a semantic, but feature is not a semantic feature.")
-        else:
-            raise ValueError("Invalid reference type.")
+        self.node.set_value(reference, feature, value)
     
     # ----------------------------------------------------------------------
     def print_set(self, set: Set, feature_types: list[TF] = None):
@@ -379,4 +332,4 @@ class Network(object):
             set (Set): The set to print.
             feature_types (list[TF], optional): List features to print, otherwise default features are printed.
         """
-        self.sets[set].print(feature_types)
+        self.utility.print_set(set, feature_types)

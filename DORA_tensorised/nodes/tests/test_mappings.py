@@ -79,17 +79,17 @@ def test_mappings_update_hypotheses(network: Network):
 
     # First make space for nodes
     
-    ref = driver.get_reference(id=2)
+    ref = driver.token_op.get_reference(id=2)
     network.del_token(ref)
     print("deleted driver node")
-    ref = recipient.get_reference(id=2)
+    ref = recipient.token_op.get_reference(id=2)
     network.del_token(ref)
     print("deleted recipient node")
     # Add nodes to network
     driver_node: Ref_Token = driver.add_token(driver_node)
-    driver_index = driver.get_index(driver_node)
+    driver_index = driver.token_op.get_index(driver_node)
     recipient_node: Ref_Token = recipient.add_token(recipient_node)
-    recipient_index = recipient.get_index(recipient_node)
+    recipient_index = recipient.token_op.get_index(recipient_node)
     
     """
     recipient.print()
@@ -124,15 +124,15 @@ def test_mappings_update_hypotheses_multiple(network: Network):
 
     # First make space for nodes
     
-    ref = driver.get_reference(id=2)
+    ref = driver.token_op.get_reference(id=2)
     network.del_token(ref)
-    ref = recipient.get_reference(id=2)
+    ref = recipient.token_op.get_reference(id=2)
     network.del_token(ref)
     # Add nodes to network
     driver_node: Ref_Token = driver.add_token(driver_node)
-    driver_index = driver.get_index(driver_node)
+    driver_index = driver.token_op.get_index(driver_node)
     recipient_node: Ref_Token = recipient.add_token(recipient_node)
-    recipient_index = recipient.get_index(recipient_node)
+    recipient_index = recipient.token_op.get_index(recipient_node)
 
     # Add mapping connections between nodes
     mappings[MappingFields.CONNECTIONS][driver_index, recipient_index] = 1.0

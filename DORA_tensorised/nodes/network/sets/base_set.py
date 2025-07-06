@@ -8,11 +8,15 @@ from ...utils import tensor_ops as tOps
 
 from ..connections import Links, Mappings
 from ..network_params import Params
-from ..single_nodes import Token, Ref_Token
+from ..single_nodes import Token, Ref_Token, Analog
+
+from .base_set_operations.token_operations import TokenOperations
+from .base_set_operations.tensor_operations import TensorOperations
+from .base_set_operations.update_operations import UpdateOperations
 
 class Base_Set(object):
     """
-    A class for holding a tensor of tokens, and performing general tensor operations.
+    A class for holding a tensor of tokens, and interfacing with low-level tensor operations.
 
     Attributes:
         - names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
@@ -25,6 +29,11 @@ class Base_Set(object):
         - IDs (dict): A dictionary mapping token IDs to index in the tensor.
         - params (Params): An object containing shared parameters.
         - token_set (Set): This set's enum, used to access links and mappings for this set in shared mem objects.
+
+    Operations:
+        - token_op: TokenOperations object for the set.
+        - tensor_op: TensorOperations object for the set.
+        - update_op: UpdateOperations object for the set.
     """
     def __init__(self, floatTensor, connections, IDs: dict[int, int], names: dict[int, str] = {}):
         """
@@ -40,6 +49,57 @@ class Base_Set(object):
             ValueError: If the number of tokens in floatTensor, connections do not match.
             ValueError: If the number of features in floatTensor does not match the number of features in TF enum.
         """
+        # Initialize operations objects
+        self.token_op = TokenOperations(self)
+        """Token operations object for the set.
+            Functions:
+            - get_feature(ref_token, feature) -> float
+            - set_feature(ref_token, feature, value)
+            - get_name(ref_token) -> str
+            - set_name(ref_token, name)
+            - get_index(ref_token) -> int
+            - get_reference(id=None, index=None, name=None) -> Ref_Token
+            - get_single_token(ref_token, copy=True) -> Token
+            - get_reference_multiple(mask=None, types: list[Type] = None) -> list[Ref_Token]
+            - get_analog_indices(analog_id) -> list[int]
+        """
+        self.tensor_op = TensorOperations(self)
+        """Tensor operations object for the set.
+            Functions:
+            - cache_masks(types_to_recompute: list[Type] = None)
+            - compute_mask(token_type: Type) -> torch.Tensor
+            - get_mask(token_type: Type) -> torch.Tensor
+            - get_combined_mask(n_types: list[Type]) -> torch.Tensor
+            - get_all_nodes_mask() -> torch.Tensor
+            - add_token(token: Token) -> Ref_Token
+            - expand_tensor()
+            - expand_tensor_by_count(count: int)
+            - del_token(ref_tokens: Ref_Token)
+            - del_connections(ref_token: Ref_Token)
+            - get_analog(analog: int) -> Analog
+            - add_analog(analog: Analog) -> int
+            - analog_node_count()
+            - print(f_types=None)
+            - get_count() -> int
+        """
+        self.update_op = UpdateOperations(self)
+        """Update operations object for the set.
+            Functions:
+            - initialise_float(n_type: list[Type], features: list[TF])
+            - initialise_input(n_type: list[Type], refresh: float)
+            - initialise_act(n_type: list[Type])
+            - initialise_state(n_type: list[Type])
+            - update_act()
+            - zero_lateral_input(n_type: list[Type])
+            - update_inhibitor_input(n_type: list[Type])
+            - reset_inhibitor(n_type: list[Type])
+            - update_inhibitor_act(n_type: list[Type])
+            - p_initialise_mode()
+            - p_get_mode()
+            - po_get_weight_length()
+            - po_get_max_semantic_weight()
+        """
+
         # check types
         c_type = type(connections)
         if c_type != torch.Tensor:
@@ -103,10 +163,7 @@ class Base_Set(object):
         Raises:
             ValueError: If the referenced token or feature is invalid.
         """
-        try:
-            return self.nodes[self.get_index(ref_token), feature]
-        except:
-            raise ValueError("Invalid reference token or feature.")
+        return self.token_op.get_feature(ref_token, feature)
 
     def set_feature(self, ref_token: Ref_Token, feature: TF, value): # Set feature of single node
         """
@@ -120,10 +177,7 @@ class Base_Set(object):
         Raises:
             ValueError: If the referenced token, feature, or value is invalid.
         """
-        try:
-            self.nodes[self.get_index(ref_token), feature] = float(value)
-        except:
-            raise ValueError("Invalid reference token, feature, or value.")
+        self.token_op.set_feature(ref_token, feature, value)
 
     def get_name(self, ref_token: Ref_Token):                       # Get name of node by reference token
         """
@@ -138,10 +192,7 @@ class Base_Set(object):
         Raises:
             ValueError: If the referenced token is invalid.
         """
-        try:
-            return self.names[ref_token.ID]
-        except:
-            raise ValueError("Invalid reference token.")
+        return self.token_op.get_name(ref_token)
 
     def set_name(self, ref_token: Ref_Token, name):                 # Set name of node by reference token
         """
@@ -151,7 +202,7 @@ class Base_Set(object):
             ref_token (Ref_Token): The token to set the name for.
             name (str): The name to set the token to.
         """
-        self.names[ref_token.ID] = name
+        self.token_op.set_name(ref_token, name)
     
     def get_index(self, ref_token: Ref_Token):                      # Get index in tensor of reference token
         """
@@ -166,10 +217,7 @@ class Base_Set(object):
         Raises:
             ValueError: If the referenced token is invalid.
         """
-        try:
-            return self.IDs[ref_token.ID]
-        except:
-            raise ValueError("Invalid ID.")
+        return self.token_op.get_index(ref_token)
         
     def get_reference(self, id=None, index=None, name=None):        # Get reference to token with given ID, index, or name
         """
@@ -186,38 +234,7 @@ class Base_Set(object):
         Raises:
             ValueError: If the ID, index, or name is invalid. Or if none are provided.
         """
-        source = ""
-        if index is not None:
-            try:
-                id = self.nodes[index, TF.ID].item()
-                source = "index"    
-            except:
-                raise ValueError("Invalid index.")
-        elif name is not None:
-            try:
-                # I feel like there is a better way to do this...
-                dict_index = list(self.names.values()).index(name)
-                id = list(self.names.keys())[dict_index]
-                source = "name"
-            except:
-                raise ValueError("Invalid name.")
-        elif id is not None:
-            try:
-                # Check if ID exists in the IDs dictionary instead of recursive call
-                if id not in self.IDs:
-                    raise ValueError("Invalid ID.")
-                source = "id"
-            except:
-                raise ValueError("Invalid ID.")
-        else:
-            raise ValueError("No ID, index, or name provided.")
-        
-        try:
-            name = self.names[id]
-        except:
-            name = None
-
-        return Ref_Token(self.token_set, id, name)
+        return self.token_op.get_reference(id, index, name)
     
     def get_single_token(self, ref_token: Ref_Token, copy=True):    # Get a single token from the tensor
         """
@@ -230,13 +247,7 @@ class Base_Set(object):
             copy (bool, optional): Whether to return a copy of the token. Defaults to True.
 
         """
-        tensor = self.nodes[self.get_index(ref_token), :]
-        token = Token(self.token_set, {TF.PRED: tensor[TF.PRED]})
-        if copy:
-            token.tensor = tensor.clone()
-        else:
-            token.tensor = tensor
-        return token
+        return self.token_op.get_single_token(ref_token, copy)
     
     def get_reference_multiple(self, mask=None, types: list[Type] = None):  # Get references to tokens in tensor
         """
@@ -248,14 +259,20 @@ class Base_Set(object):
         Returns:
             A list of references to the tokens in the tensor.
         """
-        if types is not None:
-            mask = self.get_combined_mask(types)
-        elif mask is None:
-            raise ValueError("No mask or types provided.")
-        
-        indices = torch.where(mask)[0]
-        references = [self.get_reference(index=i) for i in indices]
-        return references
+        return self.token_op.get_reference_multiple(mask, types)
+    
+    def get_analog_indices(self, analog_id):
+        """
+        Get indices of tokens in an analog.
+
+        Args:
+            analog_id (int): The analog ID to get the indices for.
+
+        Returns:
+            A list of indices of tokens in the analog.
+        """
+        return self.token_op.get_analog_indices(analog_id)
+    
     # --------------------------------------------------------------
 
     # ====================[ TENSOR FUNCTIONS ]======================
@@ -266,17 +283,7 @@ class Base_Set(object):
         Args:
             types_to_recompute (list[Type], optional): The types to recompute the mask for. Defaults to All types.
         """
-        if types_to_recompute is None:                              #  If no type specified, recompute all
-            types_to_recompute = [Type.PO, Type.RB, Type.P, Type.GROUP]
-
-        masks = []
-        for token_type in [Type.PO, Type.RB, Type.P, Type.GROUP]:
-            if token_type in types_to_recompute:
-                masks.append(self.compute_mask(token_type))         # Recompute mask
-            else:
-                masks.append(self.masks[token_type])                # Use cached mask
-
-        self.masks: torch.Tensor = torch.stack(masks, dim=0)
+        self.tensor_op.cache_masks(types_to_recompute)
     
     def compute_mask(self, token_type: Type):                       # Compute the mask for a token type
         """
@@ -288,8 +295,7 @@ class Base_Set(object):
         Returns:
             A mask of nodes with given type.   
         """
-        mask = (self.nodes[:, TF.TYPE] == token_type) & (self.nodes[:, TF.DELETED] == B.FALSE)
-        return mask
+        return self.tensor_op.compute_mask(token_type)
     
     def get_mask(self, token_type: Type):                           # Returns mask for given token type
         """
@@ -301,7 +307,7 @@ class Base_Set(object):
         Returns:
             The cached mask for the given token type.
         """
-        return self.masks[token_type]                   
+        return self.tensor_op.get_mask(token_type)                   
 
     def get_combined_mask(self, n_types: list[Type]):               # Returns combined mask of give types
         """
@@ -316,11 +322,7 @@ class Base_Set(object):
         Raises:
             TypeError: If n_types is not a list.
         """
-        if not isinstance(n_types, list):
-            raise TypeError("n_types must be a list of types")
-    
-        masks = [self.masks[i] for i in n_types]
-        return torch.logical_or.reduce(masks)
+        return self.tensor_op.get_combined_mask(n_types)
 
     def get_all_nodes_mask(self):                                   # Returns a mask for all nodes (Exluding empty or deleted rows)
         """Return mask for all non-deleted nodes"""
@@ -340,75 +342,22 @@ class Base_Set(object):
         Raises:
             ValueError: If the token is invalid.
         """
-        spaces = torch.sum(self.nodes[:, TF.DELETED] == B.TRUE)             # Find number of spaces -> count of deleted nodes in the tensor
-        if spaces == 0:                                                     # If no spaces, expand tensor
-            self.expand_tensor()
-        if len(self.IDs) > 0:
-            try:
-                ID = max(self.IDs.keys()) + 1                                   # assign token a new ID.
-            except Exception as e:
-                raise(e)
-        else:
-            ID = 1
-        token[TF.ID] = ID
-        deleted_nodes = torch.where(self.nodes[:, TF.DELETED] == B.TRUE)[0] #find first deleted node
-        first_deleted = deleted_nodes[0]                                    # Get index of first deleted node
-        self.nodes[first_deleted, :] = token.tensor                         # Replace first deleted node with token
-        self.IDs[ID] = first_deleted                                        # map: new ID -> index of replaced node
-        self.cache_masks()                                                  # recompute masks
-        if token.name is None:
-            token.name = f"Token {ID}"
-        if self.names is None:
-            raise ValueError("Names dictionary is not initialised.")
-        self.names[ID] = token.name
-        return Ref_Token(self.token_set, ID)
+        return self.tensor_op.add_token(token)
     
     def expand_tensor(self):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
         """
         Expand tensor by classes expansion factor. Minimum expansion is 5.
         Expands nodes, connections, links and mappings tensors.
         """
-                                                                        # Update node tensor:
-        current_count = self.nodes.size(dim=0)
-        new_count = int(current_count * self.expansion_factor)              # calculate new size
-        if new_count < 5:                                                   # minimum expansion is 5
-            new_count = 5
-        new_tensor = torch.full((new_count, self.nodes.size(dim=1)), null)  # null-filled tensor, increased by expansion factor
-        new_tensor[current_count:, TF.DELETED] = B.TRUE                     # deleted = true -> all new tokens
-        new_tensor[:current_count, :] = self.nodes                          # copy over old tensor
-        if self.nodes.dtype != torch.float:                               # make sure correct type
-            raise TypeError("nodes must be torch.float.")
-        self.nodes = new_tensor
-
-        # Update supporting data structures:
-        if self.links is not None:                                      # Links:
-            semantic_count = self.links[self.token_set].size(dim=1)         # Get number of semantics in link tensor
-            new_links = torch.zeros(new_count, semantic_count).float()      # new tensor (new number of tokens) x (number of semantics)
-            new_links[:current_count, :] = self.links[self.token_set]       # add current links to the tensor
-            self.links[self.token_set] = new_links                          # update links object with float tensor
-
-        try:                                                            # Mappings:         
-            self.mappings: Mappings = self.mappings                         # If no mappings, skip.
-        except:
-            pass
-        else:                                    
-            driver_count = self.mappings.size(dim=1)                        # Get number of tokens in driver
-            stack = []
-            for field in MappingFields:                                     # Create new tensor for each mapping field
-                stack.append(torch.zeros(
-                    new_count, 
-                    driver_count, 
-                    dtype=torch.float)
-                    )
-            new_adj_matrix: torch.Tensor = torch.stack(stack, dim=-1)       # Stack into adj_matrix tensor
-            new_adj_matrix[:current_count, :] = self.mappings.adj_matrix    # add current weights
-            self.mappings.adj_matrix = new_adj_matrix                       # update mappings object with new tensor
-        
-                                                                        # Connections:
-        new_cons = torch.zeros(new_count, new_count, dtype=torch.float)     # new tensor (new num tokens) x (new num tokens)
-        new_cons[:current_count, :current_count] = self.connections         # add current connections
-        self.connections = new_cons                                         # update connections tensor, with new tensor
-
+        self.tensor_op.expand_tensor()
+    
+    def expand_tensor_by_count(self, count: int):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
+        """
+        Expand tensor by classes by count.
+        Expands nodes, connections, links and mappings tensors.
+        """
+        self.tensor_op.expand_tensor_by_count(count)
+    
     def del_token(self, ref_tokens: Ref_Token):                     # Delete nodes from tensor   
         """
         Delete tokens from tensor. Pass in a list of Ref_Tokens to delete multiple tokens at once.
@@ -416,27 +365,7 @@ class Base_Set(object):
         Args:
             ref_tokens (Ref_Token): The token(s) to delete. 
         """
-
-        if not isinstance(ref_tokens, list):                            # If input is single ID, turn into iteratable object.
-            ref_tokens = [ref_tokens]
-        
-        self.del_connections(ref_tokens)                                # Delete connections first, as requires ID in self.IDs
-
-        cache_types = [] 
-        for ref_token in ref_tokens:
-            index = self.get_index(ref_token)
-            id = ref_token.ID                                           # Delete nodes in nodes tensor:
-            cache_types.append(self.nodes[index, TF.TYPE])              # Keep list of types that have a deleted node to recache specific masks
-            self.nodes[index, TF.ID] = null                             # Set to null ID
-            self.nodes[index, TF.DELETED] = B.TRUE                      # Set to deleted
-            self.IDs[id] = null
-            self.IDs.pop(id)
-            self.names[id] = null
-            self.names.pop(id)
-
-        
-        cache_types = list(set(cache_types))                            # Remove duplicates if multiple nodes deleted from same type
-        self.cache_masks(cache_types)                                   # Re-cache effected types
+        self.tensor_op.del_token(ref_tokens)
 
     def del_connections(self, ref_token: Ref_Token):
         """
@@ -445,40 +374,35 @@ class Base_Set(object):
         Args:
             ref_token (Ref_Token): Refence to token, to delete connections from.
         """
-        if isinstance(ref_token, list):
-            for token in ref_token:
-                self.del_connections(token)
-            return
-        id = ref_token.ID
-        if not isinstance(id, int):
-            raise ValueError("ID is not an integer.")
-        try:                                                        # Mappings:
-            if self.token_set == Set.DRIVER:
-                for field in MappingFields:
-                    self.mappings[field][:, self.IDs[id]] = 0.0        # Dim 1 is driver nodes
-            else:
-                for field in MappingFields:
-                    self.mappings[field][self.IDs[id], :] = 0.0        # Dim 0 is non-driver sets
-        except:
-            pass
-
-        try:                                                        # Links:
-            self.links[self.token_set][self.IDs[int(id)], :] = 0.0           # Dim 0 is set nodes
-        except:
-            raise KeyError("Key error in del_token, link tensor. ID: ", id, "IDs: ", self.IDs)
+        self.tensor_op.del_connections(ref_token)
+    
+    def get_analog(self, analog: int):
+        """
+        Get an analog from the set.
         
-        try:                                                        # Connections:
-            self.connections[self.IDs[id], :] = 0.0                     # Remove children
-            self.connections[:, self.IDs[id]] = 0.0                     # Remove parents
-        except:
-            if len(self.IDs) == 0:
-                raise KeyError("IDs dictionary is empty.")
-            else:
-                raise KeyError("Key error in del_token, connection tensor. ID: ", id, "IDs: ", self.IDs)
+        Args:
+            analog (int): The analog ID to get.
+        
+        Returns:
+            Analog: The analog object containing tokens, connections, links, and names.
+            
+        Raises:
+            ValueError: If the analog doesn't exist in the set.
+        """
+        return self.tensor_op.get_analog(analog)
+            
+    def add_analog(self, analog: Analog):
+        """
+        Add an analog to the set.
+
+        Args:
+            analog (Analog): The analog to add.
+        """
+        return self.tensor_op.add_analog(analog)
 
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
         """Update list of analogs in tensor, and their node counts"""
-        self.analogs, self.analog_counts = torch.unique(self.nodes[:, TF.ANALOG], return_counts=True)
+        self.tensor_op.analog_node_count()
    
     def print(self, f_types=None):                                  # Here for testing atm
         """
@@ -490,24 +414,14 @@ class Base_Set(object):
         Raises:
             ValueError: If nodePrinter is not found.
         """
-        try:
-            from nodes.utils import nodePrinter
-        except:
-            print("Error: nodePrinter not found. Nodes.utils.nodePrinter is required to use this function.")
-        else:
-            try:
-                printer = nodePrinter(print_to_console=True)
-                printer.print_set(self, feature_types=f_types)
-            except Exception as e:
-                print("Error: NodePrinter failed to print set.")
-                print(e)
+        self.tensor_op.print(f_types)
     
     def get_count(self):
         """Get the number of nodes in the set."""
-        return self.nodes.shape[0]
+        return self.tensor_op.get_count()
     # --------------------------------------------------------------
 
-    # ====================[ TOKEN FUNCTIONS ]=======================
+    # ====================[ UPDATE FUNCTIONS ]=======================
     def initialise_float(self, n_type: list[Type], features: list[TF]): # Initialise given features
         """
         Initialise given features
@@ -516,9 +430,7 @@ class Base_Set(object):
             n_type (list[Type]): The types of nodes to initialise.
             features (list[TF]): The features to initialise.
         """
-        type_mask = self.get_combined_mask(n_type)                      # Get mask of nodes to update
-        init_subt = self.nodes[type_mask, features]                     # Get subtensor of features to intialise
-        self.nodes[type_mask, features] = torch.zeros_like(init_subt)   # Set features to 0
+        self.update_op.initialise_float(n_type, features)
     
     def initialise_input(self, n_type: list[Type], refresh: float):     # Initialize inputs to 0, and td_input to refresh.
         """ 
@@ -528,10 +440,7 @@ class Base_Set(object):
             n_type (list[Type]): The types of nodes to initialise.
             refresh (float): The value to set the td_input to.
         """
-        type_mask = self.get_combined_mask(n_type)
-        self.nodes[type_mask, TF.TD_INPUT] = refresh                    # Set td_input to refresh
-        features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
-        self.initialise_float(n_type, features)                         # Set types to 0.0
+        self.update_op.initialise_input(n_type, refresh)
 
     def initialise_act(self, n_type: list[Type]):                       # Initialize act to 0.0,  and call initialise_inputs
         """Initialize act to 0.0,  and call initialise_inputs
@@ -539,8 +448,7 @@ class Base_Set(object):
         Args:
             n_type (list[Type]): The types of nodes to initialise.
         """
-        self.initialise_input(n_type, 0.0)
-        self.initialise_float(n_type, [TF.ACT])
+        self.update_op.initialise_act(n_type)
 
     def initialise_state(self, n_type: list[Type]):                     # Set self.retrieved to false, and call initialise_act
         """Set self.retrieved to false, and call initialise_act
@@ -548,27 +456,11 @@ class Base_Set(object):
         Args:
             n_type (list[Type]): The types of nodes to initialise.
         """
-        self.initialise_act(n_type)
-        self.initialise_float(n_type, [TF.RETRIEVED])                       
+        self.update_op.initialise_state(n_type)
         
     def update_act(self):                                               # Update act of nodes
         """Update act of nodes. Based on params.gamma, params.delta, and params.HebbBias."""
-        net_input_types = [
-            TF.TD_INPUT,
-            TF.BU_INPUT,
-            TF.LATERAL_INPUT
-        ]
-        gamma = self.params.gamma
-        delta = self.params.delta
-        HebbBias = self.params.HebbBias
-        net_input = self.nodes[:, net_input_types].sum(dim=1, keepdim=True) # sum non mapping inputs
-        net_input += self.nodes[:, TF.MAP_INPUT] * HebbBias                 # Add biased mapping input
-        acts = self.nodes[:, TF.ACT]                                        # Get node acts
-        delta_act = gamma * net_input * (1.1 - acts) - (delta * acts)       # Find change in act for each node
-        acts += delta_act                                                   # Update acts
-        
-        self.nodes[(self.nodes[:, TF.ACT] > 1.0), TF.ACT] = 1.0             # Limit activation to 1.0 or below
-        self.nodes[(self.nodes[:, TF.ACT] < 0.0), TF.ACT] = 0.0             # Limit activation to 0.0 or above                                      # update act
+        self.update_op.update_act()
 
     def zero_lateral_input(self, n_type: list[Type]):                   # Set lateral_input to 0 
         """
@@ -579,7 +471,7 @@ class Base_Set(object):
         Args:
             n_type (list[Type]): The types of nodes to set lateral_input to 0.
         """
-        self.initialise_float(n_type, [TF.LATERAL_INPUT])
+        self.update_op.zero_lateral_input(n_type)
     
     def update_inhibitor_input(self, n_type: list[Type]):               # Update inputs to inhibitors by current activation for nodes of type n_type
         """
@@ -588,8 +480,7 @@ class Base_Set(object):
         Args:
             n_type (list[Type]): The types of nodes to update inhibitor inputs.
         """
-        mask = self.get_combined_mask(n_type)
-        self.nodes[mask, TF.INHIBITOR_INPUT] += self.nodes[mask, TF.ACT]
+        self.update_op.update_inhibitor_input(n_type)
 
     def reset_inhibitor(self, n_type: list[Type]):                      # Reset the inhibitor input and act to 0.0 for given type
         """
@@ -598,9 +489,7 @@ class Base_Set(object):
         Args:
             n_type (list[Type]): The types of nodes to reset inhibitor inputs and acts.
         """
-        mask = self.get_combined_mask(n_type)
-        self.nodes[mask, TF.INHIBITOR_INPUT] = 0.0
-        self.nodes[mask, TF.INHIBITOR_ACT] = 0.0
+        self.update_op.reset_inhibitor(n_type)
     
     def update_inhibitor_act(self, n_type: list[Type]):                 # Update the inhibitor act for given type
         """
@@ -609,61 +498,28 @@ class Base_Set(object):
         Args:
             n_type (list[Type]): The types of nodes to update inhibitor acts.
         """
-        type_mask = self.get_combined_mask(n_type)
-        input = self.nodes[type_mask, TF.INHIBITOR_INPUT]
-        threshold = self.nodes[type_mask, TF.INHIBITOR_THRESHOLD]
-        nodes_to_update = (input >= threshold)                      # if inhib_input >= inhib_threshold
-        self.nodes[nodes_to_update, TF.INHIBITOR_ACT] = 1.0         # then set to 1
+        self.update_op.update_inhibitor_act(n_type)
     # --------------------------------------------------------------
 
     # =======================[ P FUNCTIONS ]========================
     def p_initialise_mode(self):                                        # Initialize all p.mode back to neutral.
         """Initialize mode to neutral for all P units."""
-        p = self.get_mask(Type.P)
-        self.nodes[p, TF.MODE] = Mode.NEUTRAL
+        self.update_op.p_initialise_mode()
 
     def p_get_mode(self):                                               # Set mode for all P units
         """Set mode for all P units"""
         # Pmode = Parent: child RB act> parent RB act / Child: parent RB act > child RB act / Neutral: o.w
-        p = self.get_mask(Type.P)
-        rb = self.get_mask(Type.RB)
-        child_input = torch.matmul(                                 # Px1 matrix: sum of child rb for each p
-            self.connections[p, rb],
-            self.nodes[rb, TF.ACT]
-        )
-        parent_input = torch.matmult(                               # Px1 matrix: sum of parent rb for each p
-            torch.transpose(self.connections)[p, rb],
-            self.nodes[rb]
-        )
-        # Get global masks of p, by mode
-        input_diff = parent_input - child_input                     # (input_diff > 0) <-> (parents > childs)
-        child_p = tOps.sub_union(p, (input_diff[:, 0] > 0.0))       # (input_diff > 0) -> (parents > childs) -> (p mode = child)
-        parent_p = tOps.sub_union(p, (input_diff[:, 0] < 0.0))      # (input_diff < 0) -> (parents < childs) -> (p mode = parent) 
-        neutral_p = tOps.sub_union(p, (input_diff[:, 0] == 0.0))    # input_diff == 0 -> p mode = neutral
-        # Set mode values:
-        self.nodes[child_p, TF.MODE] = Mode.CHILD                   
-        self.nodes[parent_p, TF.MODE] = Mode.PARENT
-        self.nodes[neutral_p, TF.MODE] = Mode.NEUTRAL
+        self.update_op.p_get_mode()
+
     # ---------------------------------------------------------------
 
     # =======================[ PO FUNCTIONS ]======================== # TODO: Can move out of tensor to save memory, as shared values.
     def po_get_weight_length(self):                                     # Sum value of links with weight > 0.1 for all PO nodes
         """Sum value of links with weight > 0.1 for all PO nodes - Used for semNormalisation"""
-        if self.links is None:
-            raise ValueError("Links is not initialised, po_get_weight_length.")
-        
-        po = self.get_mask(Type.PO)                                     # mask links with PO
-        mask = self.links[po] > 0.1                                     # Create sub mask for links with weight > 0.1
-        weights = (self.links[po] * mask).sum(dim=1, keepdim = True)    # Sum links > 0.1
-        self.nodes[po, TF.SEM_COUNT] = weights                          # Set semNormalisation
+        self.update_op.po_get_weight_length()
             
     def po_get_max_semantic_weight(self):                               # Get max link weight for all PO nodes
         """Get max link weight for all PO nodes - Used for semNormalisation"""
-        if self.links is None:
-            raise ValueError("Links is not initialised, po_get_max_semantic_weight.")
+        self.update_op.po_get_max_semantic_weight()
         
-        po = self.get_mask(Type.PO)
-        max_values, _ = torch.max(self.links[po], dim=1, keepdim=True)  # (max_values, _) unpacks tuple returned by torch.max
-        self.nodes[po, TF.MAX_SEM_WEIGHT] = max_values                  # Set max
-
     # ---------------------------------------------------------------

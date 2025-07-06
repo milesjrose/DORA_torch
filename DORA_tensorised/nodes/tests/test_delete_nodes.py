@@ -29,21 +29,21 @@ def test_delete_token_from_driver(network):
     })
     
     # Add the token to the driver tensor
-    token_reference: Ref_Token = network.add_token(token)
+    token_reference: Ref_Token = network.node.add_token(token)
     
     # Verify the token was added correctly
     assert token_reference is not None
     assert token_reference.set == Set.DRIVER
     
     # Get the token from the tensor
-    token = network.sets[Set.DRIVER].get_single_token(token_reference)
+    token = network.sets[Set.DRIVER].token_op.get_single_token(token_reference)
     
     # Verify the token properties
     assert token.tensor[TF.TYPE] == Type.PO
     assert token.tensor[TF.SET] == Set.DRIVER
     
     # Get index to check if deleted later
-    index = network.sets[Set.DRIVER].get_index(token_reference)
+    index = network.sets[Set.DRIVER].token_op.get_index(token_reference)
 
     # Delete the token
     network.del_token(token_reference)
@@ -65,21 +65,21 @@ def test_delete_token_from_recipient(network):
     })
     
     # Add the token to the recipient tensor
-    token_reference: Ref_Token = network.add_token(token)
+    token_reference: Ref_Token = network.node.add_token(token)
     
     # Verify the token was added correctly
     assert token_reference is not None
     assert token_reference.set == Set.RECIPIENT
     
     # Get the token from the tensor
-    token = network.sets[Set.RECIPIENT].get_single_token(token_reference)
+    token = network.sets[Set.RECIPIENT].token_op.get_single_token(token_reference)
     
     # Verify the token properties
     assert token[TF.TYPE] == Type.RB
     assert token[TF.SET] == Set.RECIPIENT
     
     # Get index to check if deleted later
-    index = network.sets[Set.RECIPIENT].get_index(token_reference)
+    index = network.sets[Set.RECIPIENT].token_op.get_index(token_reference)
 
     # Delete the token
     network.del_token(token_reference)
@@ -101,21 +101,21 @@ def test_delete_token_from_memory(network):
     })
     
     # Add the token to the memory tensor
-    token_reference: Ref_Token = network.add_token(token)
+    token_reference: Ref_Token = network.node.add_token(token)
     
     # Verify the token was added correctly
     assert token_reference is not None
     assert token_reference.set == Set.MEMORY
     
     # Get the token from the tensor
-    token = network.sets[Set.MEMORY].get_single_token(token_reference)
+    token = network.sets[Set.MEMORY].token_op.get_single_token(token_reference)
     
     # Verify the token properties
     assert token[TF.TYPE] == Type.P
     assert token[TF.SET] == Set.MEMORY
     
     # Get index to check if deleted later
-    index = network.sets[Set.MEMORY].get_index(token_reference)
+    index = network.sets[Set.MEMORY].token_op.get_index(token_reference)
 
     # Delete the token
     network.del_token(token_reference)
@@ -138,12 +138,12 @@ def test_delete_multiple_tokens(network):
     ]
     
     # Add the tokens to the new_set tensor
-    token_references: list[Ref_Token] = [network.add_token(token) for token in tokens]
+    token_references: list[Ref_Token] = [network.node.add_token(token) for token in tokens]
     
     # Verify all tokens were added correctly
     assert len(token_references) == 3
     assert all(token_reference.set == Set.NEW_SET for token_reference in token_references)
-    indices = [network[Set.NEW_SET].get_index(token_reference) for token_reference in token_references]
+    indices = [network[Set.NEW_SET].token_op.get_index(token_reference) for token_reference in token_references]
     # Delete all tokens
     for token_reference in token_references:
         network.del_token(token_reference)
@@ -168,21 +168,21 @@ def test_delete_and_reuse_token_slot(network):
     })
     
     # Add the token to the new_set tensor
-    token_reference: Ref_Token = network.add_token(token)
+    token_reference: Ref_Token = network.node.add_token(token)
     
     # Verify the token was added correctly
     assert token_reference is not None
     assert token_reference.set == Set.NEW_SET
     
     # Get the token from the tensor
-    token = network[Set.NEW_SET].get_single_token(token_reference)
+    token = network[Set.NEW_SET].token_op.get_single_token(token_reference)
     
     # Verify the token properties
     assert token[TF.TYPE] == Type.PO
     assert token[TF.SET] == Set.NEW_SET
     
     # Get index to check if deleted later
-    index = network[Set.NEW_SET].get_index(token_reference)
+    index = network[Set.NEW_SET].token_op.get_index(token_reference)
 
     # Delete the token
     network.del_token(token_reference)
@@ -203,7 +203,7 @@ def test_delete_and_reuse_token_slot(network):
     })
     
     # Add the new token to the new_set tensor
-    new_token_reference: Ref_Token = network.add_token(new_token)
+    new_token_reference: Ref_Token = network.node.add_token(new_token)
     
     # Verify the new token was added correctly
     assert new_token_reference is not None
