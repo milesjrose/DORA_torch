@@ -18,6 +18,13 @@ class Base_Set(object):
     """
     A class for holding a tensor of tokens, and interfacing with low-level tensor operations.
 
+    Using set.function() is deprecated, use set.op.function() instead.
+
+    Op Attributes:
+        - token_op: TokenOperations object for the set.
+        - tensor_op: TensorOperations object for the set.
+        - update_op: UpdateOperations object for the set.
+    
     Attributes:
         - names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
         - nodes (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
@@ -29,11 +36,6 @@ class Base_Set(object):
         - IDs (dict): A dictionary mapping token IDs to index in the tensor.
         - params (Params): An object containing shared parameters.
         - token_set (Set): This set's enum, used to access links and mappings for this set in shared mem objects.
-
-    Operations:
-        - token_op: TokenOperations object for the set.
-        - tensor_op: TensorOperations object for the set.
-        - update_op: UpdateOperations object for the set.
     """
     def __init__(self, floatTensor, connections, IDs: dict[int, int], names: dict[int, str] = {}):
         """
@@ -351,7 +353,7 @@ class Base_Set(object):
         """
         self.tensor_op.expand_tensor()
     
-    def expand_tensor_by_count(self, count: int):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
+    def expand_tensor_by_count(self, count: int):                   # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
         """
         Expand tensor by classes by count.
         Expands nodes, connections, links and mappings tensors.
