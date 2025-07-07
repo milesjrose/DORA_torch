@@ -365,7 +365,7 @@ class Base_Set(object):
         Args:
             ref_tokens (Ref_Token): The token(s) to delete. 
         """
-        self.tensor_op.del_token(ref_tokens)
+        self.tensor_op.del_token_ref(ref_tokens)
 
     def del_connections(self, ref_token: Ref_Token):
         """
@@ -374,7 +374,7 @@ class Base_Set(object):
         Args:
             ref_token (Ref_Token): Refence to token, to delete connections from.
         """
-        self.tensor_op.del_connections(ref_token)
+        self.tensor_op.del_connections_ref(ref_token)
     
     def get_analog(self, analog: int):
         """

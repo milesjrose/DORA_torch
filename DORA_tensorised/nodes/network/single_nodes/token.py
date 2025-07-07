@@ -59,6 +59,9 @@ class Ref_Token(object):
             ID (int): The ID of the node.
             name (str, optional): The name of the node. Defaults to None.
         """
-        self.set = set
+        self.set: Set = set
         self.ID = ID
         self.name = name
+    
+    def print(self):
+        print("Set:", self.set.name, "ID:", self.ID, "Name:", self.name)

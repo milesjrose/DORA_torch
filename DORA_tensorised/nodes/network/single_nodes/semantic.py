@@ -43,3 +43,6 @@ class Ref_Semantic(object):
     def __init__(self, ID: int, name: str = None):
         self.ID = ID
         self.name = name
+    
+    def print(self):
+        print("ID:", self.ID, "Name:", self.name)

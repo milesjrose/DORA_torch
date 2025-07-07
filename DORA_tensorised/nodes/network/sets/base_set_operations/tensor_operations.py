@@ -5,6 +5,7 @@ import torch
 
 from ....enums import *
 from ...single_nodes import Token, Analog, Ref_Token
+#from ..base_set import Base_Set
 
 class TensorOperations:
     """
@@ -138,7 +139,7 @@ class TensorOperations:
             count = 5
         self.expand_tensor_by_count(count)
     
-    def expand_tensor_by_count(self, count: int):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
+    def expand_tensor_by_count(self, count: int):                   # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
         """
         Expand tensor by classes by count.
         Expands nodes, connections, links and mappings tensors.
@@ -149,19 +150,20 @@ class TensorOperations:
         new_tensor = torch.full((new_count, self.base_set.nodes.size(dim=1)), null)  # null-filled tensor, increased by expansion factor
         new_tensor[current_count:, TF.DELETED] = B.TRUE                     # deleted = true -> all new tokens
         new_tensor[:current_count, :] = self.base_set.nodes                 # copy over old tensor
-        if self.base_set.nodes.dtype != torch.float:                       # make sure correct type
+        if self.base_set.nodes.dtype != torch.float:                        # make sure correct type
             raise TypeError("nodes must be torch.float.")
         self.base_set.nodes = new_tensor
 
         # Update supporting data structures:
         if self.base_set.links is not None:                              # Links:
-            semantic_count = self.base_set.links[self.base_set.token_set].size(dim=1)  # Get number of semantics in link tensor
+            links = self.base_set.links[self.base_set.token_set]
+            semantic_count = links.size(dim=1)                              # Get number of semantics in link tensor
             new_links = torch.zeros(new_count, semantic_count).float()      # new tensor (new number of tokens) x (number of semantics)
-            new_links[:current_count, :] = self.base_set.links[self.base_set.token_set]  # add current links to the tensor
+            new_links[:current_count, :] = links                            # add current links to the tensor
             self.base_set.links[self.base_set.token_set] = new_links        # update links object with float tensor
 
         try:                                                            # Mappings:         
-            self.base_set.mappings = self.base_set.mappings       # If no mappings, skip.
+            self.base_set.mappings = self.base_set.mappings                 # If no mappings, skip.
         except:
             pass
         else:                                    
@@ -182,7 +184,52 @@ class TensorOperations:
         new_cons[:current_count, :current_count] = self.base_set.connections  # add current connections
         self.base_set.connections = new_cons                                # update connections tensor, with new tensor
 
-    def del_token(self, ref_tokens: Ref_Token):                     # Delete nodes from tensor   
+    def del_token_indicies(self, indices: list[int]):               # Delete tokens from tensor by indices
+        """
+        Delete tokens from tensor.
+
+        Args:
+            indices (list[int]): The indices of the tokens to delete.
+        """
+        self.del_connections_indices(indices)                           # Delete connections first
+        cache_types = torch.unique(self.base_set.nodes[indices, TF.TYPE]).tolist() # Get types of deleted tokens
+        IDs = self.base_set.nodes[indices, TF.ID].tolist()             # Get IDs of deleted tokens
+        for ID in IDs:
+            self.base_set.IDs.pop(ID)                                  # Remove ID from IDs dictionary
+            self.base_set.names.pop(ID)                                # Remove name from names dictionary
+        self.base_set.nodes[indices, TF.DELETED] = B.TRUE              # Set deleted to true
+        self.base_set.nodes[indices, TF.ID] = null                     # Set ID to null
+        self.cache_masks(cache_types)                                  # Re-cache effected types
+    
+    def del_connections_indices(self, indices: list[int]):          # Delete connections from tensor by indices
+        """
+        Delete connections from tensor.
+        
+        Args:
+            indices (list[int]): The indices of the tokens to delete connections from.
+        """
+        try:                                                        # Mappings:
+            if self.base_set.token_set == Set.DRIVER:
+                for field in MappingFields:
+                    self.base_set.mappings[field][:, indices] = 0.0     # Dim 1 is driver nodes
+            else:
+                for field in MappingFields:
+                    self.base_set.mappings[field][indices, :] = 0.0     # Dim 0 is non-driver sets
+        except:
+            pass
+
+        try:                                                        # Links:
+            self.base_set.links[self.base_set.token_set][indices, :] = 0.0  # Dim 0 is set nodes
+        except:
+            raise KeyError("Invalid links indices in del_connections_by_indices.", indices)
+
+        try:                                                        # Connections:
+            self.base_set.connections[indices, :] = 0.0                 # Remove children
+            self.base_set.connections[:, indices] = 0.0                 # Remove parents
+        except:
+            raise KeyError("Invalid connections indices in del_connections_by_indices.", indices)
+
+    def del_token_ref(self, ref_tokens: Ref_Token):                 # Delete nodes from tensor by reference token   
         """
         Delete tokens from tensor. Pass in a list of Ref_Tokens to delete multiple tokens at once.
         
@@ -190,66 +237,48 @@ class TensorOperations:
             ref_tokens (Ref_Token): The token(s) to delete. 
         """
 
-        if not isinstance(ref_tokens, list):                            # If input is single ID, turn into iteratable object.
-            ref_tokens = [ref_tokens]
+        if not isinstance(ref_tokens, list):
+            indices = [self.base_set.token_op.get_index(ref_tokens)]
+        else:
+            indices = self.base_set.token_op.get_indices(ref_tokens)
         
-        self.del_connections(ref_tokens)                                # Delete connections first, as requires ID in self.IDs
+        self.del_token_indicies(indices)
 
-        cache_types = [] 
-        for ref_token in ref_tokens:
-            index = self.base_set.token_op.get_index(ref_token)
-            id = ref_token.ID                                           # Delete nodes in nodes tensor:
-            cache_types.append(self.base_set.nodes[index, TF.TYPE])     # Keep list of types that have a deleted node to recache specific masks
-            self.base_set.nodes[index, TF.ID] = null                   # Set to null ID
-            self.base_set.nodes[index, TF.DELETED] = B.TRUE            # Set to deleted
-            self.base_set.IDs[id] = null
-            self.base_set.IDs.pop(id)
-            self.base_set.names[id] = null
-            self.base_set.names.pop(id)
-
-        
-        cache_types = list(set(cache_types))                            # Remove duplicates if multiple nodes deleted from same type
-        self.cache_masks(cache_types)                                   # Re-cache effected types
-
-    def del_connections(self, ref_token: Ref_Token):
+    def del_connections_ref(self, ref_token: Ref_Token):            # Delete connections from tensor by reference token
         """
-        Delete connection from tensor.
+        Delete connections from tensor.
         
         Args:
-            ref_token (Ref_Token): Refence to token, to delete connections from.
+            ref_token (Ref_Token): Refence to token, to delete connections from, pass in list to delete multiple.
         """
-        if isinstance(ref_token, list):
-            for token in ref_token:
-                self.del_connections(token)
-            return
-        id = ref_token.ID
-        if not isinstance(id, int):
-            raise ValueError("ID is not an integer.")
-        try:                                                        # Mappings:
-            if self.base_set.token_set == Set.DRIVER:
-                for field in MappingFields:
-                    self.base_set.mappings[field][:, self.base_set.IDs[id]] = 0.0  # Dim 1 is driver nodes
-            else:
-                for field in MappingFields:
-                    self.base_set.mappings[field][self.base_set.IDs[id], :] = 0.0  # Dim 0 is non-driver sets
-        except:
-            pass
-
-        try:                                                        # Links:
-            self.base_set.links[self.base_set.token_set][self.base_set.IDs[int(id)], :] = 0.0  # Dim 0 is set nodes
-        except:
-            raise KeyError("Key error in del_token, link tensor. ID: ", id, "IDs: ", self.base_set.IDs)
-        
-        try:                                                        # Connections:
-            self.base_set.connections[self.base_set.IDs[id], :] = 0.0   # Remove children
-            self.base_set.connections[:, self.base_set.IDs[id]] = 0.0   # Remove parents
-        except:
-            if len(self.base_set.IDs) == 0:
-                raise KeyError("IDs dictionary is empty.")
-            else:
-                raise KeyError("Key error in del_token, connection tensor. ID: ", id, "IDs: ", self.base_set.IDs)
+        if not isinstance(ref_token, list):
+            indices = [self.base_set.token_op.get_index(ref_token)]
+        else:
+            indices = self.base_set.token_op.get_indices(ref_token)
+            
+        self.del_connections_indices(indices)
     
-    def get_analog(self, analog: int):
+    def del_mem_tokens(self):                                       # Delete all memory tokens
+        """
+        Delete any tokens that have set == memory.
+        """
+        all_nodes_mask = self.get_all_nodes_mask()                  # Get mask of all memory tokens (not deleted)
+        mem_mask = (self.base_set.nodes[all_nodes_mask, TF.SET] == Set.MEMORY)
+        
+        mem_indices = torch.where(mem_mask)[0]                      # Convert to indicies
+        self.del_token_indicies(mem_indices)                        # Delete
+
+    def del_analog(self, analog: int):                              # Delete an analog from the set
+        """
+        Delete an analog from the set.
+
+        Args:
+            analog (int): The analog number to delete.
+        """
+        analog_indices = self.base_set.token_op.get_analog_indices(analog)
+        self.del_token_indicies(analog_indices)
+
+    def get_analog(self, analog: int):                              # Get an analog from the set
         """
         Get an analog from the set.
         
@@ -262,35 +291,26 @@ class TensorOperations:
         Raises:
             ValueError: If the analog doesn't exist in the set.
         """
-        # Get indices of tokens in the analog
-        analog_indices = self.base_set.token_op.get_analog_indices(analog)
-        
-        if len(analog_indices) == 0:
+        indicies = self.base_set.token_op.get_analog_indices(analog)    # Get indices of tokens in the analog
+        if len(indicies) == 0:                                          # If no tokens in analog, raise error
             raise ValueError(f"Analog {analog} not found in the set.")
+        tokens = self.base_set.nodes[indicies, :].clone()               # Extract tokens for this analog
+        cons = self.base_set.connections[indicies][:, indicies].clone()
         
-        # Extract tokens for this analog
-        analog_tokens = self.base_set.nodes[analog_indices, :].clone()
-        
-        # Extract connections for this analog (submatrix)
-        analog_connections = self.base_set.connections[analog_indices][:, analog_indices].clone()
-        
-        # Extract links for this analog, if links exist
-        analog_links = None
+        links = None                                                    # Extract links for this analog, if links exist
         if self.base_set.links is not None:
-            analog_links = self.base_set.links[self.base_set.token_set][analog_indices, :].clone()
+            token_set = self.base_set.token_set
+            links = self.base_set.links[token_set][indicies, :].clone()
         
-        # Create name dictionary for tokens in this analog
-        analog_name_dict = {}
-        for idx in analog_indices:
+        name_dict = {}                                                  # Create name dictionary for tokens in this analog
+        for idx in indicies:
             token_id = int(self.base_set.nodes[idx, TF.ID].item())
             if token_id in self.base_set.names:
-                analog_name_dict[token_id] = self.base_set.names[token_id]
-        
-        # Create and return the Analog object
-        from ...single_nodes import Analog
-        return Analog(analog_tokens, analog_connections, analog_links, analog_name_dict)
+                name_dict[token_id] = self.base_set.names[token_id]
+
+        return Analog(tokens, cons, links, name_dict)
             
-    def add_analog(self, analog: Analog):
+    def add_analog(self, analog: Analog):                           # Add an analog to the set
         """
         Add an analog to the set.
 
@@ -388,12 +408,13 @@ class TensorOperations:
         else:
             try:
                 printer = nodePrinter(print_to_console=True)
-                printer.print_set(self, feature_types=f_types)
+                printer.print_set(self.base_set, feature_types=f_types)
             except Exception as e:
                 print("Error: NodePrinter failed to print set.")
                 print(e)
     
-    def get_count(self):
+    def get_count(self):                                            # Get the number of nodes in the set  
         """Get the number of nodes in the set."""
         return self.base_set.nodes.shape[0]
+    
     # --------------------------------------------------------------

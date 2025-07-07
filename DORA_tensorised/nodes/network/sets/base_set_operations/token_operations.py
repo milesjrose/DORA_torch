@@ -21,7 +21,7 @@ class TokenOperations:
         """
         self.base_set = base_set
 
-    # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
+    # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================
 
     def get_feature(self, ref_token: Ref_Token, feature: TF):        # Get feature of single node
         """
@@ -58,6 +58,23 @@ class TokenOperations:
             self.base_set.nodes[self.get_index(ref_token), feature] = float(value)
         except:
             raise ValueError("Invalid reference token, feature, or value.")
+
+    def set_features(self, indices: list[int], feature: TF, value: float):
+        """
+        Set a feature for a list of tokens.
+
+        Args:
+            indices (list[int]): The indices of the tokens to set the feature for.
+            feature (TF): The feature to set.
+            value (float): The value to set the feature to.
+
+        Raises:
+            ValueError: If the indices, feature, or value is invalid.
+        """
+        try:
+            self.base_set.nodes[indices, feature] = float(value)
+        except:
+            raise ValueError("Invalid indices, feature, or value.")
 
     def get_name(self, ref_token: Ref_Token):                       # Get name of node by reference token
         """
@@ -103,8 +120,23 @@ class TokenOperations:
         try:
             return self.base_set.IDs[ref_token.ID]
         except:
-            raise ValueError("Invalid ID.")
-        
+            raise ValueError(f"[{self.base_set.token_set.name}] : Token ID {ref_token.ID} not found in set {ref_token.set.name}.")
+
+    def get_indices(self, ref_tokens: list[Ref_Token]):
+        """
+        Get indicies of a list of reference tokens.
+
+        Args:
+            ref_tokens (list[Ref_Token]): The tokens to get the indices for.
+
+        Returns:
+            A list of indices of the tokens.
+        """
+        indices = []
+        for tk in ref_tokens:
+            indices.append(self.get_index(tk))
+        return indices
+
     def get_reference(self, id=None, index=None, name=None):        # Get reference to token with given ID, index, or name
         """
         Get a reference to a token with a given ID, index, or name.
@@ -202,5 +234,42 @@ class TokenOperations:
             A list of indices of tokens in the analog.
         """
         return torch.where(self.base_set.nodes[:, TF.ANALOG] == analog_id)[0].tolist()
+    
+    def get_analog_where(self, feature: TF, value):
+        """
+        Get any analogs that contain a token with a given feature and value.
+
+        Args:
+            feature (TF): The feature to check for.
+            value (float): The value to check for.
+
+        Returns:
+            A list of analog numbers that contain a token with the given feature and value.
+        """
+        all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()           # Only non-deleted tokens
+        matching_tokens = (self.base_set.nodes[all_nodes_mask, feature] == value)
+        if not torch.any(matching_tokens):
+            return [] # (No matching tokens)
+        
+        matching_analog_ids = self.base_set.nodes[matching_tokens, TF.ANALOG]   # Get the analog IDs of the matching tokens
+        unique_analog_ids = torch.unique(matching_analog_ids).tolist()          # Convert to unique list of analog IDs
+        
+        return unique_analog_ids
+   
+    def get_analog_where_not(self, feature: TF, value):
+        """
+        Get any analogs that do not contain a token with a given feature and value.
+
+        Args:
+            feature (TF): The feature to check for.
+            value (float): The value to check for.
+
+        Returns:
+            A list of analog numbers that do not contain a token with the given feature and value.
+        """
+        all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()               # Only non-deleted tokens
+        non_matching_tokens = (self.base_set.nodes[all_nodes_mask, feature] != value)
+        non_matching_analog_ids = self.base_set.nodes[non_matching_tokens, TF.ANALOG] 
+        return torch.unique(non_matching_analog_ids).tolist()                       # Convert to unique list of analog IDs
     
     # --------------------------------------------------------------
