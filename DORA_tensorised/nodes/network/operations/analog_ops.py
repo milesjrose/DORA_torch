@@ -2,7 +2,7 @@
 # Analog operations for Network class
 
 from ...enums import *
-from ..single_nodes import Ref_Analog
+from ..single_nodes import Ref_Analog, Analog
 
 class AnalogOperations:
     """
@@ -30,8 +30,9 @@ class AnalogOperations:
         Returns:
             Ref_Analog: Reference to the new analog.
         """
-        analog_obj = self.get_analog(analog)                                # get copy of analog
-        return self.network.sets[to_set].add_analog(analog_obj)             # add to new set, return the new analog reference
+        analog_obj: Analog = self.get_analog(analog)       # get copy of analog
+        analog_obj.set = to_set                            # set the set of the analog
+        return self.add_analog(analog_obj)                 # add to new set, return the new analog reference
 
     def delete(self, analog: Ref_Analog):
         """
@@ -40,8 +41,8 @@ class AnalogOperations:
         Args:
             analog (Ref_Analog): The analog to delete.
         """
-        indices = self.get_analog_indices(analog)                                   # Get indices of tokens in the analog
-        self.network.sets[analog.set].tensor_op.del_token_indicies(indices)         # Delete the tokens - this will also delete the links to semantics/connections
+        indices = self.get_analog_indices(analog)                               # Get indices of tokens in the analog
+        self.network.sets[analog.set].tensor_op.del_token_indicies(indices)     # Delete the tokens - this will also delete the links to semantics/connections
 
     def move(self, analog: Ref_Analog, to_set: Set):
         """
@@ -98,19 +99,32 @@ class AnalogOperations:
         Returns:
             List[Ref_Analog]: References to the analogs that were copied to AM.
         """
+        # TODO: Check if should delete from memory set after copying to AM?
         analogs = self.check_for_copy()
         copied_analogs = []
         for analog in analogs:
-            analog_obj = self.network.sets[Set.MEMORY].get_analog(analog)           # Get the analog object
-            analog_obj.retrieve_lower_tokens()                                      # Set lower tokens to same set as analog
-            analog_obj.remove_memory_tokens()                                       # Remove memory tokens
-            new_ref = self.network.sets[analog_obj.set].add_analog(analog_obj)      # Add the analog to the new set
+            analog_obj = self.get_analog(analog)                  # Get the analog object
+            analog_obj.retrieve_lower_tokens()                    # Set lower tokens to same set as analog
+            analog_obj.remove_memory_tokens()                     # Remove memory tokens
+            new_ref = self.add_analog(analog_obj)                 # Add the analog to the new set
             copied_analogs.append(new_ref)
         return copied_analogs
 
     def get_analog(self, analog: Ref_Analog):
         """ Get an analog from the network. """
         return self.network.sets[analog.set].get_analog(analog)
+    
+    def add_analog(self, analog: Analog):
+        """
+        Add an analog to the network, based on objects set field.
+
+        Args:
+            analog (Analog): The analog to add.
+
+        Returns:
+            Ref_Analog: Reference to the new analog.
+        """
+        return self.network.sets[analog.set].add_analog(analog)
     
     def get_analog_indices(self, analog: Ref_Analog):
         """ Get the indices of the tokens in an analog. """
