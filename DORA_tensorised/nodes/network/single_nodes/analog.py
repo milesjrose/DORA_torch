@@ -60,7 +60,7 @@ class Analog:
         Remove tokens that have set == memory.
         """
         mask = self.tokens[:, TF.SET] == Set.MEMORY
-        self.tokens[mask, TF.DELETE] = B.TRUE
+        self.tokens[mask, TF.DELETED] = B.TRUE
         self.connections[mask, :] = B.FALSE
         self.connections[:, mask] = B.FALSE
         self.links[mask, :] = B.FALSE
@@ -81,3 +81,10 @@ class Analog:
             links=self.links.clone(),
             name_dict=self.name_dict.copy()
         )
+
+class Ref_Analog:
+    """ Reference to an analog in a set. """
+
+    def __init__(self, analog_number: int, set: Set):
+        self.analog_number = analog_number
+        self.set = set

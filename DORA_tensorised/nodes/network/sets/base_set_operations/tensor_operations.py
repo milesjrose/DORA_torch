@@ -4,7 +4,7 @@
 import torch
 
 from ....enums import *
-from ...single_nodes import Token, Analog, Ref_Token
+from ...single_nodes import Token, Analog, Ref_Analog, Ref_Token
 #from ..base_set import Base_Set
 
 class TensorOperations:
@@ -268,22 +268,27 @@ class TensorOperations:
         mem_indices = torch.where(mem_mask)[0]                      # Convert to indicies
         self.del_token_indicies(mem_indices)                        # Delete
 
-    def del_analog(self, analog: int):                              # Delete an analog from the set
+    def del_analog(self, analog: Ref_Analog):                              # Delete an analog from the set
         """
         Delete an analog from the set.
 
         Args:
-            analog (int): The analog number to delete.
+            analog (Ref_Analog): The analog to delete.
         """
+        if not isinstance(analog, Ref_Analog):
+            raise TypeError("analog must be a Ref_Analog object.")
+        if analog.set != self.base_set.token_set:
+            raise ValueError(f"Analog {analog.analog_number} is not in the set {self.base_set.token_set}.")
+        
         analog_indices = self.base_set.token_op.get_analog_indices(analog)
         self.del_token_indicies(analog_indices)
 
-    def get_analog(self, analog: int):                              # Get an analog from the set
+    def get_analog(self, analog: Ref_Analog):                              # Get an analog from the set
         """
         Get an analog from the set.
         
         Args:
-            analog (int): The analog ID to get.
+            analog (Ref_Analog): The analog to get.
         
         Returns:
             Analog: The analog object containing tokens, connections, links, and names.
@@ -291,9 +296,14 @@ class TensorOperations:
         Raises:
             ValueError: If the analog doesn't exist in the set.
         """
+        if not isinstance(analog, Ref_Analog):
+            raise TypeError("analog must be a Ref_Analog object.")
+        if analog.set != self.base_set.token_set:
+            raise ValueError(f"Analog {analog.analog_number} is not in the set {self.base_set.token_set}.")
         indicies = self.base_set.token_op.get_analog_indices(analog)    # Get indices of tokens in the analog
         if len(indicies) == 0:                                          # If no tokens in analog, raise error
-            raise ValueError(f"Analog {analog} not found in the set.")
+            raise ValueError(f"Analog {analog.analog_number} not found in the set.")
+        
         tokens = self.base_set.nodes[indicies, :].clone()               # Extract tokens for this analog
         cons = self.base_set.connections[indicies][:, indicies].clone()
         
@@ -316,6 +326,9 @@ class TensorOperations:
 
         Args:
             analog (Analog): The analog to add.
+        
+        Returns:
+            Ref_Analog: Reference to the analog that was added.
         """
         # 1. copy the analog to avoid modifying the original
         analog = analog.copy()
@@ -345,7 +358,12 @@ class TensorOperations:
         analog.tokens[:, TF.ID] = new_ids
         # 2.3 add names to set
         for i, old_id in enumerate(analog_ids):
-            self.base_set.names[new_ids[i].item()] = analog.name_dict[old_id]
+            try:
+                self.base_set.names[new_ids[i].item()] = analog.name_dict[old_id]
+            except KeyError:
+                self.base_set.names[new_ids[i].item()] = "None"
+                #raise KeyError(f"{old_id} in {analog.name_dict.keys()} // IDs: {analog_ids} // Names: {analog.name_dict}")
+            
         # 2.4 update analog number
         if self.base_set.analogs is not None and len(self.base_set.analogs) > 0:
             new_analog_number = max(self.base_set.analogs.tolist()) + 1
@@ -385,7 +403,7 @@ class TensorOperations:
         # 7. update masks
         self.cache_masks()
 
-        return new_analog_number
+        return Ref_Analog(new_analog_number, self.base_set.token_set)
 
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
         """Update list of analogs in tensor, and their node counts"""
@@ -413,8 +431,30 @@ class TensorOperations:
                 print("Error: NodePrinter failed to print set.")
                 print(e)
     
+    def print_tokens(self, f_types=None):
+        """
+        Print the tokens in the set.
+
+        Args:
+            f_types (list[TF], optional): The features to print.
+
+        Raises:
+            ValueError: If nodePrinter is not found.
+        """
+        try:
+            from nodes.utils import nodePrinter
+        except:
+            print("Error: nodePrinter not found. Nodes.utils.nodePrinter is required to use this function.")
+        else:
+            try:
+                printer = nodePrinter(print_to_console=True)
+                printer.print_set(self.base_set, feature_types=f_types, print_cons=False)
+            except Exception as e:
+                print("Error: NodePrinter failed to print set.")
+                print(e)
+    
     def get_count(self):                                            # Get the number of nodes in the set  
         """Get the number of nodes in the set."""
-        return self.base_set.nodes.shape[0]
+        return self.base_set.nodes[self.base_set.tensor_op.get_all_nodes_mask(), :].shape[0]
     
     # --------------------------------------------------------------

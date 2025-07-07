@@ -3,7 +3,7 @@
 
 import torch
 
-from ...single_nodes import Token, Ref_Token
+from ...single_nodes import Token, Ref_Token, Ref_Analog
 from ....enums import *
 
 class TokenOperations:
@@ -223,19 +223,25 @@ class TokenOperations:
         references = [self.get_reference(index=i) for i in indices]
         return references
     
-    def get_analog_indices(self, analog_id):
+    def get_analog_indices(self, analog: Ref_Analog):
         """
         Get indices of tokens in an analog.
 
         Args:
-            analog_id (int): The analog ID to get the indices for.
+            analog (Ref_Analog): The analog to get the indices for.
 
         Returns:
             A list of indices of tokens in the analog.
         """
-        return torch.where(self.base_set.nodes[:, TF.ANALOG] == analog_id)[0].tolist()
+        if not isinstance(analog, Ref_Analog):
+            raise TypeError("analog must be a Ref_Analog object.")
+        if analog.set != self.base_set.token_set:
+            raise ValueError(f"Analog {analog.analog_number} is not in the set {self.base_set.token_set}.")
+
+        all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()
+        return torch.where(self.base_set.nodes[all_nodes_mask, TF.ANALOG] == analog.analog_number)[0].tolist()
     
-    def get_analog_where(self, feature: TF, value):
+    def get_analogs_where(self, feature: TF, value):
         """
         Get any analogs that contain a token with a given feature and value.
 
@@ -244,8 +250,9 @@ class TokenOperations:
             value (float): The value to check for.
 
         Returns:
-            A list of analog numbers that contain a token with the given feature and value.
+            List[Ref_Analog]: References to the analogs that contain a token with the given feature and value.
         """
+
         all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()           # Only non-deleted tokens
         matching_tokens = (self.base_set.nodes[all_nodes_mask, feature] == value)
         if not torch.any(matching_tokens):
@@ -253,10 +260,13 @@ class TokenOperations:
         
         matching_analog_ids = self.base_set.nodes[matching_tokens, TF.ANALOG]   # Get the analog IDs of the matching tokens
         unique_analog_ids = torch.unique(matching_analog_ids).tolist()          # Convert to unique list of analog IDs
-        
-        return unique_analog_ids
+
+        analogs = []
+        for analog_id in unique_analog_ids:
+            analogs.append(Ref_Analog(analog_id, self.base_set.token_set))
+        return analogs
    
-    def get_analog_where_not(self, feature: TF, value):
+    def get_analogs_where_not(self, feature: TF, value):
         """
         Get any analogs that do not contain a token with a given feature and value.
 
@@ -265,11 +275,16 @@ class TokenOperations:
             value (float): The value to check for.
 
         Returns:
-            A list of analog numbers that do not contain a token with the given feature and value.
+            List[Ref_Analog]: References to the analogs that do not contain a token with the given feature and value.
         """
         all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()               # Only non-deleted tokens
         non_matching_tokens = (self.base_set.nodes[all_nodes_mask, feature] != value)
         non_matching_analog_ids = self.base_set.nodes[non_matching_tokens, TF.ANALOG] 
-        return torch.unique(non_matching_analog_ids).tolist()                       # Convert to unique list of analog IDs
+        unique_analog_ids = torch.unique(non_matching_analog_ids).tolist()          # Convert to unique list of analog IDs
+
+        analogs = []
+        for analog_id in unique_analog_ids:
+            analogs.append(Ref_Analog(analog_id, self.base_set.token_set))
+        return analogs
     
     # --------------------------------------------------------------

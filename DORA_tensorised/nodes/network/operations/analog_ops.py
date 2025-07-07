@@ -2,6 +2,7 @@
 # Analog operations for Network class
 
 from ...enums import *
+from ..single_nodes import Ref_Analog
 
 class AnalogOperations:
     """
@@ -18,52 +19,55 @@ class AnalogOperations:
         """
         self.network = network
     
-    def copy(self, analog_number, from_set: Set, to_set: Set):
+    def copy(self, analog: Ref_Analog, to_set: Set):
         """
         Copy an analog from one set to another.
 
         Args:
-            analog (Analog): The analog to copy.
-            from_set (Set): The set to copy the analog from.
+            analog (Ref_Analog): The analog to copy.
             to_set (Set): The set to copy the analog to.
-        """
-        analog_obj = self.network.sets[from_set].get_analog(analog_number)  # get copy of analog
-        return self.network.sets[to_set].add_analog(analog_obj)             # add to new set, return the new analog number
 
-    def delete(self, analog, from_set: Set):
+        Returns:
+            Ref_Analog: Reference to the new analog.
+        """
+        analog_obj = self.get_analog(analog)                                # get copy of analog
+        return self.network.sets[to_set].add_analog(analog_obj)             # add to new set, return the new analog reference
+
+    def delete(self, analog: Ref_Analog):
         """
         Delete an analog from a set.
 
         Args:
-            analog (int): The analog number.
-            from_set (Set): The set to delete the analog from.
+            analog (Ref_Analog): The analog to delete.
         """
-        indices = self.network.sets[from_set].token_op.get_analog_indices(analog) # Get indices of tokens in the analog
-        self.network.sets[from_set].tensor_op.del_token_indicies(indices)         # Delete the tokens - this will also delete the links to semantics/connections
+        indices = self.get_analog_indices(analog)                                   # Get indices of tokens in the analog
+        self.network.sets[analog.set].tensor_op.del_token_indicies(indices)         # Delete the tokens - this will also delete the links to semantics/connections
 
-    def move(self, analog, from_set: Set, to_set: Set):
+    def move(self, analog: Ref_Analog, to_set: Set):
         """
         Move an analog from one set to another, deleting the old analog.
 
         Args:
-            analog (Analog): The analog to move.
-            from_set (Set): The set to move the analog from.
+            analog (Ref_Analog): The analog to move.
             to_set (Set): The set to move the analog to.
+        
+        Returns: 
+            Ref_Analog: Reference to the new analog.
         """
-        self.copy(analog, from_set, to_set)
-        self.delete(analog, from_set)
+        new_analog = self.copy(analog, to_set)
+        self.delete(analog)
+        return new_analog
 
     def check_set_match(self):
         """
         Check that the tokens in an analog are from the correct set
 
         Returns:
-            Lists of analog numbers for each set that do not match the set.
-            Access with results[set]
+            Lists of analog references that do not match the set.
         """
         results = []
         for set in Set:
-            analogs = self.network.sets[set].token_op.get_analog_where_not(TF.SET, set)
+            analogs = self.network.sets[set].token_op.get_analogs_where_not(TF.SET, set)
             results.append(analogs)
         return results
     
@@ -72,32 +76,45 @@ class AnalogOperations:
         Check for analogs in memory that have set != memory.
 
         Returns:
-            List of analog numbers that have set != memory.
+            List[Ref_Analog]: References to the analogs that have set != memory.
         """
-        analogs = self.network.sets[Set.MEMORY].token_op.get_analog_where_not(TF.SET, Set.MEMORY)
+        analogs = self.network.sets[Set.MEMORY].token_op.get_analogs_where_not(TF.SET, Set.MEMORY)
         return analogs
     
-    def clear_set(self, set: Set, analog: int):
+    def clear_set(self, analog: Ref_Analog):
         """
         Clear the set feature to "memory" for tokens in an analog.
 
         Args:
-            set (Set): The set of the analog.
-            analog (int): The analog number.
+            analog (Ref_Analog): The analog to clear the set feature for.
         """
-        indices = self.network.sets[set].token_op.get_analog_indices(analog)
-        self.network.sets[set].token_op.set_features(indices, TF.SET, Set.MEMORY)
+        indices = self.get_analog_indices(analog)
+        self.network.sets[analog.set].token_op.set_features(indices, TF.SET, Set.MEMORY)
 
     def make_AM_copy(self):
         """
         Copy any analogs with set != memory to AM.
+
+        Returns:
+            List[Ref_Analog]: References to the analogs that were copied to AM.
         """
         analogs = self.check_for_copy()
+        copied_analogs = []
         for analog in analogs:
             analog_obj = self.network.sets[Set.MEMORY].get_analog(analog)           # Get the analog object
             analog_obj.retrieve_lower_tokens()                                      # Set lower tokens to same set as analog
             analog_obj.remove_memory_tokens()                                       # Remove memory tokens
-            self.network.sets[analog_obj.set].add_analog(analog_obj)                # Add the analog to the new set
+            new_ref = self.network.sets[analog_obj.set].add_analog(analog_obj)      # Add the analog to the new set
+            copied_analogs.append(new_ref)
+        return copied_analogs
+
+    def get_analog(self, analog: Ref_Analog):
+        """ Get an analog from the network. """
+        return self.network.sets[analog.set].get_analog(analog)
+    
+    def get_analog_indices(self, analog: Ref_Analog):
+        """ Get the indices of the tokens in an analog. """
+        return self.network.sets[analog.set].token_op.get_analog_indices(analog)
 
     # ---------------------[ TODO: IMPLEMENT ]----------------------------
     

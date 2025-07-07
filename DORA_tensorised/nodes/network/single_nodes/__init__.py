@@ -14,12 +14,14 @@ Used for adding nodes to set tensors, and referencing single nodes in any set.
 
 from .token import Token, Ref_Token
 from .semantic import Semantic, Ref_Semantic
-from .analog import Analog
+from .analog import Analog, Ref_Analog
 
 __all__ = [
     "Token",
     "Semantic",
     "Ref_Token",
-    "Ref_Semantic"
+    "Ref_Semantic",
+    "Analog",
+    "Ref_Analog"
 ]
 
