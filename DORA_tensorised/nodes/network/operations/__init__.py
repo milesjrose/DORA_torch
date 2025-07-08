@@ -1,7 +1,7 @@
 # nodes/network/operations/__init__.py
 # Operations module for Network class
 
-from .memory_ops import MemoryOperations
+from .memory_ops import TensorOperations
 from .update_ops import UpdateOperations
 from .mapping_ops import MappingOperations
 from .retrieval_ops import RetrievalOperations
@@ -15,7 +15,7 @@ from .node_ops import NodeOperations
 from .inhibitor_ops import InhibitorOperations
 
 __all__ = [
-    'MemoryOperations',
+    'TensorOperations',
     'UpdateOperations',
     'MappingOperations',
     'RetrievalOperations',
