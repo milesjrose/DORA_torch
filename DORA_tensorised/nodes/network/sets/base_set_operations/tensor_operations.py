@@ -2,10 +2,13 @@
 # Tensor operations for Base_Set class
 
 import torch
+from typing import TYPE_CHECKING
 
 from ....enums import *
 from ...single_nodes import Token, Analog, Ref_Analog, Ref_Token
-#from ..base_set import Base_Set
+
+if TYPE_CHECKING: # For autocomplete/hover-over docs
+    from ..base_set import Base_Set
 
 class TensorOperations:
     """
@@ -20,7 +23,7 @@ class TensorOperations:
         Args:
             base_set: Reference to the Base_Set object
         """
-        self.base_set = base_set
+        self.base_set: 'Base_Set' = base_set
 
 # ====================[ TENSOR FUNCTIONS ]======================
 
@@ -67,7 +70,7 @@ class TensorOperations:
         Returns:
             The cached mask for the given token type.
         """
-        return self.base_set.masks[token_type]                   
+        return self.base_set.masks[int(token_type)]                   
 
     def get_combined_mask(self, n_types: list[Type]):               # Returns combined mask of give types
         """

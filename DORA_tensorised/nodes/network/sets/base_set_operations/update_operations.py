@@ -1,9 +1,13 @@
 # nodes/network/sets/base_set_operations/update_operations.py
 # Update operations for Base_Set class
 import torch 
+from typing import TYPE_CHECKING
 
 from ....enums import *
 from ....utils import tensor_ops as tOps
+
+if TYPE_CHECKING: # For autocomplete/hover-over docs
+    from ..base_set import Base_Set
 
 class UpdateOperations:
     """
@@ -17,7 +21,7 @@ class UpdateOperations:
         Args:
             base_set: Reference to the Base_Set object
         """
-        self.base_set = base_set
+        self.base_set: 'Base_Set' = base_set
 
     # ====================[ TOKEN FUNCTIONS ]=======================
     def initialise_float(self, n_type: list[Type], features: list[TF]): # Initialise given features

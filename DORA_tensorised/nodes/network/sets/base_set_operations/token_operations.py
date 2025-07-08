@@ -2,9 +2,13 @@
 # Token operations for Base_Set class
 
 import torch
+from typing import TYPE_CHECKING
 
 from ...single_nodes import Token, Ref_Token, Ref_Analog
 from ....enums import *
+
+if TYPE_CHECKING:
+    from ..base_set import Base_Set
 
 class TokenOperations:
     """
@@ -19,7 +23,7 @@ class TokenOperations:
         Args:
             base_set: Reference to the Base_Set object
         """
-        self.base_set = base_set
+        self.base_set: 'Base_Set' = base_set
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================
 
@@ -101,6 +105,9 @@ class TokenOperations:
         Args:
             ref_token (Ref_Token): The token to set the name for.
             name (str): The name to set the token to.
+
+        Raises:
+            ValueError: If the referenced token is invalid.
         """
         self.base_set.names[ref_token.ID] = name
     
@@ -122,7 +129,7 @@ class TokenOperations:
         except:
             raise ValueError(f"[{self.base_set.token_set.name}] : Token ID {ref_token.ID} not found in set {ref_token.set.name}.")
 
-    def get_indices(self, ref_tokens: list[Ref_Token]):
+    def get_indices(self, ref_tokens: list[Ref_Token]) -> list[int]:
         """
         Get indicies of a list of reference tokens.
 
@@ -137,7 +144,7 @@ class TokenOperations:
             indices.append(self.get_index(tk))
         return indices
 
-    def get_reference(self, id=None, index=None, name=None):        # Get reference to token with given ID, index, or name
+    def get_reference(self, id=None, index=None, name=None) -> Ref_Token:        # Get reference to token with given ID, index, or name
         """
         Get a reference to a token with a given ID, index, or name.
 
@@ -185,7 +192,7 @@ class TokenOperations:
 
         return Ref_Token(self.base_set.token_set, id, name)
     
-    def get_single_token(self, ref_token: Ref_Token, copy=True):    # Get a single token from the tensor
+    def get_single_token(self, ref_token: Ref_Token, copy=True) -> Token:    # Get a single token from the tensor
         """
         Get a single token from the tensor.
 
@@ -195,6 +202,8 @@ class TokenOperations:
             ref_token (Ref_Token): The token to get.
             copy (bool, optional): Whether to return a copy of the token. Defaults to True.
 
+        Returns:
+            Token: The token object.
         """
         tensor = self.base_set.nodes[self.get_index(ref_token), :]
         token = Token(self.base_set.token_set, {TF.PRED: tensor[TF.PRED]})
@@ -204,7 +213,7 @@ class TokenOperations:
             token.tensor = tensor
         return token
     
-    def get_reference_multiple(self, mask=None, types: list[Type] = None):  # Get references to tokens in tensor
+    def get_reference_multiple(self, mask=None, types: list[Type] = None) -> list[Ref_Token]:  # Get references to tokens in tensor
         """
         Get references to tokens in the tensor. Must provide either mask or types.
 
@@ -223,7 +232,7 @@ class TokenOperations:
         references = [self.get_reference(index=i) for i in indices]
         return references
     
-    def get_analog_indices(self, analog: Ref_Analog):
+    def get_analog_indices(self, analog: Ref_Analog) -> list[int]:
         """
         Get indices of tokens in an analog.
 
@@ -241,7 +250,7 @@ class TokenOperations:
         all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()
         return torch.where(self.base_set.nodes[all_nodes_mask, TF.ANALOG] == analog.analog_number)[0].tolist()
     
-    def get_analogs_where(self, feature: TF, value):
+    def get_analogs_where(self, feature: TF, value) -> list[Ref_Analog]:
         """
         Get any analogs that contain a token with a given feature and value.
 
@@ -266,7 +275,7 @@ class TokenOperations:
             analogs.append(Ref_Analog(analog_id, self.base_set.token_set))
         return analogs
    
-    def get_analogs_where_not(self, feature: TF, value):
+    def get_analogs_where_not(self, feature: TF, value) -> list[Ref_Analog]:
         """
         Get any analogs that do not contain a token with a given feature and value.
 
@@ -287,4 +296,29 @@ class TokenOperations:
             analogs.append(Ref_Analog(analog_id, self.base_set.token_set))
         return analogs
     
+    def get_highest_token_type(self) -> Type:
+        """
+        Get the highest token type in the set.
+
+        Returns:
+            Type: The highest token type in the set.
+        """
+        if self.base_set.nodes.shape[0] == 0:
+            return None
+        
+        return self.base_set.nodes[self.base_set.tensor_op.get_all_nodes_mask(), TF.TYPE].max().item()
+    
+    def get_child_indices(self, index: int) -> list[int]:
+        """
+        Get the indices of the children of a given token.
+
+        Args:
+            index (int): The index of the token to get the children for.
+
+        Returns:
+            A list of indices of the children of the token.
+        """
+        # Check connections, get nodes that connect to (connections: parent -> child)
+        indices = torch.where(self.base_set.connections[index, :] == B.TRUE)[0].tolist()
+        return indices
     # --------------------------------------------------------------

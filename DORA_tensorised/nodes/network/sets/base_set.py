@@ -8,11 +8,12 @@ from ...utils import tensor_ops as tOps
 
 from ..connections import Links, Mappings
 from ..network_params import Params
-from ..single_nodes import Token, Ref_Token, Analog
+from ..single_nodes import Token, Ref_Token, Analog, Ref_Analog
 
 from .base_set_operations.token_operations import TokenOperations
 from .base_set_operations.tensor_operations import TensorOperations
 from .base_set_operations.update_operations import UpdateOperations
+
 
 class Base_Set(object):
     """
@@ -53,54 +54,8 @@ class Base_Set(object):
         """
         # Initialize operations objects
         self.token_op = TokenOperations(self)
-        """Token operations object for the set.
-            Functions:
-            - get_feature(ref_token, feature) -> float
-            - set_feature(ref_token, feature, value)
-            - get_name(ref_token) -> str
-            - set_name(ref_token, name)
-            - get_index(ref_token) -> int
-            - get_reference(id=None, index=None, name=None) -> Ref_Token
-            - get_single_token(ref_token, copy=True) -> Token
-            - get_reference_multiple(mask=None, types: list[Type] = None) -> list[Ref_Token]
-            - get_analog_indices(analog_id) -> list[int]
-        """
         self.tensor_op = TensorOperations(self)
-        """Tensor operations object for the set.
-            Functions:
-            - cache_masks(types_to_recompute: list[Type] = None)
-            - compute_mask(token_type: Type) -> torch.Tensor
-            - get_mask(token_type: Type) -> torch.Tensor
-            - get_combined_mask(n_types: list[Type]) -> torch.Tensor
-            - get_all_nodes_mask() -> torch.Tensor
-            - add_token(token: Token) -> Ref_Token
-            - expand_tensor()
-            - expand_tensor_by_count(count: int)
-            - del_token(ref_tokens: Ref_Token)
-            - del_connections(ref_token: Ref_Token)
-            - get_analog(analog: int) -> Analog
-            - add_analog(analog: Analog) -> int
-            - analog_node_count()
-            - print(f_types=None)
-            - get_count() -> int
-        """
         self.update_op = UpdateOperations(self)
-        """Update operations object for the set.
-            Functions:
-            - initialise_float(n_type: list[Type], features: list[TF])
-            - initialise_input(n_type: list[Type], refresh: float)
-            - initialise_act(n_type: list[Type])
-            - initialise_state(n_type: list[Type])
-            - update_act()
-            - zero_lateral_input(n_type: list[Type])
-            - update_inhibitor_input(n_type: list[Type])
-            - reset_inhibitor(n_type: list[Type])
-            - update_inhibitor_act(n_type: list[Type])
-            - p_initialise_mode()
-            - p_get_mode()
-            - po_get_weight_length()
-            - po_get_max_semantic_weight()
-        """
 
         # check types
         c_type = type(connections)
@@ -150,8 +105,66 @@ class Base_Set(object):
         self.token_set = None
         """Set: This sets set type"""
 
+    @property
+    def token_ops(self) -> 'TokenOperations':
+        """Token operations object for the set.
+            Functions:
+            - get_feature(ref_token, feature) -> float
+            - set_feature(ref_token, feature, value)
+            - get_name(ref_token) -> str
+            - set_name(ref_token, name)
+            - get_index(ref_token) -> int
+            - get_reference(id=None, index=None, name=None) -> Ref_Token
+            - get_single_token(ref_token, copy=True) -> Token
+            - get_reference_multiple(mask=None, types: list[Type] = None) -> list[Ref_Token]
+            - get_analog_indices(analog_id) -> list[int]
+        """
+        return self.token_op
+    
+    @property
+    def tensor_ops(self) -> 'TensorOperations':
+        """Tensor operations object for the set.
+            Functions:
+            - cache_masks(types_to_recompute: list[Type] = None)
+            - compute_mask(token_type: Type) -> torch.Tensor
+            - get_mask(token_type: Type) -> torch.Tensor
+            - get_combined_mask(n_types: list[Type]) -> torch.Tensor
+            - get_all_nodes_mask() -> torch.Tensor
+            - add_token(token: Token) -> Ref_Token
+            - expand_tensor()
+            - expand_tensor_by_count(count: int)
+            - del_token(ref_tokens: Ref_Token)
+            - del_connections(ref_token: Ref_Token)
+            - get_analog(analog: int) -> Analog
+            - add_analog(analog: Analog) -> int
+            - analog_node_count()
+            - print(f_types=None)
+            - get_count() -> int
+        """
+        return self.tensor_op
+    
+    @property
+    def update_ops(self) -> 'UpdateOperations':
+        """Update operations object for the set.
+            Functions:
+            - initialise_float(n_type: list[Type], features: list[TF])
+            - initialise_input(n_type: list[Type], refresh: float)
+            - initialise_act(n_type: list[Type])
+            - initialise_state(n_type: list[Type])
+            - update_act()
+            - zero_lateral_input(n_type: list[Type])
+            - update_inhibitor_input(n_type: list[Type])
+            - reset_inhibitor(n_type: list[Type])
+            - update_inhibitor_act(n_type: list[Type])
+            - p_initialise_mode()
+            - p_get_mode()
+            - po_get_weight_length()
+            - po_get_max_semantic_weight()
+        """
+        return self.update_op
+
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
-    def get_feature(self, ref_token: Ref_Token, feature: TF):        # Get feature of single node
+    def get_feature(self, ref_token: Ref_Token, feature: TF) -> float:      # Get feature of single node
         """
         Get a feature for a referenced token.
         
@@ -167,7 +180,7 @@ class Base_Set(object):
         """
         return self.token_op.get_feature(ref_token, feature)
 
-    def set_feature(self, ref_token: Ref_Token, feature: TF, value): # Set feature of single node
+    def set_feature(self, ref_token: Ref_Token, feature: TF, value: float): # Set feature of single node
         """
         Set a feature for a referenced token.
         
@@ -181,7 +194,7 @@ class Base_Set(object):
         """
         self.token_op.set_feature(ref_token, feature, value)
 
-    def get_name(self, ref_token: Ref_Token):                       # Get name of node by reference token
+    def get_name(self, ref_token: Ref_Token) -> str:                        # Get name of node by reference token
         """
         Get the name for a referenced token.
         
@@ -196,7 +209,7 @@ class Base_Set(object):
         """
         return self.token_op.get_name(ref_token)
 
-    def set_name(self, ref_token: Ref_Token, name):                 # Set name of node by reference token
+    def set_name(self, ref_token: Ref_Token, name: str):                    # Set name of node by reference token
         """
         Set the name for a referenced token.
         
@@ -206,7 +219,7 @@ class Base_Set(object):
         """
         self.token_op.set_name(ref_token, name)
     
-    def get_index(self, ref_token: Ref_Token):                      # Get index in tensor of reference token
+    def get_index(self, ref_token: Ref_Token) -> int:                       # Get index in tensor of reference token
         """
         Get index in tensor of referenced token.
 
@@ -221,7 +234,7 @@ class Base_Set(object):
         """
         return self.token_op.get_index(ref_token)
         
-    def get_reference(self, id=None, index=None, name=None):        # Get reference to token with given ID, index, or name
+    def get_reference(self, id=None, index=None, name=None) -> Ref_Token:   # Get reference to token with given ID, index, or name
         """
         Get a reference to a token with a given ID, index, or name.
 
@@ -238,7 +251,7 @@ class Base_Set(object):
         """
         return self.token_op.get_reference(id, index, name)
     
-    def get_single_token(self, ref_token: Ref_Token, copy=True):    # Get a single token from the tensor
+    def get_single_token(self, ref_token: Ref_Token, copy=True) -> Token:   # Get a single token from the tensor
         """
         Get a single token from the tensor.
 
@@ -247,11 +260,13 @@ class Base_Set(object):
         Args:
             ref_token (Ref_Token): The token to get.
             copy (bool, optional): Whether to return a copy of the token. Defaults to True.
-
+        
+        Returns:
+            Token: The token.
         """
         return self.token_op.get_single_token(ref_token, copy)
     
-    def get_reference_multiple(self, mask=None, types: list[Type] = None):  # Get references to tokens in tensor
+    def get_reference_multiple(self, mask=None, types: list[Type] = None) -> list[Ref_Token]:  # Get references to tokens in tensor
         """
         Get references to tokens in the tensor. Must provide either mask or types.
 
@@ -263,17 +278,17 @@ class Base_Set(object):
         """
         return self.token_op.get_reference_multiple(mask, types)
     
-    def get_analog_indices(self, analog_id):
+    def get_analog_indices(self, analog: Ref_Analog) -> list[int]:          # Get indices of tokens in an analog
         """
         Get indices of tokens in an analog.
 
         Args:
-            analog_id (int): The analog ID to get the indices for.
+            analog (Ref_Analog): The analog to get the indices for.
 
         Returns:
             A list of indices of tokens in the analog.
         """
-        return self.token_op.get_analog_indices(analog_id)
+        return self.token_op.get_analog_indices(analog)
     
     # --------------------------------------------------------------
 
@@ -287,7 +302,7 @@ class Base_Set(object):
         """
         self.tensor_op.cache_masks(types_to_recompute)
     
-    def compute_mask(self, token_type: Type):                       # Compute the mask for a token type
+    def compute_mask(self, token_type: Type) -> torch.Tensor:       # Compute the mask for a token type
         """
         Compute the mask for a token type
         
@@ -299,7 +314,7 @@ class Base_Set(object):
         """
         return self.tensor_op.compute_mask(token_type)
     
-    def get_mask(self, token_type: Type):                           # Returns mask for given token type
+    def get_mask(self, token_type: Type) -> torch.Tensor:           # Returns mask for given token type
         """
         Return cached mask for given token type
         
@@ -311,7 +326,7 @@ class Base_Set(object):
         """
         return self.tensor_op.get_mask(token_type)                   
 
-    def get_combined_mask(self, n_types: list[Type]):               # Returns combined mask of give types
+    def get_combined_mask(self, n_types: list[Type]) -> torch.Tensor: # Returns combined mask of give types
         """
         Return combined mask of given types
 
@@ -330,7 +345,7 @@ class Base_Set(object):
         """Return mask for all non-deleted nodes"""
         return (self.nodes[:, TF.DELETED] == B.FALSE)
 
-    def add_token(self, token: Token):                              # Add a token to the tensor
+    def add_token(self, token: Token) -> Ref_Token:                 # Add a token to the tensor
         """
         Add a token to the tensor. If tensor is full, expand it first.
 
@@ -369,7 +384,7 @@ class Base_Set(object):
         """
         self.tensor_op.del_token_ref(ref_tokens)
 
-    def del_connections(self, ref_token: Ref_Token):
+    def del_connections(self, ref_token: Ref_Token):                # Delete connnections from tensors
         """
         Delete connection from tensor.
         
@@ -378,7 +393,7 @@ class Base_Set(object):
         """
         self.tensor_op.del_connections_ref(ref_token)
     
-    def get_analog(self, analog: int):
+    def get_analog(self, analog: int) -> Analog:                    # Get an analog from the set
         """
         Get an analog from the set.
         
@@ -393,12 +408,15 @@ class Base_Set(object):
         """
         return self.tensor_op.get_analog(analog)
             
-    def add_analog(self, analog: Analog):
+    def add_analog(self, analog: Analog) -> Ref_Analog:             # Add an analog to the set
         """
         Add an analog to the set.
 
         Args:
             analog (Analog): The analog to add.
+        
+        Returns:
+            Ref_Analog: Reference to the analog that was added.
         """
         return self.tensor_op.add_analog(analog)
 
@@ -418,7 +436,7 @@ class Base_Set(object):
         """
         self.tensor_op.print(f_types)
     
-    def get_count(self):
+    def get_count(self) -> int:                                     # Get number of nodes in set
         """Get the number of nodes in the set."""
         return self.tensor_op.get_count()
     # --------------------------------------------------------------
