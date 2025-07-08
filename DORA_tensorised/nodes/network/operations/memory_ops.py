@@ -3,7 +3,7 @@
 
 from ...enums import *
 
-class MemoryOperations:
+class TensorOperations:
     """
     Memory management operations for the Network class.
     Handles copying, clearing, and managing memory sets.

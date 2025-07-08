@@ -8,7 +8,7 @@ from .connections import Mappings, Links
 from .network_params import Params
 from .single_nodes import Token, Semantic
 from .single_nodes import Ref_Token, Ref_Semantic
-from .operations import MemoryOperations, UpdateOperations, MappingOperations, RetrievalOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
+from .operations import TensorOperations, UpdateOperations, MappingOperations, RetrievalOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
 
 class Network(object):
     """
@@ -77,24 +77,15 @@ class Network(object):
         self.global_inhibitor = 0.0
 
         # operations
-        self.memory = MemoryOperations(self)
-        """ Memory operations object for the network. """
-        self.update = UpdateOperations(self)
-        """ Update operations object for the network. """
-        self.mapping = MappingOperations(self)
-        """ Mapping operations object for the network. """
-        self.retrieval = RetrievalOperations(self)
-        """ Retrieval operations object for the network. """
-        self.firing = FiringOperations(self)
-        """ Firing operations object for the network. """
-        self.analog = AnalogOperations(self)
-        """ Analog operations object for the network. """
-        self.entropy = EntropyOperations(self)
-        """ Entropy operations object for the network. """
-        self.node = NodeOperations(self)
-        """ Node operations object for the network. """
-        self.inhibitor = InhibitorOperations(self)
-        """ Inhibitor operations object for the network. """
+        self.tensor_ops = TensorOperations(self)
+        self.update_ops = UpdateOperations(self)
+        self.mapping_ops = MappingOperations(self)
+        self.retrieval_ops = RetrievalOperations(self)
+        self.firing_ops = FiringOperations(self)
+        self.analog_ops = AnalogOperations(self)
+        self.entropy_ops = EntropyOperations(self)
+        self.node_ops = NodeOperations(self)
+        self.inhibitor_ops = InhibitorOperations(self)
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """
@@ -119,6 +110,103 @@ class Network(object):
         if semantics:
             count += self.semantics.get_count()
         return count
+    # ========================[ PROPERTIES ]==============================
+    @property
+    def tensor(self) -> 'TensorOperations':
+        """
+        memory operations object. Functions:
+        - NOT IMPLEMENTED
+        """
+        return self.tensor_ops
+    
+    @property
+    def update(self) -> 'UpdateOperations':
+        """
+        update operations object. Functions:
+        - NOT IMPLEMENTED
+        """
+        return self.update_ops
+    
+    @property
+    def retrieval(self) -> 'RetrievalOperations':
+        """
+        retrieval operations object. Functions:
+        - NOT IMPLEMENTED
+        """
+        return self.retrieval_ops
+    
+    @property
+    def mapping(self) -> 'MappingOperations':
+        """
+        mapping operations object. Functions:
+        - NOT IMPLEMENTED
+        """
+        return self.mapping_ops
+    
+    @property
+    def firing(self) -> 'FiringOperations':
+        """
+        firing operations object. Functions:
+        - NOT IMPLEMENTED
+        """
+        return self.firing_ops
+    
+    @property
+    def analog(self) -> 'AnalogOperations':
+        """
+        analog operations object. Functions:
+        - NOT IMPLEMENTED
+        """
+        return self.analog_ops
+    
+    @property
+    def entropy(self) -> 'EntropyOperations':
+        """
+        entropy operations object. Functions:
+        - NOT IMPLEMENTED
+        """
+        return self.entropy_ops
+    
+    @property
+    def node(self) -> 'NodeOperations':
+        """
+        node operations object. Functions:
+        - NOT IMPLEMENTED
+        """
+        return self.node_ops
+    
+    @property
+    def inhibitor(self) -> 'InhibitorOperations':
+        """
+        inhibitor operations object. Functions:
+        - NOT IMPLEMENTED
+        """
+        return self.inhibitor_ops
+    
+    # ======================[ SET ACCESS FUNCTIONS ]======================
+    def driver(self) -> 'Driver':
+        """
+        Get the driver set object.
+        """
+        return self.sets[Set.DRIVER]
+    
+    def recipient(self) -> 'Recipient':
+        """
+        Get the recipient set object.
+        """
+        return self.sets[Set.RECIPIENT]
+    
+    def memory(self) -> 'Memory':
+        """
+        Get the memory set object.
+        """
+        return self.sets[Set.MEMORY]
+    
+    def new_set(self) -> 'New_Set':
+        """
+        Get the new_set set object.
+        """
+        return self.sets[Set.NEW_SET]
     
     # ======================[ ACT FUNCTIONS ]============================
     def initialise_act(self):                                               # Initialise acts in active memory/semantics
