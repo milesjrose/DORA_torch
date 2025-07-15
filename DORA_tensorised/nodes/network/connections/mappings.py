@@ -154,7 +154,7 @@ class Mappings(object):
 
     # ----------------------------------------------------------------
 
-    def print(self, f_types=None):                                  # Here for testing atm
+    def print(self, mapping_field: MappingFields = MappingFields.CONNECTIONS, d_mask=None, r_mask=None):                                  # Here for testing atm
         """
         Print the mappings.
 
@@ -170,8 +170,15 @@ class Mappings(object):
             print("Error: nodePrinter not found. Nodes.utils.nodePrinter is required to use this function.")
         else:
             try:
+                p_tensor = self[mapping_field]
                 printer = nodePrinter(print_to_console=True)
-                printer.print_con_tensor(self.adj_matrix)
+                if d_mask is not None and r_mask is not None:
+                    p_tensor = p_tensor[r_mask][:, d_mask]
+                elif d_mask is not None:
+                    p_tensor = p_tensor[:, d_mask]
+                elif r_mask is not None:
+                    p_tensor = p_tensor[r_mask]
+                printer.print_con_tensor(p_tensor)
             except Exception as e:
                 print("Error: NodePrinter failed to print set.")
                 print(e)
