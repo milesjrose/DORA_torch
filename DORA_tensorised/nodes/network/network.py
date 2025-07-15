@@ -9,6 +9,7 @@ from .network_params import Params
 from .single_nodes import Token, Semantic
 from .single_nodes import Ref_Token, Ref_Semantic
 from .operations import TensorOperations, UpdateOperations, MappingOperations, RetrievalOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
+from .requirements import Requirements
 
 class Network(object):
     """
@@ -44,6 +45,8 @@ class Network(object):
         """ Dictionary of set objects for the network. """
         self.params: Params = params
         """ Parameters object for the network. """
+        self.requirements: Requirements = Requirements(self)
+        """ Requirements object for the network. """
 
         # add links, params, and mappings to each set
         for set in Set:
@@ -182,6 +185,7 @@ class Network(object):
         - NOT IMPLEMENTED
         """
         return self.inhibitor_ops
+    
     
     # ======================[ SET ACCESS FUNCTIONS ]======================
     def driver(self) -> 'Driver':
