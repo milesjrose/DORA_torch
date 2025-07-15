@@ -33,8 +33,8 @@ class UpdateOperations:
             features (list[TF]): The features to initialise.
         """
         type_mask = self.base_set.tensor_op.get_combined_mask(n_type)   # Get mask of nodes to update
-        init_subt = self.base_set.nodes[type_mask, features]            # Get subtensor of features to intialise
-        self.base_set.nodes[type_mask, features] = torch.zeros_like(init_subt)  # Set features to 0
+        for feature in features:
+            self.base_set.nodes[type_mask, feature] = 0.0               # Set each feature to 0.0 for masked nodes
     
     def initialise_input(self, n_type: list[Type], refresh: float):     # Initialize inputs to 0, and td_input to refresh.
         """ 
@@ -77,11 +77,11 @@ class UpdateOperations:
         gamma = self.base_set.params.gamma
         delta = self.base_set.params.delta
         HebbBias = self.base_set.params.HebbBias
-        net_input = self.base_set.nodes[:, net_input_types].sum(dim=1, keepdim=True) # sum non mapping inputs
-        net_input += self.base_set.nodes[:, TF.MAP_INPUT] * HebbBias        # Add biased mapping input
-        acts = self.base_set.nodes[:, TF.ACT]                               # Get node acts
-        delta_act = gamma * net_input * (1.1 - acts) - (delta * acts)       # Find change in act for each node
-        acts += delta_act                                                   # Update acts
+        net_input = self.base_set.nodes[:, net_input_types].sum(dim=1, keepdim=True)    # sum non mapping inputs
+        net_input += (self.base_set.nodes[:, TF.MAP_INPUT] * HebbBias).unsqueeze(1)     # Add biased mapping input, reshape to match
+        acts = self.base_set.nodes[:, TF.ACT]                                           # Get node acts
+        delta_act = gamma * net_input.squeeze(1) * (1.1 - acts) - (delta * acts)        # Find change in act for each node
+        acts += delta_act                                                               # Update acts
         
         self.base_set.nodes[(self.base_set.nodes[:, TF.ACT] > 1.0), TF.ACT] = 1.0  # Limit activation to 1.0 or below
         self.base_set.nodes[(self.base_set.nodes[:, TF.ACT] < 0.0), TF.ACT] = 0.0  # Limit activation to 0.0 or above                                      # update act

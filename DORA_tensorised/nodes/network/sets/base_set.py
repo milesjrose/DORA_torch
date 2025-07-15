@@ -452,7 +452,7 @@ class Base_Set(object):
         """
         self.update_op.initialise_float(n_type, features)
     
-    def initialise_input(self, n_type: list[Type], refresh: float):     # Initialize inputs to 0, and td_input to refresh.
+    def init_input(self, n_type: list[Type], refresh: float):     # Initialize inputs to 0, and td_input to refresh.
         """ 
         Initialize inputs to 0, and td_input to refresh
         
@@ -462,7 +462,7 @@ class Base_Set(object):
         """
         self.update_op.initialise_input(n_type, refresh)
 
-    def initialise_act(self, n_type: list[Type]):                       # Initialize act to 0.0,  and call initialise_inputs
+    def init_act(self, n_type: list[Type]):                       # Initialize act to 0.0,  and call initialise_inputs
         """Initialize act to 0.0,  and call initialise_inputs
         
         Args:

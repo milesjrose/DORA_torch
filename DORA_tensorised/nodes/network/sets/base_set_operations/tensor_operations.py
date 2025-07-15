@@ -3,6 +3,7 @@
 
 import torch
 from typing import TYPE_CHECKING
+from functools import reduce
 
 from ....enums import *
 from ...single_nodes import Token, Analog, Ref_Analog, Ref_Token
@@ -89,7 +90,7 @@ class TensorOperations:
             raise TypeError("n_types must be a list of types")
     
         masks = [self.base_set.masks[i] for i in n_types]
-        return torch.logical_or.reduce(masks)
+        return reduce(torch.logical_or, masks)
 
     def get_all_nodes_mask(self):                                   # Returns a mask for all nodes (Exluding empty or deleted rows)
         """Return mask for all non-deleted nodes"""

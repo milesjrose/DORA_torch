@@ -1,7 +1,11 @@
 # nodes/network/operations/update_ops.py
 # Update operations for Network class
 
+from typing import TYPE_CHECKING
 from ...enums import *
+
+if TYPE_CHECKING:
+    from ..network import Network
 
 class UpdateOperations:
     """
@@ -16,7 +20,7 @@ class UpdateOperations:
         Args:
             network: Reference to the Network object
         """
-        self.network = network
+        self.network: 'Network' = network
     
     # ======================[ ACT FUNCTIONS ]============================
 
@@ -27,10 +31,17 @@ class UpdateOperations:
         """
         sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
         for set in sets:
-            self.network.sets[set].initialise_act()
+            self.network.sets[set].init_act([Type.GROUP, Type.P, Type.RB, Type.PO])
 
-        self.network.semantics.intitialise_sem()
+        self.network.semantics.init_sem()
     
+    def initialise_act_memory(self):
+        """
+        Initialise the acts in the memory.
+        (memory)
+        """
+        self.network.memory.init_act()
+
     def acts(self, set: Set):                                        # Update acts in given token set    
         """
         Update the acts in the given set.
@@ -66,9 +77,16 @@ class UpdateOperations:
         """
         sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
         for set in sets:
-            self.network.sets[set].initialise_act()
+            self.network.sets[set].init_input([Type.GROUP, Type.P, Type.RB, Type.PO], 0.0)
         
-        self.network.semantics.initialise_sem()
+        self.network.semantics.init_input(0.0)
+
+    def initialise_input_memory(self):
+        """
+        Initialise the inputs in the memory.
+        (memory)
+        """
+        self.network.memory.init_input(0.0)
     
     def inputs(self, set: Set):                                      # Update inputs in given token set
         """
@@ -101,19 +119,16 @@ class UpdateOperations:
         """
         Get maximum semantic input.
         """
-        # Implementation using network.semantics
-        pass
+        return self.network.semantics.get_max_input()
     
-    def del_small_link(self):
+    def del_small_link(self, threshold: float):
         """
         Delete links below threshold.
         """
-        # Implementation using network.links
-        pass
+        self.network.links.del_small_link(threshold)
     
-    def round_big_link(self):
+    def round_big_link(self, threshold: float):
         """
         Round links above threshold to 1.
         """
-        # Implementation using network.links
-        pass 
+        self.network.links.round_big_link(threshold)

@@ -252,12 +252,12 @@ class Semantics(object):
     # --------------------------------------------------------------
 
     # ===================[ SEMANTIC FUNCTIONS ]=====================
-    def intitialise_sem(self):                                      # Set act and input to 0 TODO: Check how used
+    def init_sem(self):                                             # Set act and input to 0 TODO: Check how used
         """Initialise the semantics """
         self.nodes[:, SF.ACT] = 0.0
         self.nodes[:, SF.INPUT] = 0.0
 
-    def initialise_input(self, refresh):                            # Set nodes to refresh value TODO: Check how used
+    def init_input(self, refresh):                                  # Set nodes to refresh value TODO: Check how used
         """Initialise the input of the semantics """
         self.nodes[:, SF.INPUT] = refresh
 

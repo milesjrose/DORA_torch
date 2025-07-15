@@ -208,6 +208,12 @@ class Network(object):
         """
         return self.sets[Set.NEW_SET]
     
+    def semantics(self) -> 'Semantics':
+        """
+        Get the semantics set object.
+        """
+        return self.semantics
+    
     # ======================[ ACT FUNCTIONS ]============================
     def initialise_act(self):                                               # Initialise acts in active memory/semantics
         """

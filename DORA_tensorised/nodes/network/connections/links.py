@@ -50,3 +50,19 @@ class Links(object):
 
     def __setitem__(self, key, value):                              # Allows for links[set] = tensor, instead of links.sets[set] = tensor
         self.sets[key] = value
+
+    def del_small_link(self, threshold: float):
+        """
+        Delete links below threshold.
+        """
+        # set any values in links tensor below threshold to 0.0
+        for set in Set:
+            self.sets[set] = torch.where(self.sets[set] < threshold, 0.0, self.sets[set])
+    
+    def round_big_link(self, threshold: float):
+        """
+        Round links above threshold to 1.0.
+        """
+        # set any values in links tensor above threshold to 1.0
+        for set in Set:
+            self.sets[set] = torch.where(self.sets[set] > threshold, 1.0, self.sets[set])
