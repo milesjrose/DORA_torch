@@ -16,7 +16,7 @@ def diag_zeros(M):
     return diag_zeroes
 
 
-def undirected(T):
+def undirected(T: torch.Tensor):
     """
     Returns the undirected matrix made by OR of both directions of a given matrix T
     Args:
@@ -24,7 +24,8 @@ def undirected(T):
     Returns:
         torch.Tensor: The undirected matrix made by OR of both directions of T
     """
-    return(torch.bitwise_or(T,  torch.transpose(T)))            # Or a matrix with its transpose, giving matrix that = 1  if [i]->[j] or [j]->[i]
+    b_tensor = T.bool()
+    return(torch.bitwise_or(b_tensor, b_tensor.t()))            # Or a matrix with its transpose, giving matrix that = 1  if [i]->[j] or [j]->[i]
 
 def refine_mask(tensor, mask, index, value, in_place = False):
     """
