@@ -148,7 +148,7 @@ class UpdateOperations:
             self.base_set.nodes[rb, TF.ACT]
         )
         parent_input = torch.matmul(                               # Px1 matrix: sum of parent rb for each p
-            torch.transpose(self.base_set.connections)[p, rb],
+            torch.t(self.base_set.connections)[p, rb],
             self.base_set.nodes[rb, TF.ACT]
         )
         # Get global masks of p, by mode

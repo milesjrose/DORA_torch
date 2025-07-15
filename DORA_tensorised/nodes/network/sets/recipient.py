@@ -119,7 +119,7 @@ class Recipient(Base_Set):
         """
         # 2). parent_rbs
         if phase_set >= 1:
-            t_con = torch.transpose(self.connections)               # transpose, so gives child -> parent connections
+            t_con = torch.t(self.connections)               # transpose, so gives child -> parent connections
             self.nodes[p, TF.TD_INPUT] += torch.matmul(             # matmul outputs matrix (sum(p) x 1) of values to add to current input value
                 t_con[p, rb],                                       # Masks connections between p[i] and its rbs
                 self.nodes[rb, TF.ACT]                              # For each p node -> sum of act of connected parent rb nodes
@@ -173,7 +173,7 @@ class Recipient(Base_Set):
         # Exitatory input:
         # 2). TD_INPUT: my_parent_p
         if phase_set > 1:
-            t_con = torch.transpose(self.connections)               # Connnections: Parent -> child, take transpose to get list of parents instead
+            t_con = torch.t(self.connections)               # Connnections: Parent -> child, take transpose to get list of parents instead
             self.nodes[rb, TF.TD_INPUT] += torch.matmul(            # matmul outputs martix (sum(rb) x 1) of values to add to current input value
                 t_con[rb, p],                                       # Masks connections between rb[i] and its ps
                 self.nodes[p, TF.ACT]                               # For each rb node -> sum of act of connected p nodes
