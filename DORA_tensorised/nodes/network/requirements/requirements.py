@@ -28,6 +28,7 @@ class Requirements(object):
             network (Network): Network to check requirements for
         """
         self.network = network
+        self.debug = True
 
     def predication(self):
         """
@@ -89,7 +90,8 @@ class Requirements(object):
         try:
             return check_rb_po_connections(self) and check_weights(self)
         except ValueError as e:
-            print(e)
+            if self.debug:
+                print(e)
             return False
         
     
@@ -98,25 +100,39 @@ class Requirements(object):
         Checks requirements for relation formation:
         - There are at least 2 RBs in the recipient that both map to RBs in the driver with mapping connections above 0.8, and that are NOT already connected to a P unit.
         """
-        recipient: 'Recipient' = self.network.recipient()
-        mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT]
-        # Get mask of recipient RBs that don't connect to a P unit (Parent P).
-        r_rb = recipient.get_mask(Type.RB)
-        r_p = recipient.get_mask(Type.P)
-        t_cons = torch.t(recipient.connections)                 # Transpose to get child->parent connections.
-        r_noP_rb = (t_cons[r_rb][:, r_p] == 0).all(dim=1)       # Mask of RBs that don't connect to a p unit
-        r_noP_rb = tOps.sub_union(r_rb, r_noP_rb)               # Expand mask to be size of recipient node tensor
+        def check_rbs(self):
+            recipient: 'Recipient' = self.network.recipient()
+            mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT]
+            # Get mask of recipient RBs that don't connect to a P unit (Parent P).
+            r_rb = recipient.get_mask(Type.RB)
+            if r_rb.sum() < 2:
+                raise ValueError(f"Only {r_rb.sum()} RBs in recipient (required at least 2)")
+            r_p = recipient.get_mask(Type.P)
+            t_cons = torch.t(recipient.connections)                 # Transpose to get child->parent connections.
+            r_noP_rb = (t_cons[r_rb][:, r_p] == 0).all(dim=1)       # Mask of RBs that don't connect to a p unit
+            if r_noP_rb.sum() < 2:
+                raise ValueError(f"Only {r_noP_rb.sum()} RBs in recipient that don't connect to a P unit (required at least 2)")
+            r_noP_rb = tOps.sub_union(r_rb, r_noP_rb)               # Expand mask to be size of recipient node tensor
 
-        # Find mapping connections to RBs in the driver that are above 0.8
-        map_cons = mappings[MappingFields.CONNECTIONS]
-        map_weights = mappings[MappingFields.WEIGHT]
-        d_rb = self.network.driver().get_mask(Type.RB)
-        map_cons = map_cons[r_noP_rb][:, d_rb]                  # Get just (valid recipient_RB) -> driver_RB mappings
-        map_weights = map_weights[r_noP_rb][:, d_rb]
-        active_weights = map_cons * map_weights                 # NOTE: Not sure if this is required. If mapping weights are only > 0 for active connections, then this can be removed
-        active_weights = active_weights[active_weights > 0.8]   # Find number of connections that are above 0.8
+            # Find mapping connections to RBs in the driver that are above 0.8
+            map_cons = mappings[MappingFields.CONNECTIONS]
+            map_weights = mappings[MappingFields.WEIGHT]
+            d_rb = self.network.driver().get_mask(Type.RB)
+            map_cons = map_cons[r_noP_rb][:, d_rb]                  # Get just (valid recipient_RB) -> driver_RB mappings
+            map_weights = map_weights[r_noP_rb][:, d_rb]
+            active_weights = map_cons * map_weights                 # NOTE: Not sure if this is required. If mapping weights are only > 0 for active connections, then this can be removed
+            active_weights = active_weights[active_weights > 0.8]   # Find number of connections that are above 0.8
         
-        return len(active_weights) >= 2
+            if len(active_weights) < 2:
+                raise ValueError(f"Only {len(active_weights)} RBs in recipient that map to RBs in the driver with mapping connections above 0.8 (required at least 2)")
+            return True
+        
+        try:
+            return check_rbs(self)
+        except ValueError as e:
+            if self.debug:
+                print(e)
+            return False
         
     def schema(self):
         """
