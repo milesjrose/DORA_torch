@@ -171,8 +171,8 @@ class Requirements(object):
                 invalid_mask.float()
             )
 
-            invalid_connections = (invalid_child > 0) | (invalid_parent > 0)
-            fail_nodes = valid_mask & invalid_connections
+            invalid_connections = (invalid_child > 0) | (invalid_parent > 0) # Get all nodes that connect to an invalid node
+            fail_nodes = valid_mask & invalid_connections                    # Get all nodes that are valid but connect to an invalid node
 
             if torch.any(fail_nodes):
                 raise ValueError(f"Failing nodes found in {set} set")
