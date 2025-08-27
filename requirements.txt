@@ -1,0 +1,8 @@
+imutils
+matplotlib
+numpy
+opencv-python
+pytest
+scikit-image
+scipy
+torch
