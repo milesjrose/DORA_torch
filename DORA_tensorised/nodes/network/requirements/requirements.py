@@ -34,11 +34,15 @@ class Requirements(object):
         """
         Checks requirements for predication:
         - All driver POs map to units in the recipient that don't have RBs
-        - All driver POs map to a recipient PO with weight above 0.8
+        - All driver POs map to a recipient PO with weight above threshold (=.8)
         """
-        # make sure that all driver POs map to units in the recipient 
-        # that don't have RBs, and that those mappings are above threshold(=.8).
+        # Helper functions
         def check_rb_po_connections(self):
+            """
+            Chceks that all driver POs map to units in the recipient that don't have RBs
+            Returns:
+                bool: True if passes check, False o.w.
+            """
             driver: 'Driver' = self.network.driver()
             recipient: 'Recipient' = self.network.recipient()
             mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT]
@@ -58,11 +62,11 @@ class Requirements(object):
     
         def check_weights(self):
             """
-            Checks that all driver POs map to a recipient PO with weight above 0.8
+            Checks that all driver POs map to a recipient PO with weight above threshold (=.8)
             Returns:
-                bool: True if all driver POs map to a recipient PO with weight above 0.8, False otherwise
+                bool: True if passes check, False o.w.
             """
-            
+            threshold = 0.8
             mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT]
             recipient: 'Recipient' = self.network.recipient()
             driver: 'Driver' = self.network.driver()
@@ -85,7 +89,7 @@ class Requirements(object):
             active_weights = map_weights[:, driver_po_mask][active_maps]
 
             min_weight = min(active_weights.tolist())
-            return bool(min_weight >= 0.8)
+            return bool(min_weight >= threshold)
     
         try:
             return check_rb_po_connections(self) and check_weights(self)
@@ -101,6 +105,7 @@ class Requirements(object):
         - There are at least 2 RBs in the recipient that both map to RBs in the driver with mapping connections above 0.8, and that are NOT already connected to a P unit.
         """
         def check_rbs(self):
+            threshold = 0.8
             recipient: 'Recipient' = self.network.recipient()
             mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT]
             # Get mask of recipient RBs that don't connect to a P unit (Parent P).
@@ -118,17 +123,18 @@ class Requirements(object):
             map_cons = mappings[MappingFields.CONNECTIONS]
             map_weights = mappings[MappingFields.WEIGHT]
             d_rb = self.network.driver().get_mask(Type.RB)
+
             map_cons = map_cons[r_noP_rb][:, d_rb]                  # Get just (valid recipient_RB) -> driver_RB mappings
             map_weights = map_weights[r_noP_rb][:, d_rb]
             active_weights = map_cons * map_weights                 # NOTE: Not sure if this is required. If mapping weights are only > 0 for active connections, then this can be removed
-            active_weights = active_weights[active_weights > 0.8]   # Find number of connections that are above 0.8
+            active_weights = active_weights[active_weights > threshold]   # Find number of connections that are above threshold
         
             if len(active_weights) < 2:
                 raise ValueError(f"Only {len(active_weights)} RBs in recipient that map to RBs in the driver with mapping connections above 0.8 (required at least 2)")
-            return True
         
         try:
-            return check_rbs(self)
+            check_rbs(self)
+            return True
         except ValueError as e:
             if self.debug:
                 print(e)
@@ -136,8 +142,50 @@ class Requirements(object):
         
     def schema(self):
         """
-        Check requirments for schematisation
+        Check requirments for schematisation:
+        - All driver and recepient mapping connections are above threshold (=.7)
+        - Parents/Children of these mapped tokens are mapped with weight above threshold
         """
+        threshold = 0.7
+        # Check recipient nodes
+
+        def check_set(self, set: 'Set'):
+            tensor = self.network.sets[set]
+            max_maps = tensor.nodes[:, TF.MAX_MAP]
+            cons = tensor.connections
+            valid_mask = max_maps >= threshold
+            invalid_mask = ~valid_mask
+
+            # Check for any nodes with 0 < max_map < threshold
+            if torch.any((max_maps > 0) & (max_maps < threshold)):
+                raise ValueError(f"Nodes with 0 < max_map < threshold found in {set} set")
+
+            # Check for connections to invalid nodes
+            invalid_child = torch.matmul(
+                cons,
+                invalid_mask.float()
+            )
+
+            invalid_parent = torch.matmul(
+                torch.t(cons),              # Transpose to get parent->child connections.
+                invalid_mask.float()
+            )
+
+            invalid_connections = (invalid_child > 0) | (invalid_parent > 0)
+            fail_nodes = valid_mask & invalid_connections
+
+            if torch.any(fail_nodes):
+                raise ValueError(f"Failing nodes found in {set} set")
+
+        try:
+            check_set(self, Set.DRIVER)
+            check_set(self, Set.RECIPIENT)
+            return True
+        except ValueError as e:
+            if self.debug:
+                print(e)
+            return False
+    
     
     def rel_gen(self):
         """

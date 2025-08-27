@@ -285,3 +285,56 @@ def test_rel_form_fails_not_enough_rbs(network: 'Network'):
 
     # --------------------------[ TEST ]--------------------------
     assert network.requirements.rel_form() is False
+
+def test_schema_passes(network: 'Network'):
+    """
+    Test should pass when all schema requirements are met.
+    - All mapped tokens have max_map >= 0.7 -> all tokens connect to valid nodes.
+    """
+    for s in [network.driver(), network.recipient()]:
+        s.nodes[:, TF.MAX_MAP] = 0.8
+
+    assert network.requirements.schema() is True
+
+
+def test_schema_fails_low_max_map(network: 'Network'):
+    """
+    Test should fail when a token has 0 < max_map < 0.7.
+    """
+    network.driver().nodes[0, TF.MAX_MAP] = 0.5
+
+    assert network.requirements.schema() is False
+
+
+def test_schema_fails_invalid_child_connection(network: 'Network'):
+    """
+    Test should fail when a valid token (max_map >= 0.7) is connected to an invalid one (max_map < 0.7).
+    """
+    driver = network.driver()
+    # All tokens are valid by default
+    driver.nodes[:, TF.MAX_MAP] = 0.8
+
+    # Make one token invalid
+    driver.nodes[1, TF.MAX_MAP] = 0.0
+
+    # Connect a valid token (parent) to the invalid one (child)
+    driver.connections[0, 1] = 1.0
+
+    assert network.requirements.schema() is False
+
+
+def test_schema_fails_invalid_parent_connection(network: 'Network'):
+    """
+    Test should fail when a valid token (max_map >= 0.7) is connected to an invalid one (max_map < 0.7).
+    """
+    driver = network.driver()
+    # All tokens are valid by default
+    driver.nodes[:, TF.MAX_MAP] = 0.8
+
+    # Make one token invalid
+    driver.nodes[0, TF.MAX_MAP] = 0.0
+
+    # Connect a valid token (child) to the invalid one (parent)
+    driver.connections[0, 1] = 1.0
+
+    assert network.requirements.schema() is False
