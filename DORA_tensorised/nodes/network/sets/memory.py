@@ -244,8 +244,11 @@ class Memory(Base_Set):
             po_connections = 1 - shared                             # non shared PO: mask[i][j] = 0 if p[i] and object[j] share an RB, 1 o.w
             # if ignore_sem: Only connect nodes of same type
             if ignore_object_semantics:
-                po_connections[pred_sub][obj_sub] = 0               # Remove pred -> obj connections
-                po_connections[obj_sub][pred_sub] = 0               # Remove obj -> pred connections
+                pred_indices = torch.where(pred_sub)[0]
+                obj_indices = torch.where(obj_sub)[0]
+                if pred_indices.shape[0] > 0 and obj_indices.shape[0] > 0:
+                    po_connections[pred_indices[:, None], obj_indices] = 0 # Remove pred -> obj connections
+                    po_connections[obj_indices[:, None], pred_indices] = 0 # Remove obj -> pred connections
             self.nodes[po, TF.LATERAL_INPUT] -= torch.matmul(
                 po_connections,                                     # po x all_po (connections)
                 self.nodes[all_po, TF.ACT]                          # all_po x  1 (acts)
