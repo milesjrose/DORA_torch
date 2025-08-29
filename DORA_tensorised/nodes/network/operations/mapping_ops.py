@@ -2,6 +2,12 @@
 # Mapping operations for Network class
 
 from ...enums import *
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..network import Network
+    from ..sets import Driver, Recipient
+
 
 class MappingOperations:
     """
@@ -16,7 +22,7 @@ class MappingOperations:
         Args:
             network: Reference to the Network object
         """
-        self.network = network
+        self.network: 'Network' = network
 
     # ---------------------[ TODO: IMPLEMENT ]----------------------------
     
@@ -34,13 +40,6 @@ class MappingOperations:
         # Implementation using network.mappings
         pass
     
-    def setup_mapping_units(self):
-        """
-        Setup mapping units.
-        Mappings are created automatically by updating tensors.
-        """
-        # Implementation using network.mappings
-        pass
     
     def update_mapping_hyps(self):
         """
@@ -70,12 +69,36 @@ class MappingOperations:
         # Implementation using network.mappings
         pass
     
-    def get_max_maps(self):
+    def get_max_maps_am(self):
         """
-        Get maximum mappings.
+        Get maximum mappings in driver and recipient.
         """
-        # Implementation using network.mappings
-        pass
+        # Get max maps for driver and recipient
+        self.get_max_maps(Set.DRIVER)
+        self.get_max_maps(Set.RECIPIENT)
+    
+    def get_max_maps(self, set: 'Set'):
+        """
+        Get maximum mappings in set.
+        TODO: Check if ever need to check memory mappings in driver?
+        """
+        if set == Set.DRIVER:
+            mappings = self.network.mappings[Set.RECIPIENT]
+            nodes = self.network.driver().nodes
+            map_weights = mappings[MappingFields.WEIGHT]
+            # recipient -> driver mappings, so find max along dim=0
+            max_maps = map_weights.max(dim=0).values
+            # Set max map for each token
+            nodes[:, TF.MAX_MAP] = max_maps
+        elif set == Set.RECIPIENT or set == Set.MEMORY:
+            mappings = self.network.mappings[set]
+            nodes = self.network.sets[set].nodes
+            map_weights = mappings[MappingFields.WEIGHT]
+            # set -> driver mappings, so find max along dim=1
+            max_maps = map_weights.max(dim=1).values
+            # Set max map for each token
+            nodes[:, TF.MAX_MAP] = max_maps
+        
     
     def get_my_max_map(self):
         """

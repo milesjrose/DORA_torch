@@ -17,7 +17,13 @@ from .sims.sim import symProps
 @pytest.fixture
 def network():
     builder = NetworkBuilder(symProps=symProps)
-    return builder.build_network()
+    net = builder.build_network()
+    # Ensure all sets have some tokens for testing
+    for s_enum in [Set.DRIVER, Set.RECIPIENT, Set.MEMORY]:
+        s = net.sets[s_enum]
+        while s.nodes.shape[0] < 3:
+            s.tensor_ops.add_token(Token(Type.PO))
+    return net
 
 def test_mappings_initialization(network: Network):
     # Create test tensors
@@ -81,23 +87,13 @@ def test_mappings_update_hypotheses(network: Network):
     
     ref = driver.token_op.get_reference(id=2)
     network.del_token(ref)
-    print("deleted driver node")
     ref = recipient.token_op.get_reference(id=2)
     network.del_token(ref)
-    print("deleted recipient node")
     # Add nodes to network
     driver_node: Ref_Token = driver.add_token(driver_node)
     driver_index = driver.token_op.get_index(driver_node)
     recipient_node: Ref_Token = recipient.add_token(recipient_node)
     recipient_index = recipient.token_op.get_index(recipient_node)
-    
-    """
-    recipient.print()
-    print(recipient_index)
-    driver.print()
-    print(driver_index)
-    mappings.print()
-    """
 
     # Add mapping connections between nodes
     mappings[MappingFields.CONNECTIONS][driver_index, recipient_index] = 1.0
