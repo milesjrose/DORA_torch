@@ -18,32 +18,26 @@ class RequirementOperations:
         """
         self.network = network
 
-    # ---------------------[ TODO: IMPLEMENT ]----------------------------
-    
     def predication_requirements(self):
         """
         Check predication requirements.
         """
-        # Implementation using network.sets, network.mappings
-        pass
+        return self.network.requirements.predication()
     
     def rel_form_requirements(self):
         """
         Check relation formation requirements.
         """
-        # Implementation using network.sets, network.mappings
-        pass
+        return self.network.requirements.rel_form()
     
     def schema_requirements(self):
         """
         Check schema requirements.
         """
-        # Implementation using network.sets, network.mappings
-        pass
+        return self.network.requirements.schema()
     
     def rel_gen_requirements(self):
         """
         Check relation generation requirements.
         """
-        # Implementation using network.sets, network.mappings
-        pass 
+        return self.network.requirements.rel_gen()
