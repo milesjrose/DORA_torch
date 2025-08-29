@@ -8,6 +8,8 @@ class RequirementOperations:
     Requirement operations for the Network class.
     Handles requirement checking for various operations.
     """
+
+    # TODO: Move requirements.py to here? Can't remember why it was in a seperate file
     
     def __init__(self, network):
         """
