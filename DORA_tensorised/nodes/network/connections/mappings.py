@@ -143,18 +143,76 @@ class Mappings(object):
         Reset the hypotheses/max hypotheses to 0.
         """
         self[MappingFields.HYPOTHESIS] = 0.0
-        self[MappingFields.MAX_HYPOTHESIS] = 0.0
-
-    def add_mappings(self,  mappings):
+        self[MappingFields.MAX_HYP] = 0.0
+    
+    def reset_mapping_units(self):
         """
-        [Not implemented] Add mappings to the adjacency matrix.
-        TODO: implement
+        Reset the hypotheses and connections.
         """
-        pass
+        self.reset_hypotheses()
+        self[MappingFields.WEIGHT] = 0.0
+    
+    def reset_mappings(self):
+        """
+        Reset the hypotheses, connections, and max map.
+        TODO: Reset max map -> stored in set nodes tensors.
+        """
+        self.reset_mapping_units()
+        self[MappingFields.MAX_HYP] = 0.0
+    
+    def update_connections(self, eta):
+        """
+        Update the weight matrix.
+        Args:
+            eta (float): Learning rate.
+        """
+        # 1). Divisively normalise all mapping hypotheses:
+        self.get_max_hypothesis()
+        # Mask out max hyp=0 to avoid division by zero
+        mask = self[MappingFields.MAX_HYP] > 0
+        self[MappingFields.HYPOTHESIS][mask] /= self[MappingFields.MAX_HYP][mask]
+        # 2). Subtractively normalise each hypothesis:
+        self.get_max_hypothesis()
+        self[MappingFields.HYPOTHESIS] -= self[MappingFields.MAX_HYP]
+        # 3). Update the weights matrix, clamped to between 0 and 1.
+        self[MappingFields.WEIGHT] = torch.clamp(
+            eta * (1.1 - self[MappingFields.WEIGHT]) * self[MappingFields.HYPOTHESIS], 
+            0, 1)
+        self.print(MappingFields.WEIGHT)
 
+    def get_max_hypothesis(self):
+        """
+        For each hypothesis, find the maximum hypothesis of either unit involved in that hypothesis.
+        """
+        # max_hypothesis[i,j] = max(max(hypothesis[i,:]), max(hypothesis[:,j]))
+
+        max_recipient = self[MappingFields.HYPOTHESIS].max(dim=1).values
+        max_driver = self[MappingFields.HYPOTHESIS].max(dim=0).values
+        max_values = tOps.max_broadcast(max_recipient, max_driver)
+
+        self[MappingFields.MAX_HYP] = max_values
+
+        
+    
+    def get_max_map(self):
+        """
+        For each token, find the token with the highest connection weight.
+
+        NOTE: Not sure on usage on these values currently. 
+        For now they are returned, and then used by higher classes to assign to the set tensors.
+
+        Returns:
+            max_recipient (torch.Tensor): Object containing index and weight of driver token with highest weight for recipient token.
+            max_driver (torch.Tensor): Object containing index and weight of recipient token with highest weight for driver token.
+        """
+        # max_connection[i] = max(connection[i,:]))
+        max_recipient: torch.return_types.max = self[MappingFields.WEIGHT].max(dim=1)
+        max_driver: torch.return_types.max = self[MappingFields.WEIGHT].max(dim=0)
+        return max_recipient, max_driver
+    
     # ----------------------------------------------------------------
 
-    def print(self, mapping_field: MappingFields = MappingFields.CONNECTIONS, d_mask=None, r_mask=None):                                  # Here for testing atm
+    def print(self, mapping_field: MappingFields = MappingFields.WEIGHT, d_mask=None, r_mask=None):                                  # Here for testing atm
         """
         Print the mappings.
 
@@ -178,7 +236,19 @@ class Mappings(object):
                     p_tensor = p_tensor[:, d_mask]
                 elif r_mask is not None:
                     p_tensor = p_tensor[r_mask]
-                printer.print_con_tensor(p_tensor)
+                if mapping_field == MappingFields.CONNECTIONS:
+                    printer.print_con_tensor(p_tensor)
+                else:
+                    match mapping_field:
+                        case MappingFields.MAX_HYP:
+                            printer.print_weight_tensor(p_tensor, headers=["Max Hypothesis:"])
+                        case MappingFields.HYPOTHESIS:
+                            printer.print_weight_tensor(p_tensor, headers=["Hypothesis:"])
+                        case MappingFields.WEIGHT:
+                            printer.print_weight_tensor(p_tensor, headers=["Weight:"])
+                        case _:
+                            raise ValueError(f"Invalid mapping field: {mapping_field}")
+
             except Exception as e:
                 print("Error: NodePrinter failed to print set.")
                 print(e)

@@ -155,6 +155,44 @@ class nodePrinter(object):
         printer = tablePrinter(columns, rows, headers, self.file_path, self.print_to_console)
         printer.print_table(split=True)
     
+    def print_weight_tensor(self, tensor: torch.Tensor, mask = None, names = None, headers = None):
+        """
+        Print the given weight tensor.
+        Args:
+            tensor (torch.Tensor): The tensor to print.
+            mask (torch.Tensor): The mask to apply to the tensor.
+            names (dict): The names of the tokens. If None, the names will not be printed.
+            headers (list): The headers to print, defaults to "Weight:" if left as None.
+        """
+        if names is not None:
+            pass
+        if headers is None:
+            headers = ["Weight:"]
+        if mask is not None:
+            pass
+
+        rows = tensor.tolist()
+        for r, row in enumerate(rows):
+            for i in range(len(row)):
+                row[i] = f"{row[i]:.2f}"
+            try:
+                row.insert(0, names[r])
+            except:
+                row.insert(0, r)
+        
+        columns = ["P-> C:"]
+        if len(rows)>0:
+            for i in range(len(rows[0])-1):
+                try:
+                    columns.append(names[i])
+                except:
+                    columns.append(i)
+        else:
+            rows = [["Empty"]]
+        
+        printer = tablePrinter(columns, rows, headers, self.file_path, self.print_to_console)
+        printer.print_table(split=True)
+    
     def print_links_tensor(self, tensor: torch.Tensor, semantics, mask = None, names = None, headers = None):
         """
         Print the given links tensor.

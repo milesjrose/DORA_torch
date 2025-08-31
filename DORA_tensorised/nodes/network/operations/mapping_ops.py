@@ -28,88 +28,55 @@ class MappingOperations:
     
     def reset_mapping_units(self):
         """
-        Initialize mapping hypotheses and connections.
+        Initialize mapping hypotheses and connections in the driver and recipient.
         """
-        # Implementation using network.mappings
-        pass
+        self.network.mappings[Set.RECIPIENT].reset_mapping_units()
     
     def reset_mappings(self):
         """
-        Same as reset_mapping_units but also clear max map.
+        Initialise mapping hypotheses, connections, and max map for all tokens.
         """
-        # Implementation using network.mappings
-        pass
-    
+        self.network.mappings[Set.MEMORY].reset_mappings()
+        self.network.mappings[Set.RECIPIENT].reset_mappings()
+
     
     def update_mapping_hyps(self):
         """
         Update all mapping hypotheses.
         """
-        # Implementation using network.mappings
-        pass
+        self.network.mappings[Set.RECIPIENT].update_hypotheses()
+        # TODO: Check if we update memory set hypotheses here?
     
     def reset_mapping_hyps(self):
         """
         Reset the values of mapping hypotheses/max_hyps.
         """
-        # Implementation using network.mappings
-        pass
+        self.network.mappings[Set.RECIPIENT].reset_hypotheses()
+        # TODO: Check reset mem set here as well?
     
     def update_mapping_connections(self):
         """
         Update mapping connections.
         """
-        # Implementation using network.mappings
-        pass
+        self.network.mappings[Set.RECIPIENT].update_connections(self.network.params.eta)
     
-    def get_max_map_units(self):
+    def get_max_maps(self):
         """
-        Get value/token with highest mapping value for each token.
+        Get value/token with highest mapping value for each token in driver and recipient.
         """
-        # Implementation using network.mappings
-        pass
+        max_recipient, max_driver = self.network.mappings[Set.RECIPIENT].get_max_map()
+        # Set max map for driver
+        self.network.sets[Set.DRIVER].nodes[:, TF.MAX_MAP] = max_driver.values
+        self.network.sets[Set.DRIVER].nodes[:, TF.MAX_MAP_UNIT] = max_driver.indices
+        # Set max map for recipient
+        self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP] = max_recipient.values
+        self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP_UNIT] = max_recipient.indices
     
-    def get_max_maps_am(self):
+    def get_max_map_memory(self):
         """
-        Get maximum mappings in driver and recipient.
+        Get value/token with highest mapping value for each token in memory.
+        TODO: Check if this is ever needed?
         """
-        # Get max maps for driver and recipient
-        self.get_max_maps(Set.DRIVER)
-        self.get_max_maps(Set.RECIPIENT)
-    
-    def get_max_maps(self, set: 'Set'):
-        """
-        Get maximum mappings in set.
-        TODO: Check if ever need to check memory mappings in driver?
-        """
-        if set == Set.DRIVER:
-            mappings = self.network.mappings[Set.RECIPIENT]
-            nodes = self.network.driver().nodes
-            map_weights = mappings[MappingFields.WEIGHT]
-            # recipient -> driver mappings, so find max along dim=0
-            max_maps = map_weights.max(dim=0).values
-            # Set max map for each token
-            nodes[:, TF.MAX_MAP] = max_maps
-        elif set == Set.RECIPIENT or set == Set.MEMORY:
-            mappings = self.network.mappings[set]
-            nodes = self.network.sets[set].nodes
-            map_weights = mappings[MappingFields.WEIGHT]
-            # set -> driver mappings, so find max along dim=1
-            max_maps = map_weights.max(dim=1).values
-            # Set max map for each token
-            nodes[:, TF.MAX_MAP] = max_maps
-        
-    
-    def get_my_max_map(self):
-        """
-        Return unit that has maximum mapping weight, or null if all mappings == 0.
-        """
-        # Implementation using network.mappings
-        pass
-    
-    def get_my_max_map_unit(self):
-        """
-        Same as get_my_max_map.
-        """
-        # Implementation using network.mappings
-        pass 
+        max_memory, max_driver = self.network.mappings[Set.MEMORY].get_max_map()
+        self.network.sets[Set.MEMORY].nodes[:, TF.MAX_MAP] = max_memory.values
+        self.network.sets[Set.MEMORY].nodes[:, TF.MAX_MAP_UNIT] = max_memory.indices

@@ -58,3 +58,21 @@ def sub_union(mask, submask, in_place = False):
         new_mask = mask
     new_mask[mask] &= submask
     return new_mask
+
+def max_broadcast(a, b):
+    """
+    Take two tensors, broadcast them to the same shape, and return the maximum of the two.
+    Args:
+        a (torch.Tensor): The first tensor
+        b (torch.Tensor): The second tensor
+    Returns:
+        torch.Tensor: The maximum of the two tensors
+    """
+    a_expanded = a.unsqueeze(1)
+    
+    # Unsqueeze b to be a row vector (1 x n)
+    b_expanded = b.unsqueeze(0)
+    
+    # Use torch.max to perform the broadcasted element-wise maximum
+    # The result will be an m x n tensor
+    return torch.max(a_expanded, b_expanded)
