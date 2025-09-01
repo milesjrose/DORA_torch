@@ -88,15 +88,15 @@ class Mappings(object):
         r_po = self.map_from.get_mask(Type.PO)
         d_po = self.driver.get_mask(Type.PO)
 
-        print("r_po.shape: ", r_po.shape)
-        print("recipient shape: ", self.map_from.nodes.shape)
-        print("d_po.shape: ", d_po.shape)
-        print("driver shape: ", self.driver.nodes.shape)
+        print("r_p: ", r_p)
+        print("d_p: ", d_p)
 
         # Update child p
         r_pc = tOps.refine_mask(self.map_from.nodes, r_p, TF.MODE, Mode.CHILD)
         d_pc = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.CHILD)
         self.update_hypothesis(d_pc, r_pc)
+        print("r_pc: ", r_pc)
+        print("d_pc: ", d_pc)
 
         # Update parent p
         r_pp = tOps.refine_mask(self.map_from.nodes, r_p, TF.MODE, Mode.PARENT)
@@ -172,13 +172,12 @@ class Mappings(object):
         mask = self[MappingFields.MAX_HYP] > 0
         self[MappingFields.HYPOTHESIS][mask] /= self[MappingFields.MAX_HYP][mask]
         # 2). Subtractively normalise each hypothesis:
-        self.get_max_hypothesis()
+        self[MappingFields.MAX_HYP] = tOps.efficient_local_max_excluding_self(self[MappingFields.HYPOTHESIS])
         self[MappingFields.HYPOTHESIS] -= self[MappingFields.MAX_HYP]
         # 3). Update the weights matrix, clamped to between 0 and 1.
         self[MappingFields.WEIGHT] = torch.clamp(
             eta * (1.1 - self[MappingFields.WEIGHT]) * self[MappingFields.HYPOTHESIS], 
             0, 1)
-        self.print(MappingFields.WEIGHT)
 
     def get_max_hypothesis(self):
         """
@@ -191,7 +190,6 @@ class Mappings(object):
         max_values = tOps.max_broadcast(max_recipient, max_driver)
 
         self[MappingFields.MAX_HYP] = max_values
-
         
     
     def get_max_map(self):

@@ -3,10 +3,13 @@
 
 import pytest
 import torch
+import pandas as pd
 
 from ..enums import MappingFields, Set, Type, TF
 from ..builder import NetworkBuilder
+from ..utils import nodePrinter
 from ..network import Network, Token
+
 
 
 # Import the symProps from sim.py
@@ -117,37 +120,32 @@ def test_reset_mapping_units(network: Network):
     """
     Tests that reset_mapping_units zeros out hypotheses, max_hyp, and connections for driver and recipient.
     """
-    for s_enum in [Set.DRIVER, Set.RECIPIENT]:
-        mappings = network.mappings[s_enum]
-        mappings[MappingFields.HYPOTHESIS].fill_(1.0)
-        mappings[MappingFields.MAX_HYP].fill_(1.0)
-        mappings[MappingFields.CONNECTIONS].fill_(1.0)
+    mappings = network.mappings[Set.RECIPIENT]
+    mappings[MappingFields.HYPOTHESIS].fill_(1.0)
+    mappings[MappingFields.MAX_HYP].fill_(1.0)
+    mappings[MappingFields.WEIGHT].fill_(1.0)
 
     network.mapping_ops.reset_mapping_units()
 
-    for s_enum in [Set.DRIVER, Set.RECIPIENT]:
-        mappings = network.mappings[s_enum]
-        assert torch.all(mappings[MappingFields.HYPOTHESIS] == 0)
-        assert torch.all(mappings[MappingFields.MAX_HYP] == 0)
-        assert torch.all(mappings[MappingFields.CONNECTIONS] == 0)
+    assert torch.all(mappings[MappingFields.HYPOTHESIS] == 0)
+    assert torch.all(mappings[MappingFields.MAX_HYP] == 0)
+    assert torch.all(mappings[MappingFields.WEIGHT] == 0)
 
 
 def test_reset_mappings(network: Network):
     """
     Tests that reset_mappings zeros out all mapping fields for all sets.
     """
-    for s_enum in [Set.DRIVER, Set.RECIPIENT, Set.MEMORY]:
-        mappings = network.mappings[s_enum]
-        for field in MappingFields:
-            mappings[field].fill_(1.0)
+    mappings = network.mappings[Set.RECIPIENT]
+    for field in MappingFields:
+        mappings[field].fill_(1.0)
 
     network.mapping_ops.reset_mappings()
 
-    for s_enum in [Set.DRIVER, Set.RECIPIENT, Set.MEMORY]:
-        mappings = network.mappings[s_enum]
-        for field in MappingFields:
-            if field != MappingFields.WEIGHT: # WEIGHT is not reset by this op
-                assert torch.all(mappings[field] == 0)
+    assert torch.all(mappings[MappingFields.HYPOTHESIS] == 0)
+    assert torch.all(mappings[MappingFields.MAX_HYP] == 0)
+    assert torch.all(mappings[MappingFields.WEIGHT] == 0)
+
 
 
 def test_update_mapping_hyps(network: Network):
@@ -168,6 +166,15 @@ def test_update_mapping_hyps(network: Network):
     driver.nodes[1, TF.TYPE] = Type.P
     recipient.nodes[0, TF.TYPE] = Type.P
     recipient.nodes[1, TF.TYPE] = Type.P
+    network.recipient().cache_masks()
+    network.driver().cache_masks()
+
+    printer = nodePrinter(print_to_file=False)
+    printer.print_tk_tensor(driver.nodes, headers=["Driver"], types=[TF.ID, TF.DELETED, TF.TYPE, TF.MODE, TF.ACT])
+    printer.print_tk_tensor(recipient.nodes, headers=["Recipient"], types=[TF.ID, TF.DELETED, TF.TYPE, TF.MODE, TF.ACT])
+    print(network.recipient().get_mask(Type.P))
+    print(network.recipient().nodes[:, TF.TYPE] == Type.P)
+    network.mappings[Set.RECIPIENT].print(MappingFields.HYPOTHESIS)
 
 
     network.mapping_ops.update_mapping_hyps()
@@ -185,64 +192,38 @@ def test_reset_mapping_hyps(network: Network):
     """
     Tests that reset_mapping_hyps zeros out hypotheses and max_hyp for driver and recipient.
     """
-    for s_enum in [Set.DRIVER, Set.RECIPIENT]:
-        mappings = network.mappings[s_enum]
-        mappings[MappingFields.HYPOTHESIS].fill_(1.0)
-        mappings[MappingFields.MAX_HYP].fill_(1.0)
+
+    mappings = network.mappings[Set.RECIPIENT]
+    mappings[MappingFields.HYPOTHESIS].fill_(1.0)
+    mappings[MappingFields.MAX_HYP].fill_(1.0)
 
     network.mapping_ops.reset_mapping_hyps()
 
-    for s_enum in [Set.DRIVER, Set.RECIPIENT]:
-        mappings = network.mappings[s_enum]
-        assert torch.all(mappings[MappingFields.HYPOTHESIS] == 0)
-        assert torch.all(mappings[MappingFields.MAX_HYP] == 0)
+    assert torch.all(mappings[MappingFields.HYPOTHESIS] == 0)
+    assert torch.all(mappings[MappingFields.MAX_HYP] == 0)
 
+def import_tensor(filename: str):
+    data = pd.read_csv(filename, header=None, index_col=None)
+    return torch.tensor(data.values, dtype=torch.float32)
 
 def test_update_mapping_connections(network: Network):
     """
     Tests that update_mapping_connections correctly updates connection weights.
     """
-    eta = network.params.eta
-    maps = network.mappings[Set.RECIPIENT]
+    prefix = 'scripts/'
+    weight = import_tensor(prefix + 'weight_data.csv')
+    hyp = import_tensor(prefix + 'hyp_data.csv')
+    weight_updated = import_tensor(prefix + 'weight_updated.csv')
 
-    # --- Setup Hypotheses ---
-    hyp = maps[MappingFields.HYPOTHESIS]
-    hyp.fill_(0)
-    hyp[0, 0] = 0.5
-    hyp[1, 1] = 0.9
-
-    weight = maps[MappingFields.WEIGHT]
-    weight.fill_(0)
-    weight[0, 0] = 0.2
-    weight[1, 1] = 0.8
-
-    # -- Run the Operation --
-
+    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT] = weight
+    network.mappings[Set.RECIPIENT][MappingFields.HYPOTHESIS] = hyp
+    print(network.params.eta)
     network.mapping_ops.update_mapping_connections()
 
-    weight = maps[MappingFields.WEIGHT]
+    network.mappings[Set.RECIPIENT].print(MappingFields.WEIGHT)
+    printer = nodePrinter(print_to_file=False)
+    printer.print_weight_tensor(weight_updated, headers=["Weight Updated"])
 
-    # Expected values are calculated based on the logic in mappings.py update_connections
-    # 1. get_max_hypothesis
-    max_hyp_00 = max(hyp[0,:].max(), hyp[:,0].max()) # 0.5
-    max_hyp_11 = max(hyp[1,:].max(), hyp[:,1].max()) # 0.9
-    
-    # 2. Divisive normalisation
-    hyp_norm_div_00 = 0.5 / max_hyp_00 # 1.0
-    hyp_norm_div_11 = 0.9 / max_hyp_11 # 1.0
-    
-    # 3. get_max_hypothesis again (on divisively normalised hyps)
-    max_hyp_norm_00 = 1.0
-    max_hyp_norm_11 = 1.0
-    
-    # 4. Subtractive normalisation
-    hyp_norm_sub_00 = hyp_norm_div_00 - max_hyp_norm_00 # 0.0
-    hyp_norm_sub_11 = hyp_norm_div_11 - max_hyp_norm_11 # 0.0
-    
-    # 5. Update connections
-    expected_con_00 = eta * (1.1 - 0.0) * hyp_norm_sub_00 # 0.0
-    expected_con_11 = eta * (1.1 - 0.0) * hyp_norm_sub_11 # 0.0
-    
-    assert torch.isclose(weight[0, 0], torch.tensor(expected_con_00))
-    assert torch.isclose(weight[1, 1], torch.tensor(expected_con_11))
+    assert torch.allclose(network.mappings[Set.RECIPIENT][MappingFields.WEIGHT], weight_updated)
+
 

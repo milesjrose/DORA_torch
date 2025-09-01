@@ -76,3 +76,53 @@ def max_broadcast(a, b):
     # Use torch.max to perform the broadcasted element-wise maximum
     # The result will be an m x n tensor
     return torch.max(a_expanded, b_expanded)
+
+def efficient_local_max_excluding_self(tensor: torch.Tensor) -> torch.Tensor:
+    """
+    For each element (i, j) in a 2D tensor, finds the maximum of all other elements
+    in row i and column j.
+
+    Args:
+        tensor (torch.Tensor): The 2D input tensor.
+
+    Returns:
+        torch.Tensor: A tensor where each element (i, j) is the local max
+                      excluding the original element (i, j).
+    """
+    n_rows, n_cols = tensor.shape
+
+    # 1. Find the top two values and indices for each row
+    # top_row_vals will have shape (n_rows, 2)
+    # top_row_indices will have shape (n_rows, 2)
+    top_row_vals, _ = torch.topk(tensor, k=2, dim=1)
+
+    # 2. Find the top two values and indices for each column
+    # We transpose, find topk, then transpose back
+    top_col_vals, _ = torch.topk(tensor.T, k=2, dim=1)
+    top_col_vals = top_col_vals.T
+
+    # 3. Get the #1 max value for each row and column and expand to the original shape
+    # These tensors tell us what the absolute max of each row/column is.
+    max_val_rows = top_row_vals[:, 0].unsqueeze(1).expand_as(tensor)
+    max_val_cols = top_col_vals[0, :].unsqueeze(0).expand_as(tensor)
+
+    # 4. Create a boolean mask where True indicates the element is the max of its row/column
+    is_max_in_row = (tensor == max_val_rows)
+    is_max_in_col = (tensor == max_val_cols)
+
+    # 5. Select the #2 max where the element is the #1 max, otherwise select the #1 max
+    # We use the mask to choose between the first and second largest values.
+    row_max_excluding_self = torch.where(
+        is_max_in_row,
+        top_row_vals[:, 1].unsqueeze(1).expand_as(tensor), # Use 2nd max
+        top_row_vals[:, 0].unsqueeze(1).expand_as(tensor)  # Use 1st max
+    )
+
+    col_max_excluding_self = torch.where(
+        is_max_in_col,
+        top_col_vals[1, :].unsqueeze(0).expand_as(tensor), # Use 2nd max
+        top_col_vals[0, :].unsqueeze(0).expand_as(tensor)  # Use 1st max
+    )
+
+    # 6. Return the maximum of the two resulting tensors
+    return torch.max(row_max_excluding_self, col_max_excluding_self)
