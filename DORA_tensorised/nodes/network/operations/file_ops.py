@@ -19,38 +19,3 @@ class FileOperations:
         self.network = network
 
     # ---------------------[ TODO: IMPLEMENT ]----------------------------
-    
-    def write_memory_to_symfile(self):
-        """
-        Write memory state to symfile. Should probably devise new tensor based file type (e.g. sym.tensors).
-        """
-        # Implementation using network.sets, network.semantics
-        pass
-    
-    def create_dict_p(self):
-        """
-        Create P dictionary.
-        """
-        # Implementation using network.sets
-        pass
-    
-    def create_dict_rb(self):
-        """
-        Create RB dictionary.
-        """
-        # Implementation using network.sets
-        pass
-    
-    def create_dict_po(self):
-        """
-        Create PO dictionary.
-        """
-        # Implementation using network.sets
-        pass
-    
-    def create_rb_dict(self):
-        """
-        Create RB dictionary.
-        """
-        # Implementation using network.sets
-        pass 
