@@ -24,7 +24,7 @@ class UpdateOperations:
     
     # ======================[ ACT FUNCTIONS ]============================
 
-    def initialise_act(self):                                               # Initialise acts in active memory/semantics
+    def initialise_act(self):
         """
         Initialise the acts in the active memory/semantics.
         (driver, recipient, new_set, semantics)
@@ -42,7 +42,7 @@ class UpdateOperations:
         """
         self.network.memory.init_act()
 
-    def acts(self, set: Set):                                        # Update acts in given token set    
+    def acts(self, set: Set): 
         """
         Update the acts in the given set.
 
@@ -51,13 +51,13 @@ class UpdateOperations:
         """
         self.network.sets[set].update_act()
     
-    def acts_sem(self):                                              # Update acts in semantics
+    def acts_sem(self):
         """
         Update the acts in the semantics.
         """
         self.network.semantics.update_act()
 
-    def acts_am(self):                                               # Update acts in active memory/semantics
+    def acts_am(self): 
         """
         Update the acts in the active memory.
         (driver, recipient, new_set, semantics)
@@ -70,7 +70,7 @@ class UpdateOperations:
     
     # =======================[ INPUT FUNCTIONS ]=========================
 
-    def initialise_input(self):                                             # Initialise inputs in active memory/semantics
+    def initialise_input(self): 
         """
         Initialise the inputs in the active memory/semantics.
         (driver, recipient, new_set, semantics)
@@ -88,7 +88,7 @@ class UpdateOperations:
         """
         self.network.memory.init_input(0.0)
     
-    def inputs(self, set: Set):                                      # Update inputs in given token set
+    def inputs(self, set: Set):
         """
         Update the inputs in the given token set.
 
@@ -97,13 +97,13 @@ class UpdateOperations:
         """
         self.network.sets[set].update_input()
     
-    def inputs_sem(self):                                            # Update inputs in semantics               
+    def inputs_sem(self):               
         """
         Update the inputs in the semantics.
         """
         self.network.semantics.update_input(self.network.sets[Set.DRIVER], self.network.sets[Set.RECIPIENT])
 
-    def inputs_am(self):                                             # Update inputs in active memory
+    def inputs_am(self):
         """
         Update the inputs in the active memory.
         (driver, recipient, new_set, semantics)
@@ -114,7 +114,8 @@ class UpdateOperations:
         
         self.inputs_sem()
 
-    # ======================[ TODO: IMPLEMENT ]=======================
+    # ======================[ SEM/LINK FUNCTIONS]=======================
+
     def get_max_sem_input(self):
         """
         Get maximum semantic input.
