@@ -5,7 +5,10 @@ from ...enums import *
 import torch
 from math import exp
 
+from ..single_nodes import Ref_Analog
 from typing import TYPE_CHECKING
+from random import random
+from ...utils import tensor_ops as tOps
 
 if TYPE_CHECKING:
     from ...network import Network
@@ -45,41 +48,87 @@ class RetrievalOperations:
     def retrieve_tokens(self):
         """
         Retrieve tokens from memory.
+        Biases retrieval to analogs and uses relative act based on network params.
         """
         use_rel_act = self.network.params.use_relative_act
         analog_bias = self.network.params.bias_retrieval_analogs
-        # 2. calc normal act for each analog
+        if analog_bias:
+            self.retrive_analogs_biased(use_rel_act)
+        else:
+            self.retrive_tokens_no_bias(use_rel_act)
+
+    def retrive_analogs_biased(self, use_relative_act):
+        """ Retrieve analogs from memory, using analog bias"""
+        self.network.memory().tensor_ops.get_analog_activation_counts_scatter()
+        # Calc normal act for each analog
         analogs = self.network.memory().analogs
         counts = self.network.memory().analog_counts
         acts = self.network.memory().analog_activations
-        # Total act/count for each
         normal_act = acts/counts
-        # take weighted average of normal_acts
-        avg_norm =  (torch.mean(normal_act) + torch.max(normal_act))/2
-        # transform the norm_acts with
-        # 1 / (1 + exp(10 * norm_act - avg_norm))
-        normal_act = 1 / (1 + exp(10 * normal_act - avg_norm))
-        sum_normal_act = torch.sum(normal_act)
-        # Retrieve 2
+        
+        # If relative act, transform normal_act with sigmoidal function
+        if use_relative_act:
+            # take weighted average of normal_acts
+            avg_norm =  (torch.mean(normal_act) + torch.max(normal_act))/2
+            # transform the norm_acts with
+            # 1 / (1 + exp(10 * norm_act - avg_norm))
+            normal_act = 1 / (1 + exp(10 * normal_act - avg_norm))
+            sum_normal_act = torch.sum(normal_act)
+
+        #Retrive analogs with luce choice
+        active_mask = counts > 0                    # Mask 0 act analogs
+        # Calc retrieval prob for each analog
+        retrieve_prob = normal_act[active_mask]/sum_normal_act
+        random_num = torch.rand(analogs.shape[0])
+        retrieve_mask = active_mask & (retrieve_prob > random_num)
+        # Retrieve analogs NOTE: not vectorised TODO: Add method for moving multiple analogs at once
+        for analog in analogs[retrieve_mask]:
+            self.retrieve_analog(analog)
+        
+    def retrieve_tokens_no_bias(self, use_relative_act):
+        """Retrieve analogs from memory, no bias to analogs"""
+        if use_relative_act:
+            raise NotImplementedError("Relative act not implemented for non-bias retrieval")
+
+        # Update max acts, and get all mask
+        self.network.memory().tensor_ops.get_max_acts()                     
+        all_mask = self.network.memory().get_all_nodes_mask()
+
+        # Decide on retrieval based on luce choice
+        def luce_choice_retrieval(self, all_mask, token_sum, token_mask):
+            # make sure token_sum > 0
+            if token_sum <= 0:
+                return
+            # retrieve prob = max_act / token_sum
+            retrieve_prob = self.network.memory().nodes[token_mask, TF.MAX_ACT] / token_sum
+            # if retrieve prob > random num, flag token for retrieval
+            random_num = random()
+            retrieve_mask = token_mask & (retrieve_prob > random_num)
+            retrieve_mask = tOps.sub_union(all_mask, token_mask)
+            return retrieve_mask
+        
+        # Apply luce choice to each token type
+        retrieve_mask = torch.zeros_like(all_mask)
+        for token_type in [Type.P, Type.RB, Type.PO]:
+            token_mask = self.network.memory().get_mask(token_type)
+            token_sum = self.network.memory().nodes[token_mask, TF.MAX_ACT].sum()
+            retrieve_mask = retrieve_mask & luce_choice_retrieval(token_sum, token_mask)
+
+        # Move tokens to recipient
+        self.retrieve_tokens(retrieve_mask)
+
+            
+    def retrieve_analog(self, analog: int):
+        """
+        Move analog from memory to recipient
+        """
+        ref = Ref_Analog(analog.analog_number, Set.MEMORY)
+        self.network.analog_ops.move(ref, Set.RECIPIENT)
     
-    def retrieve_analog_contents(self):
+    def retrieve_tokens(self, token_mask: torch.Tensor):
         """
-        Set all tokens in analog to recipient.
+        Move tokens in mask from memory to recipient, including any children of these tokens.
+        NOTE: Move or copy?
+        TODO: Implement
         """
-        # Implementation using network.sets
         pass
-    
-    def get_most_active_unit(self):
-        """
-        Take in a set of nodes (e.g. all POs or Recipient RBs) and return the most active unit.
-        Make sure activation != 0.0 (i.e. an active unit not just the first if no units active).
-        """
-        # Implementation using network.sets
-        pass
-    
-    def get_most_active_punit(self):
-        """
-        Basically just get_most_active_unit but specifically for POs in a given mode.
-        """
-        # Implementation using network.sets
-        pass 
