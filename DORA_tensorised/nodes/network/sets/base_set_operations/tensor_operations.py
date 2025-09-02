@@ -412,6 +412,38 @@ class TensorOperations:
     def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
         """Update list of analogs in tensor, and their node counts"""
         self.base_set.analogs, self.base_set.analog_counts = torch.unique(self.base_set.nodes[:, TF.ANALOG], return_counts=True)
+
+    def get_analog_activation_counts_scatter(self):
+        """
+        Get unique analog numbers, their counts, and total activation sums. 
+        Sets .analogs, .analog_counts, .analog_activations
+        """
+        # Get unique analog numbers and their counts
+        self.analog_node_count()
+        analogs = self.base_set.analogs
+        analog_counts = self.base_set.analog_counts
+
+        # Create a mapping from analog number to index
+        analog_to_idx = {analog.item(): idx for idx, analog in enumerate(analogs)}
+        
+        # Create index tensor for scatter
+        analog_indices = torch.zeros(len(self.base_set.nodes), dtype=torch.long)
+        for i, analog_num in enumerate(self.base_set.nodes[:, TF.ANALOG]):
+            analog_indices[i] = analog_to_idx[analog_num.item()]
+        
+        # Use scatter_add_ to sum activations for each analog
+        valid_mask = self.get_all_nodes_mask()
+        analog_activations = torch.zeros(len(analogs))
+        analog_activations.scatter_add_(
+            0, 
+            analog_indices[valid_mask], 
+            self.base_set.nodes[valid_mask, TF.ACT]
+        )
+
+        # Update set
+        self.base_set.analog_activations = analog_activations
+        self.base_set.analog_counts = analog_counts
+        self.base_set.analogs = analogs
    
     def print(self, f_types=None):                                  # Here for testing atm
         """

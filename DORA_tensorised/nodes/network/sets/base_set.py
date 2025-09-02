@@ -87,7 +87,9 @@ class Base_Set(object):
         "Ax1 Tensor: Analogs in the set"
         self.analog_counts = None
         "Ax1 Tensor: Node count for each analog in self.analogs"
-        self.analog_node_count()
+        self.analog_activations = None
+        "Ax1 Tensor: Total activation for each analog in self.analogs"
+        self.tensor_op.get_analog_activation_counts_scatter() # Get the analogs, counts, and activations
         self.links = None
         """Links object for the set.
             - Links[set] gives set's links to semantics

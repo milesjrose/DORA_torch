@@ -296,6 +296,32 @@ class TokenOperations:
             analogs.append(Ref_Analog(analog_id, self.base_set.token_set))
         return analogs
     
+    def get_analogs_active(self, ids=False) -> list[Ref_Analog]:
+        """
+        Get all analogs that have at least one active token.
+        """
+        all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()
+        active_tokens = (self.base_set.nodes[all_nodes_mask, TF.ACT] > 0.0)
+        active_analog_ids = self.base_set.nodes[active_tokens, TF.ANALOG]
+        unique_analog_ids = torch.unique(active_analog_ids).tolist()
+
+        if ids:
+            return unique_analog_ids
+        else: # Convert to ref objects
+            analogs = []
+            for analog_id in unique_analog_ids:
+                analogs.append(Ref_Analog(analog_id, self.base_set.token_set))
+            return analogs
+    
+    def get_max_acts(self):
+        """
+        Set max_act for all tokens in the set
+        """
+        all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()
+        nodes_to_update = self.base_set.nodes[:, TF.ACT] > self.base_set.nodes[:, TF.MAX_ACT]
+        update_mask = nodes_to_update & all_nodes_mask
+        self.base_set.nodes[update_mask, TF.MAX_ACT] = self.base_set.nodes[update_mask, TF.ACT]
+    
     def get_highest_token_type(self) -> Type:
         """
         Get the highest token type in the set.
