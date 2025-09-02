@@ -2,6 +2,14 @@
 # Retrieval operations for Network class
 
 from ...enums import *
+import torch
+from math import exp
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ...network import Network
+    from ..sets import Driver, Recipient, Memory
 
 class RetrievalOperations:
     """
@@ -16,7 +24,7 @@ class RetrievalOperations:
         Args:
             network: Reference to the Network object
         """
-        self.network = network
+        self.network: 'Network' = network
 
     # ---------------------[ TODO: IMPLEMENT ]----------------------------
     
@@ -25,15 +33,34 @@ class RetrievalOperations:
         Run the model retrieval routine - update input/act in memory, then if bias_retrieval_analogs 
         get the total act for each analog, else track the most active tokens in memory.
         """
-        # Implementation using network.sets, network.mappings
-        pass
+        memory: 'Memory' = self.network.memory()
+        memory.update_input()
+        memory.update_act()
+        if self.network.params.bias_retrieval_analogs:
+            memory.tensor_ops.get_analog_activation_counts_scatter()
+        else:
+            memory.token_ops.get_max_acts()
+
     
     def retrieve_tokens(self):
         """
         Retrieve tokens from memory.
         """
-        # Implementation using network.sets
-        pass
+        use_rel_act = self.network.params.use_relative_act
+        analog_bias = self.network.params.bias_retrieval_analogs
+        # 2. calc normal act for each analog
+        analogs = self.network.memory().analogs
+        counts = self.network.memory().analog_counts
+        acts = self.network.memory().analog_activations
+        # Total act/count for each
+        normal_act = acts/counts
+        # take weighted average of normal_acts
+        avg_norm =  (torch.mean(normal_act) + torch.max(normal_act))/2
+        # transform the norm_acts with
+        # 1 / (1 + exp(10 * norm_act - avg_norm))
+        normal_act = 1 / (1 + exp(10 * normal_act - avg_norm))
+        sum_normal_act = torch.sum(normal_act)
+        # Retrieve 2
     
     def retrieve_analog_contents(self):
         """
