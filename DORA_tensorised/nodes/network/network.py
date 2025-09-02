@@ -10,6 +10,7 @@ from .single_nodes import Token, Semantic
 from .single_nodes import Ref_Token, Ref_Semantic
 from .operations import TensorOperations, UpdateOperations, MappingOperations, RetrievalOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
 from .requirements import Requirements
+from .routines import Routines
 
 class Network(object):
     """
@@ -83,12 +84,14 @@ class Network(object):
         self.tensor_ops = TensorOperations(self)
         self.update_ops = UpdateOperations(self)
         self.mapping_ops = MappingOperations(self)
-        self.retrieval_ops = RetrievalOperations(self)
         self.firing_ops = FiringOperations(self)
         self.analog_ops = AnalogOperations(self)
         self.entropy_ops = EntropyOperations(self)
         self.node_ops = NodeOperations(self)
         self.inhibitor_ops = InhibitorOperations(self)
+
+        # routines
+        self.routines = Routines(self)
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """

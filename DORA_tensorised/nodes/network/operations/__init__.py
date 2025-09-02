@@ -4,7 +4,6 @@
 from .memory_ops import TensorOperations
 from .update_ops import UpdateOperations
 from .mapping_ops import MappingOperations
-from .retrieval_ops import RetrievalOperations
 from .firing_ops import FiringOperations
 from .analog_ops import AnalogOperations
 from .entropy_ops import EntropyOperations
@@ -16,7 +15,6 @@ __all__ = [
     'TensorOperations',
     'UpdateOperations',
     'MappingOperations',
-    'RetrievalOperations',
     'FiringOperations',
     'AnalogOperations',
     'EntropyOperations',

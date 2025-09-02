@@ -28,8 +28,6 @@ class RetrievalOperations:
             network: Reference to the Network object
         """
         self.network: 'Network' = network
-
-    # ---------------------[ TODO: IMPLEMENT ]----------------------------
     
     def retrieval_routine(self):
         """

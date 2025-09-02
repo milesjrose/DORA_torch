@@ -1,0 +1,74 @@
+# nodes/network/routines/rel_form.py
+# Relation formation routines for Network class
+
+from ...enums import *
+
+from typing import TYPE_CHECKING
+from ...utils import tensor_ops as tOps
+
+if TYPE_CHECKING:
+    from ...network import Network
+    from ..sets import Recipient
+    from ..connections import Mappings
+
+class RelFormOperations:
+    """
+    RelForm operations for the Network class.
+    Handles relation formation routines.
+    """
+    
+    def __init__(self, network):
+        """
+        Initialize RelFormOperations with reference to Network.
+        
+        Args:
+            network: Reference to the Network object
+        """
+        self.network: 'Network' = network
+    
+    def requirements(self):
+        """
+        Checks requirements for relation formation:
+        - There are at least 2 RBs in the recipient that both map to RBs in the driver with mapping connections above 0.8, and that are NOT already connected to a P unit.
+        """
+        def check_rbs(self):
+            threshold = 0.8
+            recipient: 'Recipient' = self.network.recipient()
+            mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT]
+            # Get mask of recipient RBs that don't connect to a P unit (Parent P).
+            r_rb = recipient.get_mask(Type.RB)
+            if r_rb.sum() < 2:
+                raise ValueError(f"Only {r_rb.sum()} RBs in recipient (required at least 2)")
+            r_p = recipient.get_mask(Type.P)
+            t_cons = torch.t(recipient.connections)                 # Transpose to get child->parent connections.
+            r_noP_rb = (t_cons[r_rb][:, r_p] == 0).all(dim=1)       # Mask of RBs that don't connect to a p unit
+            if r_noP_rb.sum() < 2:
+                raise ValueError(f"Only {r_noP_rb.sum()} RBs in recipient that don't connect to a P unit (required at least 2)")
+            r_noP_rb = tOps.sub_union(r_rb, r_noP_rb)               # Expand mask to be size of recipient node tensor
+
+            # Find mapping connections to RBs in the driver that are above 0.8
+            map_cons = mappings[MappingFields.CONNECTIONS]
+            map_weights = mappings[MappingFields.WEIGHT]
+            d_rb = self.network.driver().get_mask(Type.RB)
+
+            map_cons = map_cons[r_noP_rb][:, d_rb]                  # Get just (valid recipient_RB) -> driver_RB mappings
+            map_weights = map_weights[r_noP_rb][:, d_rb]
+            active_weights = map_cons * map_weights                 # NOTE: Not sure if this is required. If mapping weights are only > 0 for active connections, then this can be removed
+            active_weights = active_weights[active_weights > threshold]   # Find number of connections that are above threshold
+        
+            if len(active_weights) < 2:
+                raise ValueError(f"Only {len(active_weights)} RBs in recipient that map to RBs in the driver with mapping connections above 0.8 (required at least 2)")
+        
+        try:
+            check_rbs(self)
+            return True
+        except ValueError as e:
+            if self.debug:
+                print(e)
+            return False
+
+    def rel_form_routine(self):
+        """
+        Run the relation formation routine.
+        """
+        pass

@@ -97,7 +97,6 @@ class Requirements(object):
             if self.debug:
                 print(e)
             return False
-        
     
     def rel_form(self):
         """
@@ -185,7 +184,6 @@ class Requirements(object):
             if self.debug:
                 print(e)
             return False
-    
     
     def rel_gen(self):
         """
