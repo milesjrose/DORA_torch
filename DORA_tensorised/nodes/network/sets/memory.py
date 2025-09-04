@@ -21,7 +21,7 @@ class Memory(Base_Set):
         Update all input in recipient
         """
         self.update_input_p_parent()
-        self.update_input_p_child()
+        # self.update_input_p_child()         # NOTE: In dora, update_memory_inputs(), all P are updateded using parent P update input function?
         self.update_input_rb()
         self.update_input_po()
 
@@ -35,7 +35,7 @@ class Memory(Base_Set):
         # Inhibitory: lateral (other P units in parent mode*lat_input_level), inhibitor.
         # 1). get masks
         p = self.get_mask(Type.P)                                   # Boolean mask for P nodes
-        p = tOps.refine_mask(self.nodes, p, TF.MODE, Mode.PARENT)   # Boolean mask for Parent P nodes
+        #p = tOps.refine_mask(self.nodes, p, TF.MODE, Mode.PARENT)   # Boolean mask for Parent P nodes   # NOTE: Treat all P as parent P, as per original code.
         group = self.get_mask(Type.GROUP)                           # Boolean mask for GROUP nodes
         rb = self.get_mask(Type.RB)                                 # Boolean mask for RB nodes
         # Exitatory input:
