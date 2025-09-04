@@ -347,4 +347,26 @@ class TokenOperations:
         # Check connections, get nodes that connect to (connections: parent -> child)
         indices = torch.where(self.base_set.connections[index, :] == B.TRUE)[0].tolist()
         return indices
+    
+    def get_most_active_token(self, mask=None, id=False):
+        """
+        Get the most active token in the set.
+
+        Args:
+            mask (torch.Tensor, optional): A mask to apply to the tensor. Defaults to None.
+            id (bool, optional): Whether to return the ID or Ref_Token of the most active token. Defaults to False.
+
+        Returns:
+            Ref_Token: The most active token in the set.
+            Or Index of the most active token in the set.
+        """
+        if mask is None:
+            mask = self.base_set.tensor_op.get_all_nodes_mask()
+        
+        most_active_token_index = self.base_set.nodes[mask, TF.ACT].argmax().item()
+        if id:
+            return self.base_set.nodes[most_active_token_index, TF.ID].item()
+        else:
+            return self.get_reference(index=most_active_token_index)
+
     # --------------------------------------------------------------

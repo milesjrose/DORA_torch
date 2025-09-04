@@ -4,6 +4,10 @@
 from ...enums import *
 from ..single_nodes import Token, Semantic, Ref_Token, Ref_Semantic
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    import torch
+
 class NodeOperations:
     """
     Node operations for the Network class.
@@ -162,4 +166,31 @@ class NodeOperations:
                 raise ValueError("Referenced a semantic, but feature is not a semantic feature.")
         else:
             raise ValueError("Invalid reference type.")
+    
+    def get_most_active_token(self, masks: dict[Set, 'torch.Tensor'], id=False):
+        """
+        Get the most active token in the set.
+
+        Args:
+            masks (dict[Set, torch.Tensor]): A dictionary of masks to apply to the tensor.
+            id (bool, optional): Whether to return the ID or Ref_Token of the most active token. Defaults to False.
+
+        Returns:
+            List[Ref_Token] or Dict[Set, id]: The most active token in the set, depending on if id=True/False.
+        """
+        if id:
+            tokens = []
+        else:
+            tokens = dict()
+        for set in Set:
+            if set in masks:
+                token = self.sets[set].token_op.get_most_active_token(masks[set], id)
+                if id:
+                    tokens.append(token)
+                else:
+                    tokens[set] = token
+            else:
+                continue # Skip if no mask for set
+        
+        return tokens
      
