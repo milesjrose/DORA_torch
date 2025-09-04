@@ -101,6 +101,43 @@ class Params(object):
         self.phase_set = 0
         """phase_set (int): The current phase set."""
 
+    def get_params_dict(self):
+        """
+        Returns a dictionary of the parameters.
+        """
+        return {
+            "firingOrderRule": self.firing_order_rule,
+            "firingOrder": self.firing_order,
+            "asDORA": self.as_DORA,
+            "gamma": self.gamma,
+            "delta": self.delta,
+            "eta": self.eta,
+            "HebbBias": self.HebbBias,
+            "lateral_input_level": self.lateral_input_level,
+            "strategic_mapping": self.strategic_mapping,
+            "ignore_object_semantics": self.ignore_object_semantics,
+            "ignore_memory_semantics": self.ignore_memory_semantics,
+            "mag_decimal_precision": self.mag_decimal_precision,
+            "exemplar_memory": self.exemplar_memory,
+            "recent_analog_bias": self.recent_analog_bias,
+            "bias_retrieval_analogs": self.bias_retrieval_analogs,
+            "use_relative_act": self.use_relative_act,
+            "ho_sem_act_flow": self.ho_sem_act_flow,
+            "tokenize": self.tokenize,
+            "remove_uncompressed": self.remove_uncompressed,
+            "remove_compressed": self.remove_compressed,
+            "doGUI": self.doGUI,
+            "screen": self.screen,
+            "screen_width": self.screen_width,
+            "screen_height": self.screen_height,
+            "GUI_update_rate": self.GUI_update_rate,
+            "starting_iteration": self.starting_iteration,
+            "num_phase_sets_to_run": self.num_phase_sets_to_run,
+            "count_by_RBs": self.count_by_RBs,
+            "local_inhibitor_fired": self.local_inhibitor_fired,
+            "phase_set": self.phase_set,
+        }
+
 
 def default_params():
     """
