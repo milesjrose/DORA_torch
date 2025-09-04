@@ -18,8 +18,11 @@ class InhibitorOperations:
         """
         self.network = network
         self.sets = network.sets
+        # NOTE: Not sure where/if these are used? 
+        self.local_inhibitor = 0.0
+        self.global_inhibitor = 0.0
 
-    def update(self):                                            # Update inputs and acts of inhibitors
+    def update(self):                                                   # Update inputs and acts of inhibitors
         """
         Update the inputs and acts of the driver and recipient inhibitors.
         (driver, recipient).
@@ -36,7 +39,7 @@ class InhibitorOperations:
         else:
             self.sets[Set.DRIVER].update_inhibitor_act([Type.RB])
 
-    def reset(self):                                             # Reset inhibitors (for RB and PO units) NOTE: Check if required to set for memory and new_set
+    def reset(self):                                                    # Reset inhibitors (for RB and PO units) NOTE: Check if required to set for memory and new_set
         """
         Reset the inhibitors (for RB and PO units).
         (driver, recipient, new_set, memory)
