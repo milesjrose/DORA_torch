@@ -21,6 +21,7 @@ class SchematisationOperations:
         Initialize SchematisationOperations with reference to Network.
         """
         self.network: 'Network' = network
+        self.debug = False
     
     def requirements(self):
         """

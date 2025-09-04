@@ -28,6 +28,7 @@ class RetrievalOperations:
             network: Reference to the Network object
         """
         self.network: 'Network' = network
+        self.debug = False
     
     def retrieval_routine(self):
         """

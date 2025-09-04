@@ -19,6 +19,7 @@ class RelGenOperations:
         Initialize RelGenOperations with reference to Network.
         """
         self.network: 'Network' = network
+        self.debug = False
 
     def requirements(self):
         """

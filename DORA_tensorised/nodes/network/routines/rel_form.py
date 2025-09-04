@@ -5,6 +5,7 @@ from ...enums import *
 
 from typing import TYPE_CHECKING
 from ...utils import tensor_ops as tOps
+import torch
 
 if TYPE_CHECKING:
     from ...network import Network
@@ -25,6 +26,7 @@ class RelFormOperations:
             network: Reference to the Network object
         """
         self.network: 'Network' = network
+        self.debug = False
     
     def requirements(self):
         """

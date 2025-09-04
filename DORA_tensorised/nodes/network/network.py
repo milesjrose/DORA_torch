@@ -8,8 +8,7 @@ from .connections import Mappings, Links
 from .network_params import Params
 from .single_nodes import Token, Semantic
 from .single_nodes import Ref_Token, Ref_Semantic
-from .operations import TensorOperations, UpdateOperations, MappingOperations, RetrievalOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
-from .requirements import Requirements
+from .operations import TensorOperations, UpdateOperations, MappingOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
 from .routines import Routines
 
 class Network(object):
@@ -46,8 +45,7 @@ class Network(object):
         """ Dictionary of set objects for the network. """
         self.params: Params = params
         """ Parameters object for the network. """
-        self.requirements: Requirements = Requirements(self)
-        """ Requirements object for the network. """
+
 
         # add links, params, and mappings to each set
         for set in Set:
@@ -79,6 +77,10 @@ class Network(object):
         # inhibitors
         self.local_inhibitor = 0.0
         self.global_inhibitor = 0.0
+        
+        # routines
+        self.routines: Routines = Routines(self)
+        """ Routines object for the network. """
 
         # operations
         self.tensor_ops = TensorOperations(self)
@@ -89,9 +91,6 @@ class Network(object):
         self.entropy_ops = EntropyOperations(self)
         self.node_ops = NodeOperations(self)
         self.inhibitor_ops = InhibitorOperations(self)
-
-        # routines
-        self.routines = Routines(self)
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """
@@ -132,14 +131,6 @@ class Network(object):
         - NOT IMPLEMENTED
         """
         return self.update_ops
-    
-    @property
-    def retrieval(self) -> 'RetrievalOperations':
-        """
-        retrieval operations object. Functions:
-        - NOT IMPLEMENTED
-        """
-        return self.retrieval_ops
     
     @property
     def mapping(self) -> 'MappingOperations':

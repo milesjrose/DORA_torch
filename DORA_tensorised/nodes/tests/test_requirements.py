@@ -91,14 +91,14 @@ def test_predication_passes(network):
     assert check_rb_po_connections(network) is True
     mappings.print(d_mask=d_po)
     assert check_weights(network) is True
-    assert network.requirements.predication() is True
+    assert network.routines.predication.requirements() is True
 
 def test_predication_fails_low_weight(network):
     # Lower a mapping weight below threshold
     mappings = network.mappings[1]  # Set.RECIPIENT == 1
     # Set all mapping weights to 0.5 for driver POs
     mappings.adj_matrix[:, :, 0] = 0.5  # MappingFields.WEIGHT == 0
-    assert network.requirements.predication() is False
+    assert network.routines.predication.requirements() is False
 
 def test_predication_fails_connected_to_rb(network):
     # Connect a mapped PO to an RB in the recipient
@@ -112,7 +112,7 @@ def test_predication_fails_connected_to_rb(network):
         pytest.skip('No PO or RB in recipient set for this symProps')
     # Connect first PO to first RB
     recipient.connections[po_indices[0], rb_indices[0]] = 1
-    assert network.requirements.predication() is False 
+    assert network.routines.predication.requirements() is False 
 
 def check_rb_po_connections(network: 'Network'):
     recipient: 'Recipient' = network.recipient()
@@ -188,7 +188,7 @@ def test_rel_form_passes(network: 'Network'):
     mappings[MappingFields.WEIGHT][r_rb_indices[1], d_rb_indices[1]] = 0.9
 
     # --------------------------[ TEST ]--------------------------
-    assert network.requirements.rel_form() is True
+    assert network.routines.rel_form.requirements() is True
 
 
 def test_rel_form_fails_low_weight(network: 'Network'):
@@ -218,7 +218,7 @@ def test_rel_form_fails_low_weight(network: 'Network'):
     mappings[MappingFields.WEIGHT][r_rb_indices[1], d_rb_indices[1]] = 0.9 # one is still high
 
     # --------------------------[ TEST ]--------------------------
-    assert network.requirements.rel_form() is False
+    assert network.routines.rel_form.requirements() is False
 
 
 def test_rel_form_fails_connected_to_p(network: 'Network'):
@@ -256,7 +256,7 @@ def test_rel_form_fails_connected_to_p(network: 'Network'):
     recipient.connections[r_rb_indices[0], p_index] = 1.0
 
     # --------------------------[ TEST ]--------------------------
-    assert network.requirements.rel_form() is False
+    assert network.routines.rel_form.requirements() is False
 
 
 def test_rel_form_fails_not_enough_rbs(network: 'Network'):
@@ -284,7 +284,7 @@ def test_rel_form_fails_not_enough_rbs(network: 'Network'):
     mappings[MappingFields.WEIGHT][r_rb_index, d_rb_index] = 0.9
 
     # --------------------------[ TEST ]--------------------------
-    assert network.requirements.rel_form() is False
+    assert network.routines.rel_form.requirements() is False
 
 def test_schema_passes(network: 'Network'):
     """
@@ -294,7 +294,7 @@ def test_schema_passes(network: 'Network'):
     for s in [network.driver(), network.recipient()]:
         s.nodes[:, TF.MAX_MAP] = 0.8
 
-    assert network.requirements.schema() is True
+    assert network.routines.schematisation.requirements() is True
 
 
 def test_schema_fails_low_max_map(network: 'Network'):
@@ -303,7 +303,7 @@ def test_schema_fails_low_max_map(network: 'Network'):
     """
     network.driver().nodes[0, TF.MAX_MAP] = 0.5
 
-    assert network.requirements.schema() is False
+    assert network.routines.schematisation.requirements() is False
 
 
 def test_schema_fails_invalid_child_connection(network: 'Network'):
@@ -320,7 +320,7 @@ def test_schema_fails_invalid_child_connection(network: 'Network'):
     # Connect a valid token (parent) to the invalid one (child)
     driver.connections[0, 1] = 1.0
 
-    assert network.requirements.schema() is False
+    assert network.routines.schematisation.requirements() is False
 
 
 def test_schema_fails_invalid_parent_connection(network: 'Network'):
@@ -337,7 +337,7 @@ def test_schema_fails_invalid_parent_connection(network: 'Network'):
     # Connect a valid token (child) to the invalid one (parent)
     driver.connections[0, 1] = 1.0
 
-    assert network.requirements.schema() is False
+    assert network.routines.schematisation.requirements() is False
 
 
 def test_rel_gen_passes(network: 'Network'):
@@ -356,7 +356,7 @@ def test_rel_gen_passes(network: 'Network'):
     mappings[MappingFields.CONNECTIONS][0, 0] = 1.0
     mappings[MappingFields.WEIGHT][0, 0] = 0.8
 
-    assert network.requirements.rel_gen() is True
+    assert network.routines.rel_gen.requirements() is True
 
 
 def test_rel_gen_fails_no_mappings(network: 'Network'):
@@ -364,7 +364,7 @@ def test_rel_gen_fails_no_mappings(network: 'Network'):
     Test should fail when no mappings exist.
     """
     # Setup: Mappings are empty by default
-    assert network.requirements.rel_gen() is False
+    assert network.routines.rel_gen.requirements() is False
 
 
 def test_rel_gen_fails_low_weight(network: 'Network'):
@@ -382,4 +382,4 @@ def test_rel_gen_fails_low_weight(network: 'Network'):
     mappings[MappingFields.CONNECTIONS][0, 0] = 1.0
     mappings[MappingFields.WEIGHT][0, 0] = 0.5
 
-    assert network.requirements.rel_gen() is False
+    assert network.routines.rel_gen.requirements() is False
