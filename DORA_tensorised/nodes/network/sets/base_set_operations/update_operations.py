@@ -128,8 +128,8 @@ class UpdateOperations:
         type_mask = self.base_set.tensor_op.get_combined_mask(n_type)
         input = self.base_set.nodes[type_mask, TF.INHIBITOR_INPUT]
         threshold = self.base_set.nodes[type_mask, TF.INHIBITOR_THRESHOLD]
-        nodes_to_update = (input >= threshold)                      # if inhib_input >= inhib_threshold
-        self.base_set.nodes[nodes_to_update, TF.INHIBITOR_ACT] = 1.0  # then set to 1
+        nodes_to_update = (input >= threshold)                          # if inhib_input >= inhib_threshold
+        self.base_set.nodes[nodes_to_update, TF.INHIBITOR_ACT] = 1.0    # then set to 1
     # --------------------------------------------------------------
 
     # =======================[ P FUNCTIONS ]========================

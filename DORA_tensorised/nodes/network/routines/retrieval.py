@@ -19,6 +19,8 @@ class RetrievalOperations:
     Retrieval operations for the Network class.
     Handles token retrieval and related functionality.
     """
+
+    # TODO: finish token retrieval, and add tests.
     
     def __init__(self, network):
         """
