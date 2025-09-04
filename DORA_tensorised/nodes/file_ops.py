@@ -2,6 +2,20 @@
 from .builder import build_network
 from .network import Network
 from .enums import Set
+import torch
+import json
+import tempfile
+import os
+import shutil
+from .network.network_params import Params
+from .network.sets.semantics import Semantics
+from .network.sets.driver import Driver
+from .network.sets.recipient import Recipient
+from .network.sets.memory import Memory
+from .network.sets.new_set import New_Set
+from .network.connections.mappings import Mappings
+from .network.connections.links import Links
+from .enums import MappingFields
 
 def load_network_old(file_path: str):
     """Load a network from old sym file."""
@@ -10,66 +24,243 @@ def load_network_old(file_path: str):
 
 def load_network_new(file_path: str):
     """Load a network from new sym file."""
-    network = build_network(file_path=file_path)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Unzip the .sym file
+        shutil.unpack_archive(file_path, temp_dir, 'zip')
+        
+        # Reconstruct the network from the unzipped files
+        network = read_zipped_files(temp_dir)
+        
+    return network
+
+def read_zipped_files(source_dir: str):
+    """Read network data from unzipped files."""
+    # Load network data
+    network_data_path = os.path.join(source_dir, "network_data.json")
+    with open(network_data_path, 'r') as f:
+        network_data = json.load(f)
+    
+    params = Params(network_data['params'])
+    
+    # Load semantics
+    semantics_dir = os.path.join(source_dir, "semantics")
+    semantics_metadata_path = os.path.join(semantics_dir, "semantics_metadata.json")
+    with open(semantics_metadata_path, 'r') as f:
+        semantics_metadata = json.load(f)
+    
+    semantics_nodes_path = os.path.join(semantics_dir, semantics_metadata['nodes_file'])
+    semantics_connections_path = os.path.join(semantics_dir, semantics_metadata['connections_file'])
+    
+    semantics_nodes = torch.load(semantics_nodes_path)
+    semantics_connections = torch.load(semantics_connections_path)
+    
+    # Convert keys from string (from JSON) to int
+    semantic_ids = {int(k): v for k, v in semantics_metadata['IDs'].items()}
+    semantic_names = {int(k): v for k, v in semantics_metadata['names'].items()} if semantics_metadata['names'] is not None else None
+
+    semantics = Semantics(
+        nodes=semantics_nodes,
+        connections=semantics_connections,
+        IDs=semantic_ids,
+        names=semantic_names
+    )
+    
+    # Load sets
+    dict_sets = {}
+    set_map = {
+        Set.DRIVER: Driver,
+        Set.RECIPIENT: Recipient,
+        Set.MEMORY: Memory,
+        Set.NEW_SET: New_Set,
+    }
+    for s in Set:
+        set_dir = os.path.join(source_dir, s.name)
+        nodes_metadata_path = os.path.join(set_dir, "nodes_metadata.json")
+        with open(nodes_metadata_path, 'r') as f:
+            nodes_metadata = json.load(f)
+        
+        nodes_path = os.path.join(set_dir, nodes_metadata['nodes_file'])
+        connections_path = os.path.join(set_dir, nodes_metadata['connections_file'])
+        
+        set_nodes = torch.load(nodes_path)
+        set_connections = torch.load(connections_path)
+        
+        # Convert keys from string (from JSON) to int
+        set_ids = {int(k): v for k, v in nodes_metadata['IDs'].items()}
+        set_names = {int(k): v for k, v in nodes_metadata['names'].items()} if nodes_metadata['names'] is not None else None
+        
+        set_class = set_map[s]
+        dict_sets[s] = set_class(
+            nodes=set_nodes,
+            connections=set_connections,
+            IDs=set_ids,
+            names=set_names
+        )
+
+    # Load mappings and links
+    mappings = {}
+    links_tensors = {}
+    
+    driver_set = dict_sets[Set.DRIVER]
+
+    for s in Set:
+        set_dir = os.path.join(source_dir, s.name)
+        
+        # Load mappings
+        if not s == Set.NEW_SET and not s == Set.DRIVER:
+            maps_metadata_path = os.path.join(set_dir, "maps_metadata.json")
+            with open(maps_metadata_path, 'r') as f:
+                maps_metadata = json.load(f)
+            
+            adj_matrix_path = os.path.join(set_dir, maps_metadata['adj_matrix_file'])
+            adj_matrix = torch.load(adj_matrix_path)
+            
+            map_fields = {field: adj_matrix[:, :, field.value] for field in MappingFields}
+            
+            mappings[s] = Mappings(driver=driver_set, map_fields=map_fields) 
+        
+        # Load links
+        links_metadata_path = os.path.join(set_dir, "links_metadata.json")
+        with open(links_metadata_path, 'r') as f:
+            links_metadata = json.load(f)
+        
+        links_path = os.path.join(set_dir, links_metadata['links_file'])
+        links_tensors[s] = torch.load(links_path)
+
+    # Create Links object
+    links = Links(links=links_tensors, semantics=semantics)
+    
+    # Create Network object
+    network = Network(dict_sets=dict_sets, semantics=semantics, mappings=mappings, links=links, params=params)
+    
+    network.inhibitor.local_inhibitor = network_data['inhibitor']['local']
+    network.inhibitor.global_inhibitor = network_data['inhibitor']['global']
+
     return network
 
 def save_network(network: Network, file_path: str):
         """
         Write memory state to symfile. Should probably devise new tensor based file type (e.g. sym.tensors).
         """
-        # define json structure for network state
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # save network data
+            network_data_json(network, temp_dir)
 
-        # network data:
-        # - params (dictionary of all parameters from Params object)
-        # - inhibitors (local_inhibitor, global_inhibitor floats)
-        # - links (dictionary of tensors from Links object: dict[Set, torch.Tensor])
-        # - mappings (dictionary of Mappings objects, each containing an adj_matrix tensor)
+            # save semantics data
+            semantics_dir = os.path.join(temp_dir, "semantics")
+            os.makedirs(semantics_dir, exist_ok=True)
+            semantics_json(network, semantics_dir)
 
-        # set data (for each set in network.sets and network.semantics):
-        # - nodes (torch.Tensor)
-        # - connections (torch.Tensor)
-        # - IDs (dict[int, int])
-        # - names (dict[int, str])
+            # save sets data
+            for s in Set:
+                set_dir = os.path.join(temp_dir, s.name)
+                os.makedirs(set_dir, exist_ok=True)
+                set_nodes_json(network, s, set_dir)
+                if s != Set.NEW_SET and s != Set.DRIVER:
+                    set_maps_json(network, s, set_dir)
+                set_links_json(network, s, set_dir)
 
-        # write to file -> json, zip into .sym file: allows for single file, and easy loading.
-        # file for each set contains nodes, connections, IDs, names (set_nodes.json)
-        # file for each set contains mappings (set_maps.json)
-        # file for each set links (set_links.json)
-        # file for network data [params, inhibitors] (network_data.json)
-        # zip into .sym file
+            # zip files
+            zip_files(temp_dir, file_path)
 
-        set_jsons = get_set_jsons(network)
-        network_data = network_data_json(network)
-        zip_files(set_jsons, network_data, file_path)
 
-def get_set_jsons(network: Network):
-    """Get json objects for each set."""
-    set_jsons = {}
-    for set in Set:
-        jsons = {}
-        jsons["nodes"] = set_nodes_json(network, set)
-        jsons["maps"] = set_maps_json(network, set)
-        jsons["links"] = set_links_json(network, set)
-        set_jsons[set] = jsons
-    return set_jsons
-
-def set_nodes_json(network: Network, set: Set):
+def set_nodes_json(network: Network, s: Set, output_dir: str):
     """Generate json object for set nodes."""
-    pass
+    set_obj = network.sets[s]
+    
+    # Save tensors
+    nodes_path = os.path.join(output_dir, "nodes.pt")
+    connections_path = os.path.join(output_dir, "connections.pt")
+    torch.save(set_obj.nodes, nodes_path)
+    torch.save(set_obj.connections, connections_path)
+    
+    # Save metadata
+    metadata = {
+        "IDs": set_obj.IDs,
+        "names": set_obj.names,
+        "nodes_file": "nodes.pt",
+        "connections_file": "connections.pt"
+    }
+    
+    metadata_path = os.path.join(output_dir, "nodes_metadata.json")
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=4)
 
-def set_maps_json(network: Network, set: Set):
+
+def semantics_json(network: Network, output_dir: str):
+    """Generate json object for semantics."""
+    semantics_obj = network.semantics
+    
+    # Save tensors
+    nodes_path = os.path.join(output_dir, "nodes.pt")
+    connections_path = os.path.join(output_dir, "connections.pt")
+    torch.save(semantics_obj.nodes, nodes_path)
+    torch.save(semantics_obj.connections, connections_path)
+    
+    # Save metadata
+    metadata = {
+        "IDs": semantics_obj.IDs,
+        "names": semantics_obj.names,
+        "nodes_file": "nodes.pt",
+        "connections_file": "connections.pt"
+    }
+    
+    metadata_path = os.path.join(output_dir, "semantics_metadata.json")
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=4)
+
+
+def set_maps_json(network: Network, s: Set, output_dir: str):
     """Generate json object for set mappings."""
-    pass
+    mappings = network.mappings[s]
+    adj_matrix_path = os.path.join(output_dir, "adj_matrix.pt")
+    torch.save(mappings.adj_matrix, adj_matrix_path)
+    
+    metadata = {
+        "adj_matrix_file": "adj_matrix.pt"
+    }
+    metadata_path = os.path.join(output_dir, "maps_metadata.json")
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=4)
 
-def set_links_json(network: Network, set: Set):
+
+def set_links_json(network: Network, s: Set, output_dir: str):
     """Generate json object for set links."""
-    pass
+    links_tensor = network.links[s]
+    links_path = os.path.join(output_dir, "links.pt")
+    torch.save(links_tensor, links_path)
+    
+    metadata = {
+        "links_file": "links.pt"
+    }
+    metadata_path = os.path.join(output_dir, "links_metadata.json")
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=4)
 
-def network_data_json(network: Network):
+
+def network_data_json(network: Network, output_dir: str):
     """Generate json object for network data."""
-    pass
+    network_data = {
+        "params": network.params.get_params_dict(),
+        "inhibitor": {
+            "local": network.inhibitor.local_inhibitor,
+            "global": network.inhibitor.global_inhibitor
+        }
+    }
+    
+    output_path = os.path.join(output_dir, "network_data.json")
+    with open(output_path, 'w') as f:
+        json.dump(network_data, f, indent=4)
 
-def zip_files(set_jsons: dict[Set, dict], network_data: dict, file_path: str):
+def zip_files(source_dir: str, output_path: str):
     """Zip json files into a .sym file."""
-    pass
+    if not output_path.endswith('.sym'):
+        output_path += '.sym'
+    
+    # Create .zip
+    archive_name = output_path.replace('.sym', '')
+    shutil.make_archive(archive_name, 'zip', source_dir)
+    
+    # Rename the .zip file to .sym
+    os.rename(archive_name + '.zip', output_path)
 
