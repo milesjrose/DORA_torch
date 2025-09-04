@@ -25,7 +25,7 @@ class Driver(Base_Set):
         IDs (dict): A dictionary mapping token IDs to index in the tensor.
         params (Params): An object containing shared parameters.
     """
-    def __init__(self, floatTensor, connections, IDs: dict[int, int], names: dict[int, str] = {}):   
+    def __init__(self, nodes, connections, IDs: dict[int, int], names: dict[int, str] = {}):   
         """
         Initialize the Driver object.
 
@@ -40,10 +40,10 @@ class Driver(Base_Set):
             ValueError: If all tokens in floatTensor do not have TF.SET == Set.DRIVER.
             TypeError: If connections is not a torch.Tensor.
         """
-        super().__init__(floatTensor, connections, IDs, names)
+        super().__init__(nodes, connections, IDs, names)
         self.token_set = Set.DRIVER
-        if floatTensor.size(dim=0) > 0:
-            if not torch.all(floatTensor[:, TF.SET] == Set.DRIVER):
+        if nodes.size(dim=0) > 0:
+            if not torch.all(nodes[:, TF.SET] == Set.DRIVER):
                 raise ValueError("All tokens in driver floatTensor must have TF.SET == Set.DRIVER.")
     
     def check_local_inhibitor(self):                                # Return true if any PO.inhibitor_act == 1.0

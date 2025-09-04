@@ -11,8 +11,8 @@ class Memory(Base_Set):
     """
     A class for representing a memory of tokens.
     """
-    def __init__(self, floatTensor, connections, IDs: dict[int, int], names: dict[int, str] = {}):
-        super().__init__(floatTensor, connections, IDs, names)
+    def __init__(self, nodes, connections, IDs: dict[int, int], names: dict[int, str] = {}):
+        super().__init__(nodes, connections, IDs, names)
         self.token_set = Set.MEMORY
 
     # =========[ USES RECIPIENT UPDATE INPUT FUNCTIONS ]===========

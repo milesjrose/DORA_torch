@@ -38,7 +38,7 @@ class Base_Set(object):
         - params (Params): An object containing shared parameters.
         - token_set (Set): This set's enum, used to access links and mappings for this set in shared mem objects.
     """
-    def __init__(self, floatTensor, connections, IDs: dict[int, int], names: dict[int, str] = {}):
+    def __init__(self, nodes, connections, IDs: dict[int, int], names: dict[int, str] = {}):
         """
         Initialize the TokenTensor object.
 
@@ -61,26 +61,26 @@ class Base_Set(object):
         c_type = type(connections)
         if c_type != torch.Tensor:
             raise TypeError(f"Connections must be torch.Tensor, not {c_type}.")
-        f_type = type(floatTensor)
+        f_type = type(nodes)
         if f_type != torch.Tensor:
             raise TypeError(f"floatTensor must be torch.Tensor, not {f_type}.")
         # check sizes
-        f_size = floatTensor.size(dim=0)
+        f_size = nodes.size(dim=0)
         c_size = connections.size(dim=0)
         if f_size != c_size:
             raise ValueError(f"floatTensor and connections must have same number of tokens. {f_size} != {c_size}")
-        f_features = floatTensor.size(dim=1)
+        f_features = nodes.size(dim=1)
         if f_features != len(TF):
             raise ValueError(f"floatTensor must have number of features listed in TF enum. {f_features} != {len(TF)}")
-        if floatTensor.dtype != torch.float:
-            raise TypeError(f"floatTensor must be torch.float, not {floatTensor.dtype}.")
+        if nodes.dtype != torch.float:
+            raise TypeError(f"floatTensor must be torch.float, not {nodes.dtype}.")
         if connections.dtype != torch.float:
             raise TypeError(f"connections must be torch.float, not {connections.dtype}.")
         
         # intialise attributes
         self.names = names
         "Dict ID -> Name"
-        self.nodes: torch.Tensor = floatTensor
+        self.nodes: torch.Tensor = nodes
         "NxTF Tensor: Tokens"
         self.cache_masks()
         self.analogs = None

@@ -22,7 +22,7 @@ class Recipient(Base_Set):
         IDs (dict): A dictionary mapping token IDs to index in the tensor.
         params (Params): An object containing shared parameters.
     """
-    def __init__(self, floatTensor, connections, IDs: dict[int, int], names= None):
+    def __init__(self, nodes, connections, IDs: dict[int, int], names= None):
         """
         Initialize the Recipient object.
 
@@ -36,7 +36,7 @@ class Recipient(Base_Set):
             ValueError: If the number of features in floatTensor does not match the number of features in TF enum.
             ValueError: If all tokens in floatTensor do not have TF.SET == Set.RECIPIENT.
         """
-        super().__init__(floatTensor, connections, IDs, names)
+        super().__init__(nodes, connections, IDs, names)
         self.token_set = Set.RECIPIENT
         
     # ============[ RECIPIENT UPDATE INPUT FUNCTIONS ]==============
@@ -153,7 +153,7 @@ class Recipient(Base_Set):
             non_shared = 1 - shared                                 # non_shared[i][j] = 0 if p[i], po[j] share RB, 1 o.w
             # 5cii). update input using non shared POs
             self.nodes[p, TF.LATERAL_INPUT] -= torch.matmul(
-                non_shared.float(),                                         # PxPO, non shared POs for each p
+                non_shared.float(),                                 # PxPO, non shared POs for each p
                 self.nodes[po, TF.ACT]                              # POx1, act of each PO
             )
    

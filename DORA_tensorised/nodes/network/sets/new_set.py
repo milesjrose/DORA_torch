@@ -10,8 +10,8 @@ class New_Set(Base_Set):
     """
     A class for representing a new set of tokens.
     """
-    def __init__(self, floatTensor, connections, IDs: dict[int, int], names: dict[int, str] = {}):
-        super().__init__(floatTensor, connections, IDs, names)
+    def __init__(self, nodes, connections, IDs: dict[int, int], names: dict[int, str] = {}):
+        super().__init__(nodes, connections, IDs, names)
         self.token_set = Set.NEW_SET
     
     def update_input(self):

@@ -25,7 +25,7 @@ class Semantics(object):
         links (Links): A Links object containing links from token sets to semantics.
         params (Params): An object containing shared parameters. Defaults to None.
     """
-    def __init__(self, nodes, connections, IDs: dict[int, int], names= None):
+    def __init__(self, nodes, connections, IDs: dict[int, int], names: dict[int, str] = None):
         """
         Initialise a Semantics object
 
@@ -42,6 +42,13 @@ class Semantics(object):
             raise ValueError("nodes and connections must have the same number of semantics.")
         if nodes.size(dim=1) != len(SF):
             raise ValueError("nodes must have number of features listed in SF enum.")
+        if names is not None:
+            if not isinstance(names, dict):
+                raise ValueError(f"names must be a dictionary, not {type(names)}.")
+            if not all(isinstance(name, str) for name in names.values()):
+                # get types that are not strings
+                non_strings = [type(name) for name in names.values() if type(name) != str]
+                raise ValueError(f"names must be a dictionary of strings, not {non_strings}.")
         self.names = names 
         """Map ID to name string"""
         self.nodes: torch.Tensor = nodes
