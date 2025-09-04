@@ -62,3 +62,7 @@ class Sem_set(object):
         for sem in self.sems:
             sem.floatate_features()
             self.node_tensor[sem.ID] = torch.tensor(sem.features)
+        # convert name_dict from dict[str, Inter_Semantics] to dict[int, str] (ID -> name)
+        self.name_dict = {sem.ID: sem.name for sem in self.sems}
+        # convert id_dict from dict[int, Inter_Semantics] to dict[int, int] (ID -> ID)
+        self.id_dict = {sem.ID: sem.ID for sem in self.sems}
