@@ -113,14 +113,6 @@ class TensorOperations:
         spaces = torch.sum(self.base_set.nodes[:, TF.DELETED] == B.TRUE)    # Find number of spaces -> count of deleted nodes in the tensor
         if spaces == 0:                                                     # If no spaces, expand tensor
             self.expand_tensor()
-        
-        # Check if connections tensor needs resizing (can happen if nodes are added without expand_tensor)TODO: Check why this is needed
-        if self.base_set.nodes.shape[0] > self.base_set.connections.shape[0]:
-            current_count = self.base_set.connections.shape[0]
-            new_count = self.base_set.nodes.shape[0]
-            new_cons = torch.zeros(new_count, new_count, dtype=torch.float)
-            new_cons[:current_count, :current_count] = self.base_set.connections
-            self.base_set.connections = new_cons
 
         if len(self.base_set.IDs) > 0:
             try:
