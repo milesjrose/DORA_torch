@@ -5,6 +5,7 @@ from ...enums import *
 
 from typing import TYPE_CHECKING
 from ...utils import tensor_ops as tOps
+from ..single_nodes import Token
 import torch
 
 if TYPE_CHECKING:
@@ -27,6 +28,8 @@ class RelFormOperations:
         """
         self.network: 'Network' = network
         self.debug = False
+        self.inferred_new_p = False
+        self.inferred_p = None
     
     def requirements(self):
         """
@@ -71,6 +74,26 @@ class RelFormOperations:
 
     def rel_form_routine(self):
         """
-        Run the relation formation routine.
+        Run the relation formation routine:
+        - If new P has been inferred, connect it to RBs with act >= threshold (0.8).
+        - Else, infer a new P in recipient
         """
-        pass
+        if self.inferred_new_p:
+            # Connect new P to RBs with act >= threshold
+            if self.inferred_p is None:
+                raise ValueError("Inferred P token is not set.")
+            threshold = 0.8
+            rb_mask = self.network.recipient().get_mask(Type.RB)
+            active_mask = self.network.recipient().nodes[:, TF.ACT] >= threshold
+            rb_to_connect = rb_mask & active_mask
+            inffered_p_index = self.network.get_index(self.inferred_p)
+            self.network.recipient().connections[inffered_p_index, rb_to_connect] = B.TRUE
+        else:
+            new_p_name = "" # Name should be RB1+RB2+...RBx. For now leave blank and name after phase set. NOTE: Why?
+            new_p = Token(Type.P, {TF.SET: Set.RECIPIENT, TF.INFERRED: B.TRUE})
+            ref_new_p = self.network.add_token(new_p)
+            if ref_new_p is None:
+                raise ValueError("Failed to add new P token to recipient.")
+            self.network.set_name(ref_new_p, new_p_name)
+            self.inferred_new_p = True
+            self.inferred_p = ref_new_p
