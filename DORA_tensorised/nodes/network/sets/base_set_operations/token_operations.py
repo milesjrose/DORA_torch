@@ -378,11 +378,17 @@ class TokenOperations:
         """
         if mask is None:
             mask = self.base_set.tensor_op.get_all_nodes_mask()
-        
-        most_active_token_index = self.base_set.nodes[mask, TF.ACT].argmax().item()
+
+        max_act_value, relative_index = torch.max(self.base_set.nodes[mask, TF.ACT], dim=0)
+        masked_indices = torch.where(mask)[0]
+        absolute_index = masked_indices[relative_index]
+        # if most active token is not active, return None
+        if max_act_value == 0.0:
+            return None
+        # O.w return the most active token.
         if id:
-            return self.base_set.nodes[most_active_token_index, TF.ID].item()
+            return self.base_set.nodes[absolute_index, TF.ID].item()
         else:
-            return self.get_reference(index=most_active_token_index)
+            return self.get_reference(index=absolute_index)
 
     # --------------------------------------------------------------
