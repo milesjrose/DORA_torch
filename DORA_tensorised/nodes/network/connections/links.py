@@ -38,12 +38,35 @@ class Links(object):
         # initialise
         self.semantics = semantics
         self.sets = links
+        self.params = None
+    
+    def set_params(self, params):
+        """
+        Set the parameters for the links.
+        """
+        self.params = params
     
     def update_link(self, set, token_index, semantic_index, weight):
         """
         Update the link between a token and a semantic.
         """
         self.sets[set][token_index, semantic_index] = weight
+    
+    def update_link_weights(self, ref_token, mask=None):
+        """
+        Update the link weight for given token
+        """
+        if mask is None:
+            # No mask, do for all semantics
+            mask = torch.ones(self.sets[ref_token.set].size(dim=0), dtype=torch.bool)
+        # Get token index
+        token_index = self.get_index(ref_token)
+        # sem acts
+        sem_acts = self.semantics.nodes[mask, SF.ACT]
+        # link weights
+        link_weights = self.sets[ref_token.set][token_index, mask]
+        # Update link weights
+        self.sets[ref_token.set][token_index, mask] = 1 * (sem_acts - link_weights) * self.params.gamma
 
     def __getitem__(self, key):                                     # Allows for links[set], instead of links.sets[set]
         return self.sets[key]
