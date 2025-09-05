@@ -6,6 +6,7 @@ from ..single_nodes import Token, Semantic, Ref_Token, Ref_Semantic
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
+    from ..network import Network
     import torch
 
 class NodeOperations:
@@ -21,16 +22,15 @@ class NodeOperations:
         Args:
             network: Reference to the Network object
         """
-        self.network = network
-        self.sets = network.sets
+        self.network: 'Network' = network
 
     def get_pmode(self):                                                    # Get p_mode in driver and recipient
         """
         Get parent mode of P units in driver and recipient. Used in time steps activations.
         (driver, recipient)
         """
-        self.sets[Set.DRIVER].p_get_mode()
-        self.sets[Set.RECIPIENT].p_get_mode()
+        self.network.sets[Set.DRIVER].p_get_mode()
+        self.network.sets[Set.RECIPIENT].p_get_mode()
     
     def initialise_p_mode(self, set: Set = Set.RECIPIENT):                  # Initialise p_mode in the given set
         """
@@ -40,7 +40,7 @@ class NodeOperations:
         Args:
             set (Set, optional): The set to initialise p_mode in. (Defaults to recipient)
         """
-        self.sets[set].initialise_p_mode()
+        self.network.sets[set].initialise_p_mode()
     
     def get_weight_lengths(self):                                           # get weight lenghts in active memory
         """
@@ -49,7 +49,7 @@ class NodeOperations:
         """
         sets = [Set.DRIVER, Set.RECIPIENT, Set.MEMORY, Set.NEW_SET]
         for set in sets:
-            self.sets[set].po_get_weight_length()
+            self.network.sets[set].po_get_weight_length()
     
     def add_token(self, token: Token):                                      # Add a token to the given set
         """
@@ -69,7 +69,7 @@ class NodeOperations:
         if add_set not in [set.value for set in Set]:
             raise ValueError("Invalid set in token feature.")
         
-        reference = self.sets[add_set].add_token(token)
+        reference = self.network.sets[add_set].add_token(token)
         return reference
 
     def del_token(self, ref_token: Ref_Token):                              # Delete a token
@@ -79,7 +79,13 @@ class NodeOperations:
         Args:
             ref_token (network.Ref_Token): A reference to the token to delete.
         """
-        self.sets[ref_token.set].del_token(ref_token)
+        self.network.sets[ref_token.set].del_token(ref_token)
+    
+    def get_token(self, ref_token: Ref_Token):
+        """
+        Get a token from the network.
+        """
+        return self.network.sets[ref_token.set].token_op.get_single_token(ref_token)
 
     def add_semantic(self, semantic: Semantic):                             # Add a semantic
         """
@@ -94,7 +100,7 @@ class NodeOperations:
         if semantic.tensor[SF.TYPE] != Type.SEMANTIC:
             raise ValueError("Cannot add non-semantic to semantic set.")
         
-        self.semantics.add_semantic(semantic)
+        self.network.semantics.add_semantic(semantic)
 
     def del_semantic(self, ref_semantic: Ref_Semantic):                     # Delete a semantic
         """
@@ -106,14 +112,14 @@ class NodeOperations:
         Raises:
             ValueError: If ref_semantic is not provided.
         """
-        self.semantics.del_semantic(ref_semantic)
+        self.network.semantics.del_semantic(ref_semantic)
 
     def set_sem_max_input(self):                                            # Set the maximum input for the semantics
         """
         Set the maximum input for the semantics.
         """
-        max_input = self.semantics.get_max_input()
-        self.semantics.set_max_input(max_input)
+        max_input = self.network.semantics.get_max_input()
+        self.network.semantics.set_max_input(max_input)
     
     def get_value(self, reference, feature):                                # Get the value of a feature for a referenced token or semantic
         """
@@ -131,12 +137,12 @@ class NodeOperations:
         """
         if isinstance(reference, Ref_Token):
             if isinstance(feature, TF):
-                return self.sets[reference.set].token_op.get_feature(reference, feature)
+                return self.network.sets[reference.set].token_op.get_feature(reference, feature)
             else:
                 raise ValueError("Referenced a token, but feature is not a token feature.")
         elif isinstance(reference, Ref_Semantic):
             if isinstance(feature, SF):
-                return self.semantics.get_feature(reference, feature)
+                return self.network.semantics.get_feature(reference, feature)
             else:
                 raise ValueError("Referenced a semantic, but feature is not a semantic feature.")
         else:
@@ -156,12 +162,12 @@ class NodeOperations:
         """
         if isinstance(reference, Ref_Token):
             if isinstance(feature, TF):
-                self.sets[reference.set].token_op.set_feature(reference, feature, value)
+                self.network.sets[reference.set].token_op.set_feature(reference, feature, value)
             else:
                 raise ValueError("Referenced a token, but feature is not a token feature.")
         elif isinstance(reference, Ref_Semantic):
             if isinstance(feature, SF):
-                self.semantics.set_feature(reference, feature, value)
+                self.network.semantics.set_feature(reference, feature, value)
             else:
                 raise ValueError("Referenced a semantic, but feature is not a semantic feature.")
         else:
@@ -184,7 +190,7 @@ class NodeOperations:
             tokens = dict()
         for set in Set:
             if set in masks:
-                token = self.sets[set].token_op.get_most_active_token(masks[set], id)
+                token = self.network.sets[set].token_op.get_most_active_token(masks[set], id)
                 if id:
                     tokens.append(token)
                 else:
