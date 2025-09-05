@@ -10,6 +10,7 @@ from .single_nodes import Token, Semantic
 from .single_nodes import Ref_Token, Ref_Semantic
 from .operations import TensorOperations, UpdateOperations, MappingOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
 from .routines import Routines
+import torch
 
 class Network(object):
     """
@@ -73,6 +74,7 @@ class Network(object):
         """ Dictionary of mappings for each set. """
         self.links: Links = links
         """ Links object for the network. """
+        self.links.set_params(params) # Set params for links
 
         # inhibitors
         self.local_inhibitor = 0.0
@@ -399,7 +401,7 @@ class Network(object):
         Raises:
             ValueError: If the reference is not a token or semantic. Or feature type and reference type mismatch.
         """
-        self.node.get_value(reference, feature)
+        return self.node.get_value(reference, feature)
     
     def set_value(self, reference, feature, value):                         # Set the value of a feature for a referenced token or semantic
         """
@@ -431,6 +433,58 @@ class Network(object):
         """
         return self.sets[reference.set].token_op.get_index(reference)
     
+    def get_made_unit_ref(self, reference: Ref_Token) -> Ref_Token:
+        """
+        Get the reference to the made unit in the new set.
+        """
+        made_unit_index = self.get_value(reference, TF.MADE_UNIT)
+        if made_unit_index == null:
+            return None
+        ref = Ref_Token(Set.NEW_SET, made_unit_index)
+        # Check valid reference
+        try:
+            self.sets[Set.NEW_SET].get_single_token(ref)
+        except:
+            raise ValueError(f"Invalid made unit reference: {ref.set.name}.{ref.ID}, made unit index: {made_unit_index}")
+        return ref
+    
+    def initialise_made_unit(self):
+        """
+        Initialise the made unit for all tokens.
+        TODO: Update tensors to be null by default for these values.
+        currently some routines will not work unless this is run.
+        """
+        for set in Set:
+            self.sets[set].nodes[:, TF.MADE_UNIT] = null
+    
+    def get_max_map_value(self, reference: Ref_Token, map_set: Set = None) -> float:
+        """
+        Get the maximum mapping weight for a referenced token.
+
+        Args:
+            reference (Ref_Token): The reference to the token to get the maximum map for.
+            map_set (Set, optional): The set to get max_map to. Only required if reference is from driver.
+
+        Returns:
+            float: The maximum mapping weight for the referenced token.
+        """
+        if reference.set == Set.DRIVER: 
+            if map_set == None:
+                raise ValueError("Map set must be provided if reference is from driver.")
+            else:
+                print(f"Shape of weight tensor: {self.mappings[map_set][MappingFields.WEIGHT].shape}")
+                print(f"Shape of driver tensor: {self.mappings[map_set].driver.nodes.shape}")
+                print(f"Shape of recipient tensor: {self.mappings[map_set].map_from.nodes.shape}")
+                index = self.get_index(reference)
+                max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][:, index], dim=1)
+        else:
+            map_set = reference.set
+            index = self.get_index(reference)
+            max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][index, :], dim=0)
+        
+        return max_val
+        
+        
     # ----------------------------------------------------------------------
     def print_set(self, set: Set, feature_types: list[TF] = None):
         """
