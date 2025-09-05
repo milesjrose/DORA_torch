@@ -344,7 +344,7 @@ class Network(object):
         Raises:
             ValueError: If the token set feature is not a valid set.
         """
-        self.node.add_token(token)
+        return self.node.add_token(token)
 
     def del_token(self, ref_token: Ref_Token):                              # Delete a token
         """
@@ -414,6 +414,22 @@ class Network(object):
             ValueError: If the reference is not a token or semantic. Or feature type and reference type mismatch.
         """
         self.node.set_value(reference, feature, value)
+
+    def set_name(self, reference: Ref_Token, name: str):
+        """
+        Set the name for a referenced token.
+
+        Args:
+            reference (Ref_Token): A reference to the token to set the name for.
+            name (str): The name to set the token to.
+        """
+        self.sets[reference.set].token_op.set_name(reference, name)
+    
+    def get_index(self, reference: Ref_Token) -> int:
+        """
+        Get the index for a referenced token.
+        """
+        return self.sets[reference.set].token_op.get_index(reference)
     
     # ----------------------------------------------------------------------
     def print_set(self, set: Set, feature_types: list[TF] = None):
