@@ -6,7 +6,7 @@ import pytest
 from nodes.builder import NetworkBuilder
 from nodes.network.single_nodes import Token
 from nodes.enums import *
-from nodes.network import Ref_Token
+from nodes.network import Ref_Token, Network
 
 # Import the symProps from sim.py
 from .sims.sim import symProps
@@ -203,3 +203,90 @@ def test_type_after_expansion(network):
     network.sets[Set.DRIVER].expand_tensor()
     network.sets[Set.DRIVER].print()
     assert type(network.sets[Set.DRIVER].nodes[0, TF.ACT].item()) == float
+
+def test_add_token_to_new_set(network):
+    """Test adding a token to the new_set tensor."""
+    new_token = Token(Type.P, 
+        {
+            TF.SET: Set.NEW_SET, 
+            TF.INFERRED: B.TRUE, 
+            TF.MODE: Mode.PARENT, 
+            TF.ACT: 1.0,
+            TF.ANALOG: null
+        })
+    token_reference: Ref_Token = network.node.add_token(new_token)
+    assert token_reference is not None
+    assert token_reference.set == Set.NEW_SET
+    token = network.sets[Set.NEW_SET].token_op.get_single_token(token_reference)
+    assert token[TF.TYPE] == Type.P
+    assert token[TF.SET] == Set.NEW_SET
+    assert token[TF.INFERRED] == B.TRUE
+    assert token[TF.MODE] == Mode.PARENT
+    assert token[TF.ACT] == 1.0
+    assert token[TF.ANALOG] == null
+
+def test_mask_update_after_add_token_new_set(network):
+    """Test that the mask is updated after adding a token to the new_set tensor."""
+    new_token = Token(Type.P, 
+        {
+            TF.SET: Set.NEW_SET, 
+            TF.INFERRED: B.TRUE, 
+            TF.MODE: Mode.PARENT, 
+            TF.ACT: 1.0,
+            TF.ANALOG: null
+        })
+    old_mask_p = network.sets[Set.NEW_SET].get_mask(Type.P)
+    old_mask_rb = network.sets[Set.NEW_SET].get_mask(Type.RB)
+    old_mask_po = network.sets[Set.NEW_SET].get_mask(Type.PO)
+
+    token_reference: Ref_Token = network.node.add_token(new_token)
+    assert token_reference is not None
+    assert token_reference.set == Set.NEW_SET
+    
+    new_mask_p = network.sets[Set.NEW_SET].get_mask(Type.P)
+    new_mask_rb = network.sets[Set.NEW_SET].get_mask(Type.RB)
+    new_mask_po = network.sets[Set.NEW_SET].get_mask(Type.PO)
+    
+    diff_mask_p = new_mask_p.sum() - old_mask_p.sum()
+    diff_mask_rb = new_mask_rb.sum() - old_mask_rb.sum()
+    diff_mask_po = new_mask_po.sum() - old_mask_po.sum()
+    
+    assert diff_mask_p == 1
+    assert diff_mask_rb == 0
+    assert diff_mask_po == 0
+
+def test_driver_map_expansion(network: Network):
+    """ Test that the mapping objects are expanded correctly when the driver set is expanded."""
+    # get number of driver tokens in mapping tensor for each set
+    for set in [Set.RECIPIENT, Set.MEMORY]:
+        assert network.mappings[set].adj_matrix is not None
+        initial_d = network.sets[Set.DRIVER].nodes.shape[0]
+        assert network.mappings[set].adj_matrix.shape[0] == network.sets[set].nodes.shape[0]
+        assert network.mappings[set].adj_matrix.shape[1] == network.sets[Set.DRIVER].nodes.shape[0]
+        while network.sets[Set.DRIVER].nodes.shape[0] == initial_d:
+            new_token = Token(Type.P, {TF.SET: Set.DRIVER, TF.INFERRED: B.TRUE, TF.MODE: Mode.PARENT, TF.ACT: 1.0, TF.ANALOG: null})
+            token_reference: Ref_Token = network.add_token(new_token)
+        assert network.mappings[set].adj_matrix.shape[0] == network.sets[set].nodes.shape[0]
+        assert network.mappings[set].adj_matrix.shape[1] == network.sets[Set.DRIVER].nodes.shape[0]
+
+def test_sets_map_expansion(network: Network):
+    """ Test that the mapping tensors are expanded correctly when the sets are expanded."""
+    for set in [Set.RECIPIENT, Set.MEMORY]:
+        assert network.mappings[set].adj_matrix is not None
+        initial_set_size = network.sets[set].nodes.shape[0]
+        assert network.mappings[set].adj_matrix.shape[0] == initial_set_size
+        while network.sets[set].nodes.shape[0] == initial_set_size:
+            new_token = Token(Type.P, {TF.SET: set, TF.INFERRED: B.TRUE, TF.MODE: Mode.PARENT, TF.ACT: 1.0, TF.ANALOG: null})
+            token_reference: Ref_Token = network.add_token(new_token)
+        assert network.mappings[set].adj_matrix.shape[0] == network.sets[set].nodes.shape[0]
+
+def test_sets_link_expansion(network: Network):
+    """ Test that the link tensors are expanded correctly when the sets are expanded."""
+    for set in Set:
+        assert network.links[set] is not None
+        initial_set_size = network.sets[set].nodes.shape[0]
+        assert network.links[set].shape[0] == initial_set_size
+        while network.sets[set].nodes.shape[0] == initial_set_size:
+            new_token = Token(Type.P, {TF.SET: set, TF.INFERRED: B.TRUE, TF.MODE: Mode.PARENT, TF.ACT: 1.0, TF.ANALOG: null})
+            token_reference: Ref_Token = network.add_token(new_token)
+        assert network.links[set].shape[0] == network.sets[set].nodes.shape[0]
