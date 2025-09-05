@@ -97,6 +97,22 @@ class TokenOperations:
             return self.base_set.names[ref_token.ID]
         except:
             raise ValueError("Invalid reference token.")
+    
+    def set_name(self, ref_token: Ref_Token, name: str):
+        """
+        Set the name for a referenced token.
+        
+        Args:
+            ref_token (Ref_Token): The token to set the name for.
+            name (str): The name to set the token to.
+
+        Raises:
+            ValueError: If the referenced token is invalid.
+        """
+        try:
+            self.base_set.names[ref_token.ID] = name
+        except:
+            raise ValueError("Invalid reference token or name.")
 
     def set_name(self, ref_token: Ref_Token, name):                 # Set name of node by reference token
         """
