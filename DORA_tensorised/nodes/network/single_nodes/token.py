@@ -23,6 +23,8 @@ class Token(object):
         self.name = name
         self.tensor = torch.zeros(len(TF))
         self.tensor[TF.TYPE] = type
+        self.tensor[TF.MADE_UNIT] = null
+        self.tensor[TF.MAKER_UNIT] = null
         match type:
             case Type.P:
                 self.tensor[TF.INHIBITOR_THRESHOLD] = 440
