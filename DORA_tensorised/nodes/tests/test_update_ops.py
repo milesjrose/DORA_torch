@@ -369,7 +369,7 @@ def test_input_initialization_mechanics(update_ops):
     driver.nodes[:, TF.NET_INPUT] = 0.4
     
     # Call initialise_input for specific types
-    driver.update_op.initialise_input([Type.PO], 0.0)
+    driver.update_op.init_input([Type.PO], 0.0)
     
     # Check that inputs were reset for PO types only
     po_mask = driver.tensor_op.get_mask(Type.PO)

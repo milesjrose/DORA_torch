@@ -24,7 +24,7 @@ class UpdateOperations:
         self.base_set: 'Base_Set' = base_set
 
     # ====================[ TOKEN FUNCTIONS ]=======================
-    def initialise_float(self, n_type: list[Type], features: list[TF]): # Initialise given features
+    def init_float(self, n_type: list[Type], features: list[TF]): # Initialise given features
         """
         Initialise given features
         
@@ -36,7 +36,7 @@ class UpdateOperations:
         for feature in features:
             self.base_set.nodes[type_mask, feature] = 0.0               # Set each feature to 0.0 for masked nodes
     
-    def initialise_input(self, n_type: list[Type], refresh: float):     # Initialize inputs to 0, and td_input to refresh.
+    def init_input(self, n_type: list[Type], refresh: float):     # Initialize inputs to 0, and td_input to refresh.
         """ 
         Initialize inputs to 0, and td_input to refresh
         
@@ -47,25 +47,25 @@ class UpdateOperations:
         type_mask = self.base_set.tensor_op.get_combined_mask(n_type)
         self.base_set.nodes[type_mask, TF.TD_INPUT] = refresh           # Set td_input to refresh
         features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
-        self.initialise_float(n_type, features)                         # Set types to 0.0
+        self.init_float(n_type, features)                         # Set types to 0.0
 
-    def initialise_act(self, n_type: list[Type]):                       # Initialize act to 0.0,  and call initialise_inputs
+    def init_act(self, n_type: list[Type]):                       # Initialize act to 0.0,  and call initialise_inputs
         """Initialize act to 0.0,  and call initialise_inputs
         
         Args:
             n_type (list[Type]): The types of nodes to initialise.
         """
-        self.initialise_input(n_type, 0.0)
-        self.initialise_float(n_type, [TF.ACT])
+        self.init_input(n_type, 0.0)
+        self.init_float(n_type, [TF.ACT])
 
-    def initialise_state(self, n_type: list[Type]):                     # Set self.retrieved to false, and call initialise_act
+    def init_state(self, n_type: list[Type]):                     # Set self.retrieved to false, and call initialise_act
         """Set self.retrieved to false, and call initialise_act
         
         Args:
             n_type (list[Type]): The types of nodes to initialise.
         """
-        self.initialise_act(n_type)
-        self.initialise_float(n_type, [TF.RETRIEVED])                       
+        self.init_act(n_type)
+        self.init_float(n_type, [TF.RETRIEVED])                       
         
     def update_act(self):                                               # Update act of nodes
         """Update act of nodes. Based on params.gamma, params.delta, and params.HebbBias."""
@@ -95,7 +95,7 @@ class UpdateOperations:
         Args:
             n_type (list[Type]): The types of nodes to set lateral_input to 0.
         """
-        self.initialise_float(n_type, [TF.LATERAL_INPUT])
+        self.init_float(n_type, [TF.LATERAL_INPUT])
     
     def update_inhibitor_input(self, n_type: list[Type]):               # Update inputs to inhibitors by current activation for nodes of type n_type
         """
