@@ -47,13 +47,14 @@ class Driver(Base_Set):
         super().__init__(nodes, connections, IDs, names)
         self.token_set = Set.DRIVER
         # TODO: Assign this in init - too lazy to update the builder currently
-        self.mappings: dict[Set, Mappings] = {}
+        self.mappings: 'dict[Set, Mappings]' = {}
+
         """ Dictionary of mappings for each set. """
         if nodes.size(dim=0) > 0:
             if not torch.all(nodes[:, TF.SET] == Set.DRIVER):
                 raise ValueError("All tokens in driver floatTensor must have TF.SET == Set.DRIVER.")
     
-    def set_mappings(self, mappings: dict[Set, Mappings]):
+    def set_mappings(self, mappings: 'dict[Set, Mappings]'):
         """ Set the mapping dict for driver. """
         self.mappings = mappings
     
@@ -67,7 +68,9 @@ class Driver(Base_Set):
         rb = self.get_mask(Type.RB)
         return torch.any(self.nodes[rb, TF.INHIBITOR_ACT] == 1.0) 
     
+
     # ==============[ DRIVER UPDATE INPUT FUNCTIONS ]===============
+
     def update_input(self):                                         # Update all input in driver
         """Update all input in driver"""
         self.update_input_p_parent()
