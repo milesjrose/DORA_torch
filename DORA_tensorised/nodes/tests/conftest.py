@@ -1,7 +1,7 @@
 # conftest.py
 import pytest
 import logging
-from nodes.utils.log_utils import ShortPathFormatter # Your updated class
+from nodes.utils.log_utils import ShortPathFormatter
 
 def pytest_configure(config):
     logging_plugin = config.pluginmanager.getplugin("logging-plugin")
