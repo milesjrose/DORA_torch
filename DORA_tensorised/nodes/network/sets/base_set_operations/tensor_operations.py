@@ -2,13 +2,19 @@
 # Tensor operations for Base_Set class
 
 import torch
+import logging
+
 from typing import TYPE_CHECKING
 from functools import reduce
 
 from ....enums import *
 from ...single_nodes import Token, Analog, Ref_Analog, Ref_Token
 
-if TYPE_CHECKING: # For autocomplete/hover-over docs
+# name -> base_set.tensor_ops
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+if TYPE_CHECKING:
     from ..base_set import Base_Set
 
 class TensorOperations:
@@ -110,6 +116,7 @@ class TensorOperations:
         Raises:
             ValueError: If the token is invalid.
         """
+        logger.debug(f"Adding token to {self.base_set.token_set.name}")
         spaces = torch.sum(self.base_set.nodes[:, TF.DELETED] == B.TRUE)    # Find number of spaces -> count of deleted nodes in the tensor
         if spaces == 0:                                                     # If no spaces, expand tensor
             self.expand_tensor()
@@ -121,6 +128,7 @@ class TensorOperations:
                 raise(e)
         else:
             ID = 1
+        logger.debug(f"Assigned ID: {ID}")
         token[TF.ID] = ID
         deleted_nodes = torch.where(self.base_set.nodes[:, TF.DELETED] == B.TRUE)[0] #find first deleted node
         first_deleted = deleted_nodes[0]                                    # Get index of first deleted node
@@ -152,68 +160,120 @@ class TensorOperations:
                                                                         # Update node tensor:
         current_count = self.base_set.nodes.size(dim=0)
         new_count = int(current_count + count)                              # calculate new size
+        logger.debug(f"Expanding {self.base_set.token_set.name} by {count} (x{self.base_set.expansion_factor}): {current_count} -> {new_count}")
+        
+        # Nodes expansion
+        self.expand_nodes_tensor(new_count)
+        # Links expansion
+        self.expand_links_tensor(new_count)
+        # Mapping expansion:
+        if self.base_set.token_set in MAPPING_SETS + [Set.DRIVER]:
+            map_exp_sets = MAPPING_SETS if self.base_set.token_set == Set.DRIVER else [self.base_set.token_set]
+            for set in map_exp_sets:
+                self.expand_mapping_tensor(set, new_count)
+
+        # Connections expansion
+        self.expand_connections_tensor(new_count)
+    
+    def expand_nodes_tensor(self, new_count: int):
+        """
+        Expand nodes tensor for given set.
+        """
         new_tensor = torch.full((new_count, self.base_set.nodes.size(dim=1)), null)  # null-filled tensor, increased by expansion factor
-        new_tensor[current_count:, TF.DELETED] = B.TRUE                     # deleted = true -> all new tokens
-        new_tensor[:current_count, :] = self.base_set.nodes                 # copy over old tensor
-        if self.base_set.nodes.dtype != torch.float:                        # make sure correct type
+        new_tensor[:, TF.DELETED] = B.TRUE                     # deleted = true -> all new tokens
+        rows, cols = self.base_set.nodes.shape
+        new_tensor[:rows, :cols] = self.base_set.nodes         # copy over old tensor
+        if self.base_set.nodes.dtype != torch.float:           # make sure correct type
             raise TypeError("nodes must be torch.float.")
         self.base_set.nodes = new_tensor
+        logger.debug(f" -> Expanded {self.base_set.token_set.name} nodes tensor: {self.base_set.nodes.shape}")
 
-        # Update supporting data structures:
-        if self.base_set.links is not None:                              # Links:
+    def expand_links_tensor(self, new_count: int):
+        """
+        Expand links tensor for given set.
+        """
+        try:
             links = self.base_set.links[self.base_set.token_set]
             semantic_count = links.size(dim=1)                              # Get number of semantics in link tensor
             new_links = torch.zeros(new_count, semantic_count).float()      # new tensor (new number of tokens) x (number of semantics)
-            new_links[:current_count, :] = links                            # add current links to the tensor
+            rows, cols = links.shape
+            new_links[:rows, :cols] = links                                 # add current links to the tensor
             self.base_set.links[self.base_set.token_set] = new_links        # update links object with float tensor
-
-        try:                                                            # Mappings:         
-            self.base_set.mappings = self.base_set.mappings                 # If no mappings, skip.
+            logger.debug(f"-> Expanded {self.base_set.token_set.name} links tensor: {new_links.shape}")
         except:
-            pass
-        else:                                    
-            driver_count = self.base_set.mappings.size(dim=1)               # Get number of tokens in driver
-            stack = []
-            for field in MappingFields:                                     # Create new tensor for each mapping field
-                stack.append(torch.zeros(
-                    new_count, 
-                    driver_count, 
-                    dtype=torch.float)
-                    )
-            new_adj_matrix: torch.Tensor = torch.stack(stack, dim=-1)       # Stack into adj_matrix tensor
-            new_adj_matrix[:current_count, :] = self.base_set.mappings.adj_matrix  # add current weights
-            self.base_set.mappings.adj_matrix = new_adj_matrix              # update mappings object with new tensor
-        
-                                                                        # Connections:
-        new_cons = torch.zeros(new_count, new_count, dtype=torch.float)     # new tensor (new num tokens) x (new num tokens)
-        new_cons[:current_count, :current_count] = self.base_set.connections  # add current connections
-        self.base_set.connections = new_cons                                # update connections tensor, with new tensor
+            logger.error(f"-> Error expanding {self.base_set.token_set.name} links tensor")
 
-    def del_token_indicies(self, indices: list[int]):               # Delete tokens from tensor by indices
+    def expand_mapping_tensor(self, set: Set, new_count: int):
+        """
+        Expand mapping tensor for given set. If driver, expand along dim=1, else along dim=0.
+        """
+        # Get new tensor dimensions
+        if self.base_set.token_set == Set.DRIVER:
+            maps = self.base_set.mappings[set] 
+            driver_count = new_count
+            recipient_count = maps.size(dim=0)
+        else:
+            maps = self.base_set.mappings
+            driver_count = maps.size(dim=1)
+            recipient_count = new_count
+
+        # Create new tensor for each mapping field, and stack into new adj_matrix
+        stack = []
+        for field in MappingFields:          
+            stack.append(torch.zeros(
+                recipient_count, 
+                driver_count, 
+                dtype=torch.float)
+                )
+        new_adj_matrix: torch.Tensor = torch.stack(stack, dim=-1)
+        rows, cols, _ = maps.adj_matrix.shape    
+
+        # Copy weights and update object                   
+        new_adj_matrix[:rows, :cols, :] = maps.adj_matrix  
+        if self.base_set.token_set == Set.DRIVER:
+            self.base_set.mappings[set].adj_matrix = new_adj_matrix 
+        elif self.base_set.token_set in MAPPING_SETS:
+            self.base_set.mappings.adj_matrix = new_adj_matrix 
+        logger.debug(f"-> Expanded {set.name} mappings tensor: {new_adj_matrix.shape}")
+    
+    def expand_connections_tensor(self, new_count: int):
+        """
+        Expand connections tensor for given set.
+        """
+        new_cons = torch.zeros(new_count, new_count, dtype=torch.float) # new tensor (new num tokens) x (new num tokens)
+        rows, cols = self.base_set.connections.shape
+        new_cons[:rows, :cols] = self.base_set.connections              # add current connections
+        self.base_set.connections = new_cons                            # update connections tensor, with new tensor
+
+
+    def del_token_indicies(self, indices: list[int]):
         """
         Delete tokens from tensor.
 
         Args:
             indices (list[int]): The indices of the tokens to delete.
         """
-        self.del_connections_indices(indices)                           # Delete connections first
-        cache_types = torch.unique(self.base_set.nodes[indices, TF.TYPE]).tolist() # Get types of deleted tokens
-        IDs = self.base_set.nodes[indices, TF.ID].tolist()             # Get IDs of deleted tokens
+        self.del_connections_indices(indices) # Delete connections first
+        # Get types/ids of deleted tokens
+        cache_types = torch.unique(self.base_set.nodes[indices, TF.TYPE]).tolist() 
+        IDs = self.base_set.nodes[indices, TF.ID].tolist() 
+        # Update IDs/names
         for ID in IDs:
-            self.base_set.IDs.pop(ID)                                  # Remove ID from IDs dictionary
-            self.base_set.names.pop(ID)                                # Remove name from names dictionary
-        self.base_set.nodes[indices, TF.DELETED] = B.TRUE              # Set deleted to true
-        self.base_set.nodes[indices, TF.ID] = null                     # Set ID to null
-        self.cache_masks(cache_types)                                  # Re-cache effected types
+            self.base_set.IDs.pop(ID)
+            self.base_set.names.pop(ID)
+        # Update features
+        self.base_set.nodes[indices, TF.DELETED] = B.TRUE          
+        self.base_set.nodes[indices, TF.ID] = null
+        self.cache_masks(cache_types)         # Re-cache effected types
     
-    def del_connections_indices(self, indices: list[int]):          # Delete connections from tensor by indices
+    def del_connections_indices(self, indices: list[int]):
         """
         Delete connections from tensor.
         
         Args:
             indices (list[int]): The indices of the tokens to delete connections from.
         """
-        try:                                                        # Mappings:
+        try:
             if self.base_set.token_set == Set.DRIVER:
                 for field in MappingFields:
                     self.base_set.mappings[field][:, indices] = 0.0     # Dim 1 is driver nodes
@@ -234,7 +294,7 @@ class TensorOperations:
         except:
             raise KeyError("Invalid connections indices in del_connections_by_indices.", indices)
 
-    def del_token_ref(self, ref_tokens: Ref_Token):                 # Delete nodes from tensor by reference token   
+    def del_token(self, ref_tokens: Ref_Token):                 # Delete nodes from tensor by reference token   
         """
         Delete tokens from tensor. Pass in a list of Ref_Tokens to delete multiple tokens at once.
         
@@ -249,7 +309,7 @@ class TensorOperations:
         
         self.del_token_indicies(indices)
 
-    def del_connections_ref(self, ref_token: Ref_Token):            # Delete connections from tensor by reference token
+    def del_connections(self, ref_token: Ref_Token):            # Delete connections from tensor by reference token
         """
         Delete connections from tensor.
         
