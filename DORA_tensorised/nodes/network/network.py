@@ -84,7 +84,8 @@ class Network(object):
         self.routines: Routines = Routines(self)
         """ Routines object for the network. """
 
-        # operations
+        
+
         self.tensor_ops = TensorOperations(self)
         self.update_ops = UpdateOperations(self)
         self.mapping_ops = MappingOperations(self)
@@ -93,6 +94,26 @@ class Network(object):
         self.entropy_ops = EntropyOperations(self)
         self.node_ops = NodeOperations(self)
         self.inhibitor_ops = InhibitorOperations(self)
+
+        self._promoted_components = [
+            self.tensor_ops, 
+            self.update_ops, 
+            self.mapping_ops, 
+            self.firing_ops, 
+            self.analog_ops, 
+            self.entropy_ops, 
+            self.node_ops, 
+            self.inhibitor_ops
+            ]
+    
+    def __getattr__(self, name):
+        # Only search through the designated "promoted" components
+        for component in self._promoted_components:
+            if hasattr(component, name):
+                return getattr(component, name)
+        
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """
@@ -121,40 +142,40 @@ class Network(object):
     @property
     def tensor(self) -> 'TensorOperations':
         """
-        memory operations object. Functions:
-        - NOT IMPLEMENTED
+        Memory management operations for the Network class.
+        Handles copying, clearing, and managing memory sets.
         """
         return self.tensor_ops
     
     @property
     def update(self) -> 'UpdateOperations':
         """
-        update operations object. Functions:
-        - NOT IMPLEMENTED
+        Update operations for the Network class.
+        Handles input and activation updates across sets.
         """
         return self.update_ops
     
     @property
     def mapping(self) -> 'MappingOperations':
         """
-        mapping operations object. Functions:
-        - NOT IMPLEMENTED
+        Mapping operations for the Network class.
+        Handles mapping hypotheses, connections, and related functionality.
         """
         return self.mapping_ops
     
     @property
     def firing(self) -> 'FiringOperations':
         """
-        firing operations object. Functions:
-        - NOT IMPLEMENTED
+        Firing operations for the Network class.
+        Handles firing order management.
         """
         return self.firing_ops
     
     @property
     def analog(self) -> 'AnalogOperations':
         """
-        analog operations object. Functions:
-        - NOT IMPLEMENTED
+        Analog operations for the Network class.
+        Handles analog management and related functionality.
         """
         return self.analog_ops
     
@@ -169,16 +190,16 @@ class Network(object):
     @property
     def node(self) -> 'NodeOperations':
         """
-        node operations object. Functions:
-        - NOT IMPLEMENTED
+        Node operations for the Network class.
+        Handles node management.
         """
         return self.node_ops
     
     @property
     def inhibitor(self) -> 'InhibitorOperations':
         """
-        inhibitor operations object. Functions:
-        - NOT IMPLEMENTED
+        Inhibitor operations for the Network class.
+        Handles inhibitor management.
         """
         return self.inhibitor_ops
     
@@ -214,208 +235,7 @@ class Network(object):
         """
         return self.semantics
     
-    # ======================[ ACT FUNCTIONS ]============================
-    def initialise_act(self):                                               # Initialise acts in active memory/semantics
-        """
-        Initialise the acts in the active memory/semantics.
-        (driver, recipient, new_set, semantics)
-        """
-        self.update.initialise_act()
-    
-    def update_acts(self, set: Set):                                        # Update acts in given token set    
-        """
-        Update the acts in the given set.
-
-        Args:
-            set (Set): The set to update acts in.
-        """
-        self.update.acts(set)
-    
-    def update_acts_sem(self):                                              # Update acts in semantics
-        """
-        Update the acts in the semantics.
-        """
-        self.update.acts_sem()
-
-    def update_acts_am(self):                                               # Update acts in active memory/semantics
-        """
-        Update the acts in the active memory.
-        (driver, recipient, new_set, semantics)
-        """
-        self.update.acts_am()
-
-    # =======================[ INPUT FUNCTIONS ]=========================
-    def initialise_input(self):                                             # Initialise inputs in active memory/semantics
-        """
-        Initialise the inputs in the active memory/semantics.
-        (driver, recipient, new_set, semantics)
-        """
-        self.update.initialise_input()
-    
-    def update_inputs(self, set: Set):                                      # Update inputs in given token set
-        """
-        Update the inputs in the given token set.
-
-        Args:
-            set (Set): The set to update inputs in.
-        """
-        self.update.inputs(set)
-    
-    def update_inputs_sem(self):                                            # Update inputs in semantics               
-        """
-        Update the inputs in the semantics.
-        """
-        self.update.inputs_sem()
-
-    def update_inputs_am(self):                                             # Update inputs in active memory
-        """
-        Update the inputs in the active memory.
-        (driver, recipient, new_set, semantics)
-        """
-        self.update.inputs_am()
-
-    # =====================[ INHIBITOR FUNCTIONS ]=======================
-    def update_inhibitors(self):                                            # Update inputs and acts of inhibitors
-        """
-        Update the inputs and acts of the driver and recipient inhibitors.
-        (driver, recipient).
-        - Only updates act of PO if in DORA mode.
-        - Only updates act of RB in driver.
-        """
-        self.inhibitor.update()
-
-    def reset_inhibitors(self):                                             # Reset inhibitors (for RB and PO units) NOTE: Check if required to set for memory and new_set
-        """
-        Reset the inhibitors (for RB and PO units).
-        (driver, recipient, new_set, memory)
-        """
-        self.inhibitor.reset()
-
-    def check_local_inhibitor(self):                                        # Check local inhibition
-        """Check local inhibitor activation."""
-        self.inhibitor.check_local()
-    
-    def fire_local_inhibitor(self):                                         # Fire local inhibitor
-        """Fire the local inhibitor."""
-        self.inhibitor.fire_local()
-    
-    def check_global_inhibitor(self):                                       # Check global inhibition
-        """Check global inhibitor activation."""
-        self.inhibitor.check_global()
-        
-    def fire_global_inhibitor(self):                                        # Fire global inhibitor
-        """Fire the global inhibitor."""
-        self.inhibitor.fire_global()
-
-    # ========================[ NODE FUNCTIONS ]==========================
-    def get_pmode(self):                                                    # Get p_mode in driver and recipient
-        """
-        Get parent mode of P units in driver and recipient. Used in time steps activations.
-        (driver, recipient)
-        """
-        self.node.get_pmode()
-    
-    def initialise_p_mode(self, set: Set = Set.RECIPIENT):                  # Initialise p_mode in the given set
-        """
-        Initialise p_mode in the given set.
-        (default: recipient)
-
-        Args:
-            set (Set, optional): The set to initialise p_mode in. (Defaults to recipient)
-        """
-        self.node.initialise_p_mode(set)
-    
-    def get_weight_lengths(self):                                           # get weight lenghts in active memory
-        """
-        Get weight lengths of PO units. Used in run initialisation.
-        (driver, recipient, memory, new_set)
-        """
-        self.node.get_weight_lengths()
-    
-    def add_token(self, token: Token):                                      # Add a token to the given set
-        """
-        Add a token to the network.
-        - Added to the set specified in the token.
-
-        Args:
-            token (network.Token): The token to add.
-        
-        Returns:
-            network.Ref_Token: A reference to the token.
-        
-        Raises:
-            ValueError: If the token set feature is not a valid set.
-        """
-        return self.node.add_token(token)
-
-    def del_token(self, ref_token: Ref_Token):                              # Delete a token
-        """
-        Delete a referenced token from the network.
-
-        Args:
-            ref_token (network.Ref_Token): A reference to the token to delete.
-        """
-        self.node.del_token(ref_token)
-
-    def add_semantic(self, semantic: Semantic):                             # Add a semantic
-        """
-        Add a semantic to the given set.
-
-        Args:
-            semantic (network.Semantic): The semantic to add.
-        
-        Raises:
-            ValueError: If provided semantic is not semantic type.
-        """
-        self.node.add_semantic(semantic)
-
-    def del_semantic(self, ref_semantic: Ref_Semantic):                     # Delete a semantic
-        """
-        Delete a semantic from the semantics.
-        
-        Args:
-            ref_semantic (network.Ref_Semantic): A reference to the semantic to delete.
-
-        Raises:
-            ValueError: If ref_semantic is not provided.
-        """
-        self.node.del_semantic(ref_semantic)
-
-    def set_sem_max_input(self):                                            # Set the maximum input for the semantics
-        """
-        Set the maximum input for the semantics.
-        """
-        self.node.set_sem_max_input()
-    
-    def get_value(self, reference, feature):                                # Get the value of a feature for a referenced token or semantic
-        """
-        Get the value of a feature for a referenced token or semantic.
-
-        Args:
-            reference (Ref_Token or Ref_Semantic): A reference to the token or semantic to get the value of.
-            feature (TF or SF): The feature to get the value of.
-
-        Returns:
-            float: The value of the feature.
-
-        Raises:
-            ValueError: If the reference is not a token or semantic. Or feature type and reference type mismatch.
-        """
-        return self.node.get_value(reference, feature)
-    
-    def set_value(self, reference, feature, value):                         # Set the value of a feature for a referenced token or semantic
-        """
-        Set the value of a feature for a referenced token or semantic.
-
-        Args:
-            reference (Ref_Token or Ref_Semantic): A reference to the token or semantic to set the value of.
-            feature (TF or SF): The feature to set the value of.
-            value (float or Enum): The value to set the feature to.
-
-        Raises:
-            ValueError: If the reference is not a token or semantic. Or feature type and reference type mismatch.
-        """
-        self.node.set_value(reference, feature, value)
+# ======================[ OTHER FUNCTIONS / TODO: Move to operations] ======================
 
     def set_name(self, reference: Ref_Token, name: str):
         """
@@ -483,15 +303,3 @@ class Network(object):
             max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][index, :], dim=0)
         
         return max_val
-        
-        
-    # ----------------------------------------------------------------------
-    def print_set(self, set: Set, feature_types: list[TF] = None):
-        """
-        Print the given set.
-
-        Args:
-            set (Set): The set to print.
-            feature_types (list[TF], optional): List features to print, otherwise default features are printed.
-        """
-        self.utility.print_set(set, feature_types)
