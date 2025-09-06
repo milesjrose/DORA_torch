@@ -2,6 +2,7 @@
 # Base class for all set classes.
 
 import torch
+import logging
 
 from ...enums import *
 from ...utils import tensor_ops as tOps
@@ -14,6 +15,7 @@ from .base_set_operations.token_operations import TokenOperations
 from .base_set_operations.tensor_operations import TensorOperations
 from .base_set_operations.update_operations import UpdateOperations
 
+logger = logging.getLogger(__name__)
 
 class Base_Set(object):
     """
@@ -56,6 +58,13 @@ class Base_Set(object):
         self.token_op = TokenOperations(self)
         self.tensor_op = TensorOperations(self)
         self.update_op = UpdateOperations(self)
+
+        # For __get_attr__ (deprecated)
+        self._promoted_components = [
+            self.token_op, 
+            self.tensor_op, 
+            self.update_op
+        ]
 
         # check types
         c_type = type(connections)
@@ -106,6 +115,13 @@ class Base_Set(object):
         """
         self.token_set = None
         """Set: This sets set type"""
+    
+    def __getattr__(self, name):
+        for component in self._promoted_components:
+            if hasattr(component, name):
+                logger.warning(f"Deprecated: Use set.op.{name} instead of set.{name}")
+                return getattr(component, name)
+        raise AttributeError(f"Base_Set object has no attribute '{name}'")
 
     @property
     def token_ops(self) -> 'TokenOperations':
@@ -165,383 +181,3 @@ class Base_Set(object):
         """
         return self.update_op
 
-    # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
-    def get_feature(self, ref_token: Ref_Token, feature: TF) -> float:      # Get feature of single node
-        """
-        Get a feature for a referenced token.
-        
-        Args:
-            ref_token (Ref_Token): Reference of token.
-            feature (TF): The feature to get.
-
-        Returns:
-            The feature for the referenced token.
-
-        Raises:
-            ValueError: If the referenced token or feature is invalid.
-        """
-        return self.token_op.get_feature(ref_token, feature)
-
-    def set_feature(self, ref_token: Ref_Token, feature: TF, value: float): # Set feature of single node
-        """
-        Set a feature for a referenced token.
-        
-        Args:
-            ref_token (Ref_Token): Reference of token.
-            feature (TF): The feature to set.
-            value (float): The value to set the feature to.
-
-        Raises:
-            ValueError: If the referenced token, feature, or value is invalid.
-        """
-        self.token_op.set_feature(ref_token, feature, value)
-
-    def get_name(self, ref_token: Ref_Token) -> str:                        # Get name of node by reference token
-        """
-        Get the name for a referenced token.
-        
-        Args:
-            ref_token (Ref_Token): The token to get the name for.
-        
-        Returns:
-            The name of the token.
-
-        Raises:
-            ValueError: If the referenced token is invalid.
-        """
-        return self.token_op.get_name(ref_token)
-
-    def set_name(self, ref_token: Ref_Token, name: str):                    # Set name of node by reference token
-        """
-        Set the name for a referenced token.
-        
-        Args:
-            ref_token (Ref_Token): The token to set the name for.
-            name (str): The name to set the token to.
-        """
-        self.token_op.set_name(ref_token, name)
-    
-    def get_index(self, ref_token: Ref_Token) -> int:                       # Get index in tensor of reference token
-        """
-        Get index in tensor of referenced token.
-
-        Args:
-            ref_token (Ref_Token): The token to get the index for.
-
-        Returns:
-            The index of the token in the tensor.
-
-        Raises:
-            ValueError: If the referenced token is invalid.
-        """
-        return self.token_op.get_index(ref_token)
-        
-    def get_reference(self, id=None, index=None, name=None) -> Ref_Token:   # Get reference to token with given ID, index, or name
-        """
-        Get a reference to a token with a given ID, index, or name.
-
-        Args:
-            id (int, optional): The ID of the token to get the reference for.
-            index (int, optional): The index of the token to get the reference for.
-            name (str, optional): The name of the token to get the reference for.
-
-        Returns:
-            A Ref_Token object.
-
-        Raises:
-            ValueError: If the ID, index, or name is invalid. Or if none are provided.
-        """
-        return self.token_op.get_reference(id, index, name)
-    
-    def get_single_token(self, ref_token: Ref_Token, copy=True) -> Token:   # Get a single token from the tensor
-        """
-        Get a single token from the tensor.
-
-        - If copy is set to False, changes to the returned token will affect the tensor.
-
-        Args:
-            ref_token (Ref_Token): The token to get.
-            copy (bool, optional): Whether to return a copy of the token. Defaults to True.
-        
-        Returns:
-            Token: The token.
-        """
-        return self.token_op.get_single_token(ref_token, copy)
-    
-    def get_reference_multiple(self, mask=None, types: list[Type] = None) -> list[Ref_Token]:  # Get references to tokens in tensor
-        """
-        Get references to tokens in the tensor. Must provide either mask or types.
-
-        Args:
-            mask (torch.Tensor, optional): A mask to apply to the tensor. Defaults to None.
-            types (list[Type], optional): A list of types to filter by. Defaults to None.
-        Returns:
-            A list of references to the tokens in the tensor.
-        """
-        return self.token_op.get_reference_multiple(mask, types)
-    
-    def get_analog_indices(self, analog: Ref_Analog) -> list[int]:          # Get indices of tokens in an analog
-        """
-        Get indices of tokens in an analog.
-
-        Args:
-            analog (Ref_Analog): The analog to get the indices for.
-
-        Returns:
-            A list of indices of tokens in the analog.
-        """
-        return self.token_op.get_analog_indices(analog)
-    
-    # --------------------------------------------------------------
-
-    # ====================[ TENSOR FUNCTIONS ]======================
-    def cache_masks(self, types_to_recompute: list[Type] = None):   # Compute and cach masks for given types
-        """
-        Compute and cache masks
-        
-        Args:
-            types_to_recompute (list[Type], optional): The types to recompute the mask for. Defaults to All types.
-        """
-        self.tensor_op.cache_masks(types_to_recompute)
-    
-    def compute_mask(self, token_type: Type) -> torch.Tensor:       # Compute the mask for a token type
-        """
-        Compute the mask for a token type
-        
-        Args:
-            token_type (Type): The type to get the mask for.
-
-        Returns:
-            A mask of nodes with given type.   
-        """
-        return self.tensor_op.compute_mask(token_type)
-    
-    def get_mask(self, token_type: Type) -> torch.Tensor:           # Returns mask for given token type
-        """
-        Return cached mask for given token type
-        
-        Args:
-            token_type (Type): The type to get the mask for.
-
-        Returns:
-            The cached mask for the given token type.
-        """
-        return self.tensor_op.get_mask(token_type)                   
-
-    def get_combined_mask(self, n_types: list[Type]) -> torch.Tensor: # Returns combined mask of give types
-        """
-        Return combined mask of given types
-
-        Args:
-            n_types (list[Type]): The types to get the mask for.
-
-        Returns:
-            A mask of the given types.
-
-        Raises:
-            TypeError: If n_types is not a list.
-        """
-        return self.tensor_op.get_combined_mask(n_types)
-
-    def get_all_nodes_mask(self):                                   # Returns a mask for all nodes (Exluding empty or deleted rows)
-        """Return mask for all non-deleted nodes"""
-        return (self.nodes[:, TF.DELETED] == B.FALSE)
-
-    def add_token(self, token: Token) -> Ref_Token:                 # Add a token to the tensor
-        """
-        Add a token to the tensor. If tensor is full, expand it first.
-
-        Args:
-            token (Token): The token to add.
-            name (str, optional): The name of the token. Defaults to None.
-
-        Returns:
-            Ref_Token: Reference to the token that was added.
-
-        Raises:
-            ValueError: If the token is invalid.
-        """
-        return self.tensor_op.add_token(token)
-    
-    def expand_tensor(self):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
-        """
-        Expand tensor by classes expansion factor. Minimum expansion is 5.
-        Expands nodes, connections, links and mappings tensors.
-        """
-        self.tensor_op.expand_tensor()
-    
-    def expand_tensor_by_count(self, count: int):                   # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
-        """
-        Expand tensor by classes by count.
-        Expands nodes, connections, links and mappings tensors.
-        """
-        self.tensor_op.expand_tensor_by_count(count)
-    
-    def del_token(self, ref_tokens: Ref_Token):                     # Delete nodes from tensor   
-        """
-        Delete tokens from tensor. Pass in a list of Ref_Tokens to delete multiple tokens at once.
-        
-        Args:
-            ref_tokens (Ref_Token): The token(s) to delete. 
-        """
-        self.tensor_op.del_token_ref(ref_tokens)
-
-    def del_connections(self, ref_token: Ref_Token):                # Delete connnections from tensors
-        """
-        Delete connection from tensor.
-        
-        Args:
-            ref_token (Ref_Token): Refence to token, to delete connections from.
-        """
-        self.tensor_op.del_connections_ref(ref_token)
-    
-    def get_analog(self, analog: int) -> Analog:                    # Get an analog from the set
-        """
-        Get an analog from the set.
-        
-        Args:
-            analog (int): The analog ID to get.
-        
-        Returns:
-            Analog: The analog object containing tokens, connections, links, and names.
-            
-        Raises:
-            ValueError: If the analog doesn't exist in the set.
-        """
-        return self.tensor_op.get_analog(analog)
-            
-    def add_analog(self, analog: Analog) -> Ref_Analog:             # Add an analog to the set
-        """
-        Add an analog to the set.
-
-        Args:
-            analog (Analog): The analog to add.
-        
-        Returns:
-            Ref_Analog: Reference to the analog that was added.
-        """
-        return self.tensor_op.add_analog(analog)
-
-    def analog_node_count(self):                                    # Updates list of analogs in tensor, and their node counts
-        """Update list of analogs in tensor, and their node counts"""
-        self.tensor_op.analog_node_count()
-   
-    def print(self, f_types=None):                                  # Here for testing atm
-        """
-        Print the set.
-
-        Args:
-            f_types (list[TF], optional): The features to print.
-
-        Raises:
-            ValueError: If nodePrinter is not found.
-        """
-        self.tensor_op.print(f_types)
-    
-    def get_count(self) -> int:                                     # Get number of nodes in set
-        """Get the number of nodes in the set."""
-        return self.tensor_op.get_count()
-    # --------------------------------------------------------------
-
-    # ====================[ UPDATE FUNCTIONS ]=======================
-    def initialise_float(self, n_type: list[Type], features: list[TF]): # Initialise given features
-        """
-        Initialise given features
-        
-        Args:
-            n_type (list[Type]): The types of nodes to initialise.
-            features (list[TF]): The features to initialise.
-        """
-        self.update_op.initialise_float(n_type, features)
-    
-    def init_input(self, n_type: list[Type], refresh: float):     # Initialize inputs to 0, and td_input to refresh.
-        """ 
-        Initialize inputs to 0, and td_input to refresh
-        
-        Args:
-            n_type (list[Type]): The types of nodes to initialise.
-            refresh (float): The value to set the td_input to.
-        """
-        self.update_op.initialise_input(n_type, refresh)
-
-    def init_act(self, n_type: list[Type]):                       # Initialize act to 0.0,  and call initialise_inputs
-        """Initialize act to 0.0,  and call initialise_inputs
-        
-        Args:
-            n_type (list[Type]): The types of nodes to initialise.
-        """
-        self.update_op.initialise_act(n_type)
-
-    def initialise_state(self, n_type: list[Type]):                     # Set self.retrieved to false, and call initialise_act
-        """Set self.retrieved to false, and call initialise_act
-        
-        Args:
-            n_type (list[Type]): The types of nodes to initialise.
-        """
-        self.update_op.initialise_state(n_type)
-        
-    def update_act(self):                                               # Update act of nodes
-        """Update act of nodes. Based on params.gamma, params.delta, and params.HebbBias."""
-        self.update_op.update_act()
-
-    def zero_lateral_input(self, n_type: list[Type]):                   # Set lateral_input to 0 
-        """
-        Set lateral_input to 0;
-        to allow synchrony at different levels by 0-ing lateral inhibition at that level 
-        (e.g., to bind via synchrony, 0 lateral inhibition in POs).
-        
-        Args:
-            n_type (list[Type]): The types of nodes to set lateral_input to 0.
-        """
-        self.update_op.zero_lateral_input(n_type)
-    
-    def update_inhibitor_input(self, n_type: list[Type]):               # Update inputs to inhibitors by current activation for nodes of type n_type
-        """
-        Update inputs to inhibitors by current activation for nodes of type n_type
-        
-        Args:
-            n_type (list[Type]): The types of nodes to update inhibitor inputs.
-        """
-        self.update_op.update_inhibitor_input(n_type)
-
-    def reset_inhibitor(self, n_type: list[Type]):                      # Reset the inhibitor input and act to 0.0 for given type
-        """
-        Reset the inhibitor input and act to 0.0 for given type
-        
-        Args:
-            n_type (list[Type]): The types of nodes to reset inhibitor inputs and acts.
-        """
-        self.update_op.reset_inhibitor(n_type)
-    
-    def update_inhibitor_act(self, n_type: list[Type]):                 # Update the inhibitor act for given type
-        """
-        Update the inhibitor act for given type
-        
-        Args:
-            n_type (list[Type]): The types of nodes to update inhibitor acts.
-        """
-        self.update_op.update_inhibitor_act(n_type)
-    # --------------------------------------------------------------
-
-    # =======================[ P FUNCTIONS ]========================
-    def p_initialise_mode(self):                                        # Initialize all p.mode back to neutral.
-        """Initialize mode to neutral for all P units."""
-        self.update_op.p_initialise_mode()
-
-    def p_get_mode(self):                                               # Set mode for all P units
-        """Set mode for all P units"""
-        # Pmode = Parent: child RB act> parent RB act / Child: parent RB act > child RB act / Neutral: o.w
-        self.update_op.p_get_mode()
-
-    # ---------------------------------------------------------------
-
-    # =======================[ PO FUNCTIONS ]======================== # TODO: Can move out of tensor to save memory, as shared values.
-    def po_get_weight_length(self):                                     # Sum value of links with weight > 0.1 for all PO nodes
-        """Sum value of links with weight > 0.1 for all PO nodes - Used for semNormalisation"""
-        self.update_op.po_get_weight_length()
-            
-    def po_get_max_semantic_weight(self):                               # Get max link weight for all PO nodes
-        """Get max link weight for all PO nodes - Used for semNormalisation"""
-        self.update_op.po_get_max_semantic_weight()
-        
-    # ---------------------------------------------------------------
