@@ -24,6 +24,14 @@ feature Enums:
 
 """
 
+import logging
+
+# Get the root logger
+root_logger = logging.getLogger()
+
+
+logging.getLogger(__name__).addHandler(logging.NullHandler())
+
 from .network.network import Network
 from .network.network_params import Params
 from .builder.run_build import build_network

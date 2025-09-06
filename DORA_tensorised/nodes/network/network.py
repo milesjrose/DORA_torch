@@ -1,5 +1,7 @@
 # nodes/network/network.py
 # Class for holding network sets, and accessing operations on them.
+import logging
+logger = logging.getLogger(__name__)
 
 from ..enums import *
 
