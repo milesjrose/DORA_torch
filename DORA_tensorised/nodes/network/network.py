@@ -71,6 +71,8 @@ class Network(object):
             # Set the map_from attribute for each mapping
         self.mappings[Set.RECIPIENT].set_map_from(self.sets[Set.RECIPIENT]) 
         self.mappings[Set.MEMORY].set_map_from(self.sets[Set.MEMORY])
+        # Set the mapping object for driver // TODO: Assign this in driver object init, need to update builder
+        self.sets[Set.DRIVER].set_mappings(self.mappings)
         """ Dictionary of mappings for each set. """
         self.links: Links = links
         """ Links object for the network. """
