@@ -30,7 +30,7 @@ class Inter_Node(object):
             feature (str): The feature to set.
             value (float): The value to set the feature to.
         """
-        self.features[feature] = value
+        self.features[feature] = float(value)
     
     def set_ID(self, ID):
         """
@@ -39,5 +39,5 @@ class Inter_Node(object):
         Args:
             ID (int): The ID to set the node to.
         """
-        self.ID = ID
-        self.features[TF.ID] = ID
+        self.ID = int(ID)
+        self.features[TF.ID] = float(ID)
