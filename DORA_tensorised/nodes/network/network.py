@@ -308,6 +308,8 @@ class Network(object):
         """
         Get a string representation of a reference token.
         """
+        if reference is None:
+            return "(None)"
         try:
             index = self.get_index(reference)
         except Exception as e:
