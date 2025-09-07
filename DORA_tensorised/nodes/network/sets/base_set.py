@@ -11,9 +11,9 @@ from ..connections import Links, Mappings
 from ..network_params import Params
 from ..single_nodes import Token, Ref_Token, Analog, Ref_Analog
 
-from .base_set_operations.token_operations import TokenOperations
-from .base_set_operations.tensor_operations import TensorOperations
-from .base_set_operations.update_operations import UpdateOperations
+from .base_set_ops.token_operations import TokenOperations
+from .base_set_ops.tensor_operations import TensorOperations
+from .base_set_ops.update_operations import UpdateOperations
 
 logger = logging.getLogger(__name__)
 
