@@ -1,7 +1,6 @@
-
-from .nodes.network import Network
+from DORA_tensorised.nodes.network import Network
 from time import monotonic
-from .nodes.enums import Set
+from DORA_tensorised.nodes.enums import Set
 import torch
 
 class Timer(object):
@@ -33,23 +32,12 @@ class Timer(object):
     def elapsed_end(self):
         return monotonic() - self.elapsed_timer
 
-
-
-
-
-
 def do_iterations(iterations: int, network: Network, timer: Timer):
     for i in range(iterations):
         timer.start_timer()
         for set in Set:
             network.update_inputs(set)
             timer.log_time(set)
-
-
-
-
-
-
 
 def test_update_inputs(iterations: int, network: Network, print_time = False):
     timer = Timer()
