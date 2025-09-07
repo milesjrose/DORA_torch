@@ -131,17 +131,19 @@ class TensorOperations:
         logger.debug(f"Assigned ID: {ID}")
         token[TF.ID] = float(ID)
         deleted_nodes = torch.where(self.base_set.nodes[:, TF.DELETED] == B.TRUE)[0] #find first deleted node
-        first_deleted = deleted_nodes[0]                                    # Get index of first deleted node
-        self.base_set.nodes[first_deleted, :] = token.tensor                # Replace first deleted node with token
-        self.base_set.IDs[ID] = int(first_deleted.item())                   # map: new ID -> index of replaced node
+        idx = deleted_nodes[0]                                    # Get index of first deleted node
+        self.base_set.nodes[idx, :] = token.tensor                # Replace first deleted node with token
+        self.base_set.IDs[ID] = int(idx.item())                   # map: new ID -> index of replaced node
         self.cache_masks()                                                  # recompute masks
         if token.name is None:
             token.name = f"Token_{ID}"
         if self.base_set.names is None:
             raise ValueError("Names dictionary is not initialised.")
         self.base_set.names[ID] = token.name
-        logger.info(f"{self.base_set.token_set.name}: Add token ID={ID}")
-        return Ref_Token(self.base_set.token_set, ID)
+        ref_token = Ref_Token(self.base_set.token_set, ID)
+        ref_token.name = token.name
+        logger.info(f"add_token -> {ref_token.set.name}[{idx}]({ID}):\"{ref_token.name}\"")
+        return ref_token
     
     def expand_tensor(self):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
         """
