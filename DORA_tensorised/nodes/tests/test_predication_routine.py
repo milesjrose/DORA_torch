@@ -130,7 +130,7 @@ def test_predication_routine_no_new_pred_success(network):
     assert inferred_pred_token.tensor[TF.INFERRED] == B.TRUE
 
     original_po_tensor = network.recipient().token_op.get_single_token(r_po).tensor
-    assert original_po_tensor[TF.MADE_UNIT] != 0
+    assert int(original_po_tensor[TF.MADE_UNIT]) != null
 
 def test_predication_routine_made_new_pred_learning(network):
     """Test that link weights are updated correctly when a new predicate exists."""

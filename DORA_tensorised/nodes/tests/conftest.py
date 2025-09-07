@@ -3,6 +3,12 @@ import pytest
 import logging
 from nodes.utils.log_utils import ShortPathFormatter
 
+suppress_warnings = True
+
+def suppress_warnings_filter(record):
+    """A custom filter to block any log messages with the WARNING level."""
+    return record.levelno != logging.WARNING
+
 def pytest_configure(config):
     logging_plugin = config.pluginmanager.getplugin("logging-plugin")
     handler = logging_plugin.report_handler
@@ -14,3 +20,7 @@ def pytest_configure(config):
     )
     
     handler.setFormatter(formatter)
+
+    # --- NEW PART: Add the custom filter to the handler ---
+    if suppress_warnings:
+        handler.addFilter(suppress_warnings_filter)
