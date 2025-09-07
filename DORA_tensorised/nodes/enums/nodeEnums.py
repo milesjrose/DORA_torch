@@ -227,8 +227,8 @@ class B(IntEnum):
     TRUE    = 1
     FALSE   = 0
 
-null = -99.99
-"""Null value for float tensors: -99.99"""
+null = -99.0
+"""Null value for float tensors: -99.0"""
 
 from torch import float32
 tensor_type = float32
