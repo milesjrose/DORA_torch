@@ -1,6 +1,6 @@
 # nodes/enums/__init__.py
 
-from .nodeEnums import SF, TF, MappingFields, Type, Set, Mode, OntStatus, B, null, tensor_type, MAPPING_SETS
+from .nodeEnums import SF, TF, MappingFields, Type, Set, Mode, OntStatus, B, null, tensor_type, MAPPING_SETS, feature_type
 
 __all__ = [
     "SF",
@@ -13,5 +13,6 @@ __all__ = [
     "B",
     "null",
     "tensor_type",
-    "MAPPING_SETS"
+    "MAPPING_SETS",
+    "feature_type"
 ]

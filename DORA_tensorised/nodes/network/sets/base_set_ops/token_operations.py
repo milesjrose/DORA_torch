@@ -2,10 +2,13 @@
 # Token operations for Base_Set class
 
 import torch
+import logging
 from typing import TYPE_CHECKING
 
 from ...single_nodes import Token, Ref_Token, Ref_Analog
 from ....enums import *
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..base_set import Base_Set
@@ -42,9 +45,13 @@ class TokenOperations:
             ValueError: If the referenced token or feature is invalid.
         """
         try:
-            return self.base_set.nodes[self.get_index(ref_token), feature]
-        except:
+            feature_value = self.base_set.nodes[self.get_index(ref_token), feature].item()
+        except Exception as e:
+            logger.critical(f"Invalid reference token or feature: {ref_token.set.name}[{ref_token.ID}] {feature.name}")
             raise ValueError("Invalid reference token or feature.")
+        # Convert to correct type:
+        f_type = feature_type(feature)
+        return f_type(feature_value)
 
     def set_feature(self, ref_token: Ref_Token, feature: TF, value): # Set feature of single node
         """
@@ -140,10 +147,13 @@ class TokenOperations:
         Raises:
             ValueError: If the referenced token is invalid.
         """
+        id = int(ref_token.ID)
+        logger.debug(f"Get index for {ref_token.set.name}[{id}] in {self.base_set.token_set.name}: {self.base_set.nodes.shape}")
         try:
-            return self.base_set.IDs[ref_token.ID]
-        except:
-            raise ValueError(f"[{self.base_set.token_set.name}] : Token ID {ref_token.ID} not found in set {ref_token.set.name}.")
+            return self.base_set.IDs[id]
+        except Exception as e:
+            logger.critical(f"[{self.base_set.token_set.name}] : Token ID {id} not in {self.base_set.IDs}.")
+            raise e
 
     def get_indices(self, ref_tokens: list[Ref_Token]) -> list[int]:
         """
@@ -160,7 +170,7 @@ class TokenOperations:
             indices.append(self.get_index(tk))
         return indices
 
-    def get_reference(self, id=None, index=None, name=None) -> Ref_Token:        # Get reference to token with given ID, index, or name
+    def get_reference(self, id:int=None, index:int=None, name:str=None) -> Ref_Token:        # Get reference to token with given ID, index, or name
         """
         Get a reference to a token with a given ID, index, or name.
 
@@ -181,6 +191,7 @@ class TokenOperations:
                 id = self.base_set.nodes[index, TF.ID].item()
                 source = "index"    
             except:
+                logger.critical(f"Invalid index: {index} in {self.base_set.token_set.name} with shape: {self.base_set.nodes.shape}")
                 raise ValueError("Invalid index.")
         elif name is not None:
             try:
@@ -189,6 +200,7 @@ class TokenOperations:
                 id = list(self.base_set.names.keys())[dict_index]
                 source = "name"
             except:
+                logger.critical(f"Invalid name: {name} in {self.base_set.token_set.name} with names: {self.base_set.names}")
                 raise ValueError("Invalid name.")
         elif id is not None:
             try:
@@ -196,8 +208,9 @@ class TokenOperations:
                 if id not in self.base_set.IDs:
                     raise ValueError("Invalid ID.")
                 source = "id"
-            except:
-                raise ValueError("Invalid ID.")
+            except Exception as e:
+                logger.critical(f"Invalid ID: {id} in {self.base_set.token_set.name} with IDs: {self.base_set.IDs}")
+                raise e
         else:
             raise ValueError("No ID, index, or name provided.")
         

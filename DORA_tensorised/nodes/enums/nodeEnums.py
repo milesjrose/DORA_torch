@@ -3,6 +3,7 @@
 
 from enum import IntEnum
 
+
 class TF(IntEnum):
     """
     Enum to access token values
@@ -46,7 +47,9 @@ class TF(IntEnum):
     ANALOG              = 3
     MAX_MAP_UNIT        = 4
     MADE_UNIT           = 5
+    MADE_SET            = 30
     MAKER_UNIT          = 6
+    MAKER_SET           = 31
     INHIBITOR_THRESHOLD = 7
     GROUP_LAYER         = 8     # Group
     MODE                = 9     # P unit
@@ -75,6 +78,51 @@ class TF(IntEnum):
     DELETED             = 28
     PRED                = 29    # PO unit
 
+def feature_type(feature: TF):
+    """
+    Get the type of a feature.
+
+    Args:
+        feature (TF): The feature to get the type of.
+
+    Returns:
+        The type of the feature.
+    """
+    feature_types = {
+        TF.ID: int,
+        TF.TYPE: Type,
+        TF.SET: Set,
+        TF.ANALOG: int,
+        TF.MAX_MAP_UNIT: int,
+        TF.MADE_UNIT: int,
+        TF.MADE_SET: Set,
+        TF.MAKER_UNIT: int,
+        TF.MAKER_SET: Set,
+        TF.INHIBITOR_THRESHOLD: int,
+        TF.GROUP_LAYER: int,
+        TF.MODE: Mode,
+        TF.TIMES_FIRED: int,
+        TF.SEM_COUNT: int,
+        TF.ACT: float,
+        TF.MAX_ACT: float,
+        TF.INHIBITOR_INPUT: float,
+        TF.INHIBITOR_ACT: float,
+        TF.MAX_MAP: float,
+        TF.TD_INPUT: float,
+        TF.BU_INPUT: float,
+        TF.LATERAL_INPUT: float,
+        TF.MAP_INPUT: float,
+        TF.NET_INPUT: float,
+        TF.MAX_SEM_WEIGHT: float,
+        TF.INFERRED: bool,
+        TF.RETRIEVED: bool,
+        TF.COPY_FOR_DR: bool,
+        TF.COPIED_DR_INDEX: int,
+        TF.SIM_MADE: bool,
+        TF.DELETED: bool,
+        TF.PRED: bool,
+    }
+    return feature_types[feature]
 
 class SF(IntEnum):
     """

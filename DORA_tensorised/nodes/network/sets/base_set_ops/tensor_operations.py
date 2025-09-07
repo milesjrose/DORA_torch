@@ -12,7 +12,7 @@ from ...single_nodes import Token, Analog, Ref_Analog, Ref_Token
 
 # name -> base_set.tensor_ops
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 if TYPE_CHECKING:
     from ..base_set import Base_Set
@@ -127,19 +127,20 @@ class TensorOperations:
             except Exception as e:
                 raise(e)
         else:
-            ID = 1
+            ID = 0
         logger.debug(f"Assigned ID: {ID}")
-        token[TF.ID] = ID
+        token[TF.ID] = float(ID)
         deleted_nodes = torch.where(self.base_set.nodes[:, TF.DELETED] == B.TRUE)[0] #find first deleted node
         first_deleted = deleted_nodes[0]                                    # Get index of first deleted node
         self.base_set.nodes[first_deleted, :] = token.tensor                # Replace first deleted node with token
-        self.base_set.IDs[ID] = first_deleted                               # map: new ID -> index of replaced node
+        self.base_set.IDs[ID] = int(first_deleted.item())                   # map: new ID -> index of replaced node
         self.cache_masks()                                                  # recompute masks
         if token.name is None:
-            token.name = f"Token {ID}"
+            token.name = f"Token_{ID}"
         if self.base_set.names is None:
             raise ValueError("Names dictionary is not initialised.")
         self.base_set.names[ID] = token.name
+        logger.info(f"{self.base_set.token_set.name}: Add token ID={ID}")
         return Ref_Token(self.base_set.token_set, ID)
     
     def expand_tensor(self):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
@@ -256,7 +257,7 @@ class TensorOperations:
         self.del_connections_indices(indices) # Delete connections first
         # Get types/ids of deleted tokens
         cache_types = torch.unique(self.base_set.nodes[indices, TF.TYPE]).tolist() 
-        IDs = self.base_set.nodes[indices, TF.ID].tolist() 
+        IDs = int(self.base_set.nodes[indices, TF.ID].tolist())
         # Update IDs/names
         for ID in IDs:
             self.base_set.IDs.pop(ID)
