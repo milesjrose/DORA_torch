@@ -9,6 +9,7 @@ from ...single_nodes import Token, Ref_Token, Ref_Analog
 from ....enums import *
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 if TYPE_CHECKING:
     from ..base_set import Base_Set

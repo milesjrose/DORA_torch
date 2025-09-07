@@ -257,11 +257,11 @@ class TensorOperations:
         self.del_connections_indices(indices) # Delete connections first
         # Get types/ids of deleted tokens
         cache_types = torch.unique(self.base_set.nodes[indices, TF.TYPE]).tolist() 
-        IDs = int(self.base_set.nodes[indices, TF.ID].tolist())
+        IDs = self.base_set.nodes[indices, TF.ID].tolist()
         # Update IDs/names
         for ID in IDs:
-            self.base_set.IDs.pop(ID)
-            self.base_set.names.pop(ID)
+            self.base_set.IDs.pop(int(ID))
+            self.base_set.names.pop(int(ID))
         # Update features
         self.base_set.nodes[indices, TF.DELETED] = B.TRUE          
         self.base_set.nodes[indices, TF.ID] = null
