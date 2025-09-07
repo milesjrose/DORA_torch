@@ -257,21 +257,6 @@ class Network(object):
         """
         return self.sets[reference.set].token_op.get_index(reference)
     
-    def get_made_unit_ref(self, reference: Ref_Token) -> Ref_Token:
-        """
-        Get the reference to the made unit in the new set.
-        """
-        made_unit_index = self.get_value(reference, TF.MADE_UNIT)
-        if made_unit_index == null:
-            return None
-        ref = Ref_Token(Set.NEW_SET, made_unit_index)
-        # Check valid reference
-        try:
-            self.sets[Set.NEW_SET].get_single_token(ref)
-        except:
-            raise ValueError(f"Invalid made unit reference: {ref.set.name}.{ref.ID}, made unit index: {made_unit_index}")
-        return ref
-    
     def initialise_made_unit(self):
         """
         Initialise the made unit for all tokens.
@@ -280,6 +265,7 @@ class Network(object):
         """
         for set in Set:
             self.sets[set].nodes[:, TF.MADE_UNIT] = null
+    
     
     def get_max_map_value(self, reference: Ref_Token, map_set: Set = None) -> float:
         """
@@ -292,18 +278,39 @@ class Network(object):
         Returns:
             float: The maximum mapping weight for the referenced token.
         """
+        logger.debug(f"Get max map value for {reference.set.name}[{reference.ID}]")
         if reference.set == Set.DRIVER: 
             if map_set == None:
                 raise ValueError("Map set must be provided if reference is from driver.")
             else:
-                print(f"Shape of weight tensor: {self.mappings[map_set][MappingFields.WEIGHT].shape}")
-                print(f"Shape of driver tensor: {self.mappings[map_set].driver.nodes.shape}")
-                print(f"Shape of recipient tensor: {self.mappings[map_set].map_from.nodes.shape}")
                 index = self.get_index(reference)
-                max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][:, index], dim=1)
-        else:
+                try:
+                    max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][:, index], dim=0)
+                except Exception as e:
+                    logger.error(f"Can't get max map value for {reference.set.name}[{index}] (ID={reference.ID})  in {map_set.name} map tens: {self.mappings[map_set][MappingFields.WEIGHT].shape} // slice: {self.mappings[map_set][MappingFields.WEIGHT][:, index].shape}")
+                    raise(e)
+        elif reference.set in MAPPING_SETS:
             map_set = reference.set
             index = self.get_index(reference)
-            max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][index, :], dim=0)
+            try:        
+                max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][index, :], dim=0)
+            except:
+                logger.error(f"Can't get max map value for {reference.set.name}[{index}] (ID={reference.ID}) weight tensor shape: {self.mappings[map_set][MappingFields.WEIGHT].shape}")
+                raise ValueError(f"Invalid mapping set: {map_set.name}.{map_set.ID}")
+        else:
+            raise ValueError(f"Invalid reference: {reference.set.name}.{reference.ID}")
         
-        return max_val
+        logger.info(f"Max map val({reference.set.name}[{reference.ID}]:mapping.{map_set.name}) = {max_val.item()}")
+        
+        return max_val.item()
+    
+    def get_ref_string(self, reference: Ref_Token):
+        """
+        Get a string representation of a reference token.
+        """
+        try:
+            index = self.get_index(reference)
+        except Exception as e:
+            logger.critical(f"Cant find index for {reference.set.name}[{reference.ID}]")
+            return f"{reference.set.name}[N/A]({reference.ID})"
+        return f"{reference.set.name}[{index}]({reference.ID})"

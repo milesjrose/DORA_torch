@@ -1,8 +1,11 @@
 # nodes/network/operations/node_ops.py
 # Node operations for Network class
+import logging
 
 from ...enums import *
 from ..single_nodes import Token, Semantic, Ref_Token, Ref_Semantic
+
+logger = logging.getLogger(__name__)
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -199,4 +202,45 @@ class NodeOperations:
                 continue # Skip if no mask for set
         
         return tokens
+    
+    def get_made_unit_ref(self, reference: Ref_Token) -> Ref_Token:
+        """
+        Get the reference to tokens made unit.
+        """
+        made_unit_index = self.get_value(reference, TF.MADE_UNIT)
+        made_unit_set = self.get_value(reference, TF.MADE_SET)
+        if made_unit_index == null:
+            logger.debug(f"No made unit for {reference.set.name}[{reference.ID}]")
+            return None
+        try:
+            ref = self.network.sets[made_unit_set].token_op.get_reference(index=made_unit_index)
+        except Exception as e:
+            logger.critical(f"Cant find token: {made_unit_set.name}[{made_unit_index}]")
+            raise e
+        return ref
+    
+    def get_maker_unit_ref(self, reference: Ref_Token) -> Ref_Token:
+        """
+        Get the reference to the maker unit for a referenced token.
+        """
+        maker_unit_index = self.get_value(reference, TF.MAKER_UNIT)
+        maker_unit_set = self.get_value(reference, TF.MAKER_SET)
+        if maker_unit_index == null:
+            logger.debug(f"No maker unit for {reference.set.name}[{reference.ID}]")
+            return None
+        try:
+            ref = self.network.sets[maker_unit_set].token_op.get_reference(index=maker_unit_index)
+        except Exception as e:
+            logger.critical(f"Cant find token: {maker_unit_set.name}[{maker_unit_index}]")
+            raise e
+        return ref
+        
+    def initialise_made_unit(self):
+        """
+        Initialise the made unit for all tokens.
+        TODO: Update tensors to be null by default for these values.
+        currently some routines will not work unless this is run.
+        """
+        for set in Set:
+            self.network.sets[set].nodes[:, TF.MADE_UNIT] = null
      
