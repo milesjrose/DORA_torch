@@ -9,6 +9,7 @@ from functools import reduce
 
 from ....enums import *
 from ...single_nodes import Token, Analog, Ref_Analog, Ref_Token
+from ....utils import tensor_ops as tOps
 
 # name -> base_set.tensor_ops
 logger = logging.getLogger(__name__)
@@ -67,16 +68,30 @@ class TensorOperations:
         mask = (self.base_set.nodes[:, TF.TYPE] == token_type) & (self.base_set.nodes[:, TF.DELETED] == B.FALSE)
         return mask
     
-    def get_mask(self, token_type: Type):                           # Returns mask for given token type
+    def get_mask(self, token_type: Type, pmode=None):                           # Returns mask for given token type
         """
         Return cached mask for given token type
         
         Args:
             token_type (Type): The type to get the mask for.
+            pmode (Mode, optional): The mode to refine the mask for. Defaults to None.
 
         Returns:
             The cached mask for the given token type.
         """
+        # If p type, refine mask for type if included
+        if token_type == Type.P:
+            if pmode is not None:
+                p_mask = self.base_set.masks[int(token_type)]
+                if pmode == Mode.CHILD:
+                    child_mask = self.base_set.nodes[p_mask, TF.MODE] == Mode.CHILD
+                    return tOps.sub_union(p_mask, child_mask)
+                elif pmode == Mode.PARENT:
+                    parent_mask = self.base_set.nodes[p_mask, TF.MODE] == Mode.PARENT
+                    return tOps.sub_union(p_mask, parent_mask)
+                elif pmode == Mode.NEUTRAL:
+                    neutral_mask = self.base_set.nodes[p_mask, TF.MODE] == Mode.NEUTRAL
+                    return tOps.sub_union(p_mask, neutral_mask)
         return self.base_set.masks[int(token_type)]                   
 
     def get_combined_mask(self, n_types: list[Type]):               # Returns combined mask of give types
