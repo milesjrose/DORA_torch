@@ -404,5 +404,18 @@ class TokenOperations:
             return self.base_set.nodes[absolute_index, TF.ID].item()
         else:
             return self.get_reference(index=absolute_index)
+    
+    def connect(self, parent: Ref_Token, child: Ref_Token):
+        """
+        Connect a parent token to a child token.
+        """
+        logger.debug(f"Connecting {self.get_ref_string(parent)} -> {self.get_ref_string(child)}")
+        self.base_set.connections[self.get_index(parent), self.get_index(child)] = B.TRUE
+
+    def get_ref_string(self, ref_token: Ref_Token):
+        """
+        Get a string representation of a reference token.
+        """
+        return f"{self.base_set.token_set.name}[{self.get_index(ref_token)}]({ref_token.ID})"
 
     # --------------------------------------------------------------
