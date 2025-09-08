@@ -69,6 +69,7 @@ class Network(object):
         self.semantics.params = params
         self.semantics.links = links
         # inter-set connections
+        # TODO: Only need mapping tensor for recipient set -> remove others.
         self.mappings: dict[Set, Mappings] = mappings
             # Set the map_from attribute for each mapping
         self.mappings[Set.RECIPIENT].set_map_from(self.sets[Set.RECIPIENT]) 

@@ -21,6 +21,7 @@ class Mappings(object):
         Raises:
             ValueError: If the tensors are not torch.Tensor. Or have incorrect shape.
         """
+        # TODO: Combine connections and weight tensors into one tensor.
         # Check tensors are correct type and shape
         con_shape = map_fields[MappingFields.CONNECTIONS].shape[0] # Used to check all tensors have same shape
         for field in MappingFields:
