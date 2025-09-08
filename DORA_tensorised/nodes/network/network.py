@@ -49,6 +49,9 @@ class Network(object):
         self.params: Params = params
         """ Parameters object for the network. """
 
+        # TODO move the get_index call out of the links object
+        links.set_network(self)
+
 
         # add links, params, and mappings to each set
         for set in Set:

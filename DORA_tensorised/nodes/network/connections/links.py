@@ -3,6 +3,8 @@
 # TODO: Implement add_links
 
 import torch
+import logging
+logger = logging.getLogger(__name__)
 
 from ...enums import *
 
@@ -38,7 +40,12 @@ class Links(object):
         # initialise
         self.semantics = semantics
         self.sets = links
-        self.params = None
+        self.params = None 
+        self.network = None
+
+    def set_network(self, network):
+        """set the network for the links object"""
+        self.network = network
     
     def set_params(self, params):
         """
@@ -58,9 +65,9 @@ class Links(object):
         """
         if mask is None:
             # No mask, do for all semantics
-            mask = torch.ones(self.sets[ref_token.set].size(dim=0), dtype=torch.bool)
+            mask = torch.ones(self.sets[ref_token.set].size(dim=1), dtype=torch.bool)
         # Get token index
-        token_index = self.get_index(ref_token)
+        token_index = self.network.get_index(ref_token)
         # sem acts
         sem_acts = self.semantics.nodes[mask, SF.ACT]
         # link weights
