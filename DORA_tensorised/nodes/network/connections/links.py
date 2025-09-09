@@ -11,6 +11,7 @@ from ...enums import *
 class Links(object): 
     """
     A class for representing weighted connections between token sets and semantics.
+    Links tensor: [Token,Semantics]
     """
     def __init__(self, links: dict[Set, torch.Tensor], semantics):  # Takes weighted adjacency matrices
         """
@@ -96,3 +97,15 @@ class Links(object):
         # set any values in links tensor above threshold to 1.0
         for set in Set:
             self.sets[set] = torch.where(self.sets[set] > threshold, 1.0, self.sets[set])
+
+    def calibrate_weights(self):
+        """Update weights for most strongly connected semantics for driver POs (set to 1.0)"""
+        # For each po, get the max weight link, then set that to 1.0
+        po_mask = self.network.driver().get_mask(Type.PO)
+        links = self.sets[Set.DRIVER]
+        strongest_links = torch.max(links[po_mask], dim=1).indices
+        po_idxs = po_mask.nonzero().squeeze(1)
+        # TODO: vectorise
+        for po, index in enumerate(strongest_links):
+            self.sets[Set.DRIVER][po_idxs[po-1], index] = 1.0
+
