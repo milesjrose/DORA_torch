@@ -45,14 +45,12 @@ class MappingOperations:
         Update all mapping hypotheses.
         """
         self.network.mappings[Set.RECIPIENT].update_hypotheses()
-        # TODO: Check if we update memory set hypotheses here?
     
     def reset_mapping_hyps(self):
         """
         Reset the values of mapping hypotheses/max_hyps.
         """
         self.network.mappings[Set.RECIPIENT].reset_hypotheses()
-        # TODO: Check reset mem set here as well?
     
     def update_mapping_connections(self):
         """
@@ -60,23 +58,19 @@ class MappingOperations:
         """
         self.network.mappings[Set.RECIPIENT].update_connections(self.network.params.eta)
     
-    def get_max_maps(self):
+    def get_max_maps(self, set: Set = [Set.RECIPIENT, Set.DRIVER]):
         """
-        Get value/token with highest mapping value for each token in driver and recipient.
+        Get value/token with highest mapping value for each token in sets.
+        
+        Args:
+            set (Set, optional): The set to get max maps for. Defaults to [Set.RECIPIENT, Set.DRIVER].
         """
         max_recipient, max_driver = self.network.mappings[Set.RECIPIENT].get_max_map()
         # Set max map for driver
-        self.network.sets[Set.DRIVER].nodes[:, TF.MAX_MAP] = max_driver.values
-        self.network.sets[Set.DRIVER].nodes[:, TF.MAX_MAP_UNIT] = max_driver.indices
+        if Set.DRIVER in set:
+            self.network.sets[Set.DRIVER].nodes[:, TF.MAX_MAP] = max_driver.values
+            self.network.sets[Set.DRIVER].nodes[:, TF.MAX_MAP_UNIT] = max_driver.indices
         # Set max map for recipient
-        self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP] = max_recipient.values
-        self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP_UNIT] = max_recipient.indices
-    
-    def get_max_map_memory(self):
-        """
-        Get value/token with highest mapping value for each token in memory.
-        TODO: Check if this is ever needed?
-        """
-        max_memory, max_driver = self.network.mappings[Set.MEMORY].get_max_map()
-        self.network.sets[Set.MEMORY].nodes[:, TF.MAX_MAP] = max_memory.values
-        self.network.sets[Set.MEMORY].nodes[:, TF.MAX_MAP_UNIT] = max_memory.indices
+        if Set.RECIPIENT in set:
+            self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP] = max_recipient.values
+            self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP_UNIT] = max_recipient.indices
