@@ -2,7 +2,9 @@
 # Tests for analog operations.
 
 import pytest
+import torch
 
+from nodes.network import Network
 from nodes.builder import NetworkBuilder
 from nodes.network.single_nodes import Token
 from nodes.enums import *
@@ -223,3 +225,20 @@ def test_find_driver_analog(network):
     # Check that the analog has tokens (otherwise nothing is being tested)
     analog = network.analog.get_analog(ref_analog)
     assert analog.tokens.shape[0] > 0, " analog should have tokens"
+
+def test_new_set_to_analog(network: Network):
+    new_set = network.new_set()
+    token = Token(Type.RB, {TF.SET:Set.NEW_SET, TF.ANALOG: 3.0})
+    for i in range(5):
+        network.node_ops.add_token(token)
+    # Check tokens are all in analog 3
+    analogs = new_set.nodes[:, TF.ANALOG] != 3.0
+    print(new_set.nodes[:,TF.ANALOG])
+    assert analogs.nonzero().shape[0] == 0
+
+    # set analog
+    network.analog.new_set_to_analog()
+
+    #check tokens are all in analog 1
+    analogs = new_set.nodes[:, TF.ANALOG] != 1.0
+    assert analogs.nonzero().shape[0] == 0

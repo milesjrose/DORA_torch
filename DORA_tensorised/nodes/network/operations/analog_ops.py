@@ -144,7 +144,6 @@ class AnalogOperations:
         indices = self.get_analog_indices(analog)
         self.network.sets[analog.set].token_op.set_features(indices, feature, value)
 
-    # ---------------------[ TODO: IMPLEMENT ]----------------------------
     
     def find_mapped_analog(self, set:Set):
         """
@@ -165,20 +164,14 @@ class AnalogOperations:
             analog_number = self.network.node_ops.get_value(ref_po, TF.ANALOG)
             return Ref_Analog(analog_number, set)
     
-    def find_driver_analog_rel_gen(self):
-        """
-        Find the analog in the driver that maps from - only used in do_rel_gen() in runDORA object.
-        """
-        
-        pass
-    
     def new_set_to_analog(self):
         """
         Put the tokens in the new set into their own analog.
         """
-        # Implementation using network.sets
-        pass
+        # Putting all newSet tokens into analog, so just set all analog to 1
+        self.network.new_set().token_ops.set_features_all(TF.ANALOG, 1.0)
     
+    # ---------------------[ TODO: IMPLEMENT ]----------------------------
     def print_analog(self):
         """
         Print list of token names in analog.
