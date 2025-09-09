@@ -88,6 +88,13 @@ class TokenOperations:
         except:
             raise ValueError("Invalid indices, feature, or value.")
 
+    def set_features_all(self, feature: TF, value: float):
+        """
+        Set a feature for all tokens in the set.
+        """
+        all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()
+        self.base_set.nodes[all_nodes_mask, feature] = float(value)
+
     def get_name(self, ref_token: Ref_Token):                       # Get name of node by reference token
         """
         Get the name for a referenced token.
@@ -417,5 +424,14 @@ class TokenOperations:
         Get a string representation of a reference token.
         """
         return f"{self.base_set.token_set.name}[{self.get_index(ref_token)}]({ref_token.ID})"
+    
+    def reset_inferences(self):
+        """
+        Reset the inferences of all tokens in the set.
+        """
+        all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()
+        self.base_set.nodes[all_nodes_mask, TF.INFERRED] = B.FALSE
+        self.base_set.nodes[all_nodes_mask, TF.MADE_UNIT] = null
+        self.base_set.nodes[all_nodes_mask, TF.MAKER_UNIT] = null
 
     # --------------------------------------------------------------

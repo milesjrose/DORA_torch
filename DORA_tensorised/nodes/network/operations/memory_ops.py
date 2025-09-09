@@ -5,7 +5,7 @@ from ...enums import *
 
 class TensorOperations:
     """
-    Memory management operations for the Network class.
+    Memory management and memory wide set operations for the Network class.
     Handles copying, clearing, and managing memory sets.
     """
     
@@ -79,16 +79,23 @@ class TensorOperations:
         # Implementation using network.sets
         pass
     
-    def clear_token_set(self):
+    def clear_all_sets(self):
         """
         Clear the set field of every token in memory (i.e. to clear WM).
         """
-        # Implementation using network.sets
-        pass
+        for set in Set:
+            if set != Set.MEMORY:
+                self.network.sets[set].token_op.set_features_all(TF.SET, Set.MEMORY)
     
-    def clear_new_set(self):
+    def clear_set(self, set: Set):
         """
-        Clear the set field of tokens in newSet.
+        Clear the set of the tokens. (Move to memory set, or delete tokens?)
         """
-        # Implementation using network.sets
-        pass 
+        self.network.sets[set].token_op.set_features_all(TF.SET, Set.MEMORY)
+    
+    def reset_inferences(self):
+        """
+        Reset the inferences of all tokens in memory.
+        """
+        for set in Set:
+            self.network.sets[set].token_op.reset_inferences()
