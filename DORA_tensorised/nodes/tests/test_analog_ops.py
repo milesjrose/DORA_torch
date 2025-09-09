@@ -4,6 +4,7 @@
 import pytest
 
 from nodes.builder import NetworkBuilder
+from nodes.network.single_nodes import Token
 from nodes.enums import *
 from nodes.network.single_nodes import Ref_Analog, Analog
 
@@ -183,3 +184,23 @@ def test_get_analog_from_memory(network):
     final_driver_count = network.sets[Set.DRIVER].get_count()
     assert final_driver_count > initial_driver_count, "Driver count should have increased after make_AM_copy"
     
+def test_find_recip_analog(network):
+    """Test finding the analog in the recipient that is mapped to."""
+    # add tokens to driver rand recipient
+    driver_token = network.driver().add_token(Token(Type.PO, {TF.PRED: B.FALSE})) 
+    idx_d_token = network.get_index(driver_token) 
+    rec_token = network.recipient().add_token(Token(Type.PO, {TF.PRED: B.FALSE}))  
+    idx_rec_token = network.get_index(rec_token)
+    # set mapping between nodes
+    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
+    ref_analog = network.analog.find_recip_analog()
+
+
+    assert ref_analog is not None, "Recipient analog should be found"
+    assert ref_analog.set == Set.RECIPIENT, "Recipient analog should be in recipient set"
+    assert ref_analog.analog_number is not None, "Recipient analog should have an analog number"
+    assert ref_analog.analog_number == network.get_value(rec_token, TF.ANALOG)
+    
+    # Check that the analog has tokens (otherwise nothing is being tested)
+    analog = network.analog.get_analog(ref_analog)
+    assert analog.tokens.shape[0] > 0, "Recipient analog should have tokens"

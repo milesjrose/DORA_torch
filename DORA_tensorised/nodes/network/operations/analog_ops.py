@@ -2,9 +2,13 @@
 # Analog operations for Network class
 
 from ...enums import *
-from ..single_nodes import Ref_Analog, Analog
+import torch
+from ..single_nodes import Ref_Analog, Analog, Ref_Token
+from ...utils import tensor_ops as tOps
 
 from typing import TYPE_CHECKING
+import logging
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..network import Network
@@ -146,8 +150,20 @@ class AnalogOperations:
         """
         Find the analog in the recipient that is mapped to - only used in rel_gen_routine().
         """
-        # Implementation using network.sets
-        pass
+        # Find the a po that has max_map > 0.0, then return its analog.
+        self.network.mapping_ops.get_max_maps()
+        po_mask = self.network.recipient().get_mask(Type.PO)
+        map_pos = self.network.recipient().nodes[po_mask, TF.MAX_MAP] > 0.0
+        full_map_pos = tOps.sub_union(po_mask, map_pos)
+        indices = torch.nonzero(full_map_pos)
+        if indices.shape[0] == 0:
+            logger.error("No POs with max_map > 0.0 in recipient.")
+            return None
+        else:
+            ref_po = self.network.recipient().token_op.get_reference(index=indices[0])
+            logger.debug(f"Recip_analog_token:{self.network.get_ref_string(ref_po)}")
+            analog_number = self.network.node_ops.get_value(ref_po, TF.ANALOG)
+            return Ref_Analog(analog_number, Set.RECIPIENT)
     
     def find_driver_analog_rel_gen(self):
         """
