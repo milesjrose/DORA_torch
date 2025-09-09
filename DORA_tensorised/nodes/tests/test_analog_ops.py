@@ -193,8 +193,7 @@ def test_find_recip_analog(network):
     idx_rec_token = network.get_index(rec_token)
     # set mapping between nodes
     network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
-    ref_analog = network.analog.find_recip_analog()
-
+    ref_analog = network.analog.find_mapped_analog(Set.RECIPIENT)
 
     assert ref_analog is not None, "Recipient analog should be found"
     assert ref_analog.set == Set.RECIPIENT, "Recipient analog should be in recipient set"
@@ -204,3 +203,23 @@ def test_find_recip_analog(network):
     # Check that the analog has tokens (otherwise nothing is being tested)
     analog = network.analog.get_analog(ref_analog)
     assert analog.tokens.shape[0] > 0, "Recipient analog should have tokens"
+
+def test_find_driver_analog(network):
+    """Test finding the analog in the driver that is mapped to."""
+    # add tokens to driver rand recipient
+    driver_token = network.driver().add_token(Token(Type.PO, {TF.PRED: B.FALSE})) 
+    idx_d_token = network.get_index(driver_token) 
+    rec_token = network.recipient().add_token(Token(Type.PO, {TF.PRED: B.FALSE}))  
+    idx_rec_token = network.get_index(rec_token)
+    # set mapping between nodes
+    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
+    ref_analog = network.analog.find_mapped_analog(Set.DRIVER)
+    
+    assert ref_analog is not None, " analog should be found"
+    assert ref_analog.set == Set.DRIVER, " analog should be in driver set"
+    assert ref_analog.analog_number is not None, " analog should have an analog number"
+    assert ref_analog.analog_number == network.get_value(rec_token, TF.ANALOG)
+    
+    # Check that the analog has tokens (otherwise nothing is being tested)
+    analog = network.analog.get_analog(ref_analog)
+    assert analog.tokens.shape[0] > 0, " analog should have tokens"

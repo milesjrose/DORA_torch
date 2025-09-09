@@ -146,30 +146,30 @@ class AnalogOperations:
 
     # ---------------------[ TODO: IMPLEMENT ]----------------------------
     
-    def find_recip_analog(self):
+    def find_mapped_analog(self, set:Set):
         """
-        Find the analog in the recipient that is mapped to - only used in rel_gen_routine().
+        Find the analog in a set that is mapped to - used in rel_gen.
         """
         # Find the a po that has max_map > 0.0, then return its analog.
         self.network.mapping_ops.get_max_maps()
-        po_mask = self.network.recipient().get_mask(Type.PO)
-        map_pos = self.network.recipient().nodes[po_mask, TF.MAX_MAP] > 0.0
+        po_mask = self.network.sets[set].get_mask(Type.PO)
+        map_pos = self.network.sets[set].nodes[po_mask, TF.MAX_MAP] > 0.0
         full_map_pos = tOps.sub_union(po_mask, map_pos)
         indices = torch.nonzero(full_map_pos)
         if indices.shape[0] == 0:
             logger.error("No POs with max_map > 0.0 in recipient.")
             return None
         else:
-            ref_po = self.network.recipient().token_op.get_reference(index=indices[0])
+            ref_po = self.network.sets[set].token_op.get_reference(index=indices[0])
             logger.debug(f"Recip_analog_token:{self.network.get_ref_string(ref_po)}")
             analog_number = self.network.node_ops.get_value(ref_po, TF.ANALOG)
-            return Ref_Analog(analog_number, Set.RECIPIENT)
+            return Ref_Analog(analog_number, set)
     
     def find_driver_analog_rel_gen(self):
         """
         Find the analog in the driver that maps from - only used in do_rel_gen() in runDORA object.
         """
-        # Implementation using network.sets
+        
         pass
     
     def new_set_to_analog(self):
