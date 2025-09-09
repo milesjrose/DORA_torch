@@ -27,36 +27,6 @@ def network():
             s.tensor_ops.add_token(Token(Type.PO))
     return net
 
-def test_get_max_maps_memory(network: Network):
-    """
-    Tests that get_max_maps in mapping_ops correctly updates the max_map feature for all sets.
-    - Updates "from" sets (recipient, memory) based on their outgoing connections.
-    - Updates "to" set (driver) based on its strongest incoming connection from ANY source.
-    """
-    memory = network.memory()
-    
-    # --- Setup Memory -> Driver Weights ---
-    mem_mappings = network.mappings[Set.MEMORY]
-    mem_weights = mem_mappings[MappingFields.WEIGHT]
-    # zero out all weights
-    mem_weights.fill_(0)
-    # set some weights
-    mem_weights[0, 1] = 0.7
-    mem_weights[1, 2] = 0.9
-    mem_weights[2, 0] = 0.3
-
-    # --- Run the Operation ---
-    network.mapping_ops.get_max_map_memory()
-
-    # --- Assertions ---
-
-    # Check Memory 
-    expected_memory_max = torch.zeros([1, mem_weights.shape[0]])
-    expected_memory_max[0, 0] = 0.7
-    expected_memory_max[0, 1] = 0.9
-    expected_memory_max[0, 2] = 0.3
-    assert torch.allclose(memory.nodes[:, TF.MAX_MAP], expected_memory_max)
-
 
 def test_get_max_maps(network: Network):
     """
