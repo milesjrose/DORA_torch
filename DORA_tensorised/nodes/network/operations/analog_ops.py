@@ -4,6 +4,11 @@
 from ...enums import *
 from ..single_nodes import Ref_Analog, Analog
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..network import Network
+
 class AnalogOperations:
     """
     Analog operations for the Network class.
@@ -17,7 +22,7 @@ class AnalogOperations:
         Args:
             network: Reference to the Network object
         """
-        self.network = network
+        self.network: 'Network' = network
     
     def copy(self, analog: Ref_Analog, to_set: Set):
         """
@@ -85,12 +90,12 @@ class AnalogOperations:
     def clear_set(self, analog: Ref_Analog):
         """
         Clear the set feature to "memory" for tokens in an analog.
+        NOTE: Doesn't move the analog to memory set.
 
         Args:
             analog (Ref_Analog): The analog to clear the set feature for.
         """
-        indices = self.get_analog_indices(analog)
-        self.network.sets[analog.set].token_op.set_features(indices, TF.SET, Set.MEMORY)
+        self.set_analog_features(analog, TF.SET, Set.MEMORY)
 
     def make_AM_copy(self):
         """
@@ -99,7 +104,7 @@ class AnalogOperations:
         Returns:
             List[Ref_Analog]: References to the analogs that were copied to AM.
         """
-        # TODO: Check if should delete from memory set after copying to AM?
+        # TODO: Still need to check if should delete from memory set after copy - as think when am set is cleared, ill move then back to memory anyway.
         analogs = self.check_for_copy()
         copied_analogs = []
         for analog in analogs:
@@ -129,6 +134,11 @@ class AnalogOperations:
     def get_analog_indices(self, analog: Ref_Analog):
         """ Get the indices of the tokens in an analog. """
         return self.network.sets[analog.set].token_op.get_analog_indices(analog)
+    
+    def set_analog_features(self, analog: Ref_Analog, feature: TF, value):
+        """ Set a feature of the tokens in an analog. """
+        indices = self.get_analog_indices(analog)
+        self.network.sets[analog.set].token_op.set_features(indices, feature, value)
 
     # ---------------------[ TODO: IMPLEMENT ]----------------------------
     
