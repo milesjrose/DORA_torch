@@ -170,11 +170,9 @@ class AnalogOperations:
         """
         # Putting all newSet tokens into analog, so just set all analog to 1
         self.network.new_set().token_ops.set_features_all(TF.ANALOG, 1.0)
-    
-    # ---------------------[ TODO: IMPLEMENT ]----------------------------
-    def print_analog(self):
+
+    def print_analog(self, analog: Ref_Analog):
         """
-        Print list of token names in analog.
+        print the names of the tokens in an analog
         """
-        # Implementation using network.sets
-        pass 
+        self.network.sets[analog.set].print_analog(analog)

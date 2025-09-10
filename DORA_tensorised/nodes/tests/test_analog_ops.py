@@ -242,3 +242,22 @@ def test_new_set_to_analog(network: Network):
     #check tokens are all in analog 1
     analogs = new_set.nodes[:, TF.ANALOG] != 1.0
     assert analogs.nonzero().shape[0] == 0
+
+def test_print_analog(network, capsys):
+    """Test printing an analog."""
+    # Get driver analog
+    ref_analog = Ref_Analog(0, Set.DRIVER)
+    network.analog.print_analog(ref_analog)
+    idxs = network.sets[Set.DRIVER].get_analog_indices(ref_analog)
+    for idx in idxs:
+        ref_token = network.sets[Set.DRIVER].token_op.get_reference(index=idx)
+        network.sets[Set.DRIVER].token_op.set_name(ref_token, f"test_{idx}")
+    
+    # Capture the output
+    captured = capsys.readouterr()
+    print_output = captured.out
+    
+    # Verify the output contains expected content
+    assert "analog" in print_output.lower() or len(print_output) > 0, f"Expected print output, got: {print_output}"
+    print(f"Captured output: {print_output}")
+
