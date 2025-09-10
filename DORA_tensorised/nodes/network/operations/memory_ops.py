@@ -2,6 +2,10 @@
 # Memory management operations for Network class
 
 from ...enums import *
+from ..sets import Driver, Recipient
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..network import Network
 
 class TensorOperations:
     """
@@ -16,7 +20,7 @@ class TensorOperations:
         Args:
             network: Reference to the Network object
         """
-        self.network = network
+        self.network: 'Network' = network
     
     
     
@@ -99,3 +103,24 @@ class TensorOperations:
         """
         for set in Set:
             self.network.sets[set].token_op.reset_inferences()
+    
+    def swap_driver_recipient(self):
+        """Swap the contents of the driver and recipient"""
+        # Create new driver and recipient objects by passsing in opposites tensors
+        old = self.network.recipient()
+        new_nodes = old.nodes.clone()
+        new_nodes[:, TF.SET] = Set.DRIVER
+        new_driver = Driver(new_nodes, old.connections, old.IDs, old.names)
+        old = self.network.driver()
+        new_nodes = old.nodes.clone()
+        new_nodes[:, TF.SET] = Set.RECIPIENT
+        new_rec = Recipient(new_nodes, old.connections, old.IDs, old.names)
+        self.network.sets[Set.DRIVER] = new_driver
+        self.network.sets[Set.RECIPIENT] = new_rec
+        # Update mappings
+        # NOTE: leave for now, as updating mapping structure soon.
+        # TODO: Implement this.
+        # Update links
+        self.network.links.swap_driver_recipient()
+
+        

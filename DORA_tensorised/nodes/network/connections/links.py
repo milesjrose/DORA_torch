@@ -109,3 +109,6 @@ class Links(object):
         for po, index in enumerate(strongest_links):
             self.sets[Set.DRIVER][po_idxs[po-1], index] = 1.0
 
+    def swap_driver_recipient(self):
+        """Swap the driver and recipient links"""
+        self.sets[Set.DRIVER], self.sets[Set.RECIPIENT] = self.sets[Set.RECIPIENT], self.sets[Set.DRIVER]
