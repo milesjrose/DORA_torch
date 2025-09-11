@@ -30,7 +30,7 @@ def build_network(file=None, props=None, params=None):
             raise ValueError("Invalid parameters provided")
     
     if file is not None:
-        builder = NetworkBuilder(file=file, params=params)
+        builder = NetworkBuilder(file_path=file, params=params)
         network = builder.build_network()
         return network
     elif props is not None:

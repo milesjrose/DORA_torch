@@ -37,6 +37,7 @@ from .network.network_params import Params
 from .builder.run_build import build_network
 from .enums import SF as semFields, TF as tokenFields, MappingFields, Type, Set, Mode, OntStatus
 from .network.network_params import default_params
+from .file_ops import load_network_old, load_network_new, save_network
 
 __all__ = [
     "Network",
@@ -49,6 +50,9 @@ __all__ = [
     "Set",
     "Mode",
     "OntStatus",
-    "default_params"
+    "default_params",
+    "load_network_old",
+    "load_network_new",
+    "save_network"
 ]
 

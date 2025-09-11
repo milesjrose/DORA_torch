@@ -19,7 +19,7 @@ from .enums import MappingFields
 
 def load_network_old(file_path: str):
     """Load a network from old sym file."""
-    network = build_network(file_path=file_path)
+    network = build_network(file=file_path)
     return network
 
 def load_network_new(file_path: str):

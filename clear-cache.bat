@@ -1,5 +1,4 @@
 @echo off
-echo Cleaning Python cache files...
 
 :: Remove __pycache__ directories
 for /d /r %%d in (__pycache__) do (
@@ -15,4 +14,3 @@ for /r %%f in (*.pyc *.pyo) do (
     del /f /q "%%f"
 )
 
-echo Done.
