@@ -7,6 +7,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from ...enums import *
+from ..single_nodes import Ref_Token
 
 class Links(object): 
     """
@@ -112,3 +113,32 @@ class Links(object):
     def swap_driver_recipient(self):
         """Swap the driver and recipient links"""
         self.sets[Set.DRIVER], self.sets[Set.RECIPIENT] = self.sets[Set.RECIPIENT], self.sets[Set.DRIVER]
+
+    def get_max_linked_sem(self, ref_tk: Ref_Token):
+        """
+        Get the semantic with the highest link weight to the token.
+        """
+        ref_tk_index = self.network.get_index(ref_tk)
+        semantic_index = torch.max(self.sets[ref_tk.set][ref_tk_index, :], dim=0).indices
+        ref_sem = self.network.semantics.get_reference(index=semantic_index)
+        return ref_sem
+    
+    def connect_comparitive(self, ref_tk: Ref_Token, comp_type: str):
+        """
+        Connect the token to the semantic, with weight of 1.
+        """
+        ref_comp = None
+        match comp_type:
+            case "more":
+                ref_comp = self.network.semantics.more
+            case "less":
+                ref_comp = self.network.semantics.less
+            case "same":
+                ref_comp = self.network.semantics.same
+            case _:
+                raise ValueError("Invalid comparative type.")
+        if ref_comp is None:
+            raise ValueError("Comps not initialised")
+        idx_comp = self.network.get_index(ref_comp)
+        idx_tk = self.network.get_index(ref_tk)
+        self.sets[ref_tk.set][idx_tk, idx_comp] = 1.0
