@@ -83,7 +83,7 @@ class Semantics(object):
             less_sem = Semantic("less", {SF.TYPE: Type.SEMANTIC})
             self.less = self.add_semantic(less_sem)
         if self.same is None and "same" not in self.names.values():
-            same_sem = Semantic("same", {SF.TYPE: Type.SEMANTIC})'ve r'
+            same_sem = Semantic("same", {SF.TYPE: Type.SEMANTIC})
             self.same = self.add_semantic(same_sem)
     
     def check_comps(self):
