@@ -2,6 +2,8 @@
 # Represents the semantics set of tokens.
 
 import torch
+import logging
+logger = logging.getLogger(__name__)
 
 from ...enums import *
 from ...utils import tensor_ops as tOps
@@ -63,7 +65,34 @@ class Semantics(object):
         """Shared parameters"""
         self.expansion_factor = 1.1
         """Factor to expand when adding sem to full tensor"""
+        self.more = None
+        self.less = None
+        self.same = None
+
+    def init_comparative_semantics(self):
+        """Initialise the comparative semantics"""
+        # Check if more, less, same already exist in class, then check if they are in the semantics tensor. 
+        # If neither, then create the semantic and set attribute
+        logger.debug("Initialising comparative semantics")
+        if self.more is None and "more" not in self.names.values():
+            more_sem = Semantic("more", {SF.TYPE: Type.SEMANTIC})
+            logger.debug("Creating more semantic")
+            self.add_semantic(more_sem)
+            self.more = more_sem
+        if self.less is None and "less" not in self.names.values():
+            less_sem = Semantic("less", {SF.TYPE: Type.SEMANTIC})
+            logger.debug("Creating less semantic")
+            self.add_semantic(less_sem)
+            self.less = less_sem
+        if self.same is None and "same" not in self.names.values():
+            same_sem = Semantic("same", {SF.TYPE: Type.SEMANTIC})
+            logger.debug("Creating same semantic")
+            self.add_semantic(same_sem)
+            self.same = same_sem
     
+    def check_comps(self):
+        return not (self.more is None or self.less is None or self.same is None)
+            
     def add_semantic(self, semantic: Semantic):
         """
         Add a semantic to the semantics tensor.
@@ -71,13 +100,14 @@ class Semantics(object):
         Args:
             semantic (Semantic): The semantic to add.
         """
+        logger.debug(f"Adding semantic {semantic.name}")
         deleted_mask = self.nodes[:, SF.DELETED] == B.TRUE          # find all deleted semantics in nodes tensor
         if not deleted_mask.any():                                  # if no deleted semantics, expand tensor
             self.expand_tensor()
-        empty_rows = torch.where(deleted_mask)[0]                   # find all empty rows in nodes tensor
+        empty_rows = torch.where(self.nodes[:, SF.DELETED] == B.TRUE)[0]                   # find all empty rows in nodes tensor
         empty_row = empty_rows[0]                                   # find first empty row
-        self.nodes[empty_row, :] = semantic.nodes                   # add semantic to empty row
-        new_id = self.IDs.keys()[-1] + 1                            # get new id
+        self.nodes[empty_row, :] = semantic.tensor                   # add semantic to empty row
+        new_id = max(self.IDs.keys()) + 1 if self.IDs else 1        # get new id
         self.IDs[new_id] = empty_row                                # add id to IDs
         if semantic.name is None:
             semantic.name = f"Semantic {new_id}"
@@ -89,9 +119,10 @@ class Semantics(object):
         Expand the nodes, connections, and links tensors by the expansion factor.
         """
         current_size = self.nodes.size(dim=0)
-        new_size = int(current_size * self.expansion_factor)        # calculate new size
+        new_size = max(int(current_size * self.expansion_factor), current_size + 1)  # ensure we actually expand
+        logger.debug(f"Expanding semantics tensor from {current_size} to {new_size}")
         new_nodes = torch.zeros(new_size, self.nodes.size(dim=1))   # create new nodes tensor
-        new_nodes[current_size:, SF.DELETED] = 1                    # set all deleted to 1 for all new nodes
+        new_nodes[current_size:, SF.DELETED] = B.TRUE                    # set all deleted to 1 for all new nodes
         new_nodes[:current_size, :] = self.nodes                    # copy over old nodes
         self.nodes = new_nodes                                      # update nodes
 
@@ -110,6 +141,7 @@ class Semantics(object):
         links = self.links[set]
         current_num_token = links.size(dim=0)                       # links is Token x Semantics tensor
         current_num_sem = links.size(dim=1)                         # expand by expansion factor
+        logger.debug(f"Expanding links for {set.name} from {current_num_sem} to {new_size}")
         new_links = torch.zeros(current_num_token, new_size)        # create new links tensor (same number of tokens, new size for semantics)
         new_links[:current_num_token, :current_num_sem] = links     # copy over old links
         self.links[set] = new_links                                 # update links
@@ -117,17 +149,19 @@ class Semantics(object):
     def del_semantic(self, ID):                                     # Delete a semantic from the semantics tensor. TODO: Remove connections and links.
         """
         Delete a semantic from the semantics tensor.
-        """
-        self.nodes[self.IDs[ID], SF.DELETED] = B.TRUE
+        """ 
+        logger.debug(f"Deleting semantic {ID}")
+        semantic_index = self.IDs[ID]
+        self.nodes[semantic_index, SF.DELETED] = B.TRUE
         self.IDs.pop(ID)
         self.names.pop(ID)
         
         if self.links is not None:
             for set in Set:
-                self.links[set][:, self.IDs[ID]] = 0.0
+                self.links[set][:, semantic_index] = 0.0
 
-        self.connections[self.IDs[ID], :] = 0.0
-        self.connections[:, self.IDs[ID]] = 0.0
+        self.connections[semantic_index, :] = 0.0
+        self.connections[:, semantic_index] = 0.0
 
     def get_count(self):
         """Get the number of semantics in the semantics tensor."""
@@ -200,6 +234,7 @@ class Semantics(object):
             index (int, optional): The index of the semantic.
             name (str, optional): The name of the semantic.
 
+
         Returns:
             A Ref_Semantic object.
 
@@ -208,7 +243,7 @@ class Semantics(object):
         """
         if index is not None:
             try:
-                id = self.nodes[index, SF.ID]
+                id = int(self.nodes[index, SF.ID].item())
             except:
                 raise ValueError("Invalid index.")
         elif name is not None:
@@ -219,9 +254,7 @@ class Semantics(object):
             except:
                 raise ValueError("Invalid name.")
         elif id is not None:
-            try:
-                self.get_reference(id=id)                           # check if id is valid
-            except:
+            if id not in self.IDs:
                 raise ValueError("Invalid ID.")
         else:
             raise ValueError("No ID, index, or name provided.")
@@ -231,7 +264,7 @@ class Semantics(object):
         except:
             name = None
 
-        return Ref_Semantic(id, name)
+        return Ref_Semantic(    id, name)
     
     def get_single_semantic(self, ref_semantic: Ref_Semantic, copy=True):
         """
