@@ -6,6 +6,8 @@ import torch
 
 from nodes.builder import NetworkBuilder
 from nodes.enums import Set, TF, Type, B
+from nodes.network.single_nodes import Token
+from nodes.network.network import Network
 
 # Import the symProps from sim.py
 from .sims.sim import symProps
@@ -56,3 +58,258 @@ def test_get_most_active_token(network):
     retrieved_id = most_active_tokens_ids[0]
 
     assert retrieved_id == target_id, "The retrieved ID should be the ID of the most active token."
+
+def test_get_made_unit_ref(network: 'Network'):
+    """
+    Test get_made_unit_ref correctly gets the made unit ref.
+    """
+    driver = network.driver()
+    new_set = network.new_set()
+    
+    # Add a PO token to the driver
+    ref_maker = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    idx_maker = network.get_index(ref_maker)
+    # Add a new token to the new set
+    ref_made = network.add_token(Token(Type.PO, {TF.SET: Set.NEW_SET, TF.ACT: 1.0, TF.PRED: B.TRUE}))
+    idx_made = network.get_index(ref_made)
+    # Set made features
+    network.set_value(ref_maker, TF.MADE_UNIT, idx_made)
+    network.set_value(ref_maker, TF.MADE_SET, ref_made.set)
+    # Set maker features
+    network.set_value(ref_maker, TF.MAKER_UNIT, idx_maker)
+    network.set_value(ref_maker, TF.MAKER_SET, ref_maker.set)
+    # Get made unit ref
+    made_unit_ref = network.get_made_unit_ref(ref_maker)
+    # Assert made unit ref is correct
+    assert made_unit_ref is not None
+    assert made_unit_ref.ID == ref_made.ID
+    assert made_unit_ref.set == ref_made.set
+
+def test_get_maker_unit_ref(network: 'Network'):
+    """
+    Test get_maker_unit_ref correctly gets the maker unit ref.
+    """
+    driver = network.driver()
+    new_set = network.new_set()
+    
+    # Add a PO token to the driver
+    ref_maker = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    idx_maker = network.get_index(ref_maker)
+    # Add a new token to the new set
+    ref_made = network.add_token(Token(Type.PO, {TF.SET: Set.NEW_SET, TF.ACT: 1.0, TF.PRED: B.TRUE}))
+    idx_made = network.get_index(ref_made)
+    # Set made features
+    network.set_value(ref_maker, TF.MADE_UNIT, idx_made)
+    network.set_value(ref_maker, TF.MADE_SET, ref_made.set)
+    # Set maker features
+    network.set_value(ref_maker, TF.MAKER_UNIT, idx_maker)
+    network.set_value(ref_maker, TF.MAKER_SET, ref_maker.set)
+    # Get made unit ref
+    maker_unit_ref = network.get_maker_unit_ref(ref_maker)
+    # Assert made unit ref is correct
+    assert maker_unit_ref is not None
+    assert maker_unit_ref.ID == ref_maker.ID
+    assert maker_unit_ref.set == ref_maker.set
+
+def test_kludgey_comparitor(network):
+    """
+    Test the kludgey comparator functionality.
+    Tests comparison of two PO tokens based on their highest weight linked semantics.
+    """
+    from nodes.network.single_nodes import Semantic
+    from nodes.enums import SF, OntStatus
+    
+    # Create two PO tokens in the driver set
+    po1 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    po2 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    
+    # Create semantics with same dimension but different amounts
+    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT_STATUS: OntStatus.VALUE})
+    sem2 = Semantic("size2", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 3.0, SF.ONT_STATUS: OntStatus.VALUE})
+    
+    # Add semantics to the network
+    ref_sem1 = network.semantics.add_semantic(sem1)
+    ref_sem2 = network.semantics.add_semantic(sem2)
+    
+    # Set dimensions for the semantics (same dimension for comparison)
+    network.semantics.set_dimension(ref_sem1, "size")
+    network.semantics.set_dimension(ref_sem2, "size")
+    
+    # Set up links between PO tokens and semantics
+    # Make sem1 the highest weight link for po1, sem2 for po2
+    po1_idx = network.get_index(po1)
+    po2_idx = network.get_index(po2)
+    sem1_idx = network.get_index(ref_sem1)
+    sem2_idx = network.get_index(ref_sem2)
+    
+    # Set high weights for the intended connections
+    network.links.sets[Set.DRIVER][po1_idx, sem1_idx] = 1.0
+    network.links.sets[Set.DRIVER][po2_idx, sem2_idx] = 1.0
+    # Set lower weights for other connections
+    network.links.sets[Set.DRIVER][po1_idx, sem2_idx] = 0.1
+    network.links.sets[Set.DRIVER][po2_idx, sem1_idx] = 0.1
+    
+    # Test the kludgey comparator
+    network.node_ops.kludgey_comparitor(po1, po2)
+    
+    # Check that comparative semantics were created
+    assert network.semantics.more is not None, "More semantic should be created"
+    assert network.semantics.less is not None, "Less semantic should be created"
+    assert network.semantics.same is not None, "Same semantic should be created"
+    
+    # Check that po1 (higher amount) is connected to "more" and po2 (lower amount) to "less"
+    more_idx = network.get_index(network.semantics.more)
+    less_idx = network.get_index(network.semantics.less)
+    
+    # Verify connections
+    assert network.links.sets[Set.DRIVER][po1_idx, more_idx] == 1.0, "po1 should be connected to 'more'"
+    assert network.links.sets[Set.DRIVER][po2_idx, less_idx] == 1.0, "po2 should be connected to 'less'"
+
+def test_kludgey_comparitor_reverse_order(network):
+    """
+    Test kludgey comparator with reversed order (po1 < po2).
+    """
+    from nodes.network.single_nodes import Semantic
+    from nodes.enums import SF, OntStatus
+    
+    # Create two PO tokens in the driver set
+    po1 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    po2 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    
+    # Create semantics with same dimension but different amounts (po1 < po2)
+    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 2.0, SF.ONT_STATUS: OntStatus.VALUE})
+    sem2 = Semantic("size2", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 8.0, SF.ONT_STATUS: OntStatus.VALUE})
+    
+    # Add semantics to the network
+    ref_sem1 = network.semantics.add_semantic(sem1)
+    ref_sem2 = network.semantics.add_semantic(sem2)
+    
+    # Set dimensions for the semantics (same dimension for comparison)
+    network.semantics.set_dimension(ref_sem1, "size")
+    network.semantics.set_dimension(ref_sem2, "size")
+    
+    # Set up links between PO tokens and semantics
+    po1_idx = network.get_index(po1)
+    po2_idx = network.get_index(po2)
+    sem1_idx = network.get_index(ref_sem1)
+    sem2_idx = network.get_index(ref_sem2)
+    
+    # Set high weights for the intended connections
+    network.links.sets[Set.DRIVER][po1_idx, sem1_idx] = 1.0
+    network.links.sets[Set.DRIVER][po2_idx, sem2_idx] = 1.0
+    # Set lower weights for other connections
+    network.links.sets[Set.DRIVER][po1_idx, sem2_idx] = 0.1
+    network.links.sets[Set.DRIVER][po2_idx, sem1_idx] = 0.1
+    
+    # Test the kludgey comparator
+    network.node_ops.kludgey_comparitor(po1, po2)
+    
+    # Check that po1 (lower amount) is connected to "less" and po2 (higher amount) to "more"
+    more_idx = network.get_index(network.semantics.more)
+    less_idx = network.get_index(network.semantics.less)
+    
+    # Verify connections
+    assert network.links.sets[Set.DRIVER][po1_idx, less_idx] == 1.0, "po1 should be connected to 'less'"
+    assert network.links.sets[Set.DRIVER][po2_idx, more_idx] == 1.0, "po2 should be connected to 'more'"
+
+def test_kludgey_comparitor_equal_values(network):
+    """
+    Test kludgey comparator with equal semantic values.
+    """
+    from nodes.network.single_nodes import Semantic
+    from nodes.enums import SF, OntStatus
+    
+    # Create two PO tokens in the driver set
+    po1 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    po2 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    
+    # Create semantics with same dimension and same amounts
+    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT_STATUS: OntStatus.VALUE})
+    sem2 = Semantic("size2", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT_STATUS: OntStatus.VALUE})
+    
+    # Add semantics to the network
+    ref_sem1 = network.semantics.add_semantic(sem1)
+    ref_sem2 = network.semantics.add_semantic(sem2)
+    
+    # Set dimensions for the semantics (same dimension for comparison)
+    network.semantics.set_dimension(ref_sem1, "size")
+    network.semantics.set_dimension(ref_sem2, "size")
+    
+    # Set up links between PO tokens and semantics
+    po1_idx = network.get_index(po1)
+    po2_idx = network.get_index(po2)
+    sem1_idx = network.get_index(ref_sem1)
+    sem2_idx = network.get_index(ref_sem2)
+    
+    # Set high weights for the intended connections
+    network.links.sets[Set.DRIVER][po1_idx, sem1_idx] = 1.0
+    network.links.sets[Set.DRIVER][po2_idx, sem2_idx] = 1.0
+    # Set lower weights for other connections
+    network.links.sets[Set.DRIVER][po1_idx, sem2_idx] = 0.1
+    network.links.sets[Set.DRIVER][po2_idx, sem1_idx] = 0.1
+    
+    # Test the kludgey comparator
+    network.node_ops.kludgey_comparitor(po1, po2)
+    
+    # Check that both PO tokens are connected to "same"
+    same_idx = network.get_index(network.semantics.same)
+    
+    # Verify connections
+    assert network.links.sets[Set.DRIVER][po1_idx, same_idx] == 1.0, "po1 should be connected to 'same'"
+    assert network.links.sets[Set.DRIVER][po2_idx, same_idx] == 1.0, "po2 should be connected to 'same'"
+
+def test_kludgey_comparitor_different_dimensions(network):
+    """
+    Test kludgey comparator with semantics of different dimensions (should not connect anything).
+    """
+    from nodes.network.single_nodes import Semantic
+    from nodes.enums import SF, OntStatus
+    
+    # Create two PO tokens in the driver set
+    po1 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    po2 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
+    
+    # Create semantics with different dimensions
+    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT_STATUS: OntStatus.VALUE})
+    sem2 = Semantic("color1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 3.0, SF.ONT_STATUS: OntStatus.VALUE})
+    
+    # Add semantics to the network
+    ref_sem1 = network.semantics.add_semantic(sem1)
+    ref_sem2 = network.semantics.add_semantic(sem2)
+    
+    # Set different dimensions for the semantics
+    network.semantics.set_dimension(ref_sem1, "size")
+    network.semantics.set_dimension(ref_sem2, "color")
+    
+    # Set up links between PO tokens and semantics
+    po1_idx = network.get_index(po1)
+    po2_idx = network.get_index(po2)
+    sem1_idx = network.get_index(ref_sem1)
+    sem2_idx = network.get_index(ref_sem2)
+    
+    # Set high weights for the intended connections
+    network.links.sets[Set.DRIVER][po1_idx, sem1_idx] = 1.0
+    network.links.sets[Set.DRIVER][po2_idx, sem2_idx] = 1.0
+    # Set lower weights for other connections
+    network.links.sets[Set.DRIVER][po1_idx, sem2_idx] = 0.1
+    network.links.sets[Set.DRIVER][po2_idx, sem1_idx] = 0.1
+    
+    # Test the kludgey comparator
+    network.node_ops.kludgey_comparitor(po1, po2)
+    
+    # Check that no comparative connections were made
+    # The comparative semantics will be created, but no connections should be made to them
+    # since the dimensions are different
+    
+    # Get indices of the comparative semantics
+    more_idx = network.get_index(network.semantics.more)
+    less_idx = network.get_index(network.semantics.less)
+    same_idx = network.get_index(network.semantics.same)
+    
+    # Verify that no connections were made to comparative semantics
+    assert network.links.sets[Set.DRIVER][po1_idx, more_idx] == 0.0, "po1 should not be connected to 'more'"
+    assert network.links.sets[Set.DRIVER][po1_idx, less_idx] == 0.0, "po1 should not be connected to 'less'"
+    assert network.links.sets[Set.DRIVER][po1_idx, same_idx] == 0.0, "po1 should not be connected to 'same'"
+    assert network.links.sets[Set.DRIVER][po2_idx, more_idx] == 0.0, "po2 should not be connected to 'more'"
+    assert network.links.sets[Set.DRIVER][po2_idx, less_idx] == 0.0, "po2 should not be connected to 'less'"
+    assert network.links.sets[Set.DRIVER][po2_idx, same_idx] == 0.0, "po2 should not be connected to 'same'"

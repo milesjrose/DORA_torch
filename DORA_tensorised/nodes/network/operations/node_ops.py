@@ -243,4 +243,39 @@ class NodeOperations:
         """
         for set in Set:
             self.network.sets[set].nodes[:, TF.MADE_UNIT] = null
-     
+    
+    def kludgey_comparitor(self, po1: Ref_Token, po2: Ref_Token):
+        """
+        Kludgey comparitor for the network.
+        Based on Hummel & Biederman, 1992.
+        Looks at highest weight linked semantics for two POs.
+        If they encode the same dimension, attach the comparitive semantics to these POs.
+        """
+        logger.debug(f"Kludgey comparitor for {po1.set.name}[{po1.ID}] and {po2.set.name}[{po2.ID}]")
+        # make sure the comparative semantics exist
+        self.network.semantics.init_comparative_semantics()
+        # get the highest weight semantics for each PO
+        po1_sem = self.network.links.get_max_linked_sem(po1)
+        po2_sem = self.network.links.get_max_linked_sem(po2)
+        # check for common dimension
+        sem1_dim = self.network.semantics.get_dimension(po1_sem)
+        sem2_dim = self.network.semantics.get_dimension(po2_sem)
+        if sem1_dim == sem2_dim:
+            logger.debug(f"Common dimension found: {sem1_dim}")
+            # compare literal values
+            sem1_value = self.network.semantics.get(po1_sem, SF.AMOUNT)
+            sem2_value = self.network.semantics.get(po2_sem, SF.AMOUNT)
+            if sem1_value > sem2_value:
+                logger.debug(f"More value found: {sem1_value} > {sem2_value}")
+                self.network.links.connect_comparitive(po1, "more")
+                self.network.links.connect_comparitive(po2, "less")
+            elif sem1_value < sem2_value:
+                logger.debug(f"Less value found: {sem1_value} < {sem2_value}")
+                self.network.links.connect_comparitive(po1, "less")
+                self.network.links.connect_comparitive(po2, "more")
+            else:
+                logger.debug(f"Same value found: {sem1_value} == {sem2_value}")
+                self.network.links.connect_comparitive(po1, "same")
+                self.network.links.connect_comparitive(po2, "same")
+        else:
+            logger.debug(f"No common dimension found: {sem1_dim} != {sem2_dim}")
