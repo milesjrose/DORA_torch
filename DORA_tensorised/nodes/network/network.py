@@ -255,11 +255,16 @@ class Network(object):
         """
         self.sets[reference.set].token_op.set_name(reference, name)
     
-    def get_index(self, reference: Ref_Token) -> int:
+    def get_index(self, reference) -> int:
         """
-        Get the index for a referenced token.
+        Get the index for a referenced node (token or semantic).
         """
-        return self.sets[reference.set].token_op.get_index(reference)
+        if isinstance(reference, Ref_Semantic):
+            return self.semantics.get_index(reference)
+        elif isinstance(reference, Ref_Token):
+            return self.sets[reference.set].token_op.get_index(reference)
+        else:
+            raise ValueError("Invalid reference type.")
     
     def initialise_made_unit(self):
         """
