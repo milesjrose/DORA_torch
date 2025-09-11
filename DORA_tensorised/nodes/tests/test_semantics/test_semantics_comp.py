@@ -73,6 +73,14 @@ class TestComparativeSemantics:
         assert semantics.less is not None
         assert semantics.same is not None
         
+        # Should be Ref_Semantic objects
+        assert hasattr(semantics.more, 'ID')
+        assert hasattr(semantics.less, 'ID')
+        assert hasattr(semantics.same, 'ID')
+        assert hasattr(semantics.more, 'name')
+        assert hasattr(semantics.less, 'name')
+        assert hasattr(semantics.same, 'name')
+        
         # Should be added to names
         assert "more" in semantics.names.values()
         assert "less" in semantics.names.values()
@@ -93,6 +101,12 @@ class TestComparativeSemantics:
         # But should create "less" and "same"
         assert semantics.less is not None
         assert semantics.same is not None
+        
+        # Should be Ref_Semantic objects
+        assert hasattr(semantics.less, 'ID')
+        assert hasattr(semantics.same, 'ID')
+        assert hasattr(semantics.less, 'name')
+        assert hasattr(semantics.same, 'name')
     
     def test_check_comps(self):
         """Test the check_comps method."""

@@ -61,6 +61,8 @@ class Semantics(object):
         """Semantic links to each token set"""
         self.IDs = IDs
         """Map ID to index in tensor"""
+        self.dimensions = {}
+        """Map ID to dimension: TODO: add to builder/save/load"""
         self.params = None
         """Shared parameters"""
         self.expansion_factor = 1.1
@@ -76,19 +78,13 @@ class Semantics(object):
         logger.debug("Initialising comparative semantics")
         if self.more is None and "more" not in self.names.values():
             more_sem = Semantic("more", {SF.TYPE: Type.SEMANTIC})
-            logger.debug("Creating more semantic")
-            self.add_semantic(more_sem)
-            self.more = more_sem
+            self.more = self.add_semantic(more_sem)
         if self.less is None and "less" not in self.names.values():
             less_sem = Semantic("less", {SF.TYPE: Type.SEMANTIC})
-            logger.debug("Creating less semantic")
-            self.add_semantic(less_sem)
-            self.less = less_sem
+            self.less = self.add_semantic(less_sem)
         if self.same is None and "same" not in self.names.values():
-            same_sem = Semantic("same", {SF.TYPE: Type.SEMANTIC})
-            logger.debug("Creating same semantic")
-            self.add_semantic(same_sem)
-            self.same = same_sem
+            same_sem = Semantic("same", {SF.TYPE: Type.SEMANTIC})'ve r'
+            self.same = self.add_semantic(same_sem)
     
     def check_comps(self):
         return not (self.more is None or self.less is None or self.same is None)
@@ -113,7 +109,9 @@ class Semantics(object):
             semantic.name = f"Semantic {new_id}"
         self.names[new_id] = semantic.name                          # add name to names
         self.nodes[empty_row, SF.ID] = new_id                       # set node id feature
-
+        ref_new = Ref_Semantic(new_id, semantic.name)
+        return ref_new
+    
     def expand_tensor(self):
         """
         Expand the nodes, connections, and links tensors by the expansion factor.
@@ -141,7 +139,6 @@ class Semantics(object):
         links = self.links[set]
         current_num_token = links.size(dim=0)                       # links is Token x Semantics tensor
         current_num_sem = links.size(dim=1)                         # expand by expansion factor
-        logger.debug(f"Expanding links for {set.name} from {current_num_sem} to {new_size}")
         new_links = torch.zeros(current_num_token, new_size)        # create new links tensor (same number of tokens, new size for semantics)
         new_links[:current_num_token, :current_num_sem] = links     # copy over old links
         self.links[set] = new_links                                 # update links
@@ -289,6 +286,18 @@ class Semantics(object):
         else:
             sem.tensor = tensor
         return sem
+    
+    def set_dimension(self, ref_semantic: Ref_Semantic, dimension: str):
+        """
+        Set the dimension of a semantic.
+        """
+        self.dimensions[ref_semantic.ID] = dimension
+    
+    def get_dimension(self, ref_semantic: Ref_Semantic):
+        """
+        Get the dimension of a semantic.
+        """
+        return self.dimensions[ref_semantic.ID]
     # --------------------------------------------------------------
 
     # ===================[ SEMANTIC FUNCTIONS ]=====================
