@@ -1,6 +1,7 @@
 # nodes/network/network_params.py
 # Holds parameters used by network.
 from .default_parameters import parameters
+import json
 class Params(object):
     """
     Holds parameters used by network.
@@ -143,4 +144,12 @@ def default_params():
     """
     Returns an object of Params with the default parameters.
     """
+    return Params(parameters)
+
+def load_from_json(file_path: str):
+    """
+    Load parameters from a JSON file.
+    """
+    with open(file_path, 'r') as f:
+        parameters = json.load(f)
     return Params(parameters)
