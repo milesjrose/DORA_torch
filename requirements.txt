@@ -6,3 +6,4 @@ pytest
 scikit-image
 scipy
 torch
+textual

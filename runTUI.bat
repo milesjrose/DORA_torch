@@ -1,7 +1,7 @@
 @echo off
 
 echo Running DOTA TUI
-cd DORA_tensorised
-python DORA_tui.py
+cd DORA_tensorised/tui
+python run_tui.py
 
 cd ..
