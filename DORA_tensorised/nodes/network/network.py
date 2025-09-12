@@ -7,7 +7,7 @@ from ..enums import *
 
 from .sets import Driver, Recipient, Memory, New_Set, Semantics, Base_Set
 from .connections import Mappings, Links
-from .network_params import Params
+from .network_params import Params, load_from_json
 from .single_nodes import Token, Semantic
 from .single_nodes import Ref_Token, Ref_Semantic
 from .operations import TensorOperations, UpdateOperations, MappingOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
@@ -49,10 +49,6 @@ class Network(object):
         self.params: Params = params
         """ Parameters object for the network. """
 
-        # TODO move the get_index call out of the links object
-        links.set_network(self)
-
-
         # add links, params, and mappings to each set
         for set in Set:
             try:
@@ -69,7 +65,6 @@ class Network(object):
                 if set in MAPPING_SETS:
                     raise ValueError(f"Error setting mappings for {set}")
 
-        self.semantics.params = params
         self.semantics.links = links
         # inter-set connections
         # TODO: Only need mapping tensor for recipient set -> remove others.
@@ -82,7 +77,6 @@ class Network(object):
         """ Dictionary of mappings for each set. """
         self.links: Links = links
         """ Links object for the network. """
-        self.links.set_params(params) # Set params for links
 
         # inhibitors
         self.local_inhibitor = 0.0
@@ -91,8 +85,6 @@ class Network(object):
         # routines
         self.routines: Routines = Routines(self)
         """ Routines object for the network. """
-
-        
 
         self.tensor_ops = TensorOperations(self)
         self.update_ops = UpdateOperations(self)
@@ -113,6 +105,12 @@ class Network(object):
             self.node_ops, 
             self.inhibitor_ops
             ]
+        
+        # set params for lower objects
+        self.set_params(params)
+        # TODO move the get_index call out of the links object
+        links.set_network(self)
+        
     
     def __getattr__(self, name):
         # Only search through the designated "promoted" components
@@ -131,7 +129,15 @@ class Network(object):
         for set in Set:
             self.sets[set].params = params
         self.semantics.params = params
+        self.links.set_params(params) # Set params for links
     
+    def load_json_params(self, file_path: str):
+        """
+        Load parameters from a JSON file.
+        """
+        self.params = load_from_json(file_path)
+        self.set_params(self.params)
+
     def __getitem__(self, key: Set):
         """
         Get the set object for the given set.
