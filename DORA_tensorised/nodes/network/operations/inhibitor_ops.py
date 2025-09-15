@@ -19,8 +19,8 @@ class InhibitorOperations:
         self.network = network
         self.sets = network.sets
         # NOTE: Not sure where/if these are used? 
-        self.local_inhibitor = 0.0
-        self.global_inhibitor = 0.0
+        self.local = 0.0
+        self.glbal = 0.0
 
     def update(self):                                                   # Update inputs and acts of inhibitors
         """
@@ -52,7 +52,7 @@ class InhibitorOperations:
     def check_local(self):                                              # Check local inhibition
         """Check local inhibitor activation."""
         if self.sets[Set.DRIVER].check_local_inhibitor():
-            self.local_inhibitor = 1.0
+            self.local = 1.0
     
     def fire_local(self):                                               # Fire local inhibitor
         """Fire the local inhibitor."""
@@ -63,7 +63,7 @@ class InhibitorOperations:
     def check_global(self):                                             # Check global inhibition
         """Check global inhibitor activation."""
         if self.sets[Set.DRIVER].check_global_inhibitor():
-            self.global_inhibitor = 1.0
+            self.glbal = 1.0
         
     def fire_global(self):                                              # Fire global inhibitor
         """Fire the global inhibitor."""

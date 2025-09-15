@@ -133,8 +133,8 @@ def read_zipped_files(source_dir: str):
     # Create Network object
     network = Network(dict_sets=dict_sets, semantics=semantics, mappings=mappings, links=links, params=params)
     
-    network.inhibitor.local_inhibitor = network_data['inhibitor']['local']
-    network.inhibitor.global_inhibitor = network_data['inhibitor']['global']
+    network.inhibitor.local = network_data['inhibitor']['local']
+    network.inhibitor.glbal = network_data['inhibitor']['global']
 
     return network
 
@@ -243,8 +243,8 @@ def network_data_json(network: Network, output_dir: str):
     network_data = {
         "params": network.params.get_params_dict(),
         "inhibitor": {
-            "local": network.inhibitor.local_inhibitor,
-            "global": network.inhibitor.global_inhibitor
+            "local": network.inhibitor.local,
+            "global": network.inhibitor.glbal
         }
     }
     
