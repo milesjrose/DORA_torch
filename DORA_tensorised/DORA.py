@@ -38,6 +38,8 @@ class DORA:
     # ----------------------------[ INITIALISING ]-------------------------------
     def initialise_run(self):
         """ 1). Bring a prop or props into WM (driver). """
+        #NOTE: Doesn't differentiate between make copy of am and in-place am.
+        #      Need to ask about this.
         # Copy any analogs with set != memory into AM (driver/recipient)
         self.network.analog_ops.make_AM_copy()
         # Get PO SemNormalizations.
