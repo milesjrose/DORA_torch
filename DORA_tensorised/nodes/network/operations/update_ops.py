@@ -26,7 +26,7 @@ class UpdateOperations:
 
     def initialise_act(self):
         """
-        Initialise the acts in the active memory/semantics.
+        Initialise the act and inputs in the active memory/semantics.
         (driver, recipient, new_set, semantics)
         """
         sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
@@ -37,7 +37,7 @@ class UpdateOperations:
     
     def initialise_act_memory(self):
         """
-        Initialise the acts in the memory.
+        Initialise the acts and inputs in the memory.
         (memory)
         """
         self.network.memory.init_act()
