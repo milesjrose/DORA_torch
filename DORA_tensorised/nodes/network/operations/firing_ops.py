@@ -24,10 +24,11 @@ class FiringOperations:
             network: Reference to the Network object
         """
         self.network: 'Network' = network
+        self.firing_order = None
 
-    def make_firing_order(self, rule: str = "by_top_random") -> list[int]:
+    def make_firing_order(self, rule: str = None) -> list[int]:
         """
-        Create firing order of nodes.
+        Create firing order of nodes, based on params.firing_order_rule.
             - "by_top_random": Randomise order of highest token nodes in driver. 
             - "totally_random": Randomise order of all nodes in driver.
 
@@ -37,8 +38,19 @@ class FiringOperations:
         Returns:
             A list of indices representing the firing order
         """
-        # Implementation using network.sets
-        pass 
+        if rule is None:
+            rule = self.network.params.firing_order_rule
+        if rule is None:
+            rule = "by_top_random"
+        match rule:
+            case "by_top_random":
+                self.firing_order = self.by_top_random()
+                return self.firing_order
+            case "totally_random":
+                self.firing_order = self.totally_random()
+                return self.firing_order
+            case _:
+                raise ValueError(f"Invalid firing order rule: {rule}")
 
     def by_top_random(self) -> list[int]:
         """
@@ -51,7 +63,7 @@ class FiringOperations:
             A list of indices representing the firing order
         """
         highest_token_type = self.network.driver().token_ops.get_highest_token_type()
-        firing_order = [] # List of indices
+        self.firing_order = [] # List of indices
         match highest_token_type:
             case Type.GROUP:
                 groups = self.get_random_order_of_type(Type.GROUP)  # Order the groups randomly
@@ -125,9 +137,9 @@ class FiringOperations:
         Returns:
             A list of indices representing the firing order
         """
-        firing_order = []
-        if self.network.driver().tensor_op.get_mask(Type.RB).sum() > 0:
-            firing_order = self.get_random_order_of_type(Type.RB)
-        elif self.network.driver().tensor_op.get_mask(Type.PO).sum() > 0:
-            firing_order = self.get_random_order_of_type(Type.PO)
-        return firing_order
+        self.firing_order = []
+        if self.network.driver().tensor_op.get_count(Type.RB) > 0:
+            self.firing_order = self.get_random_order_of_type(Type.RB)
+        elif self.network.driver().tensor_op.get_count(Type.PO) > 0:
+            self.firing_order = self.get_random_order_of_type(Type.PO)
+        return self.firing_order
