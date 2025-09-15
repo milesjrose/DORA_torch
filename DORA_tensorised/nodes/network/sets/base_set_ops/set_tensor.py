@@ -113,9 +113,20 @@ class TensorOperations:
         masks = [self.base_set.masks[i] for i in n_types]
         return reduce(torch.logical_or, masks)
     
-    def get_count(self, type: Type):
-        """ Get number of nodes of given type in set."""
-        return torch.sum(self.get_mask(type))
+    def get_count(self, type: Type=None):
+        """ Get number of nodes of given type in set.
+        If type is None, return number of all nodes in set.
+
+        Args:
+            type (Type, optional): The type to get the count for. Defaults to None.
+
+        Returns:
+            The number of nodes of the given type in the set.
+        """
+        if type is None:
+            return self.get_all_nodes_mask().sum()
+        else:
+            return self.get_mask(type).sum()
 
     def get_all_nodes_mask(self):                                   # Returns a mask for all nodes (Exluding empty or deleted rows)
         """Return mask for all non-deleted nodes"""
@@ -571,9 +582,5 @@ class TensorOperations:
             except Exception as e:
                 print("Error: NodePrinter failed to print set.")
                 print(e)
-    
-    def get_count(self):                                            # Get the number of nodes in the set  
-        """Get the number of nodes in the set."""
-        return self.base_set.nodes[self.base_set.tensor_op.get_all_nodes_mask(), :].shape[0]
     
     # --------------------------------------------------------------
