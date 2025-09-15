@@ -69,20 +69,20 @@ class FiringOperations:
                 groups = self.get_random_order_of_type(Type.GROUP)  # Order the groups randomly
                 pos = self.get_all_children_firing_order(groups)    # Get Ps of Groups
                 rbs = self.get_all_children_firing_order(pos)       # Get RBs of the Ps 
-                firing_order = groups + pos + rbs
+                self.firing_order = groups + pos + rbs
             case Type.P:
                 pos = self.get_random_order_of_type(Type.P)         # Order the Ps randomly
                 rbs = self.get_all_children_firing_order(pos)       # Get RBs of the Ps 
-                firing_order = pos + rbs
+                self.firing_order = pos + rbs
             case Type.RB:
                 rbs = self.get_random_order_of_type(Type.RB)        # Order the RBs randomly
-                firing_order = rbs
+                self.firing_order = rbs
             case Type.PO:
                 pos = self.get_random_order_of_type(Type.PO)        # Order the POs randomly
-                firing_order = pos
+                self.firing_order = pos
             case _:
                 pass # (No tokens in driver)
-        return firing_order
+        return self.firing_order
 
     def get_children_firing_order(self, index: int) -> list[int]:
         """
