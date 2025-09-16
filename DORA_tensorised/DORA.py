@@ -73,6 +73,9 @@ class DORA:
         It is in phase_sets you will do all of DORA's interesting operations (retrieval, mapping, learning, etc.). 
         There is a function for each interesting operation.
     """
+
+    # NOTE: A lot of duplicate code between these functions.
+    #       Need to refactor.
     
     def do_map(self):
         """ 4). Enter the phase set. """
@@ -130,10 +133,74 @@ class DORA:
         params.ignore_object_semantics = init_ios
 
     def do_retrieval(self):
-        pass
+        """ do retrieval i guess """
+        # initialise network
+        self.do_1_to_3()
+        params = self.network.params
+        # NOTE: original code has for loop over phase sets, but sets to 1 before the loop? idk why.
+        init_dora = params.as_DORA
+        if self.network.driver().tensor_ops.get_count(Type.RB) == 0:
+            params.as_DORA = True   # If firing POs, make sure operating as DORA
+            inhibitor = self.network.inhibitor.local
+        else:
+            inhibitor = self.network.inhibitor.glbal
+        for token in self.network.firing_ops.firing_order:
+            phase_set_iterator = 1
+            params.local_inhibitor_fired = False
+            # 4.1-4.2) Fire the current token in the firingOrder. 
+            # Update the network in discrete time-steps until the localInhibitor fires 
+            # (i.e., the current active token is inhibited by its inhibitor).
+            while inhibitor == 0: # TODO: Make this a pointer or smt.
+                # 4.3.1-4.3.10) update network activations.
+                token = self.network.driver().token_op.get_reference(index=token)
+                self.network.node_ops.set_value(token, TF.ACT, 1.0)
+                self.time_step_activations()
+                # 4.3.11) Run retrieval routine
+                self.network.routines.retrieval.retrieval_routine()
+                # fire the local inhib if neccessary
+                self.time_step_fire_local_inhibitor()
+                phase_set_iterator += 1
+                # TODO: Implement GUI
+            # Token firing is over.
+            self.post_count_by_operations()
+        # Return the .asDORA setting to its pre-firing state.
+        params.as_DORA = init_dora
+        # phase set is over.
+        self.post_phase_set_operations()
 
     def do_retrieval_v2(self):
-        pass
+        """ retrieval, but limited to 7 or 4 iterations """
+        # initialise network
+        self.do_1_to_3()
+        params = self.network.params
+        # NOTE: original code has for loop over phase sets, but sets to 1 before the loop? idk why.
+        init_dora = params.as_DORA
+        if self.network.driver().tensor_ops.get_count(Type.RB) == 0:
+            params.as_DORA = True   # If firing POs, make sure operating as DORA
+            no_iterations = 7
+        else:
+            no_iterations = 4
+        for token in self.network.firing_ops.firing_order:
+            params.local_inhibitor_fired = False
+            # 4.1-4.2) Fire the current token in the firingOrder. 
+            # Update the network in discrete time-steps for no_iterations iterations.
+            # The point of allowing only a few time steps is to let the most semantically similar POs get active.
+            for i in range(no_iterations): # TODO: Make this a pointer or smt.
+                # 4.3.1-4.3.10) update network activations.
+                token = self.network.driver().token_op.get_reference(index=token)
+                self.network.node_ops.set_value(token, TF.ACT, 1.0)
+                self.time_step_activations()
+                # 4.3.11) Run retrieval routine
+                self.network.routines.retrieval.retrieval_routine()
+                # fire the local inhib if neccessary
+                self.time_step_fire_local_inhibitor()
+                # TODO: Implement GUI
+            # Token firing is over.
+            self.post_count_by_operations()
+        # Return the .asDORA setting to its pre-firing state.
+        params.as_DORA = init_dora
+        # phase set is over.
+        self.post_phase_set_operations()
 
     def do_entropy_ops_within(self):
         pass
