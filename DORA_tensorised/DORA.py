@@ -15,6 +15,11 @@ class DORA:
         pass
     
     # ----------------------------[ LOADING AND SAVING ]-------------------------------
+    """ 
+    Handles loading and saving of network to disk. 
+    NOTE: Currently only can save as .sym file, not as list of props. 
+    """
+
     def load_sim(self, file_name):
         # default path is ./sims/
         default_path = "./sims/"
@@ -35,7 +40,11 @@ class DORA:
         # save as .sym file
         nodes.save_network(self.network, file_path)
 
-    # ----------------------------[ INITIALISING ]-------------------------------
+    # ----------------------------[ INITIALISATION ]-------------------------------
+    """
+    Functions for initialising the network state. These are called before each phase_set.
+    """
+
     def initialise_run(self):
         """ 1). Bring a prop or props into WM (driver). """
         #NOTE: Doesn't differentiate between make copy of am and in-place am.
@@ -72,13 +81,59 @@ class DORA:
         A phase set is each RB firing at least once (i.e., all RBs in firingOrder firing). 
         It is in phase_sets you will do all of DORA's interesting operations (retrieval, mapping, learning, etc.). 
         There is a function for each interesting operation.
+
+        run_phase_sets is the main function for running the phase sets, 
+        with each do_routine function running initialisations and post-routine operations.
     """
 
-    # NOTE: A lot of duplicate code between these functions.
-    #       Need to refactor.
-    
+    def run_phase_sets(self, routine, phase_sets, firing_order):
+        """ Runs the phase sets, for a given routine """
+        params = self.network.params
+        self.do_1_to_3()
+        for phase_set in range(phase_sets):
+            params.phase_set = phase_set
+            # Set inhibitor based on count_by_RBs.
+            if params.count_by_RBs:
+                inhibitor = self.network.inhibitor.glbal
+            else: # PO
+                inhibitor = self.network.inhibitor.local
+                params.as_DORA = True # Make sure you are operating as DORA.
+            for token in firing_order:
+                phase_set_iterator = 0
+                params.local_inhibitor_fired = False
+                # 4.1-4.2) Fire the current token in the firingOrder. 
+                # Update the network in discrete time-steps until the inhibitor fires 
+                # (i.e., the current active token is inhibited by its inhibitor).
+                while inhibitor == 0: # TODO: Make this a pointer or smt.
+                    # 4.3.1-4.3.10) update network activations.
+                    token = self.network.driver().token_op.get_reference(index=token)
+                    self.network.node_ops.set_value(token, TF.ACT, 1.0)
+                    self.time_step_activations()
+                    # 4.3.11) Run routine
+                    match routine:
+                        case "map":
+                            self.network.routines.map.map_routine()
+                        case "retrieval":
+                            self.network.routines.retrieval.retrieval_routine()
+                        case "predication":
+                            self.network.routines.predication.predication_routine()
+                        case "rel_form":
+                            self.network.routines.rel_form.rel_form_routine()
+                        case "schematisation":
+                            self.network.routines.schematisation.schematisation_routine()
+                        case "rel_gen":
+                            self.network.routines.rel_gen.rel_gen_routine()
+                    # fire the local inhib if neccessary
+                    self.time_step_fire_local_inhibitor()
+                    phase_set_iterator += 1
+                    # TODO: Implement GUI
+                # Token firing is over. Runs once per token.
+                self.post_count_by_operations()
+            # Phase set is over. Runs once per phase set.
+            self.post_phase_set_operations()
+
     def do_map(self):
-        """ 4). Enter the phase set. """
+        """ do mapping """
         params = self.network.params
         # Initialise memory
         self.network.mapping_ops.reset_mappings()
@@ -92,77 +147,21 @@ class DORA:
             params.as_DORA = False
             params.ignore_object_semantics = True
         # Run phase sets
-        for phase_set in range(phase_sets):
-            params.phase_set = phase_set
-            # TODO: Check if this actually changes the inhibitor, or just reads the current value (pretty sure its the latter)
-            #       idk how to do pointers in python...
-            pre_fire_as_DORA = params.as_DORA # Save this to change back after firing.
-            if params.count_by_RBs:
-                inhibitor = self.network.inhibitor.glbal
-            else: # PO
-                inhibitor = self.network.inhibitor.local
-                params.as_DORA = True # Make sure you are operating as DORA.
-            for token in self.network.firing_ops.firing_order:
-                # Initialize phase_set_iterator and flags (local_inhibitor_fired).
-                phase_set_iterator = 0
-                params.local_inhibitor_fired = False
-                # 4.1-4.2) Fire the current token in the firingOrder. 
-                # Update the network in discrete time-steps until the globalInhibitor fires 
-                # (i.e., the current active token is inhibited by its inhibitor).
-                while inhibitor == 0:
-                    # 4.3.1-4.3.10) update network activations.
-                    # NOTE: Maybe have firing ops as ref tokens to avoid this? I dont think this can be vectorised, so dont need indicies really.
-                    token = self.network.driver().token_op.get_reference(index=token)
-                    self.network.node_ops.set_value(token, TF.ACT, 1.0)
-                    self.time_step_activations()
-                    # 4.3.11) Update mapping hypotheses. 
-                    self.network.mapping_ops.update_mapping_hyps()
-                    # 4.3.12) Fire the local_inhibitor if necessary.
-                    self.network.inhibitor.check_fire_local() # TODO: Implement accoriding to time_step_fire_local_inhibitor
-                    # 4.3.13) Update GUI.
-                    phase_set_iterator += 1
-                    # TODO: Implement GUI
-                # Token firing is over.
-                self.post_count_by_operations()
-            # Return the .asDORA setting to its pre-firing state.
-            params.as_DORA = pre_fire_as_DORA
-            # phase set is over.
-            self.post_phase_set_operations()
+        self.run_phase_sets("map", phase_sets, self.network.firing_ops.firing_order)
         # If changed dora or ios, change them back.
         params.as_DORA = init_dora
         params.ignore_object_semantics = init_ios
+        self.post_phase_set_operations()
 
     def do_retrieval(self):
-        """ do retrieval i guess """
+        """ do retrieval """
         # initialise network
         self.do_1_to_3()
         params = self.network.params
-        # NOTE: original code has for loop over phase sets, but sets to 1 before the loop? idk why.
         init_dora = params.as_DORA
-        if self.network.driver().tensor_ops.get_count(Type.RB) == 0:
-            params.as_DORA = True   # If firing POs, make sure operating as DORA
-            inhibitor = self.network.inhibitor.local
-        else:
-            inhibitor = self.network.inhibitor.glbal
-        for token in self.network.firing_ops.firing_order:
-            phase_set_iterator = 1
-            params.local_inhibitor_fired = False
-            # 4.1-4.2) Fire the current token in the firingOrder. 
-            # Update the network in discrete time-steps until the localInhibitor fires 
-            # (i.e., the current active token is inhibited by its inhibitor).
-            while inhibitor == 0: # TODO: Make this a pointer or smt.
-                # 4.3.1-4.3.10) update network activations.
-                token = self.network.driver().token_op.get_reference(index=token)
-                self.network.node_ops.set_value(token, TF.ACT, 1.0)
-                self.time_step_activations()
-                # 4.3.11) Run retrieval routine
-                self.network.routines.retrieval.retrieval_routine()
-                # fire the local inhib if neccessary
-                self.time_step_fire_local_inhibitor()
-                phase_set_iterator += 1
-                # TODO: Implement GUI
-            # Token firing is over.
-            self.post_count_by_operations()
+        # Run phase sets
+        phase_sets = 1
+        self.run_phase_sets("retrieval", phase_sets, self.network.firing_ops.firing_order)
         # Return the .asDORA setting to its pre-firing state.
         params.as_DORA = init_dora
         # phase set is over.
@@ -202,14 +201,9 @@ class DORA:
         # phase set is over.
         self.post_phase_set_operations()
 
-    def do_entropy_ops_within(self):
-        pass
-
-    def do_entropy_ops_between(self):
-        pass
-
     def do_predication(self):
-        pass
+        """ do predication """
+        params = self.network.params
 
     def do_rel_form(self):
         pass
@@ -220,7 +214,17 @@ class DORA:
     def do_rel_gen(self):
         pass
     
+    # ----------------------------[ ENTROPY OPS ]-------------------------------
+    """ NOTE: Not implemented yet """
+
+    def do_entropy_ops_within(self):
+        pass
+
+    def do_entropy_ops_between(self):
+        pass
     # ----------------------------[ COMPRESSION ]-------------------------------
+    """ NOTE: Not implemented yet """
+
     def do_compression(self):
         pass
 
@@ -234,6 +238,8 @@ class DORA:
         pass
 
     # ----------------------------[ TIME-STEP OPERATIONS ]-------------------------------
+    """ NOTE: Not implemented yet """
+
     def time_step_activations(self):
         pass
 
@@ -244,6 +250,8 @@ class DORA:
         pass
 
     # ----------------------------[ POST PHASE SET OPERATIONS ]-------------------------------
+    """ NOTE: Not implemented yet """
+
     def post_phase_set_operations(self):
         pass
 
