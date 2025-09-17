@@ -89,48 +89,61 @@ class DORA:
     def run_phase_sets(self, routine, phase_sets, firing_order):
         """ Runs the phase sets, for a given routine """
         params = self.network.params
-        self.do_1_to_3()
+        self.do_1_to_3() # Initialise the network.
         for phase_set in range(phase_sets):
             params.phase_set = phase_set
-            # Set inhibitor based on count_by_RBs.
-            if params.count_by_RBs:
-                inhibitor = self.network.inhibitor.glbal
-            else: # PO
-                inhibitor = self.network.inhibitor.local
-                params.as_DORA = True # Make sure you are operating as DORA.
-            for token in firing_order:
-                phase_set_iterator = 0
-                params.local_inhibitor_fired = False
-                # 4.1-4.2) Fire the current token in the firingOrder. 
-                # Update the network in discrete time-steps until the inhibitor fires 
-                # (i.e., the current active token is inhibited by its inhibitor).
-                while inhibitor == 0: # TODO: Make this a pointer or smt.
-                    # 4.3.1-4.3.10) update network activations.
-                    token = self.network.driver().token_op.get_reference(index=token)
-                    self.network.node_ops.set_value(token, TF.ACT, 1.0)
-                    self.time_step_activations()
-                    # 4.3.11) Run routine
-                    match routine:
-                        case "map":
-                            self.network.routines.map.map_routine()
-                        case "retrieval":
-                            self.network.routines.retrieval.retrieval_routine()
-                        case "predication":
-                            self.network.routines.predication.predication_routine()
-                        case "rel_form":
-                            self.network.routines.rel_form.rel_form_routine()
-                        case "schematisation":
-                            self.network.routines.schematisation.schematisation_routine()
-                        case "rel_gen":
-                            self.network.routines.rel_gen.rel_gen_routine()
-                    # fire the local inhib if neccessary
-                    self.time_step_fire_local_inhibitor()
-                    phase_set_iterator += 1
-                    # TODO: Implement GUI
-                # Token firing is over. Runs once per token.
-                self.post_count_by_operations()
-            # Phase set is over. Runs once per phase set.
+            self.run_phase_set(routine, firing_order)
             self.post_phase_set_operations()
+    
+    def run_phase_set(self, routine, firing_order):
+        """ Runs a single phase set, for a given routine """
+        params = self.network.params
+        # Set inhibitor based on count_by_RBs.
+        if params.count_by_RBs:
+            inhibitor = self.network.inhibitor.glbal
+        else: # PO
+            inhibitor = self.network.inhibitor.local
+            params.as_DORA = True # Make sure you are operating as DORA.
+        for token in firing_order:
+            self.phase_set_iterator = 0
+            params.local_inhibitor_fired = False
+            if routine == "predication": # clear inferred_new_p flag
+                self.network.routines.predication.inferred_new_p = False
+            # Fire token
+            self.fire_token(routine, token, inhibitor)
+            # Token firing is over. Runs once per token.
+            self.post_count_by_operations()
+    
+    def fire_token(self, routine, token, inhibitor):
+        """  
+        4.1-4.2) Fire the current token in the firingOrder. 
+        Update the network in discrete time-steps until the inhibitor fires 
+        (i.e., the current active token is inhibited by its inhibitor).
+        """
+        token = self.network.driver().token_op.get_reference(index=token) # NOTE: can remove if just make the firing_order a list of references instead of indexes 
+        while inhibitor == 0: # TODO: Make this a pointer or smt.
+            # 4.3.1-4.3.10) update network activations.
+            self.network.node_ops.set_value(token, TF.ACT, 1.0)
+            self.time_step_activations()
+            # 4.3.11) Run routine
+            match routine:
+                case "map":
+                    self.network.routines.map.map_routine()
+                case "retrieval":
+                    self.network.routines.retrieval.retrieval_routine()
+                case "predication":
+                    self.network.routines.predication.predication_routine()
+                case "rel_form":
+                    self.network.routines.rel_form.rel_form_routine()
+                case "schematisation":
+                    self.network.routines.schematisation.schematisation_routine()
+                case "rel_gen":
+                    self.network.routines.rel_gen.rel_gen_routine()
+            # fire the local inhib if neccessary
+            self.time_step_fire_local_inhibitor()
+            #if self.network.params.doGUI: # NOTE: Not implemented
+            #    self.phase_set_iterator += 1
+            #    self.time_step_doGUI()
 
     def do_map(self):
         """ do mapping """
@@ -151,7 +164,7 @@ class DORA:
         # If changed dora or ios, change them back.
         params.as_DORA = init_dora
         params.ignore_object_semantics = init_ios
-        self.post_phase_set_operations()
+        self.post_phase_set_operations()# note this should be in the run_phase_sets function
 
     def do_retrieval(self):
         """ do retrieval """
@@ -160,8 +173,7 @@ class DORA:
         params = self.network.params
         init_dora = params.as_DORA
         # Run phase sets
-        phase_sets = 1
-        self.run_phase_sets("retrieval", phase_sets, self.network.firing_ops.firing_order)
+        self.run_phase_set("retrieval", self.network.firing_ops.firing_order)
         # Return the .asDORA setting to its pre-firing state.
         params.as_DORA = init_dora
         # phase set is over.
@@ -204,15 +216,72 @@ class DORA:
     def do_predication(self):
         """ do predication """
         params = self.network.params
+        init_dora = params.as_DORA
+        # must be in DORA mode for predication
+        params.as_DORA = True
+        # initialise network
+        self.do_1_to_3() 
+        # set firing order (just POs)
+        if not params.count_by_RBs:
+            firing_order = self.network.firing_ops.get_random_order_of_type(Type.PO)
+        else:
+            firing_order = self.network.firing_ops.firing_order
+        # Run phase set
+        self.run_phase_set("predication", firing_order)
+        # Post phase set ops.
+        params.as_DORA = init_dora
+        self.post_phase_set_operations()
+        # reset inferences
+        self.network.memory_ops.reset_inferences()
+        
 
     def do_rel_form(self):
-        pass
+        """ do rel form """
+        params = self.network.params
+        # only execute if count_by_rbs is true:
+        if params.count_by_RBs:
+            # initialise network
+            self.do_1_to_3()
+            self.network.routines.rel_form.inferred_new_p = False
+            # Run phase set
+            self.run_phase_set("rel_form", self.network.firing_ops.firing_order)
+            # if_inferred_new_p: TODO: Implement this...
+            # post phase set ops
+            self.post_phase_set_operations() # NOTE: this passes inferred_new_p as true, but doesn't seem to check in the original code.
 
     def do_schematisation(self):
-        pass
+        " do schematisation "
+        params = self.network.params
+        init_dora = params.as_DORA
+        params.as_DORA = True
+        # only execute if count_by_rbs is true:
+        if params.count_by_RBs:
+            # intitialise network
+            self.do_1_to_3()
+            self.run_phase_set("schematisation", self.network.firing_ops.firing_order)
+            # post phase set ops
+            self.post_phase_set_operations()
+        # new_set_items_to_analog: NOTE: Not sure if this is needed if the phase set isn't executed?
+        self.network.analog_ops.new_set_to_analog()
+        # Return the .asDORA setting to its pre-firing state.
+        params.as_DORA = init_dora
 
     def do_rel_gen(self):
-        pass
+        """do rel gen"""
+        params = self.network.params
+        init_dora = params.as_DORA
+        params.as_DORA = True
+        # only execute if count_by_rbs is true:
+        if params.count_by_RBs:
+            # intitialise network
+            self.do_1_to_3()
+            self.run_phase_set("rel_gen", self.network.firing_ops.firing_order)
+            # post phase set ops
+            self.post_phase_set_operations()
+        # new_set_items_to_analog: NOTE: Not sure if this is needed if the phase set isn't executed?
+        self.network.analog_ops.new_set_to_analog()
+        # Return the .asDORA setting to its pre-firing state.
+        params.as_DORA = init_dora
     
     # ----------------------------[ ENTROPY OPS ]-------------------------------
     """ NOTE: Not implemented yet """
