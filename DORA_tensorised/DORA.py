@@ -234,7 +234,6 @@ class DORA:
         # reset inferences
         self.network.memory_ops.reset_inferences()
         
-
     def do_rel_form(self):
         """ do rel form """
         params = self.network.params
@@ -307,19 +306,44 @@ class DORA:
         pass
 
     # ----------------------------[ TIME-STEP OPERATIONS ]-------------------------------
-    """ NOTE: Not implemented yet """
+    """ Functions implementing operations performed during a single time-step in DORA. """
 
     def time_step_activations(self):
-        pass
+        """ 4.3.1-4.3.10) update network activations. """
+        params = self.network.params
+        # initialse input
+        self.network.update_ops.initialise_input()
+        # 4.3.2) Update modes of all P units in the driver and recipient
+        if params.count_by_RBs:
+            self.network.node_ops.get_pmode()
+        # 4.3.3) Update input to driver token units.
+        self.network.driver().update_input()
+        # 4.3.4-5) Update input to and activation of PO and RB inhibitors.
+        self.network.inhibitor_ops.update()
+        # 4.3.6-7) Update input and activation of local and global inhibitors.
+        self.network.inhibitor_ops.check_local()
+        self.network.inhibitor_ops.check_global()
+        # 4.3.8) Update input to semantic units.
+        self.network.semantics.update_input()
+        # 4.3.9) Update input to all tokens in the recipient and emerging recipient (i.e., newSet).
+        self.network.recipient().update_input()
+        self.network.new_set().update_input()
+        # 4.3.10) Update activations of all units in the driver, recipient, and newSet, and all semanticss.
+        self.network.update_ops.acts_am()
 
     def time_step_fire_local_inhibitor(self):
-        pass
+        """ function to fire the local inhibitor if necessary. """
+        params = self.network.params
+        if params.as_DORA and self.network.inhibitor_ops.local >= 0.99 and not params.local_inhibitor_fired:
+            self.network.inhibitor_ops.fire_local_inhibitor()
+            params.local_inhibitor_fired = True
 
     def time_step_doGUI(self):
+        """ Not implemented """
         pass
 
     # ----------------------------[ POST PHASE SET OPERATIONS ]-------------------------------
-    """ NOTE: Not implemented yet """
+    """ Functions implementing operations performed after a phase set. """
 
     def post_phase_set_operations(self):
         pass
