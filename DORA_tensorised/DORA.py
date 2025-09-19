@@ -394,19 +394,27 @@ class DORA:
     def do_kludge_comparitor(self):
         """
         Run the kludgey comparitor.
+        Compare rets of preds in the driver and recipient that:
+        - Both connect to an RB with no connected Ps
+        - Share a P unit (i.e both connect to an RB that connects to the same p)
         """
-        # make sure I have RBS
+        # NOTE: Not even remotely vectorised, could maybe be improved?
+        # Check there are RBs
         if not self.network.params.count_by_RBs:
             return
-        # comparitor all pairs of preds in driver and recipient. Make all driver pred pairs that are either connected to same P, or not connected to a myP.
+        # comparitor all pairs of preds in driver and recipient. 
+        # Make all driver pred pairs that are either connected to same P, or not connected to a myP.
         # first, the driver.
-        # Find pairs of preds in driver, s.t. either:
-        # 1) Both POs are connected to RBs with no Ps.
-        # 2) The two POs share a p unit.
-        # Then, comparitor them.
-        # 
+        for set in [Set.DRIVER, Set.RECIPIENT]:
+            # Find pairs of preds in driver, s.t. either:
+            # 1) Both POs are connected to RBs with no Ps.
+            driver_pred_pairs = self.network.sets[set].token_op.get_pred_rb_no_ps()
+            # 2) The two POs share a p unit.
+            driver_pred_pairs += self.network.sets[set].token_op.get_pred_rb_shared_p()
+            # Then, comparitor them.
+            for pair in driver_pred_pairs:
+                self.network.utility_ops.kludgey_comparitor(pair[0], pair[1])
             
-
     def group_recip_maps(self):
         pass
     
