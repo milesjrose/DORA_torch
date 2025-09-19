@@ -324,6 +324,12 @@ class TokenOperations:
         """
         logger.debug(f"Connecting {self.get_ref_string(parent)} -> {self.get_ref_string(child)}")
         self.base_set.connections[self.get_index(parent), self.get_index(child)] = B.TRUE
+    
+    def get_connected_tokens(self, ref_token: Ref_Token) -> list[Ref_Token]:
+        """
+        Get all tokens that are connected to a given token. TODO: Need to add test for this.
+        """
+        return self.get_reference_multiple(mask=self.base_set.connections[self.get_index(ref_token), :] == B.TRUE)
 
     def get_ref_string(self, ref_token: Ref_Token):
         """
@@ -429,3 +435,109 @@ class TokenOperations:
         indices = self.get_analog_indices(analog)
         for index in indices:
             print(self.base_set.names[index])
+
+    # ----------------------------[KLUDGEY COMPARATOR FUNCTIONS]-------------------------------
+    def get_pred_rb_no_ps(self) -> list[(Ref_Token, Ref_Token)]:
+        """
+        Get all pairs of preds that are connected to RBs that are not connected to any P
+        - only neeed one non_p rb to be counted as valid for this.
+        """
+        rb = self.base_set.tensor_op.get_mask(Type.RB)
+        p = self.base_set.tensor_op.get_mask(Type.P)
+        rb_no_p = rb & (self.base_set.connections[rb][:, p] == 0)
+        pred = self.base_set.tensor_op.get_mask(Type.PO) & (self.base_set.nodes[:, TF.PRED] == B.TRUE)
+        # Mat mul rb_no_p with connections to get preds that are connected to rbs_with_no_ps
+        pred_rb_no_p = torch.matmul(
+            rb_no_p,
+            self.base_set.connections[rb][:, pred]
+        )
+        # now take g.t to get a mask 
+        pred_rb_no_p = torch.gt(pred_rb_no_p, 0).bool()
+        # now need a predxpred tensor to get pairs. so we want 2d tensor of logical an of the po tensor in two dimensions.
+        row = pred_rb_no_p.unsqueeze(1)
+        col = pred_rb_no_p.unsqueeze(0)
+        pred_rb_no_p = torch.bitwise_and(row, col)
+        # remove duplicates (i.e remove anything below the diagonal + the diagonal)
+        pred_rb_no_p = torch.triu(pred_rb_no_p, diagonal=1)
+        # now get the indices of the pairs
+        indices = torch.where(pred_rb_no_p == 1).tolist()
+        # now get the references to the pairs
+        pairs = [(self.get_reference(index=i), self.get_reference(index=j)) for i, j in indices]
+        return pairs
+        
+    
+    def get_pred_rb_shared_p(self) -> list[(Ref_Token, Ref_Token)]:
+        """
+        Get all pairs of preds that are connected to the same P.
+        (i.e preds connected to RBs that are connected to the same P)
+        NOTE: no idea if this works.
+        """
+        # Get masks for different token types
+        rb = self.base_set.tensor_op.get_mask(Type.RB)
+        p = self.base_set.tensor_op.get_mask(Type.P)
+        pred = self.base_set.tensor_op.get_mask(Type.PO) & (self.base_set.nodes[:, TF.PRED] == B.TRUE)
+        
+        # Get RBs that are connected to P units
+        rb_with_p = rb & (self.base_set.connections[rb][:, p].sum(dim=1) > 0)
+        
+        # Get which P each RB is connected to
+        rb_to_p_connections = self.base_set.connections[rb_with_p][:, p]
+        
+        # Create a matrix to track which RBs share the same P
+        # rb_shared_p[i,j] = 1 if RB i and RB j are connected to the same P
+        num_rbs_with_p = rb_with_p.sum().item()
+        if num_rbs_with_p == 0:
+            return []
+            
+        rb_shared_p = torch.zeros((num_rbs_with_p, num_rbs_with_p), dtype=torch.bool)
+        
+        # For each pair of RBs, check if they share any P
+        for i in range(num_rbs_with_p):
+            for j in range(i + 1, num_rbs_with_p):
+                # Check if RB i and RB j share any P unit
+                shared_p = torch.bitwise_and(rb_to_p_connections[i], rb_to_p_connections[j]).sum() > 0
+                rb_shared_p[i, j] = shared_p
+        
+        # Get which preds are connected to which RBs
+        pred_to_rb_connections = self.base_set.connections[pred][:, rb_with_p]
+        
+        # Create pred x pred matrix for pairs that share RBs with shared Ps
+        num_preds = pred.sum().item()
+        if num_preds == 0:
+            return []
+            
+        pred_shared_p = torch.zeros((num_preds, num_preds), dtype=torch.bool)
+        
+        # For each pair of preds, check if they are connected to RBs that share a P
+        for i in range(num_preds):
+            for j in range(i + 1, num_preds):
+                # Get RBs connected to pred i and pred j
+                pred_i_rbs = pred_to_rb_connections[i]
+                pred_j_rbs = pred_to_rb_connections[j]
+                
+                # Check if any RB connected to pred i shares a P with any RB connected to pred j
+                shared = False
+                for rb_i_idx in range(num_rbs_with_p):
+                    if pred_i_rbs[rb_i_idx]:
+                        for rb_j_idx in range(num_rbs_with_p):
+                            if pred_j_rbs[rb_j_idx] and rb_shared_p[rb_i_idx, rb_j_idx]:
+                                shared = True
+                                break
+                        if shared:
+                            break
+                
+                pred_shared_p[i, j] = shared
+        
+        # Get the indices of the pairs
+        indices = torch.where(pred_shared_p == 1)
+        
+        # Convert to references
+        pred_indices = torch.where(pred)[0]
+        pairs = []
+        for i, j in zip(indices[0], indices[1]):
+            pred_i_ref = self.get_reference(index=pred_indices[i].item())
+            pred_j_ref = self.get_reference(index=pred_indices[j].item())
+            pairs.append((pred_i_ref, pred_j_ref))
+        
+        return pairs
+        
