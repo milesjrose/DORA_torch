@@ -257,7 +257,7 @@ class NodeOperations:
         Looks at highest weight linked semantics for two POs.
         If they encode the same dimension, attach the comparitive semantics to these POs.
         """
-        logger.debug(f"Kludgey comparitor for {po1.set.name}[{po1.ID}] and {po2.set.name}[{po2.ID}]")
+        logger.debug(f"Kludgey comparitor for {set.name}[{po1}] and {set.name}[{po2}]")
         # make sure the comparative semantics exist
         self.network.semantics.init_comparative_semantics()
         # get the highest weight semantics for each PO

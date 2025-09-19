@@ -150,7 +150,7 @@ def test_kludgey_comparitor(network):
     network.links.sets[Set.DRIVER][po2_idx, sem1_idx] = 0.1
     
     # Test the kludgey comparator
-    network.node_ops.kludgey_comparitor(po1, po2)
+    network.node_ops.kludgey_comparitor(po1.set, po1_idx, po2_idx)
     
     # Check that comparative semantics were created
     assert network.semantics.more is not None, "More semantic should be created"
@@ -202,7 +202,7 @@ def test_kludgey_comparitor_reverse_order(network):
     network.links.sets[Set.DRIVER][po2_idx, sem1_idx] = 0.1
     
     # Test the kludgey comparator
-    network.node_ops.kludgey_comparitor(po1, po2)
+    network.node_ops.kludgey_comparitor(po1.set, po1_idx, po2_idx)
     
     # Check that po1 (lower amount) is connected to "less" and po2 (higher amount) to "more"
     more_idx = network.get_index(network.semantics.more)
@@ -249,7 +249,7 @@ def test_kludgey_comparitor_equal_values(network):
     network.links.sets[Set.DRIVER][po2_idx, sem1_idx] = 0.1
     
     # Test the kludgey comparator
-    network.node_ops.kludgey_comparitor(po1, po2)
+    network.node_ops.kludgey_comparitor(po1.set, po1_idx, po2_idx)
     
     # Check that both PO tokens are connected to "same"
     same_idx = network.get_index(network.semantics.same)
@@ -295,7 +295,7 @@ def test_kludgey_comparitor_different_dimensions(network):
     network.links.sets[Set.DRIVER][po2_idx, sem1_idx] = 0.1
     
     # Test the kludgey comparator
-    network.node_ops.kludgey_comparitor(po1, po2)
+    network.node_ops.kludgey_comparitor(po1.set, po1_idx, po2_idx)
     
     # Check that no comparative connections were made
     # The comparative semantics will be created, but no connections should be made to them
