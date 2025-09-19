@@ -5,7 +5,7 @@ from ...enums import *
 
 from typing import TYPE_CHECKING
 from ...utils import tensor_ops as tOps
-from ..single_nodes import Token
+from ..single_nodes import Token, Ref_Token
 import torch
 
 if TYPE_CHECKING:
@@ -27,9 +27,13 @@ class RelFormOperations:
             network: Reference to the Network object
         """
         self.network: 'Network' = network
-        self.debug = False
-        self.inferred_new_p = False
-        self.inferred_p = None
+        " Reference to the Network object. "
+        self.debug: bool = False
+        " Debug flag. "
+        self.inferred_new_p: bool = False
+        " Flag to indicate if a new P was inferred. "
+        self.inferred_p: Ref_Token = None
+        " Reference to the inferred P token. "
     
     def requirements(self):
         """
@@ -97,3 +101,16 @@ class RelFormOperations:
             self.network.set_name(ref_new_p, new_p_name)
             self.inferred_new_p = True
             self.inferred_p = ref_new_p
+    
+    def name_inferred_p(self):
+        """Give the inferred p a name baseed on its RBs."""
+        if self.inferred_p is None:
+            raise ValueError("Inferred P token is not set.")
+        rbs = self.network.recipient().get_connected_tokens(self.inferred_p)
+        if len(rbs) == 0:
+            raise ValueError("Hey, you got a an error awhile ago that you were unable to reproduce. Basically, it seems you learned a P unit with no RBs (or something to that effect). You added a try/except to catch it in case it popped up again. It has. You will want to look very carefully at what happened with the latest P unit that has been made.") # Yoinked this debug message from runDORA.py
+        name_string = self.network.node_ops.get_name(rbs[0])
+        for rb in rbs[1:]:
+            name_string += "+" + self.network.node_ops.get_name(rb)
+        self.network.set_name(self.inferred_p, name_string)
+        
