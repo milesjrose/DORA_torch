@@ -2,7 +2,7 @@
 # Main DORA file for tensorised version
 
 from DORA.basicRunDORA import retrieve_all_relevant_tokens
-from DORA_tensorised.nodes.network.single_nodes.token import Ref_Token
+from DORA_tensorised.nodes.network.single_nodes import Pairs
 import nodes
 from nodes.enums import *
 from nodes.enums import Routines as R
@@ -408,15 +408,15 @@ class DORA:
         # Make all driver pred pairs that are either connected to same P, or not connected to a myP.
         # first, the driver.
         for set in [Set.DRIVER, Set.RECIPIENT]:
+            po_pairs = Pairs()
             # Find pairs of preds in driver, s.t. either:
-            pair_dict: dict[int, list[Ref_Token]] = {} # Use a hashmap to make it easier to exclude duplicates
-            # 1) Both POs are connected to RBs with no Ps.
-            pair_dict = self.network.sets[set].token_op.get_pred_rb_no_ps(pair_dict)
+            # # 1) Both POs are connected to RBs with no Ps.
+            po_pairs = self.network.sets[set].token_op.get_pred_rb_no_ps(po_pairs)
             # 2) The two POs share a p unit.
-            pair_dict = self.network.sets[set].token_op.get_pred_rb_shared_p(pair_dict)
+            po_pairs = self.network.sets[set].token_op.get_pred_rb_shared_p(po_pairs)
             # Then, comparitor them.
-            for pair in pair_dict.items():
-                self.network.utility_ops.kludgey_comparitor(pair[0], pair[1])
+            for pair in po_pairs.get_list():
+                self.network.node_ops.kludgey_comparitor(set, pair[0], pair[1])
             
     def group_recip_maps(self):
         """

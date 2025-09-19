@@ -15,6 +15,7 @@ Used for adding nodes to set tensors, and referencing single nodes in any set.
 from .token import Token, Ref_Token
 from .semantic import Semantic, Ref_Semantic
 from .analog import Analog, Ref_Analog
+from .po_pair import Pairs
 
 __all__ = [
     "Token",
@@ -22,6 +23,7 @@ __all__ = [
     "Ref_Token",
     "Ref_Semantic",
     "Analog",
-    "Ref_Analog"
+    "Ref_Analog",
+    "Pairs"
 ]
 

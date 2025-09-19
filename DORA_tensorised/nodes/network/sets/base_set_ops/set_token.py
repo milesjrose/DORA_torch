@@ -5,7 +5,7 @@ import torch
 import logging
 from typing import TYPE_CHECKING
 
-from ...single_nodes import Token, Ref_Token, Ref_Analog
+from ...single_nodes import Token, Ref_Token, Ref_Analog, Pairs
 from ....enums import *
 
 logger = logging.getLogger(__name__)
@@ -437,7 +437,7 @@ class TokenOperations:
             print(self.base_set.names[index])
 
     # ----------------------------[KLUDGEY COMPARATOR FUNCTIONS]-------------------------------
-    def get_pred_rb_no_ps(self, pair_dict: dict[int, list[Ref_Token]]) -> dict[int, list[Ref_Token]]:
+    def get_pred_rb_no_ps(self, pairs: Pairs) -> Pairs:
         """
         Get all pairs of preds that are connected to RBs that are not connected to any P
         - only neeed one non_p rb to be counted as valid for this.
@@ -464,13 +464,11 @@ class TokenOperations:
         indices = torch.where(pred_rb_no_p == 1).tolist()
         # now get the references to the pairs
         for i,j in indices:
-            ref_i = self.get_reference(index=i)
-            ref_j = self.get_reference(index=j)
-            pair_dict[self.pair_hash(i,j)] = [ref_i, ref_j]
-        return pair_dict
+            pairs.add(i,j)
+        return pairs
         
     
-    def get_pred_rb_shared_p(self, pair_dict: dict[int, list[Ref_Token]]) -> dict[int, list[Ref_Token]]:
+    def get_pred_rb_shared_p(self, pairs: Pairs) -> Pairs:
         """
         Get all pairs of preds that are connected to the same P.
         (i.e preds connected to RBs that are connected to the same P)
@@ -537,19 +535,7 @@ class TokenOperations:
         
         # Convert to references
         pred_indices = torch.where(pred)[0]
-        pairs = []
         for i, j in zip(indices[0], indices[1]):
-            pred_i_ref = self.get_reference(index=pred_indices[i].item())
-            pred_j_ref = self.get_reference(index=pred_indices[j].item())
-            pair_dict[self.pair_hash(i,j)] = [pred_i_ref, pred_j_ref]
+            pairs.add(i,j)
         return pairs
-    
-    def pair_hash(self, po1, po2):
-        """
-        Get a hash that is the same regardless of orientation of pos
-        """
-        if po1>po2:
-            return int(str(po1)+str(po2))
-        else:
-            return int(str(po2)+str(po1))
         

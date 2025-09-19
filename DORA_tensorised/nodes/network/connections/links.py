@@ -118,14 +118,20 @@ class Links(object):
         """
         Get the semantic with the highest link weight to the token.
         """
-        ref_tk_index = self.network.get_index(ref_tk)
-        semantic_index = torch.max(self.sets[ref_tk.set][ref_tk_index, :], dim=0).indices
+        idx_tk = self.network.get_index(ref_tk)
+        return self.get_max_linked_sem_idx(ref_tk.set, idx_tk)
+    
+    def get_max_linked_sem_idx(self, set:Set, idx_tk: int):
+        """
+        See get_max_lined_sem, Set = RECIPIENT, idx_tx: token index.
+        """
+        semantic_index = torch.max(self.sets[set][idx_tk, :], dim=0).indices
         ref_sem = self.network.semantics.get_reference(index=semantic_index)
         return ref_sem
     
-    def connect_comparitive(self, ref_tk: Ref_Token, comp_type: str):
+    def connect_comparitive(self, set: Set, idx_tk: int, comp_type: str):
         """
-        Connect the token to the semantic, with weight of 1.
+        Connect token to the semantic, with weight of 1.
         """
         ref_comp = None
         match comp_type:
@@ -140,5 +146,4 @@ class Links(object):
         if ref_comp is None:
             raise ValueError("Comps not initialised")
         idx_comp = self.network.get_index(ref_comp)
-        idx_tk = self.network.get_index(ref_tk)
-        self.sets[ref_tk.set][idx_tk, idx_comp] = 1.0
+        self.sets[set][idx_tk, idx_comp] = 1.0
