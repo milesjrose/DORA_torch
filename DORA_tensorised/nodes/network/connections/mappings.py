@@ -213,6 +213,17 @@ class Mappings(object):
         max_driver: torch.return_types.max = self[MappingFields.WEIGHT].max(dim=0)
         return max_recipient, max_driver
     
+    def swap_driver_recipient(self):
+        """
+        swap the driver and recipient
+        NOTE:clear mappings? Currently just transposing the mapping tensor
+        """
+        stack = []
+        for field in MappingFields:
+            stack.append(self[field].t())
+        #stack
+        self.adj_matrix = torch.stack(stack, dim=-1)
+    
     # ----------------------------------------------------------------
 
     def print(self, mapping_field: MappingFields = MappingFields.WEIGHT, d_mask=None, r_mask=None):                                  # Here for testing atm

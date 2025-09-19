@@ -118,8 +118,8 @@ class TensorOperations:
         self.network.sets[Set.DRIVER] = new_driver
         self.network.sets[Set.RECIPIENT] = new_rec
         # Update mappings
-        # NOTE: leave for now, as updating mapping structure soon.
-        # TODO: Implement this.
+        # Just transpose the mapping tensor - idk if we should clear mappings here?
+        self.network.mappings[Set.RECIPIENT].swap_driver_recipient()
         # Update links
         self.network.links.swap_driver_recipient()
 
