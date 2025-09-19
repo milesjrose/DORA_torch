@@ -143,7 +143,7 @@ class Semantics(object):
         new_links[:current_num_token, :current_num_sem] = links     # copy over old links
         self.links[set] = new_links                                 # update links
 
-    def del_semantic(self, ID):                                     # Delete a semantic from the semantics tensor. TODO: Remove connections and links.
+    def del_semantic(self, ID):                                     # Delete a semantic from the semantics tensor.
         """
         Delete a semantic from the semantics tensor.
         """ 
