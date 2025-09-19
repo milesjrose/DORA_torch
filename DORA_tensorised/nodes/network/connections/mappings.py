@@ -1,11 +1,14 @@
 # nodes/sets/connections/mappings.py
 # Mappings between nodes and semantics.
-# TODO: Implement add_mappings
 
 import torch
 
 from ...enums import *
 from ...utils import tensor_ops as tOps
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..sets import Driver, Recipient
 
 class Mappings(object):
     """
@@ -44,8 +47,8 @@ class Mappings(object):
                 raise ValueError(f"{field} field tensor shape: {map_fields[field].shape}, but driver nodes shape: {driver.nodes.shape}.")
         
         # Stack the tensors along a new dimension based on MappingFields enum
-        self.driver = driver
-        self.map_from = None # Set to recipient/memory/new_set by network
+        self.driver: 'Driver' = driver
+        self.recipient: 'Recipient' = None # Set by network
         field_list = []
         for field in MappingFields:
             field_list.append(map_fields[field])                            # Add each tensor to the list, indexed by MappingFields enum
@@ -72,7 +75,7 @@ class Mappings(object):
         Args:
             map_from (Set): The set that the mappings map from (e.g recipient, memory, new_set).
         """
-        self.map_from = map_from
+        self.recipient: 'Recipient' = map_from
 
     # =====================[ Update functions ]======================
     def update_hypotheses(self):
@@ -83,39 +86,39 @@ class Mappings(object):
         """
         # Need to check that the type of p/po nodes match.
         # Can do this by refining masks to type, then updating the these masks first. So only matching node types will be included
-        r_p = self.map_from.get_mask(Type.P)
+        r_p = self.recipient.get_mask(Type.P)
         d_p = self.driver.get_mask(Type.P)
 
-        r_po = self.map_from.get_mask(Type.PO)
+        r_po = self.recipient.get_mask(Type.PO)
         d_po = self.driver.get_mask(Type.PO)
 
         print("r_p: ", r_p)
         print("d_p: ", d_p)
 
         # Update child p
-        r_pc = tOps.refine_mask(self.map_from.nodes, r_p, TF.MODE, Mode.CHILD)
+        r_pc = tOps.refine_mask(self.recipient.nodes, r_p, TF.MODE, Mode.CHILD)
         d_pc = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.CHILD)
         self.update_hypothesis(d_pc, r_pc)
         print("r_pc: ", r_pc)
         print("d_pc: ", d_pc)
 
         # Update parent p
-        r_pp = tOps.refine_mask(self.map_from.nodes, r_p, TF.MODE, Mode.PARENT)
+        r_pp = tOps.refine_mask(self.recipient.nodes, r_p, TF.MODE, Mode.PARENT)
         d_pp = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.PARENT)
         self.update_hypothesis(d_pp, r_pp)
 
         # Update neutral p
-        r_pn = tOps.refine_mask(self.map_from.nodes, r_p, TF.MODE, Mode.NEUTRAL)
+        r_pn = tOps.refine_mask(self.recipient.nodes, r_p, TF.MODE, Mode.NEUTRAL)
         d_pn = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.NEUTRAL)
         self.update_hypothesis(d_pn, r_pn)
 
         # Update Pred
-        r_pr = tOps.refine_mask(self.map_from.nodes, r_po, TF.PRED, B.TRUE)
+        r_pr = tOps.refine_mask(self.recipient.nodes, r_po, TF.PRED, B.TRUE)
         d_pr = tOps.refine_mask(self.driver.nodes, d_po, TF.PRED, B.TRUE)
         self.update_hypothesis(d_pr, r_pr)
 
         # Update Obj
-        r_ob = tOps.refine_mask(self.map_from.nodes, r_po, TF.PRED, B.FALSE)
+        r_ob = tOps.refine_mask(self.recipient.nodes, r_po, TF.PRED, B.FALSE)
         d_ob = tOps.refine_mask(self.driver.nodes, d_po, TF.PRED, B.FALSE)
         self.update_hypothesis(d_ob, r_ob)
 
@@ -130,7 +133,7 @@ class Mappings(object):
         """
         # Hypothesis = hypothesis + (driver_token.act * recipient_token.act)
         driver_acts = self.driver.nodes[:, TF.ACT]
-        map_from_acts = self.map_from.nodes[:, TF.ACT]
+        map_from_acts = self.recipient.nodes[:, TF.ACT]
         
         # Create outer product of activations for all combinations
         activation_product = torch.outer(map_from_acts, driver_acts)
@@ -156,9 +159,10 @@ class Mappings(object):
     def reset_mappings(self):
         """
         Reset the hypotheses, connections, and max map.
-        TODO: Reset max map -> stored in set nodes tensors.
         """
         self.reset_mapping_units()
+        self.driver.token_ops.set_features_all(TF.MAX_MAP, 0.0)
+        self.recipient.token_ops.set_features_all(TF.MAX_MAP, 0.0)
         self[MappingFields.MAX_HYP] = 0.0
     
     def update_connections(self, eta):
