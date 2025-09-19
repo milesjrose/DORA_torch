@@ -227,6 +227,18 @@ class B(IntEnum):
     TRUE    = 1
     FALSE   = 0
 
+class Routines(IntEnum):
+    """
+    Enum for routines
+    """
+    MAP = 0
+    RETRIEVE = 1
+    PREDICATE = 2
+    REL_FORM = 3
+    REL_GEN = 4
+    SCEMA = 5
+
+
 null = -99.0
 """Null value for float tensors: -99.0"""
 

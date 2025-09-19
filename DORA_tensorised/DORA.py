@@ -1,10 +1,13 @@
 # DORA_tensorised/DORA.py
 # Main DORA file for tensorised version
 
+from DORA.basicRunDORA import retrieve_all_relevant_tokens
 import nodes
 from nodes.enums import *
+from nodes.enums import Routines as R
 import logging
 import os
+
 
 
 class DORA:
@@ -86,16 +89,16 @@ class DORA:
         with each do_routine function running initialisations and post-routine operations.
     """
 
-    def run_phase_sets(self, routine, phase_sets, firing_order):
+    def run_phase_sets(self, routine:R , phase_sets, firing_order):
         """ Runs the phase sets, for a given routine """
         params = self.network.params
         self.do_1_to_3() # Initialise the network.
         for phase_set in range(phase_sets):
             params.phase_set = phase_set
             self.run_phase_set(routine, firing_order)
-            self.post_phase_set_operations()
+            self.post_phase_set_operations(routine)
     
-    def run_phase_set(self, routine, firing_order):
+    def run_phase_set(self, routine:R, firing_order):
         """ Runs a single phase set, for a given routine """
         params = self.network.params
         # Set inhibitor based on count_by_RBs.
@@ -114,7 +117,7 @@ class DORA:
             # Token firing is over. Runs once per token.
             self.post_count_by_operations()
     
-    def fire_token(self, routine, token, inhibitor):
+    def fire_token(self, routine:R, token, inhibitor):
         """  
         4.1-4.2) Fire the current token in the firingOrder. 
         Update the network in discrete time-steps until the inhibitor fires 
@@ -127,17 +130,17 @@ class DORA:
             self.time_step_activations()
             # 4.3.11) Run routine
             match routine:
-                case "map":
+                case R.MAP:
                     self.network.routines.map.map_routine()
-                case "retrieval":
+                case R.RETRIEVE:
                     self.network.routines.retrieval.retrieval_routine()
-                case "predication":
+                case R.PREDICATE:
                     self.network.routines.predication.predication_routine()
-                case "rel_form":
+                case R.REL_FORM:
                     self.network.routines.rel_form.rel_form_routine()
-                case "schematisation":
+                case R.SCEMA:
                     self.network.routines.schematisation.schematisation_routine()
-                case "rel_gen":
+                case R.REL_GEN:
                     self.network.routines.rel_gen.rel_gen_routine()
             # fire the local inhib if neccessary
             self.time_step_fire_local_inhibitor()
@@ -160,11 +163,11 @@ class DORA:
             params.as_DORA = False
             params.ignore_object_semantics = True
         # Run phase sets
-        self.run_phase_sets("map", phase_sets, self.network.firing_ops.firing_order)
+        self.run_phase_sets(R.MAP, phase_sets, self.network.firing_ops.firing_order)
         # If changed dora or ios, change them back.
         params.as_DORA = init_dora
         params.ignore_object_semantics = init_ios
-        self.post_phase_set_operations()# note this should be in the run_phase_sets function
+        #self.post_phase_set_operations(R.MAP)# note this should be in the run_phase_sets function
 
     def do_retrieval(self):
         """ do retrieval """
@@ -173,11 +176,11 @@ class DORA:
         params = self.network.params
         init_dora = params.as_DORA
         # Run phase sets
-        self.run_phase_set("retrieval", self.network.firing_ops.firing_order)
+        self.run_phase_set(R.RETRIEVE, self.network.firing_ops.firing_order)
         # Return the .asDORA setting to its pre-firing state.
         params.as_DORA = init_dora
         # phase set is over.
-        self.post_phase_set_operations()
+        self.post_phase_set_operations(R.RETRIEVE)
 
     def do_retrieval_v2(self):
         """ retrieval, but limited to 7 or 4 iterations """
@@ -211,7 +214,7 @@ class DORA:
         # Return the .asDORA setting to its pre-firing state.
         params.as_DORA = init_dora
         # phase set is over.
-        self.post_phase_set_operations()
+        self.post_phase_set_operations(R.RETRIEVE)
 
     def do_predication(self):
         """ do predication """
@@ -227,10 +230,10 @@ class DORA:
         else:
             firing_order = self.network.firing_ops.firing_order
         # Run phase set
-        self.run_phase_set("predication", firing_order)
+        self.run_phase_set(R.PREDICATE, firing_order)
         # Post phase set ops.
         params.as_DORA = init_dora
-        self.post_phase_set_operations()
+        self.post_phase_set_operations(R.PREDICATE)
         # reset inferences
         self.network.memory_ops.reset_inferences()
         
@@ -243,10 +246,10 @@ class DORA:
             self.do_1_to_3()
             self.network.routines.rel_form.inferred_new_p = False
             # Run phase set
-            self.run_phase_set("rel_form", self.network.firing_ops.firing_order)
+            self.run_phase_set(R.REL_FORM, self.network.firing_ops.firing_order)
             # if_inferred_new_p: TODO: Implement this...
             # post phase set ops
-            self.post_phase_set_operations() # NOTE: this passes inferred_new_p as true, but doesn't seem to check in the original code.
+            self.post_phase_set_operations(R.REL_FORM) # NOTE: this passes inferred_new_p as true, but doesn't seem to check in the original code.
 
     def do_schematisation(self):
         " do schematisation "
@@ -257,9 +260,9 @@ class DORA:
         if params.count_by_RBs:
             # intitialise network
             self.do_1_to_3()
-            self.run_phase_set("schematisation", self.network.firing_ops.firing_order)
+            self.run_phase_set(R.SCEMA, self.network.firing_ops.firing_order)
             # post phase set ops
-            self.post_phase_set_operations()
+            self.post_phase_set_operations(R.SCEMA)
         # new_set_items_to_analog: NOTE: Not sure if this is needed if the phase set isn't executed?
         self.network.analog_ops.new_set_to_analog()
         # Return the .asDORA setting to its pre-firing state.
@@ -274,9 +277,9 @@ class DORA:
         if params.count_by_RBs:
             # intitialise network
             self.do_1_to_3()
-            self.run_phase_set("rel_gen", self.network.firing_ops.firing_order)
+            self.run_phase_set(R.REL_GEN, self.network.firing_ops.firing_order)
             # post phase set ops
-            self.post_phase_set_operations()
+            self.post_phase_set_operations(R.REL_GEN)
         # new_set_items_to_analog: NOTE: Not sure if this is needed if the phase set isn't executed?
         self.network.analog_ops.new_set_to_analog()
         # Return the .asDORA setting to its pre-firing state.
@@ -345,14 +348,64 @@ class DORA:
     # ----------------------------[ POST PHASE SET OPERATIONS ]-------------------------------
     """ Functions implementing operations performed after a phase set. """
 
-    def post_phase_set_operations(self):
-        pass
-
     def post_count_by_operations(self):
-        pass
+        """
+        function to perform operations that occur after PO (if firing by POs) or RB (if firing by RBs) fires 
+        (i.e., what we're calling "count_by" operations as they occur after the firing of of the token you're firing (or counting) by).
+        """
+        # fire the global inhib
+        self.network.inhibitor_ops.fire_global()
+        # reset the local inhib
+        self.network.inhibitor_ops.reset()
+
+    def post_phase_set_operations(self, routine:R, inferred_new_p: bool = False):
+        """ function to perform operations that occur after a phase set. 
+
+        Args:
+            retrieval_license (bool): If you were doing retrieval.
+            map_license (bool): If you were doing mapping.
+            inferred_new_p (bool): If a new P was inferred.
+        """
+        map_license = True if routine == R.MAP else False
+        retrieval_license = True if routine == R.RETRIEVE else False
+        # if you were doing retrieval (i.e., if retrieval_license is True), 
+        # then use the Luce choice axiom here to retrieve items from memorySet into the recipient.
+        if retrieval_license:
+            self.network.routines.retrieval.retrieve_tokens() # TODO: Implement this.
+        # reset the mode of all P units in the recipient back to neutral (i.e., 0);
+        self.network.node_ops.initialise_p_mode(Set.RECIPIENT)
+        # reset the activation and input of all units back to 0
+        self.network.update_ops.initialise_act()
+        self.network.update_ops.initialise_act_memory() # NOTE: is this needed everytime (i.e not every phase set updates memory afaik?)
+         # if you made a new P during relation formation, name it with the name of all its RBs.
+        if inferred_new_p:
+            self.network.routines.rel_form.name_inferred_p()
+        # remove all links between POs and semantics that are below threshold (=0.01), and round up any connections that are above 0.999.
+        self.network.update_ops.del_small_link(0.01)
+        self.network.update_ops.round_big_link(0.999)
+        # if mapping is licenced, update the mapping connections and update the max_map field for all driver and recipient tokens.
+        if map_license:
+            self.network.mapping_ops.update_mapping_connections()
+            self.network.mapping_ops.update_max_map()
+            self.network.mapping_ops.reset_mapping_hyps()
+        # recalibrate PO weights.
+        # self.network.utility_ops.calibrate_weight() NOTE: This was commented out in the original code.
 
     def do_kludge_comparitor(self):
-        pass
+        """
+        Run the kludgey comparitor.
+        """
+        # make sure I have RBS
+        if not self.network.params.count_by_RBs:
+            return
+        # comparitor all pairs of preds in driver and recipient. Make all driver pred pairs that are either connected to same P, or not connected to a myP.
+        # first, the driver.
+        # Find pairs of preds in driver, s.t. either:
+        # 1) Both POs are connected to RBs with no Ps.
+        # 2) The two POs share a p unit.
+        # Then, comparitor them.
+        # 
+            
 
     def group_recip_maps(self):
         pass
