@@ -437,10 +437,11 @@ class TokenOperations:
             print(self.base_set.names[index])
 
     # ----------------------------[KLUDGEY COMPARATOR FUNCTIONS]-------------------------------
-    def get_pred_rb_no_ps(self) -> list[(Ref_Token, Ref_Token)]:
+    def get_pred_rb_no_ps(self, pair_dict: dict[int, list[Ref_Token]]) -> dict[int, list[Ref_Token]]:
         """
         Get all pairs of preds that are connected to RBs that are not connected to any P
         - only neeed one non_p rb to be counted as valid for this.
+        TODO: Test
         """
         rb = self.base_set.tensor_op.get_mask(Type.RB)
         p = self.base_set.tensor_op.get_mask(Type.P)
@@ -462,15 +463,18 @@ class TokenOperations:
         # now get the indices of the pairs
         indices = torch.where(pred_rb_no_p == 1).tolist()
         # now get the references to the pairs
-        pairs = [(self.get_reference(index=i), self.get_reference(index=j)) for i, j in indices]
-        return pairs
+        for i,j in indices:
+            ref_i = self.get_reference(index=i)
+            ref_j = self.get_reference(index=j)
+            pair_dict[self.pair_hash(i,j)] = [ref_i, ref_j]
+        return pair_dict
         
     
-    def get_pred_rb_shared_p(self) -> list[(Ref_Token, Ref_Token)]:
+    def get_pred_rb_shared_p(self, pair_dict: dict[int, list[Ref_Token]]) -> dict[int, list[Ref_Token]]:
         """
         Get all pairs of preds that are connected to the same P.
         (i.e preds connected to RBs that are connected to the same P)
-        NOTE: no idea if this works.
+        TODO: test
         """
         # Get masks for different token types
         rb = self.base_set.tensor_op.get_mask(Type.RB)
@@ -537,7 +541,15 @@ class TokenOperations:
         for i, j in zip(indices[0], indices[1]):
             pred_i_ref = self.get_reference(index=pred_indices[i].item())
             pred_j_ref = self.get_reference(index=pred_indices[j].item())
-            pairs.append((pred_i_ref, pred_j_ref))
-        
+            pair_dict[self.pair_hash(i,j)] = [pred_i_ref, pred_j_ref]
         return pairs
+    
+    def pair_hash(self, po1, po2):
+        """
+        Get a hash that is the same regardless of orientation of pos
+        """
+        if po1>po2:
+            return int(str(po1)+str(po2))
+        else:
+            return int(str(po2)+str(po1))
         
