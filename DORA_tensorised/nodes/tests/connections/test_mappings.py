@@ -4,14 +4,14 @@
 import pytest
 import torch
 
-from ..enums import MappingFields, Set, Type, B, TF
-from ..network.connections import Mappings
-from ..builder import NetworkBuilder
-from ..network import Network, Token, Ref_Token
+from nodes.enums import MappingFields, Set, Type, B, TF
+from nodes.network.connections import Mappings
+from nodes.builder import NetworkBuilder
+from nodes.network import Network, Token, Ref_Token
 
 
 # Import the symProps from sim.py
-from .sims.sim import symProps
+from nodes.tests.sims.sim import symProps
 
 
 @pytest.fixture

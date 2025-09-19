@@ -7,7 +7,7 @@ from nodes.builder import NetworkBuilder
 from nodes.enums import Set
 
 # Import the symProps from sim.py
-from .sims.sim import symProps
+from nodes.tests.sims.sim import symProps
 
 def test_nodes_from_file():
     test_file = './DORA_tensorised/nodes/tests/sims/sim.py'

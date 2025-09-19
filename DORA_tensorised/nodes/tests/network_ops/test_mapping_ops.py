@@ -5,15 +5,15 @@ import pytest
 import torch
 import pandas as pd
 
-from ..enums import MappingFields, Set, Type, TF
-from ..builder import NetworkBuilder
-from ..utils import nodePrinter
-from ..network import Network, Token
+from nodes.enums import MappingFields, Set, Type, TF
+from nodes.builder import NetworkBuilder
+from nodes.utils import nodePrinter
+from nodes.network import Network, Token
 
 
 
 # Import the symProps from sim.py
-from .sims.sim import symProps
+from nodes.tests.sims.sim import symProps
 
 
 @pytest.fixture

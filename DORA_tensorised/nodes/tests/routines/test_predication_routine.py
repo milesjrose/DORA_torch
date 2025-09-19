@@ -5,10 +5,10 @@ import pytest
 import torch
 from random import shuffle
 
-from ..builder import NetworkBuilder
-from ..enums import *
-from ..network.single_nodes import Token
-from .sims.sim import symProps
+from nodes.builder import NetworkBuilder
+from nodes.enums import *
+from nodes.network.single_nodes import Token
+from nodes.tests.sims.sim import symProps
 
 @pytest.fixture
 def network():

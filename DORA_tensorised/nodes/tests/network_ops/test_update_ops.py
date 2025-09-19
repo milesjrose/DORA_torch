@@ -9,7 +9,7 @@ from nodes.enums import *
 from nodes.network.operations.update_ops import UpdateOperations
 
 # Import the symProps from sim.py
-from .sims.sim import symProps
+from nodes.tests.sims.sim import symProps
 
 @pytest.fixture
 def network():

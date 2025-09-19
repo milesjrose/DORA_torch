@@ -7,7 +7,7 @@ from nodes.builder import NetworkBuilder
 from nodes.file_ops import save_network, load_network_new
 from nodes.enums import Set, MappingFields
 
-from .sims.sim import symProps
+from nodes.tests.sims.sim import symProps
 
 @pytest.fixture
 def network():

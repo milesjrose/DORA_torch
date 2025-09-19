@@ -1,21 +1,21 @@
 import pytest
 import torch
 
-from ..builder import NetworkBuilder
-from ..enums import *
-from ..network.single_nodes import Token
-from .sims.sim import symProps
-from ..utils import tensor_ops as tOps
+from nodes.builder import NetworkBuilder
+from nodes.enums import *
+from nodes.network.single_nodes import Token
+from nodes.tests.sims.sim import symProps
+from nodes.utils import tensor_ops as tOps
 
 from random import shuffle
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..network.connections import Mappings
-    from ..network import Network
-    from ..network.sets import Driver, Recipient
-    from ..network.connections import Mappings
+    from nodes.network.connections import Mappings
+    from nodes.network import Network
+    from nodes.network.sets import Driver, Recipient
+    from nodes.network.connections import Mappings
 
 @pytest.fixture
 def network():
@@ -41,7 +41,7 @@ def test_rel_form_passes(network: 'Network'):
     r_rb_mask = recipient.get_mask(Type.RB)
     print((r_rb_mask.sum() > 2), (sum(r_rb_mask) > 2))
 
-    from ..utils import nodePrinter
+    from nodes.utils import nodePrinter
     printer = nodePrinter()
     printer.print_set(network.recipient())
     # Ensure no P units are connected to recipient RBs
