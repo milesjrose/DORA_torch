@@ -264,8 +264,8 @@ class DORA:
             self.run_phase_set(R.SCEMA, self.network.firing_ops.firing_order)
             # post phase set ops
             self.post_phase_set_operations(R.SCEMA)
-        # new_set_items_to_analog: NOTE: Not sure if this is needed if the phase set isn't executed?
-        self.network.analog_ops.new_set_to_analog()
+            # new_set_items_to_analog
+            self.network.analog_ops.new_set_to_analog()
         # Return the .asDORA setting to its pre-firing state.
         params.as_DORA = init_dora
 
@@ -281,8 +281,8 @@ class DORA:
             self.run_phase_set(R.REL_GEN, self.network.firing_ops.firing_order)
             # post phase set ops
             self.post_phase_set_operations(R.REL_GEN)
-        # new_set_items_to_analog: NOTE: Not sure if this is needed if the phase set isn't executed?
-        self.network.analog_ops.new_set_to_analog()
+            # new_set_items_to_analog
+            self.network.analog_ops.new_set_to_analog()
         # Return the .asDORA setting to its pre-firing state.
         params.as_DORA = init_dora
     
