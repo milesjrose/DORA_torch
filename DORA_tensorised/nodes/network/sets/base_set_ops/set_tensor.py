@@ -538,6 +538,25 @@ class TensorOperations:
         self.base_set.analog_activations = analog_activations
         self.base_set.analog_counts = analog_counts
         self.base_set.analogs = analogs
+    
+    def get_analog_ref_list(self, mask)-> list[Ref_Analog]:
+        """
+        Get a list of the unique analogs for a given mask
+        TODO: add test
+        """
+        analogs, counts = torch.unique(self.base_set.nodes[mask, TF.ANALOG])
+        return analogs
+    
+    def get_new_analog_id(self, analogs:list[Ref_Analog]):
+        """
+        Get a new unique analog id
+        """
+        # Get new analog id
+        self.base_set.tensor_ops.analog_node_count() # update analog list
+        max_id = torch.max(self.base_set.analogs)
+        return max_id.item() + 1
+        
+
    
     def print(self, f_types=None):                                  # Here for testing atm
         """

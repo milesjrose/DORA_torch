@@ -143,7 +143,6 @@ class AnalogOperations:
         """ Set a feature of the tokens in an analog. """
         indices = self.get_analog_indices(analog)
         self.network.sets[analog.set].token_op.set_features(indices, feature, value)
-
     
     def find_mapped_analog(self, set:Set):
         """
@@ -164,6 +163,33 @@ class AnalogOperations:
             analog_number = self.network.node_ops.get_value(ref_po, TF.ANALOG)
             return Ref_Analog(analog_number, set)
     
+    def find_mapping_analog(self) -> list[Ref_Analog]:
+        """
+        Find analogs that have a mapping connection in the recipient
+        TODO: need to add test
+        """
+        self.network.mapping_ops.get_max_maps(set=Set.RECIPIENT) # update max_map for recipient tokens
+        all_tks = self.network.recipient().tensor_op.get_all_nodes_mask()
+        map_tokens = self.network.recepient().nodes[all_tks, TF.MAX_MAP] > 0 # Get tokens with mapping connections
+        if map_tokens.sum() == 0:
+            logger.debug("RECIPIENT: No tokens with mapping connections")
+        else:
+            return self.network.recipient().tensor_op.get_analog_ref_list(map_tokens)
+    
+    def move_mapping_analogs_to_new(self) -> Ref_Analog:
+        """
+        Move any analogs in the recipient that have a mapping connection to a new analog
+        TODO: add test
+
+        Returns:
+        - Ref_Analog: the new analog
+        """
+        map_analogs = self.find_mapping_analog()
+        new_id = float(self.network.recipient().tensor_ops.get_new_analog_id())
+        for analog in map_analogs:
+            self.set_analog_features(analog, TF.ANALOG, new_id)
+        self.network.recipient().tensor_op.analog_node_count() # Update analog counts
+
     def new_set_to_analog(self):
         """
         Put the tokens in the new set into their own analog.

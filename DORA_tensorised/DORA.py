@@ -2,6 +2,7 @@
 # Main DORA file for tensorised version
 
 from DORA.basicRunDORA import retrieve_all_relevant_tokens
+from DORA_tensorised.nodes.network.single_nodes.token import Ref_Token
 import nodes
 from nodes.enums import *
 from nodes.enums import Routines as R
@@ -416,5 +417,10 @@ class DORA:
                 self.network.utility_ops.kludgey_comparitor(pair[0], pair[1])
             
     def group_recip_maps(self):
-        pass
+        """
+        Groups all analogs in the recipient that map to an analog into a new ananlog
+        """
+        # find all analogs inthe recepint that have mapped utnis and add then to the analog_list
+        self.network.analog_ops.move_mapping_analogs_to_new()
+        
     
