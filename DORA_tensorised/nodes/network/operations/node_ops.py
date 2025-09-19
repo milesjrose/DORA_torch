@@ -151,6 +151,12 @@ class NodeOperations:
         else:
             raise ValueError("Invalid reference type.")
     
+    def get_name(self, reference: Ref_Token) -> str:
+        """
+        Get the name of a referenced token.
+        """
+        return self.network.sets[reference.set].token_op.get_name(reference)
+    
     def set_value(self, reference, feature, value):                         # Set the value of a feature for a referenced token or semantic
         """
         Set the value of a feature for a referenced token or semantic.
