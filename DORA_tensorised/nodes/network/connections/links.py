@@ -13,6 +13,7 @@ class Links(object):
     """
     A class for representing weighted connections between token sets and semantics.
     Links tensor: [Token,Semantics]
+    Holds dict of tensors, mapping set to tensor.
     """
     def __init__(self, links: dict[Set, torch.Tensor], semantics):  # Takes weighted adjacency matrices
         """
