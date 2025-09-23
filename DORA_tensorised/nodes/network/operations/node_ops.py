@@ -273,15 +273,15 @@ class NodeOperations:
             sem2_value = self.network.semantics.get(po2_sem, SF.AMOUNT)
             if sem1_value > sem2_value:
                 logger.debug(f"More value found: {sem1_value} > {sem2_value}")
-                self.network.links.connect_comparitive(set, po1, "more")
-                self.network.links.connect_comparitive(set, po2, "less")
+                self.network.links.connect_comparitive(set, po1, SDM.MORE)
+                self.network.links.connect_comparitive(set, po2, SDM.LESS)
             elif sem1_value < sem2_value:
                 logger.debug(f"Less value found: {sem1_value} < {sem2_value}")
-                self.network.links.connect_comparitive(set, po1, "less")
-                self.network.links.connect_comparitive(set, po2, "more")
+                self.network.links.connect_comparitive(set, po1, SDM.LESS)
+                self.network.links.connect_comparitive(set, po2, SDM.MORE)
             else:
                 logger.debug(f"Same value found: {sem1_value} == {sem2_value}")
-                self.network.links.connect_comparitive(set, po1, "same")
-                self.network.links.connect_comparitive(set, po2, "same")
+                self.network.links.connect_comparitive(set, po1, SDM.SAME)
+                self.network.links.connect_comparitive(set, po2, SDM.SAME)
         else:
             logger.debug(f"No common dimension found: {sem1_dim} != {sem2_dim}")

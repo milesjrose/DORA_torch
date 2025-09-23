@@ -5,7 +5,7 @@ import pytest
 import torch
 
 from nodes.builder import NetworkBuilder
-from nodes.enums import Set, TF, Type, B
+from nodes.enums import *
 from nodes.network.single_nodes import Token
 from nodes.network.network import Network
 
@@ -111,7 +111,7 @@ def test_get_maker_unit_ref(network: 'Network'):
     assert maker_unit_ref.ID == ref_maker.ID
     assert maker_unit_ref.set == ref_maker.set
 
-def test_kludgey_comparitor(network):
+def test_kludgey_comparitor(network: 'Network'):
     """
     Test the kludgey comparator functionality.
     Tests comparison of two PO tokens based on their highest weight linked semantics.
@@ -132,8 +132,8 @@ def test_kludgey_comparitor(network):
     ref_sem2 = network.semantics.add_semantic(sem2)
     
     # Set dimensions for the semantics (same dimension for comparison)
-    network.semantics.set_dimension(ref_sem1, "size")
-    network.semantics.set_dimension(ref_sem2, "size")
+    network.semantics.set_dim(ref_sem1, "size")
+    network.semantics.set_dim(ref_sem2, "size")
     
     # Set up links between PO tokens and semantics
     # Make sem1 the highest weight link for po1, sem2 for po2
@@ -153,19 +153,18 @@ def test_kludgey_comparitor(network):
     network.node_ops.kludgey_comparitor(po1.set, po1_idx, po2_idx)
     
     # Check that comparative semantics were created
-    assert network.semantics.more is not None, "More semantic should be created"
-    assert network.semantics.less is not None, "Less semantic should be created"
-    assert network.semantics.same is not None, "Same semantic should be created"
+    for sdm in SDM:
+        assert network.semantics.sdms[sdm] is not None, f"{sdm.NAME} should be created"
     
     # Check that po1 (higher amount) is connected to "more" and po2 (lower amount) to "less"
-    more_idx = network.get_index(network.semantics.more)
-    less_idx = network.get_index(network.semantics.less)
+    more_idx = network.get_index(network.semantics.sdms[SDM.MORE])
+    less_idx = network.get_index(network.semantics.sdms[SDM.LESS])
     
     # Verify connections
     assert network.links.sets[Set.DRIVER][po1_idx, more_idx] == 1.0, "po1 should be connected to 'more'"
     assert network.links.sets[Set.DRIVER][po2_idx, less_idx] == 1.0, "po2 should be connected to 'less'"
 
-def test_kludgey_comparitor_reverse_order(network):
+def test_kludgey_comparitor_reverse_order(network: 'Network'):
     """
     Test kludgey comparator with reversed order (po1 < po2).
     """
@@ -185,8 +184,8 @@ def test_kludgey_comparitor_reverse_order(network):
     ref_sem2 = network.semantics.add_semantic(sem2)
     
     # Set dimensions for the semantics (same dimension for comparison)
-    network.semantics.set_dimension(ref_sem1, "size")
-    network.semantics.set_dimension(ref_sem2, "size")
+    network.semantics.set_dim(ref_sem1, "size")
+    network.semantics.set_dim(ref_sem2, "size")
     
     # Set up links between PO tokens and semantics
     po1_idx = network.get_index(po1)
@@ -205,14 +204,14 @@ def test_kludgey_comparitor_reverse_order(network):
     network.node_ops.kludgey_comparitor(po1.set, po1_idx, po2_idx)
     
     # Check that po1 (lower amount) is connected to "less" and po2 (higher amount) to "more"
-    more_idx = network.get_index(network.semantics.more)
-    less_idx = network.get_index(network.semantics.less)
+    more_idx = network.get_index(network.semantics.sdms[SDM.MORE])
+    less_idx = network.get_index(network.semantics.sdms[SDM.LESS])
     
     # Verify connections
     assert network.links.sets[Set.DRIVER][po1_idx, less_idx] == 1.0, "po1 should be connected to 'less'"
     assert network.links.sets[Set.DRIVER][po2_idx, more_idx] == 1.0, "po2 should be connected to 'more'"
 
-def test_kludgey_comparitor_equal_values(network):
+def test_kludgey_comparitor_equal_values(network: 'Network'):
     """
     Test kludgey comparator with equal semantic values.
     """
@@ -232,8 +231,8 @@ def test_kludgey_comparitor_equal_values(network):
     ref_sem2 = network.semantics.add_semantic(sem2)
     
     # Set dimensions for the semantics (same dimension for comparison)
-    network.semantics.set_dimension(ref_sem1, "size")
-    network.semantics.set_dimension(ref_sem2, "size")
+    network.semantics.set_dim(ref_sem1, "size")
+    network.semantics.set_dim(ref_sem2, "size")
     
     # Set up links between PO tokens and semantics
     po1_idx = network.get_index(po1)
@@ -252,13 +251,13 @@ def test_kludgey_comparitor_equal_values(network):
     network.node_ops.kludgey_comparitor(po1.set, po1_idx, po2_idx)
     
     # Check that both PO tokens are connected to "same"
-    same_idx = network.get_index(network.semantics.same)
+    same_idx = network.get_index(network.semantics.sdms[SDM.SAME])
     
     # Verify connections
     assert network.links.sets[Set.DRIVER][po1_idx, same_idx] == 1.0, "po1 should be connected to 'same'"
     assert network.links.sets[Set.DRIVER][po2_idx, same_idx] == 1.0, "po2 should be connected to 'same'"
 
-def test_kludgey_comparitor_different_dimensions(network):
+def test_kludgey_comparitor_different_dimensions(network: 'Network'):
     """
     Test kludgey comparator with semantics of different dimensions (should not connect anything).
     """
@@ -278,8 +277,8 @@ def test_kludgey_comparitor_different_dimensions(network):
     ref_sem2 = network.semantics.add_semantic(sem2)
     
     # Set different dimensions for the semantics
-    network.semantics.set_dimension(ref_sem1, "size")
-    network.semantics.set_dimension(ref_sem2, "color")
+    network.semantics.set_dim(ref_sem1, "size")
+    network.semantics.set_dim(ref_sem2, "color")
     
     # Set up links between PO tokens and semantics
     po1_idx = network.get_index(po1)
@@ -302,9 +301,9 @@ def test_kludgey_comparitor_different_dimensions(network):
     # since the dimensions are different
     
     # Get indices of the comparative semantics
-    more_idx = network.get_index(network.semantics.more)
-    less_idx = network.get_index(network.semantics.less)
-    same_idx = network.get_index(network.semantics.same)
+    more_idx = network.get_index(network.semantics.sdms[SDM.MORE])
+    less_idx = network.get_index(network.semantics.sdms[SDM.LESS])
+    same_idx = network.get_index(network.semantics.sdms[SDM.SAME])
     
     # Verify that no connections were made to comparative semantics
     assert network.links.sets[Set.DRIVER][po1_idx, more_idx] == 0.0, "po1 should not be connected to 'more'"
