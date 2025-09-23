@@ -106,7 +106,7 @@ class Semantics(object):
         Set the dimension of a semantic
         NOTE: Inefficient: Use sems.set(sem, SF.DIMENSION, encoded_dim_key) if possible
         """
-        dim_key = self.add_dim(dimension) if dimension not in self.dimensions.values() else self.dimensions.keys()[self.dimensions.values().index(dimension)]
+        dim_key = self.add_dim(dimension) if dimension not in self.dimensions.values() else list(self.dimensions.keys())[list(self.dimensions.values()).index(dimension)]
         self.set(sem, SF.DIM, dim_key)
 
     def init_sdm(self):
