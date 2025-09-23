@@ -78,7 +78,7 @@ class TF(IntEnum):
     DELETED             = 28
     PRED                = 29    # PO unit
 
-def feature_type(feature: TF):
+def TF_type(feature: TF):
     """
     Get the type of a feature.
 
@@ -88,7 +88,7 @@ def feature_type(feature: TF):
     Returns:
         The type of the feature.
     """
-    feature_types = {
+    TF_types = {
         TF.ID: int,
         TF.TYPE: Type,
         TF.SET: Set,
@@ -122,7 +122,7 @@ def feature_type(feature: TF):
         TF.DELETED: bool,
         TF.PRED: bool,
     }
-    return feature_types[feature]
+    return TF_types[feature]
 
 class SF(IntEnum):
     """
@@ -137,11 +137,18 @@ class SF(IntEnum):
     - INPUT: Input of semantic.
     - MAX_INPUT: Maximum input of semantic.
     - ACT: Act of semantic.
+    - DIMENSION: Encodes dimension of semantic as integer.
     """
     # INT values:
     ID                  = 0
     TYPE                = 1
-    ONT_STATUS          = 2
+    """Type of semantic NOTE: can probably be removed as they are all semantics"""
+    ONT                 = 2
+    """Ontology status of semantic"""
+    DIM                 = 8
+    """Dimension of semantic"""
+
+    # BOOL values:
     DELETED             = 3
 
     # FLOAT values:
@@ -149,6 +156,25 @@ class SF(IntEnum):
     INPUT               = 5
     MAX_INPUT           = 6
     ACT                 = 7
+
+def SF_type(feature: SF):
+    """
+    Get the type of a feature.
+    """
+    SF_types = {
+        SF.ID: int,
+        SF.TYPE: Type,
+        SF.ONT: OntStatus,
+        SF.DIM: int,
+        SF.DELETED: bool,
+        SF.AMOUNT: float,
+        SF.INPUT: float,
+        SF.MAX_INPUT: float,
+        SF.ACT: float,
+    }
+    return SF_types[feature]
+
+
 
 class MappingFields(IntEnum):
     """
@@ -237,6 +263,15 @@ class Routines(IntEnum):
     REL_FORM = 3
     REL_GEN = 4
     SCEMA = 5
+
+class SDM(IntEnum):
+    """
+    Enum for SDM
+    """
+    MORE = 0
+    LESS = 1
+    SAME = 2
+    DIFF = 3
 
 
 null = -99.0

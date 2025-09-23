@@ -259,13 +259,13 @@ class NodeOperations:
         """
         logger.debug(f"Kludgey comparitor for {set.name}[{po1}] and {set.name}[{po2}]")
         # make sure the comparative semantics exist
-        self.network.semantics.init_comparative_semantics()
+        self.network.semantics.init_sdm()
         # get the highest weight semantics for each PO
         po1_sem = self.network.links.get_max_linked_sem_idx(set, po1)
         po2_sem = self.network.links.get_max_linked_sem_idx(set, po2)
         # check for common dimension
-        sem1_dim = self.network.semantics.get_dimension(po1_sem)
-        sem2_dim = self.network.semantics.get_dimension(po2_sem)
+        sem1_dim = self.network.semantics.get_dim(po1_sem)
+        sem2_dim = self.network.semantics.get_dim(po2_sem)
         if sem1_dim == sem2_dim:
             logger.debug(f"Common dimension found: {sem1_dim}")
             # compare literal values

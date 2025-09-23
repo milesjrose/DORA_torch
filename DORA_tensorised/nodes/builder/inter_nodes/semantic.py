@@ -30,7 +30,7 @@ class Inter_Semantics(Inter_Node):
         Initialise the default features for the semantic.
         """
         self.features[SF.TYPE] = Type.SEMANTIC
-        self.features[SF.ONT_STATUS] = 0
+        self.features[SF.ONT] = 0
         self.features[SF.AMOUNT] = 0
         self.features[SF.INPUT] = 0
         self.features[SF.MAX_INPUT] = 0

@@ -51,7 +51,7 @@ class TokenOperations:
             logger.critical(f"Invalid reference token or feature: {ref_token.set.name}[{ref_token.ID}] {feature.name}")
             raise ValueError("Invalid reference token or feature.")
         # Convert to correct type:
-        f_type = feature_type(feature)
+        f_type = TF_type(feature)
         return f_type(feature_value)
 
     def set_feature(self, ref_token: Ref_Token, feature: TF, value): # Set feature of single node

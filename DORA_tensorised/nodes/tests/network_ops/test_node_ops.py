@@ -124,8 +124,8 @@ def test_kludgey_comparitor(network):
     po2 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
     
     # Create semantics with same dimension but different amounts
-    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT_STATUS: OntStatus.VALUE})
-    sem2 = Semantic("size2", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 3.0, SF.ONT_STATUS: OntStatus.VALUE})
+    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT: OntStatus.VALUE})
+    sem2 = Semantic("size2", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 3.0, SF.ONT: OntStatus.VALUE})
     
     # Add semantics to the network
     ref_sem1 = network.semantics.add_semantic(sem1)
@@ -177,8 +177,8 @@ def test_kludgey_comparitor_reverse_order(network):
     po2 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
     
     # Create semantics with same dimension but different amounts (po1 < po2)
-    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 2.0, SF.ONT_STATUS: OntStatus.VALUE})
-    sem2 = Semantic("size2", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 8.0, SF.ONT_STATUS: OntStatus.VALUE})
+    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 2.0, SF.ONT: OntStatus.VALUE})
+    sem2 = Semantic("size2", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 8.0, SF.ONT: OntStatus.VALUE})
     
     # Add semantics to the network
     ref_sem1 = network.semantics.add_semantic(sem1)
@@ -224,8 +224,8 @@ def test_kludgey_comparitor_equal_values(network):
     po2 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
     
     # Create semantics with same dimension and same amounts
-    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT_STATUS: OntStatus.VALUE})
-    sem2 = Semantic("size2", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT_STATUS: OntStatus.VALUE})
+    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT: OntStatus.VALUE})
+    sem2 = Semantic("size2", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT: OntStatus.VALUE})
     
     # Add semantics to the network
     ref_sem1 = network.semantics.add_semantic(sem1)
@@ -270,8 +270,8 @@ def test_kludgey_comparitor_different_dimensions(network):
     po2 = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
     
     # Create semantics with different dimensions
-    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT_STATUS: OntStatus.VALUE})
-    sem2 = Semantic("color1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 3.0, SF.ONT_STATUS: OntStatus.VALUE})
+    sem1 = Semantic("size1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 5.0, SF.ONT: OntStatus.VALUE})
+    sem2 = Semantic("color1", {SF.TYPE: Type.SEMANTIC, SF.AMOUNT: 3.0, SF.ONT: OntStatus.VALUE})
     
     # Add semantics to the network
     ref_sem1 = network.semantics.add_semantic(sem1)

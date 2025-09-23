@@ -62,32 +62,75 @@ class Semantics(object):
         self.IDs = IDs
         """Map ID to index in tensor"""
         self.dimensions = {}
-        """Map ID to dimension: TODO: add to builder/save/load"""
+        """Map dimension feature to dimension: TODO: add to builder/save/load"""
         self.params = None
         """Shared parameters"""
         self.expansion_factor = 1.1
         """Factor to expand when adding sem to full tensor"""
-        self.more = None
-        self.less = None
-        self.same = None
+        self.sdms = {
+            SDM.MORE: None,
+            SDM.LESS: None,
+            SDM.SAME: None,
+            SDM.DIFF: None,
+        }
+        """ Map SDM to ref_semantic"""
+        self.sdm_dims = {
+            SDM.MORE: None,
+            SDM.LESS: None,
+            SDM.SAME: None,
+            SDM.DIFF: None,
+        }
+        """ Map SDM to dimension key"""
+    
+    def add_dim(self, dimension: str) -> int:
+        """Add a dimension to the dimensions dictionary"""
+        new_dim_key = max(self.dimensions.keys()) + 1 if self.dimensions else 0
+        self.dimensions[new_dim_key] = dimension
+        return new_dim_key
+    
+    def get_dim(self, sem: Ref_Semantic) -> int:
+        """Get the dimension of a semantic"""
+        dim_key = self.get(sem, SF.DIM)
+        return dim_key
+    
+    def get_dim_name(self, dim_key: int) -> str:
+        """Get the name of a dimension"""
+        return self.dimensions[dim_key]
+    
+    def set_dim_name(self, dim_key: int, name: str):
+        """Set the name of a dimension"""
+        self.dimensions[dim_key] = name
+    
+    def set_dim(self, sem: Ref_Semantic, dimension: str):
+        """
+        Set the dimension of a semantic
+        NOTE: Inefficient: Use sems.set(sem, SF.DIMENSION, encoded_dim_key) if possible
+        """
+        dim_key = self.add_dim(dimension) if dimension not in self.dimensions.values() else self.dimensions.keys()[self.dimensions.values().index(dimension)]
+        self.set(sem, SF.DIM, dim_key)
 
-    def init_comparative_semantics(self):
+    def init_sdm(self):
         """Initialise the comparative semantics"""
         # Check if more, less, same already exist in class, then check if they are in the semantics tensor. 
         # If neither, then create the semantic and set attribute
         logger.debug("Initialising comparative semantics")
-        if self.more is None and "more" not in self.names.values():
-            more_sem = Semantic("more", {SF.TYPE: Type.SEMANTIC})
-            self.more = self.add_semantic(more_sem)
-        if self.less is None and "less" not in self.names.values():
-            less_sem = Semantic("less", {SF.TYPE: Type.SEMANTIC})
-            self.less = self.add_semantic(less_sem)
-        if self.same is None and "same" not in self.names.values():
-            same_sem = Semantic("same", {SF.TYPE: Type.SEMANTIC})
-            self.same = self.add_semantic(same_sem)
+        for sdm in SDM:
+            if self.sdms[sdm] is None and sdm.name not in self.names.values():
+                self.sdm_dims[sdm] = self.add_dim(sdm.name)
+                sdm_sem = Semantic(sdm.name, {SF.TYPE: Type.SEMANTIC}, {SF.DIM: self.sdm_dims[sdm]})
+                self.sdms[sdm] = self.add_semantic(sdm_sem)
     
-    def check_comps(self):
-        return not (self.more is None or self.less is None or self.same is None)
+    def get_sdm_indices(self) -> torch.Tensor:
+        """Get the indices of the SDM/comparative semantics TODO: test"""
+        indices = self.nodes[:, SF.DIM].isin(self.sdm_dims.values()).nonzero()
+        return indices
+    
+    def check_sdm_init(self) -> bool:
+        """Check if all SDM/comparative semantics are initialised"""
+        for sdm in SDM:
+            if self.sdms[sdm] is None:
+                return False
+        return True
             
     def add_semantic(self, semantic: Semantic):
         """
@@ -286,18 +329,7 @@ class Semantics(object):
         else:
             sem.tensor = tensor
         return sem
-    
-    def set_dimension(self, ref_semantic: Ref_Semantic, dimension: str):
-        """
-        Set the dimension of a semantic.
-        """
-        self.dimensions[ref_semantic.ID] = dimension
-    
-    def get_dimension(self, ref_semantic: Ref_Semantic):
-        """
-        Get the dimension of a semantic.
-        """
-        return self.dimensions[ref_semantic.ID]
+
     # --------------------------------------------------------------
 
     # ===================[ SEMANTIC FUNCTIONS ]=====================

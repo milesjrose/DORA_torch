@@ -66,7 +66,7 @@ class TestComparativeSemantics:
         assert semantics.same is None
         
         # Initialize comparative semantics
-        semantics.init_comparative_semantics()
+        semantics.init_sdm()
         
         # Should now have semantic objects
         assert semantics.more is not None
@@ -94,7 +94,7 @@ class TestComparativeSemantics:
         names = {1: "test1", 2: "more", 3: "test3"}  # "more" already exists
         
         semantics = Semantics(nodes, connections, IDs, names)
-        semantics.init_comparative_semantics()
+        semantics.init_sdm()
         
         # Should not create new "more" semantic
         assert semantics.more is None
@@ -118,8 +118,8 @@ class TestComparativeSemantics:
         semantics = Semantics(nodes, connections, IDs, names)
         
         # Initially should return False (not all are set)
-        assert not semantics.check_comps()
+        assert not semantics.check_sdm_init()
         
         # After initialization, should return True
-        semantics.init_comparative_semantics()
-        assert semantics.check_comps()
+        semantics.init_sdm()
+        assert semantics.check_sdm_init()

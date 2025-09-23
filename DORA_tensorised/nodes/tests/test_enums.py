@@ -6,4 +6,4 @@ import nodes.enums as enums
 
 def test_feature_type():
     for feature in enums.TF:
-        assert isinstance(enums.feature_type(feature), type)
+        assert isinstance(enums.TF_type(feature), type)
