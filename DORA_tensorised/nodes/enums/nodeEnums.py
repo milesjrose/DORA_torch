@@ -248,6 +248,7 @@ class OntStatus(IntEnum):
     STATE       = 0
     VALUE       = 1
     SDM         = 2
+    HO          = 3
 
 class B(IntEnum):
     TRUE    = 1
