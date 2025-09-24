@@ -160,12 +160,56 @@ class EntropyOperations:
                 self.basic_en_based_mag_comparison(po1, po2, intersect_dim, mag_decimal_precision)
         return
     
-    def basic_en_based_mag_comparison(self):
+    def basic_en_based_mag_comparison(
+        self,
+        po1: Ref_Token,
+        po2: Ref_Token,
+        intersect_dim: list[int],
+        mag_decimal_precision:int = 0
+    ):
         """
         Basic magnitude comparison.
         """
-        # Implementation using network.sets, network.semantics
-        pass
+        sems: torch.Tensor = self.network.semantics.nodes
+        sem_link = {}
+        links_mask = {}
+        other_sem_link = {}
+        extent = {}
+        idxs = {
+            po1: self.network.get_index(po1),
+            po2: self.network.get_index(po2),
+        }
+        for po in [po1, po2]:
+            # 1). find the semantic links connecting to the absolute dimensional value.
+            links_mask[po] = self.network.links[po.set][idxs[po], :] > 0.0 # Get connected semantics
+            dim = intersect_dim[0]
+            dim_sems = sems[links_mask[po], SF.DIM] == dim and sems[links_mask[po], SF.ONT] == OntStatus.VALUE
+            sem_link[po] = tOps.sub_union(links_mask[po], dim_sems)
+            # 2). if the dimension is numeric, then get the average value of all 
+            # dimensionnal values in the sem_links and assign these to 
+            # extent1 and extend2 respectively
+            idx = sem_link[po].nonzero()[0]
+            is_numeric = bool((sems[idx, SF.AMOUNT] != null).item())
+            if is_numeric:
+                extent[po] = sems[sem_link[po], SF.AMOUNT].mean()
+            else:
+                po_sem = self.network.semantics.get_reference(index=idxs[po])
+                extent[po] = self.network.semantics.get_name(po_sem)  # NOTE: This could be wrong, not sure if I need to store the value for catagorical values in a seperate hashmap. 
+        # 3). compute ent_magnitudeMoreLessSame()
+        more, less, same_flag, iterations = self.ent_magnitude_more_less_same(extent[po1], extent[po2], mag_decimal_precision)
+        for po in [po1, po2]:
+            # 4). Find any other dimensional semantics with high weights can be reduced by the entropy process.
+            other_dim_sems = ~torch.isin(sems[sem_link[po], SF.DIM], [dim, null])
+            other_sem_link[po] = tOps.sub_union(links_mask[po], other_dim_sems)
+            sem_link[po] = sem_link[po] | other_sem_link[po]
+        # 5). Connect the two POs to the appropriate relative magnitude semantics 
+        # (based on the invariant patterns detected just above).
+        if more == extent[po2]:
+            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link[po1], sem_link[po2])
+        else:
+            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link[po2], sem_link[po1])
+
+
     
     def basic_en_based_mag_refinement(self):
         """
