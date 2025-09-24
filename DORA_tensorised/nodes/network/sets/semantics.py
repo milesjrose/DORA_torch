@@ -117,7 +117,7 @@ class Semantics(object):
         for sdm in SDM:
             if self.sdms[sdm] is None and sdm.name not in self.names.values():
                 self.sdm_dims[sdm] = self.add_dim(sdm.name)
-                sdm_sem = Semantic(sdm.name, {SF.TYPE: Type.SEMANTIC, SF.DIM: self.sdm_dims[sdm]})
+                sdm_sem = Semantic(sdm.name, {SF.TYPE: Type.SEMANTIC, SF.DIM: self.sdm_dims[sdm], SF.ONT: OntStatus.SDM})
                 self.sdms[sdm] = self.add_semantic(sdm_sem)
     
     def get_sdm_indices(self) -> torch.Tensor:
@@ -329,6 +329,14 @@ class Semantics(object):
         else:
             sem.tensor = tensor
         return sem
+    
+    def get_name(self, ref_semantic: Ref_Semantic) -> str:
+        """Get the name of a semantic"""
+        return self.names[ref_semantic.ID]
+    
+    def set_name(self, ref_semantic: Ref_Semantic, name: str):
+        """Set the name of a semantic"""
+        self.names[ref_semantic.ID] = name
 
     # --------------------------------------------------------------
 
