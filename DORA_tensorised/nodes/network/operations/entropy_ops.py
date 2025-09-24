@@ -1,6 +1,7 @@
 # nodes/network/operations/entropy_ops.py
 # Entropy operations for Network class
 
+from pickle import TRUE
 from ...enums import *
 from ..single_nodes import Ref_Token
 from ...utils import tensor_ops as tOps
@@ -118,18 +119,46 @@ class EntropyOperations:
             num_sdm_below,
         )
     
-    def check_and_run_ent_ops_within(self):
+    def check_and_run_ent_ops_within(
+        self,
+        po1: Ref_Token,
+        po2: Ref_Token,
+        intersect_dim: list[int],
+        num_sdm_above: int,
+        num_sdm_below: int,
+        extend_SDML:bool,
+        pred_only:bool,
+        pred_present:bool,
+        mag_decimal_precision:int
+    ):
         """
         Check whether to run entropy based magnitude comparision (within), 
         and run if appropriate
+        TODO: TEST
         """
-        # if
-        #   not one_mag_present
-        #   not both_mag_sem_present_below_thresh
-        #   po1 is pred
-        #   one or more intersecting dimensions
-        # -> 
-        pass
+        is_pred = self.network.node_ops.get_value(po1, TF.PRED) == B.TRUE
+        if (is_pred):
+            if (
+                num_sdm_above == 0
+                and num_sdm_below < 2
+                and len(intersect_dim) > 0
+            ):
+                self.basic_en_based_mag_comparison(po1, po2, intersect_dim, mag_decimal_precision)
+            elif (
+                extend_SDML
+                and num_sdm_above < 2
+                and (num_sdm_above > 0 or num_sdm_below > 0)
+            ):
+                self.basic_en_based_mag_refinement(po1, po2)
+        else: # is object
+            if (
+                len(intersect_dim) > 0
+                and not pred_only
+                and not pred_present
+                and num_sdm_above == 0
+            ):
+                self.basic_en_based_mag_comparison(po1, po2, intersect_dim, mag_decimal_precision)
+        return
     
     def basic_en_based_mag_comparison(self):
         """
