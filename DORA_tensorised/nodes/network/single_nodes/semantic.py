@@ -22,6 +22,9 @@ class Semantic(object):
         self.name = name
         self.tensor = torch.zeros(len(SF))
         self.tensor[SF.TYPE] = Type.SEMANTIC
+        self.tensor[SF.DIM] = null
+        self.tensor[SF.AMOUNT] = null
+        self.tensor[SF.ONT] = null
         for feature in features:
             self.tensor[feature] = features[feature]
     
