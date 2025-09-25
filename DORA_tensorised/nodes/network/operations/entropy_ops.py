@@ -362,12 +362,22 @@ class EntropyOperations:
             # (as this process constitutes a comparison).
             self.network.links[po.set][idxs[po], sem_links[po]] /= 2
 
-    def update_mag_semantics(self):
+    def update_mag_semantics(self, same_flag: bool, po1: Ref_Token, po2: Ref_Token, sem_links: dict[Ref_Token, torch.Tensor], idxs: dict[Ref_Token, int]):
         """
-        Update magnitude semantics.
+        Function to update the connections to magnitude semantics during the basic_en_based_mag_refinement() function.
         """
-        # Implementation using network.sets, network.semantics
-        pass
+        sdms = {
+            po1: SDM.SAME if same_flag else SDM.MORE,
+            po2: SDM.SAME if same_flag else SDM.LESS,
+        }
+        for po in [po1, po2]:
+            # Connect the sems
+            # half other sem weights
+            self.network.links[po.set][idxs[po], ~sem_links[po]] /= 2 
+            # set sdm weight to 1.0
+            self.network.links.connect_comparitive(po.set, idxs[po], sdms[po]) 
+            # set the sem_links weights to 1.0
+            self.network.links[po.set][idxs[po], sem_links[po]] = 1.0
     
 
     def ent_overall_same_diff(self):
