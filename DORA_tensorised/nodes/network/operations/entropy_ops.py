@@ -51,14 +51,11 @@ class EntropyOperations:
         for ref_po in [po1, po2]:
             # get semantics that have weight>0.9
             po_set = ref_po.set
+            # NOTE: idk if this is inefficient, but it should work for now
             po_sems = self.network.links[po_set][idxs[ref_po], :] > 0.9
-            # then get the dimensions of these sems
-            indices = po_sems.nonzero()
-            dims[ref_po] = set()
-            for index in indices:
-                re = self.network.semantics.get_reference(index=index)
-                dimension = self.network.semantics.get_dim(re)
-                dims[ref_po].add(dimension)
+            po_sems = tOps.sub_union(po_sems, self.network.semantics.nodes[po_sems, SF.DIM] != null)
+            po_sems = tOps.sub_union(po_sems, self.network.semantics.nodes[po_sems, SF.ONT] == OntStatus.VALUE)
+            dims[ref_po] = set(self.network.semantics.nodes[po_sems, SF.DIM].unique())
         # then take the intersection of the two sets
         intersecting_dims = dims[po1].intersection(dims[po2])
             
@@ -172,19 +169,16 @@ class EntropyOperations:
         """
         sems: torch.Tensor = self.network.semantics.nodes
         sem_link = {}
-        links_mask = {}
         other_sem_link = {}
         extent = {}
         idxs = {
             po1: self.network.get_index(po1),
             po2: self.network.get_index(po2),
         }
+        dim = intersect_dim[0]
         for po in [po1, po2]:
             # 1). find the semantic links connecting to the absolute dimensional value.
-            links_mask[po] = self.network.links[po.set][idxs[po], :] > 0.0 # Get connected semantics
-            dim = intersect_dim[0]
-            dim_sems = sems[links_mask[po], SF.DIM] == dim and sems[links_mask[po], SF.ONT] == OntStatus.VALUE
-            sem_link[po] = tOps.sub_union(links_mask[po], dim_sems)
+            sem_link[po] = self.find_links_to_abs_dim(po, dim, OntStatus.VALUE)
             # 2). if the dimension is numeric, then get the average value of all 
             # dimensionnal values in the sem_links and assign these to 
             # extent1 and extend2 respectively
@@ -199,8 +193,9 @@ class EntropyOperations:
         more, less, same_flag, iterations = self.ent_magnitude_more_less_same(extent[po1], extent[po2], mag_decimal_precision)
         for po in [po1, po2]:
             # 4). Find any other dimensional semantics with high weights can be reduced by the entropy process.
-            other_dim_sems = ~torch.isin(sems[sem_link[po], SF.DIM], [dim, null])
-            other_sem_link[po] = tOps.sub_union(links_mask[po], other_dim_sems)
+            po_links = self.network.links[po.set][idxs[po], :]
+            other_dim_sems = ~torch.isin(sems[po_links, SF.DIM], [dim, null])
+            other_sem_link[po] = tOps.sub_union(sem_link[po], other_dim_sems)
             sem_link[po] = sem_link[po] | other_sem_link[po]
         # 5). Connect the two POs to the appropriate relative magnitude semantics 
         # (based on the invariant patterns detected just above).
@@ -209,14 +204,120 @@ class EntropyOperations:
         else:
             self.network.attach_mag_semantics(same_flag, po2, po1, sem_link[po2], sem_link[po1])
 
+    def basic_en_based_mag_refinement(self, po1: Ref_Token, po2: Ref_Token):
+        """
+        Basic magnitude refinement:
 
-    
-    def basic_en_based_mag_refinement(self):
+        # if there are magnitude semantics present, and there are some matching dimensions, 
+        # then activate the appropriate magnitude semantics and matching dimensions, and adjust
+        # weights as appropriate (i.e., turn on the appropriate magnitude semantics for each PO, 
+        # and adjust weight accordingly).
         """
-        Basic magnitude refinement.
+        mag_decimal_precision = 1
+        # 1). do they code for intersecting dimentsions
+        # -> get instersecting dimension, by getting set of dimensions encoded by each pos semantics
+        idxs = {
+            po1: self.network.get_index(po1),
+            po2: self.network.get_index(po2),
+        }
+        dims = {}
+        po_sems = {}
+        for ref_po in [po1, po2]:
+            # get semantics that have weight>0.9
+            po_set = ref_po.set
+            # NOTE: idk if this is inefficient, but it should work for now
+            po_sems = self.network.links[po_set][idxs[ref_po], :] > 0.9
+            po_sems = tOps.sub_union(po_sems, self.network.semantics.nodes[po_sems, SF.DIM] != null)
+            po_sems = tOps.sub_union(po_sems, self.network.semantics.nodes[po_sems, SF.ONT] == OntStatus.STATE)
+            dims[ref_po] = set(self.network.semantics.nodes[po_sems, SF.DIM].unique())
+        # then take the intersection of the two sets
+        intersecting_dims = dims[po1].intersection(dims[po2])
+        # 2). if there is a single matching dimension, then find value on that dimension for each
+        # object and update magnitude semantic weights; elif there are multiple matching dimensions,
+        # find the matching dimension that each PO is most strongly connected to, and update magnitude
+        # semantic weights.
+        if len(intersecting_dims) == 1:
+            self.single_dim_refinement(idxs, po1, po2, intersecting_dims[0], mag_decimal_precision)
+        else:
+            self.multi_dim_refinement(idxs, po1, po2, mag_decimal_precision)
+
+
+    def single_dim_refinement(self, idxs, po1: Ref_Token, po2: Ref_Token, dim: int, mag_decimal_precision:int = 1):
         """
-        # Implementation using network.sets, network.semantics
-        pass
+        there is a single matching dimension, then find value on that dimension for each
+        object and update magnitude semantic weights
+        """
+        # 2a). single matching dimension
+        # find the semantic links connecting to the absolute dimensional value.
+        sem_link = {}
+        po_dim_val = {}
+        for po in [po1, po2]:
+            sem_link[po] = self.find_links_to_abs_dim(idxs[po], dim, OntStatus.STATE)
+            # find value on that dimension for each link, then update magnitude semantic weights
+            # -> first get index of an object with the same rb
+            rbs = self.network.sets[po.set].get_mask(Type.RB)
+            idx_rb = ((self.network.sets[po.set].connections[rbs, idxs[po]] == B.TRUE).nonzero())[0].item()
+            objs = self.network.sets[po.set].tensor_op.get_mask(Type.PO)
+            objs = objs & self.network.sets[po.set].nodes[:, TF.PRED] == B.FALSE
+            idx_obj = ((self.network.sets[po.set].connections[idx_rb, objs] == B.TRUE).nonzero())[0].item()
+            # -> then find the value on the dimension for the object
+            dim_sems = self.find_links_to_abs_dim(idx_obj, dim, OntStatus.VALUE)
+            if dim_sems.any():
+                po_dim_val[po] = self.network.semantics.nodes[dim_sems, SF.AMOUNT][0].item()
+            else:
+                po_dim_val[po] = 0.0
+        # 3a). compute ent_magnitudeMoreLessSame()
+        more, less, same_flag, iterations = self.ent_magnitude_more_less_same(po_dim_val[po1], po_dim_val[po2], mag_decimal_precision)
+        # 4a). connect the two POs to the appropriate relative magnitude semantics
+        #     (based on the invariant patterns detected just above) 
+        if more == po_dim_val[po2]:
+            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link[po1], sem_link[po2])
+        else:
+            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link[po2], sem_link[po1])
+
+    def multi_dim_refinement(self, idxs, po1: Ref_Token, po2: Ref_Token, mag_decimal_precision:int = 1):
+        """
+        there are multiple matching dimensions,
+        find the matching dimension that each PO is most strongly connected to, and update magnitude
+        semantic weights.
+        """
+        # 2b). find the matching dimension that each PO is most strongly connected to, 
+        # and update magnitude semantic weights.
+        max_weight = {}
+        # 2bi). find max dim for po1
+        sems = self.network.semantics.nodes
+        links = self.network.links[po1.set][idxs[po1], :] > 0.9
+        numeric_sems = links & sems[:, SF.AMOUNT] != null
+        # Get the numeric dimension sems with the highest weight
+        max_weight[po1], max_idx = torch.max(self.network.links[po1.set][idxs[po1], numeric_sems], dim=0)
+        if not max_weight[po1].any():
+            return # po1 has no max
+        # get max_dim
+        max_weight[po1] = max_weight[0].item()
+        max_idx = max_idx[0].item()
+        max_dim = self.network.semantics.nodes[max_idx, SF.DIM].item()
+        # 2bii). find max dim weight for po2
+        links = self.network.links[po2.set][idxs[po2], :] > 0.9
+        numeric_sems = links & sems[:, SF.AMOUNT] != null
+        dim_sems = numeric_sems & sems[:, SF.DIM] == max_dim
+        max_weight[po2], max_idx = torch.max(self.network.links[po2.set][idxs[po2], dim_sems], dim=0)
+        if not max_weight[po2].any():
+            max_weight[po2] = 0.0
+        else:
+            max_weight[po2] = max_weight[po2].item()
+        # 3). Use current max_dim and values to compute ent_magnitudeMoreLessSame().
+        more, less, same_flag, iterations = self.ent_magnitude_more_less_same(max_weight[po1], max_weight[po2], mag_decimal_precision)
+        # 4). find the semantic links connecting to the absolute dimensional value.
+        sem_link = {}
+        for po in [po1, po2]:
+            sem_link[po] = self.find_links_to_abs_dim(po, max_dim, OntStatus.STATE)
+        # 5). connect the two POs to the appropriate relative magnitude semantics
+        #     (based on the invariant patterns detected just above) 
+        if more == max_weight[po2]:
+            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link[po1], sem_link[po2])
+        else:
+            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link[po2], sem_link[po1])
+
     
     def ent_magnitude_more_less_same(self):
         """
@@ -245,3 +346,18 @@ class EntropyOperations:
         """
         # Implementation using network.sets, network.semantics
         pass 
+
+# ---------------------[ Helpers ]----------------------------
+
+    def find_links_to_abs_dim(self, idx: int, dim: int, ont_status: OntStatus):
+        """
+        Find the semantic links connecting to the absolute dimensional value.
+        """
+        sems: torch.Tensor = self.network.semantics.nodes
+        links_mask = {}
+        sem_link = {}
+            # 1). find the semantic links connecting to the absolute dimensional value.
+        links_mask = self.network.links[idx.set][idx, :] > 0.0 # Get connected semantics
+        dim_sems = sems[links_mask, SF.DIM] == dim and sems[links_mask, SF.ONT] == ont_status
+        sem_link = tOps.sub_union(links_mask, dim_sems)
+        return sem_link
