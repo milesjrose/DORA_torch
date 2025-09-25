@@ -201,9 +201,9 @@ class EntropyOperations:
         # 5). Connect the two POs to the appropriate relative magnitude semantics 
         # (based on the invariant patterns detected just above).
         if more == extent[po2]:
-            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link[po1], sem_link[po2])
+            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link, idxs)
         else:
-            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link[po2], sem_link[po1])
+            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link, idxs)
 
 
     def basic_en_based_mag_refinement(self, po1: Ref_Token, po2: Ref_Token):
@@ -274,9 +274,9 @@ class EntropyOperations:
         # 4a). connect the two POs to the appropriate relative magnitude semantics
         #     (based on the invariant patterns detected just above) 
         if more == po_dim_val[po2]:
-            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link[po1], sem_link[po2])
+            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link, idxs)
         else:
-            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link[po2], sem_link[po1])
+            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link, idxs)
 
 
     def multi_dim_refinement(self, idxs, po1: Ref_Token, po2: Ref_Token, mag_decimal_precision:int = 1):
@@ -318,26 +318,39 @@ class EntropyOperations:
         # 5). connect the two POs to the appropriate relative magnitude semantics
         #     (based on the invariant patterns detected just above) 
         if more == max_weight[po2]:
-            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link[po1], sem_link[po2])
+            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link, idxs)
         else:
-            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link[po2], sem_link[po1])
+            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link, idxs)
 
     
     def ent_magnitude_more_less_same(self):
         """
+        !!!! Not implemented yet. !!!!
         Magnitude comparison logic.
         alculates more/less/same from two codes of extent based on entropy and competion.
-        TODO: TEST
         """
+        # NOTE: Have not implented entorpy net from dataTypes yet.
+        #       Going to leave for now, as that seems like effort.
+        # TODO: Implement entropy net from dataTypes.
+        pass
 
     
-    def attach_mag_semantics(self):
+    def attach_mag_semantics(self, same_flag: bool, po1: Ref_Token, po2: Ref_Token, sem_links: dict[Ref_Token, torch.Tensor], idxs: dict[Ref_Token, int]):
         """
         Attach magnitude semantics.
+        TODO: TEST
         """
-        # Implementation using network.sets, network.semantics
-        pass
-    
+        # if not same, then po1 = more and po2 = less
+        sdms = {
+            po1: SDM.SAME if same_flag else SDM.MORE,
+            po2: SDM.SAME if same_flag else SDM.LESS,
+        }
+        for po in [po1, po2]:
+            # Connect the sems
+            self.network.links.connect_comparitive(po.set, idxs[po], sdms[po])
+            # reduce weights to absolute value semantics to 0.5 
+            # (as this process constitutes a comparison).
+            self.network.links[po.set][idxs[po], sem_links[po]] /= 2
 
     def update_mag_semantics(self):
         """
@@ -346,7 +359,7 @@ class EntropyOperations:
         # Implementation using network.sets, network.semantics
         pass
     
-    
+
     def ent_overall_same_diff(self):
         """
         Overall same/different calculation.
