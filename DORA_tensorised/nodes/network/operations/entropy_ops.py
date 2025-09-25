@@ -116,6 +116,7 @@ class EntropyOperations:
             num_sdm_below,
         )
     
+
     def check_and_run_ent_ops_within(
         self,
         po1: Ref_Token,
@@ -155,8 +156,8 @@ class EntropyOperations:
                 and num_sdm_above == 0
             ):
                 self.basic_en_based_mag_comparison(po1, po2, intersect_dim, mag_decimal_precision)
-        return
     
+
     def basic_en_based_mag_comparison(
         self,
         po1: Ref_Token,
@@ -204,14 +205,16 @@ class EntropyOperations:
         else:
             self.network.attach_mag_semantics(same_flag, po2, po1, sem_link[po2], sem_link[po1])
 
+
     def basic_en_based_mag_refinement(self, po1: Ref_Token, po2: Ref_Token):
         """
         Basic magnitude refinement:
 
-        # if there are magnitude semantics present, and there are some matching dimensions, 
-        # then activate the appropriate magnitude semantics and matching dimensions, and adjust
-        # weights as appropriate (i.e., turn on the appropriate magnitude semantics for each PO, 
-        # and adjust weight accordingly).
+        if there are magnitude semantics present, and there are some matching dimensions, 
+        then activate the appropriate magnitude semantics and matching dimensions, and adjust
+        weights as appropriate (i.e., turn on the appropriate magnitude semantics for each PO, 
+        and adjust weight accordingly).
+        TODO: TEST
         """
         mag_decimal_precision = 1
         # 1). do they code for intersecting dimentsions
@@ -275,6 +278,7 @@ class EntropyOperations:
         else:
             self.network.attach_mag_semantics(same_flag, po2, po1, sem_link[po2], sem_link[po1])
 
+
     def multi_dim_refinement(self, idxs, po1: Ref_Token, po2: Ref_Token, mag_decimal_precision:int = 1):
         """
         there are multiple matching dimensions,
@@ -322,9 +326,10 @@ class EntropyOperations:
     def ent_magnitude_more_less_same(self):
         """
         Magnitude comparison logic.
+        alculates more/less/same from two codes of extent based on entropy and competion.
+        TODO: TEST
         """
-        # Implementation using network.sets, network.semantics
-        pass
+
     
     def attach_mag_semantics(self):
         """
@@ -333,12 +338,14 @@ class EntropyOperations:
         # Implementation using network.sets, network.semantics
         pass
     
+
     def update_mag_semantics(self):
         """
         Update magnitude semantics.
         """
         # Implementation using network.sets, network.semantics
         pass
+    
     
     def ent_overall_same_diff(self):
         """
