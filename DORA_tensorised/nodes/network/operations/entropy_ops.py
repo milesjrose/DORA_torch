@@ -1,7 +1,8 @@
 # nodes/network/operations/entropy_ops.py
 # Entropy operations for Network class
 
-from pickle import TRUE
+from logging import getLogger
+
 from ...enums import *
 from ..single_nodes import Ref_Token
 from ...utils import tensor_ops as tOps
@@ -10,6 +11,8 @@ import torch
 from random import sample
 if TYPE_CHECKING:
     from ..network import Network
+
+logger = getLogger(__name__)
 
 class EntropyOperations:
     """
@@ -340,6 +343,13 @@ class EntropyOperations:
         Attach magnitude semantics.
         TODO: TEST
         """
+        # NOTE: I have left this bit in, but added a logger to see if it actually ever happens.
+        #       If it doesn't, can just remove at some point. If it does, remove the logger.
+        sdm_sems = self.network.semantics.get_sdm_indices()
+        for po in [po1, po2]:
+            if self.network.links[po.set][idxs[po], sdm_sems].any():
+                logger.warning(f"ATTACH MAG SEMANTICS: SDM sems aleady found for {po.set}[{idxs[po]}] -> remove me :]")
+                return
         # if not same, then po1 = more and po2 = less
         sdms = {
             po1: SDM.SAME if same_flag else SDM.MORE,
