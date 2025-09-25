@@ -120,9 +120,13 @@ class Semantics(object):
                 sdm_sem = Semantic(sdm.name, {SF.TYPE: Type.SEMANTIC, SF.DIM: self.sdm_dims[sdm], SF.ONT: OntStatus.SDM})
                 self.sdms[sdm] = self.add_semantic(sdm_sem)
     
-    def get_sdm_indices(self) -> torch.Tensor:
+    def get_sdm_indices(self, include_diff: bool = False) -> torch.Tensor:
         """Get the indices of the SDM/comparative semantics TODO: test"""
-        indices = self.nodes[:, SF.DIM].isin(self.sdm_dims.values()).nonzero()
+        if include_diff:
+            sdm_dims = list(self.sdm_dims.values())
+        else:
+            sdm_dims = [self.sdm_dims[SDM.MORE], self.sdm_dims[SDM.LESS], self.sdm_dims[SDM.SAME]]
+        indices = self.nodes[:, SF.DIM].isin(sdm_dims).nonzero()
         return indices
     
     def check_sdm_init(self) -> bool:
