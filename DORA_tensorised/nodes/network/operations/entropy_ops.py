@@ -365,6 +365,7 @@ class EntropyOperations:
     def update_mag_semantics(self, same_flag: bool, po1: Ref_Token, po2: Ref_Token, sem_links: dict[Ref_Token, torch.Tensor], idxs: dict[Ref_Token, int]):
         """
         Function to update the connections to magnitude semantics during the basic_en_based_mag_refinement() function.
+        TODO: TEST
         """
         sdms = {
             po1: SDM.SAME if same_flag else SDM.MORE,
@@ -382,10 +383,29 @@ class EntropyOperations:
 
     def ent_overall_same_diff(self):
         """
-        Overall same/different calculation.
+        Function to calculate over-all same/diff from entropy across all semantics.
+        TODO: TEST
         """
-        # Implementation using network.sets, network.semantics
-        pass 
+        # check semantics and calulate a similarity score
+        # as a ratio of unshared to total features.
+        sems = self.network.semantics.nodes
+        act_tensor = sems[:, SF.ACT]
+        error_tensor = torch.zeros_like(act_tensor)
+        error_mask = act_tensor > 0.1
+        error_tensor[error_mask] = 1.0
+        act_tensor[~error_mask] = 0.0
+        # calculate the error by subtracting act_tensor from error_tensor.
+        error_tensor -= act_tensor
+        # sum the error and act tensors.
+        sum_diff = error_tensor.sum()
+        sum_act = act_tensor.sum()
+        # make sure that you're not dividing by 0 (which can happen if you've tried to
+        #  compute entropy for empty objects).
+        if sum_act > 0:
+            difference_ratio = sum_diff / sum_act
+        else:
+            difference_ratio = 0.0
+        return difference_ratio
 
 # ---------------------[ Helpers ]----------------------------
 
