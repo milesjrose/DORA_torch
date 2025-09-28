@@ -14,6 +14,7 @@ import os
 class DORA:
     """
     Main DORA class for tensorised version
+    TODO: Add tests for all of this stuff
     """
     def __init__(self):
         pass
