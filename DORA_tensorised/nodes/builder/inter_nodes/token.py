@@ -4,6 +4,7 @@
 from ...enums import *
 
 from .node import Inter_Node
+from nodes.network.single_nodes.token import get_default_features
 
 class Inter_Token(Inter_Node):
     """
@@ -31,36 +32,13 @@ class Inter_Token(Inter_Node):
         self.set(TF.ANALOG, analog)
         self.children = []
     
-    def initialise_defaults(self):   # TODO: Check defaults
+    def initialise_defaults(self):
         """
         Initialise the default features for the token.
         """
-        self.features[TF.ID] = None
-        self.features[TF.TYPE] = None
-        self.features[TF.SET] = None
-        self.features[TF.ANALOG] = None
-        self.features[TF.MAX_MAP_UNIT] = 0
-        self.features[TF.MADE_UNIT] = 0
-        self.features[TF.MAKER_UNIT] = 0
-        self.features[TF.INHIBITOR_THRESHOLD] = 0
-        self.features[TF.GROUP_LAYER] = 0
-        self.features[TF.MODE] = 0
-        self.features[TF.TIMES_FIRED] = 0
-        self.features[TF.SEM_COUNT] = 0
-        self.features[TF.ACT] = 0
-        self.features[TF.MAX_ACT] = 0
-        self.features[TF.INHIBITOR_INPUT] = 0
-        self.features[TF.INHIBITOR_ACT] = 0
-        self.features[TF.MAX_MAP] = 0
-        self.features[TF.NET_INPUT] = 0
-        self.features[TF.MAX_SEM_WEIGHT] = 0
-        self.features[TF.INFERRED] = False
-        self.features[TF.RETRIEVED] = False
-        self.features[TF.COPY_FOR_DR] = False
-        self.features[TF.COPIED_DR_INDEX] = 0
-        self.features[TF.SIM_MADE] = False
-        self.features[TF.DELETED] = False
-        self.features[TF.PRED] = False
+        default_features = get_default_features()
+        for feature in default_features:
+            self.features[feature] = float(default_features[feature])
     
     def floatate_features(self):
         """

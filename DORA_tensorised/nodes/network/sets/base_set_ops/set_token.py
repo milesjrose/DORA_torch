@@ -230,7 +230,7 @@ class TokenOperations:
             Token: The token object.
         """
         tensor = self.base_set.nodes[self.get_index(ref_token), :]
-        token = Token(self.base_set.token_set, {TF.PRED: tensor[TF.PRED]})
+        token = Token(Type.P, {TF.SET: self.base_set.token_set, TF.PRED: tensor[TF.PRED]}) # Doesn't matter whats in here, it will be overridden. Probably a better way to do this.
         if copy:
             token.tensor = tensor.clone()
         else:
