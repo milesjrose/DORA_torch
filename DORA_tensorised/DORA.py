@@ -249,9 +249,27 @@ class DORA:
             self.network.routines.rel_form.inferred_new_p = False
             # Run phase set
             self.run_phase_set(R.REL_FORM, self.network.firing_ops.firing_order)
-            # if_inferred_new_p: TODO: Implement this...
+            # if inferred_new_p connects to at least 2 rbs, make new analog. O.w, delete it.
+            if self.network.routines.rel_form.inferred_new_p:
+                new_p = self.network.routines.rel_form.inferred_p
+                p_set = self.network.sets[new_p.set]
+                idx_new_p = self.network.get_index(new_p)
+                rbs = p_set.connections[idx_new_p, :] == B.TRUE
+                if rbs.sum() >= 2:
+                    # make new analog
+                    new_analog_id = p_set.tensor_op.get_new_analog_id()
+                    # add p to new analog
+                    p_set.token_op.set_value(new_p, TF.ANALOG, new_analog_id)
+                    # add its rbs to new analog
+                    rbs = p_set.connections[idx_new_p, :] == B.TRUE
+                    p_set.token_op.set_value(rbs.nonzero(), TF.ANALOG, new_analog_id)
+                    # update analogs
+                    p_set.tensor_op.analog_node_count()
+                else:
+                    # delete inferred p
+                    p_set.tensor_op.del_token(new_p)
             # post phase set ops
-            self.post_phase_set_operations(R.REL_FORM) # NOTE: this passes inferred_new_p as true, but doesn't seem to check in the original code.
+            self.post_phase_set_operations(R.REL_FORM, self.network.routines.rel_form.inferred_new_p)
 
     def do_schematisation(self):
         " do schematisation "
