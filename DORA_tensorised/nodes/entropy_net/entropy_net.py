@@ -137,3 +137,14 @@ class EntropyNet(object):
         self.nodes[self.output_mask, BF.ACT] = 0.0
         self.nodes[self.output_mask, BF.LAT] = 0.0
     
+    def get_more_less(self):
+        """
+        get the more and less nodes
+        """
+        if self.nodes[Ext.LARGE, BF.ACT] == self.nodes[Ext.SMALL, BF.ACT]:
+            return None, None
+        elif self.nodes[Ext.LARGE, BF.ACT] > self.nodes[Ext.SMALL, BF.ACT]:
+            return Ext.LARGE, Ext.SMALL
+        else:
+            return Ext.SMALL, Ext.LARGE
+    

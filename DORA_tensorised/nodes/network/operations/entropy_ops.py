@@ -9,6 +9,7 @@ from ...utils import tensor_ops as tOps
 from typing import TYPE_CHECKING
 import torch
 from random import sample
+from ...entropy_net.entropy_net import EntropyNet, Ext
 if TYPE_CHECKING:
     from ..network import Network
 
@@ -326,16 +327,26 @@ class EntropyOperations:
             self.network.attach_mag_semantics(same_flag, po2, po1, sem_link, idxs)
 
     
-    def ent_magnitude_more_less_same(self):
+    def ent_magnitude_more_less_same(self, extent1: float, extent2: float, mag_decimal_precision:int = 0):
         """
         !!!! Not implemented yet. !!!!
         Magnitude comparison logic.
         alculates more/less/same from two codes of extent based on entropy and competion.
         """
-        # NOTE: Have not implented entorpy net from dataTypes yet.
-        #       Going to leave for now, as that seems like effort.
-        # TODO: Implement entropy net from dataTypes.
-        pass
+        extent1_rounded = round(extent1 * (pow(100, mag_decimal_precision))) + 1
+        extent2_rounded = round(extent2 * (pow(100, mag_decimal_precision))) + 1
+        entropyNet = EntropyNet()
+        entropyNet.fillin(extent1_rounded, extent2_rounded)
+        entropyNet.runEntropyNet(0.3, 0.1)
+        nodes = {
+            Ext.SMALL: extent1 if extent1_rounded < extent2_rounded else extent2,
+            Ext.LARGE: extent2 if extent1_rounded < extent2_rounded else extent1,
+        }
+        more_ext, less_ext = entropyNet.get_more_less()
+        more = nodes[more_ext] if more_ext is not None else None
+        less = nodes[less_ext] if less_ext is not None else None
+        same_flag = more_ext is None
+        return more, less, same_flag, entropyNet.settled_iters
 
     
     def attach_mag_semantics(self, same_flag: bool, po1: Ref_Token, po2: Ref_Token, sem_links: dict[Ref_Token, torch.Tensor], idxs: dict[Ref_Token, int]):
