@@ -5,7 +5,7 @@ import torch
 import logging
 from typing import TYPE_CHECKING
 
-from ...single_nodes import Token, Ref_Token, Ref_Analog, Pairs
+from ...single_nodes import Token, Ref_Token, Ref_Analog, Pairs, get_default_features
 from ....enums import *
 
 logger = logging.getLogger(__name__)
@@ -229,13 +229,11 @@ class TokenOperations:
         Returns:
             Token: The token object.
         """
-        tensor = self.base_set.nodes[self.get_index(ref_token), :]
-        token = Token(Type.P, {TF.SET: self.base_set.token_set, TF.PRED: tensor[TF.PRED]}) # Doesn't matter whats in here, it will be overridden. Probably a better way to do this.
         if copy:
-            token.tensor = tensor.clone()
+            tensor = self.base_set.nodes[self.get_index(ref_token), :].clone()
         else:
-            token.tensor = tensor
-        return token
+            tensor = self.base_set.nodes[self.get_index(ref_token), :]
+        return Token(tensor=tensor)
     
     def get_reference_multiple(self, mask=None, types: list[Type] = None) -> list[Ref_Token]:  # Get references to tokens in tensor
         """

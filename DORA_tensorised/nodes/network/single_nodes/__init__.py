@@ -12,7 +12,7 @@ Used for adding nodes to set tensors, and referencing single nodes in any set.
 - Analog: Represents an analog.
 """
 
-from .token import Token, Ref_Token
+from .token import Token, Ref_Token, get_default_features
 from .semantic import Semantic, Ref_Semantic
 from .analog import Analog, Ref_Analog
 from .po_pair import Pairs
@@ -24,6 +24,7 @@ __all__ = [
     "Ref_Semantic",
     "Analog",
     "Ref_Analog",
-    "Pairs"
+    "Pairs",
+    "get_default_features"
 ]
 
