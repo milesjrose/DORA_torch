@@ -284,3 +284,122 @@ def test_basic_en_based_mag_refinement(network: Network):
         network.entropy_ops.basic_en_based_mag_refinement(po1_ref, po2_ref)
     except Exception as e:
         pytest.fail(f"basic_en_based_mag_refinement raised an exception: {e}")
+
+def test_single_dim_refinement(network: Network):
+    """Test the single_dim_refinement function."""
+    # Setup POs
+    po1_ref = network.driver().add_token(Token(Type.PO, {TF.PRED: B.TRUE}, set=Set.DRIVER))
+    po2_ref = network.driver().add_token(Token(Type.PO, {TF.PRED: B.TRUE}, set=Set.DRIVER))
+    obj1_ref = network.driver().add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER))
+    obj2_ref = network.driver().add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER))
+    rb1_ref = network.driver().add_token(Token(Type.RB, {}, set=Set.DRIVER))
+    rb2_ref = network.driver().add_token(Token(Type.RB, {}, set=Set.DRIVER))
+    
+    po1_idx = network.get_index(po1_ref)
+    po2_idx = network.get_index(po2_ref)
+    obj1_idx = network.get_index(obj1_ref)
+    obj2_idx = network.get_index(obj2_ref)
+    rb1_idx = network.get_index(rb1_ref)
+    rb2_idx = network.get_index(rb2_ref)
+
+    # Link POs, objects and RBs
+    network.driver().connect(rb1_ref, po1_ref)
+    network.driver().connect(rb1_ref, obj1_ref)
+    network.driver().connect(rb2_ref, po2_ref)
+    network.driver().connect(rb2_ref, obj2_ref)
+
+    # Setup semantics
+    dim1 = network.semantics.add_dim("dim1")
+    sem1_ref = network.semantics.add_semantic(Semantic("sem1", {SF.DIM: dim1, SF.ONT: OntStatus.STATE, SF.AMOUNT: 10.0}))
+    sem2_ref = network.semantics.add_semantic(Semantic("sem2", {SF.DIM: dim1, SF.ONT: OntStatus.STATE, SF.AMOUNT: 20.0}))
+    sem3_ref = network.semantics.add_semantic(Semantic("sem3", {SF.DIM: dim1, SF.ONT: OntStatus.VALUE, SF.AMOUNT: 10.0}))
+    sem4_ref = network.semantics.add_semantic(Semantic("sem4", {SF.DIM: dim1, SF.ONT: OntStatus.VALUE, SF.AMOUNT: 20.0}))
+
+    sem1_idx = network.get_index(sem1_ref)
+    sem2_idx = network.get_index(sem2_ref)
+    sem3_idx = network.get_index(sem3_ref)
+    sem4_idx = network.get_index(sem4_ref)
+
+    # Link semantics
+    network.links.update_link(Set.DRIVER, po1_idx, sem1_idx, 1.0)
+    network.links.update_link(Set.DRIVER, po2_idx, sem2_idx, 1.0)
+    network.links.update_link(Set.DRIVER, obj1_idx, sem3_idx, 1.0)
+    network.links.update_link(Set.DRIVER, obj2_idx, sem4_idx, 1.0)
+
+    # Run refinement
+    idxs = {po1_ref: po1_idx, po2_ref: po2_idx}
+    network.entropy_ops.single_dim_refinement(idxs, po1_ref, po2_ref, dim1, 1)
+
+    # Assertions
+    more_idx = network.semantics.get_index(network.semantics.sdms[SDM.MORE])
+    less_idx = network.semantics.get_index(network.semantics.sdms[SDM.LESS])
+
+    assert network.links[Set.DRIVER][po2_idx, more_idx].item() == 1.0
+    assert network.links[Set.DRIVER][po1_idx, less_idx].item() == 1.0
+
+def test_multi_dim_refinement(network: Network):
+    """Test the multi_dim_refinement function."""
+    # Setup POs
+    po1_ref = network.driver().add_token(Token(Type.PO, {TF.PRED: B.TRUE}, set=Set.DRIVER))
+    po2_ref = network.driver().add_token(Token(Type.PO, {TF.PRED: B.TRUE}, set=Set.DRIVER))
+
+    po1_idx = network.get_index(po1_ref)
+    po2_idx = network.get_index(po2_ref)
+
+    # Setup semantics
+    dim1 = network.semantics.add_dim("dim1")
+    dim2 = network.semantics.add_dim("dim2")
+    sem1_ref = network.semantics.add_semantic(Semantic("sem1", {SF.DIM: dim1, SF.ONT: OntStatus.STATE, SF.AMOUNT: 10.0}))
+    sem2_ref = network.semantics.add_semantic(Semantic("sem2", {SF.DIM: dim1, SF.ONT: OntStatus.STATE, SF.AMOUNT: 20.0}))
+    sem3_ref = network.semantics.add_semantic(Semantic("sem3", {SF.DIM: dim2, SF.ONT: OntStatus.STATE, SF.AMOUNT: 5.0}))
+    sem4_ref = network.semantics.add_semantic(Semantic("sem4", {SF.DIM: dim2, SF.ONT: OntStatus.STATE, SF.AMOUNT: 1.0}))
+
+    sem1_idx = network.get_index(sem1_ref)
+    sem2_idx = network.get_index(sem2_ref)
+    sem3_idx = network.get_index(sem3_ref)
+    sem4_idx = network.get_index(sem4_ref)
+
+    # Link semantics
+    network.links.update_link(Set.DRIVER, po1_idx, sem1_idx, 0.95)
+    network.links.update_link(Set.DRIVER, po2_idx, sem2_idx, 0.94)
+    network.links.update_link(Set.DRIVER, po1_idx, sem3_idx, 0.92)
+    network.links.update_link(Set.DRIVER, po2_idx, sem4_idx, 0.93)
+    
+    # Run refinement
+    idxs = {po1_ref: po1_idx, po2_ref: po2_idx}
+    network.entropy_ops.multi_dim_refinement(idxs, po1_ref, po2_ref, 1)
+
+    # Assertions
+    more_idx = network.semantics.get_index(network.semantics.sdms[SDM.MORE])
+    less_idx = network.semantics.get_index(network.semantics.sdms[SDM.LESS])
+
+    assert network.links[Set.DRIVER][po1_idx, more_idx].item() == 1.0
+    assert network.links[Set.DRIVER][po2_idx, less_idx].item() == 1.0
+
+def test_check_and_run_ent_ops_within(network: Network):
+    """Test the check_and_run_ent_ops_within function."""
+    # Setup POs
+    po1_ref = network.driver().add_token(Token(Type.PO, {TF.PRED: B.TRUE}, set=Set.DRIVER))
+    po2_ref = network.driver().add_token(Token(Type.PO, {TF.PRED: B.TRUE}, set=Set.DRIVER))
+
+    # Mocking dependencies
+    network.entropy_ops.basic_en_based_mag_comparison = lambda po1, po2, intersect_dim, mag_decimal_precision: "comparison"
+    network.entropy_ops.basic_en_based_mag_refinement = lambda po1, po2: "refinement"
+
+    # Test case 1: is_pred=True, calls basic_en_based_mag_comparison
+    result = network.entropy_ops.check_and_run_ent_ops_within(po1_ref, po2_ref, [1], 0, 1, False, False, False, 1)
+    assert result == "comparison"
+
+    # Test case 2: is_pred=True, calls basic_en_based_mag_refinement
+    result = network.entropy_ops.check_and_run_ent_ops_within(po1_ref, po2_ref, [], 1, 0, True, False, False, 1)
+    assert result == "refinement"
+
+    # Test case 3: is_pred=False, calls basic_en_based_mag_comparison
+    network.node_ops.set_value(po1_ref, TF.PRED, B.FALSE)
+    result = network.entropy_ops.check_and_run_ent_ops_within(po1_ref, po2_ref, [1], 0, 0, False, False, False, 1)
+    assert result == "comparison"
+    
+    # Test case 4: No conditions met
+    network.node_ops.set_value(po1_ref, TF.PRED, B.TRUE)
+    result = network.entropy_ops.check_and_run_ent_ops_within(po1_ref, po2_ref, [], 0, 0, False, False, False, 1)
+    assert result is None

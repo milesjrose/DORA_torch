@@ -146,7 +146,6 @@ class EntropyOperations:
         """
         Check whether to run entropy based magnitude comparision (within), 
         and run if appropriate
-        TODO: TEST
         """
         logger.debug(f"CHECK AND RUN ENT OPS WITHIN: {po1.set}[{self.network.get_index(po1)}] and {po2.set}[{self.network.get_index(po2)}]")
         is_pred = self.network.node_ops.get_value(po1, TF.PRED) == B.TRUE
@@ -156,13 +155,13 @@ class EntropyOperations:
                 and num_sdm_below < 2
                 and len(intersect_dim) > 0
             ):
-                self.basic_en_based_mag_comparison(po1, po2, intersect_dim, mag_decimal_precision)
+                return self.basic_en_based_mag_comparison(po1, po2, intersect_dim, mag_decimal_precision)
             elif (
                 extend_SDML
                 and num_sdm_above < 2
                 and (num_sdm_above > 0 or num_sdm_below > 0)
             ):
-                self.basic_en_based_mag_refinement(po1, po2)
+                return self.basic_en_based_mag_refinement(po1, po2)
         else: # is object
             if (
                 len(intersect_dim) > 0
@@ -170,7 +169,7 @@ class EntropyOperations:
                 and not pred_present
                 and num_sdm_above == 0
             ):
-                self.basic_en_based_mag_comparison(po1, po2, intersect_dim, mag_decimal_precision)
+                return self.basic_en_based_mag_comparison(po1, po2, intersect_dim, mag_decimal_precision)
     
 
     def basic_en_based_mag_comparison(
@@ -199,6 +198,8 @@ class EntropyOperations:
             # 2). if the dimension is numeric, then get the average value of all 
             # dimensionnal values in the sem_links and assign these to 
             # extent1 and extend2 respectively
+            if not sem_link[po].any():
+                logger.critical(f"-> No links to absolute dimensional value found for {po.set.name}[{idxs[po]}], dim: {dim}, ont_status: {OntStatus.VALUE}")
             idx = sem_link[po].nonzero()[0]
             is_numeric = bool((sems[idx, SF.AMOUNT] != null).item())
             if is_numeric:
@@ -279,10 +280,12 @@ class EntropyOperations:
             # find value on that dimension for each link, then update magnitude semantic weights
             # -> first get index of an object with the same rb
             rbs = self.network.sets[po.set].get_mask(Type.RB)
-            idx_rb = ((self.network.sets[po.set].connections[rbs, idxs[po]] == B.TRUE).nonzero())[0].item()
+            parent_mask = self.network.sets[po.set].connections[:, idxs[po]].bool()
+            idx_rb = ((parent_mask & rbs)).nonzero()[0].item()
             objs = self.network.sets[po.set].tensor_op.get_mask(Type.PO)
-            objs = objs & self.network.sets[po.set].nodes[:, TF.PRED] == B.FALSE
-            idx_obj = ((self.network.sets[po.set].connections[idx_rb, objs] == B.TRUE).nonzero())[0].item()
+            objs = objs & (self.network.sets[po.set].nodes[:, TF.PRED] == B.FALSE)
+            child_mask = self.network.sets[po.set].connections[idx_rb, :].bool()
+            idx_obj = ((child_mask & objs)).nonzero()[0].item()
             # -> then find the value on the dimension for the object
             dim_sems = self.find_links_to_abs_dim(po.set, idx_obj, dim, OntStatus.VALUE)
             if dim_sems.any():
@@ -292,11 +295,13 @@ class EntropyOperations:
         # 3a). compute ent_magnitudeMoreLessSame()
         more, less, same_flag, iterations = self.ent_magnitude_more_less_same(float(po_dim_val[po1]), float(po_dim_val[po2]), mag_decimal_precision)
         # 4a). connect the two POs to the appropriate relative magnitude semantics
-        #     (based on the invariant patterns detected just above) 
-        if more == po_dim_val[po2]:
-            self.network.attach_mag_semantics(same_flag, po1, po2, sem_link, idxs)
+        #     (based on the invariant patterns detected just above)
+        if same_flag:
+            self.update_mag_semantics(True, po1, po2, sem_link, idxs)
+        elif more == po_dim_val[po1]:
+            self.update_mag_semantics(False, po1, po2, sem_link, idxs)
         else:
-            self.network.attach_mag_semantics(same_flag, po2, po1, sem_link, idxs)
+            self.update_mag_semantics(False, po2, po1, sem_link, idxs)
 
 
     def multi_dim_refinement(self, idxs, po1: Ref_Token, po2: Ref_Token, mag_decimal_precision:int = 1):
@@ -316,13 +321,17 @@ class EntropyOperations:
         # Get the numeric dimension sems with the highest weight
         if not numeric_sems.any():
             return # No numeric semantics to compare
-        max_weight[po1], max_idx = torch.max(self.network.links[po1.set][idxs[po1], numeric_sems], dim=0)
-        if not max_weight[po1].any():
-            return # po1 has no max
+
+        max_weight_tensor, max_idx_tensor = torch.max(self.network.links[po1.set][idxs[po1], numeric_sems], dim=0)
+        if not max_weight_tensor.any():
+            return  # po1 has no max
+
         # get max_dim
-        max_weight[po1] = max_weight[0].item()
-        max_idx = max_idx[0].item()
+        max_weight[po1] = max_weight_tensor.item()
+        numeric_indices = numeric_sems.nonzero().flatten()
+        max_idx = numeric_indices[max_idx_tensor.item()].item()
         max_dim = self.network.semantics.nodes[max_idx, SF.DIM].item()
+        
         # 2bii). find max dim weight for po2
         links = self.network.links[po2.set][idxs[po2], :] > 0.9
         numeric_sems = links & (sems[:, SF.AMOUNT] != null)
@@ -330,11 +339,11 @@ class EntropyOperations:
         if not dim_sems.any():
             max_weight[po2] = 0.0
         else:
-            max_weight[po2], max_idx = torch.max(self.network.links[po2.set][idxs[po2], dim_sems], dim=0)
-            if not max_weight[po2].any():
+            max_weight_tensor, _ = torch.max(self.network.links[po2.set][idxs[po2], dim_sems], dim=0)
+            if not max_weight_tensor.any():
                 max_weight[po2] = 0.0
             else:
-                max_weight[po2] = max_weight[po2].item()
+                max_weight[po2] = max_weight_tensor.item()
         # 3). Use current max_dim and values to compute ent_magnitudeMoreLessSame().
         more, less, same_flag, iterations = self.ent_magnitude_more_less_same(float(max_weight[po1]), float(max_weight[po2]), mag_decimal_precision)
         # 4). find the semantic links connecting to the absolute dimensional value.
@@ -342,11 +351,13 @@ class EntropyOperations:
         for po in [po1, po2]:
             sem_link[po] = self.find_links_to_abs_dim(po.set, idxs[po], max_dim, OntStatus.STATE)
         # 5). connect the two POs to the appropriate relative magnitude semantics
-        #     (based on the invariant patterns detected just above) 
-        if more == max_weight[po2]:
+        #     (based on the invariant patterns detected just above)
+        if same_flag:
             self.attach_mag_semantics(same_flag, po1, po2, sem_link, idxs)
+        elif more == max_weight[po1]:
+            self.attach_mag_semantics(False, po1, po2, sem_link, idxs)
         else:
-            self.attach_mag_semantics(same_flag, po2, po1, sem_link, idxs)
+            self.attach_mag_semantics(False, po2, po1, sem_link, idxs)
 
     def ent_magnitude_more_less_same(self, extent1: float, extent2: float, mag_decimal_precision:int = 0):
         """
@@ -402,7 +413,6 @@ class EntropyOperations:
     def update_mag_semantics(self, same_flag: bool, po1: Ref_Token, po2: Ref_Token, sem_links: dict[Ref_Token, torch.Tensor], idxs: dict[Ref_Token, int]):
         """
         Function to update the connections to magnitude semantics during the basic_en_based_mag_refinement() function.
-        TODO: TEST
         """
         logger.debug(f"UPDATE MAG SEMANTICS: {po1.set}[{self.network.get_index(po1)}] and {po2.set}[{self.network.get_index(po2)}]")
         sdms = {
