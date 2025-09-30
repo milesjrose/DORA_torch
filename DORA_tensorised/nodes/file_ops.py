@@ -56,7 +56,7 @@ def read_zipped_files(source_dir: str):
     
     # Convert keys from string (from JSON) to int
     semantic_ids = {int(k): v for k, v in semantics_metadata['IDs'].items()}
-    semantic_names = {int(k): v for k, v in semantics_metadata['names'].items()} if semantics_metadata['names'] is not None else None
+    semantic_names = {int(k): v for k, v in semantics_metadata['names'].items()} if semantics_metadata['names'] is not None else {}
 
     semantics = Semantics(
         nodes=semantics_nodes,
@@ -87,7 +87,7 @@ def read_zipped_files(source_dir: str):
         
         # Convert keys from string (from JSON) to int
         set_ids = {int(k): v for k, v in nodes_metadata['IDs'].items()}
-        set_names = {int(k): v for k, v in nodes_metadata['names'].items()} if nodes_metadata['names'] is not None else None
+        set_names = {int(k): v for k, v in nodes_metadata['names'].items()} if nodes_metadata['names'] is not None else {}
         
         set_class = set_map[s]
         dict_sets[s] = set_class(
@@ -175,9 +175,11 @@ def set_nodes_json(network: Network, s: Set, output_dir: str):
     torch.save(set_obj.connections, connections_path)
     
     # Save metadata
+    ids = {k: v.item() if torch.is_tensor(v) else v for k, v in set_obj.IDs.items()}
+    names = {k: v.item() if torch.is_tensor(v) else v for k, v in set_obj.names.items()} if set_obj.names else None
     metadata = {
-        "IDs": set_obj.IDs,
-        "names": set_obj.names,
+        "IDs": ids,
+        "names": names,
         "nodes_file": "nodes.pt",
         "connections_file": "connections.pt"
     }
@@ -198,9 +200,12 @@ def semantics_json(network: Network, output_dir: str):
     torch.save(semantics_obj.connections, connections_path)
     
     # Save metadata
+    ids = {k: v.item() if torch.is_tensor(v) else v for k, v in semantics_obj.IDs.items()}
+    names = {k: v.item() if torch.is_tensor(v) else v for k, v in semantics_obj.names.items()} if semantics_obj.names else None
+
     metadata = {
-        "IDs": semantics_obj.IDs,
-        "names": semantics_obj.names,
+        "IDs": ids,
+        "names": names,
         "nodes_file": "nodes.pt",
         "connections_file": "connections.pt"
     }
@@ -240,11 +245,14 @@ def set_links_json(network: Network, s: Set, output_dir: str):
 
 def network_data_json(network: Network, output_dir: str):
     """Generate json object for network data."""
+    local_inhibitor = network.inhibitor.local
+    global_inhibitor = network.inhibitor.glbal
+
     network_data = {
         "params": network.params.get_params_dict(),
         "inhibitor": {
-            "local": network.inhibitor.local,
-            "global": network.inhibitor.glbal
+            "local": local_inhibitor.tolist() if torch.is_tensor(local_inhibitor) else local_inhibitor,
+            "global": global_inhibitor.tolist() if torch.is_tensor(global_inhibitor) else global_inhibitor
         }
     }
     
