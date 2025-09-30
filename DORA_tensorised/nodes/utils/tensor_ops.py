@@ -53,10 +53,25 @@ def sub_union(mask, submask, in_place = False):
         torch.Tensor: Mask(size of input mask) with union of input mask and submask
     """
     if not in_place:
-        new_mask = mask.clone()
+        new_mask = mask.clone().bool()
     else:
-        new_mask = mask
-    new_mask[mask] &= submask
+        new_mask = mask.bool()
+    
+    # Ensure submask is boolean
+    submask = submask.bool()
+    
+    true_indices = torch.where(new_mask)[0]
+    
+    # Ensure submask is not larger than the number of true elements in new_mask
+    if submask.shape[0] != true_indices.shape[0]:
+        if submask.nelement() == 0 and true_indices.nelement() > 0:
+            new_mask[true_indices] = False # no elements from submask are true
+            return new_mask
+        elif submask.nelement() == 0 and true_indices.nelement() == 0:
+            return new_mask # nothing to do
+        raise ValueError("sub_union: submask size does not match mask's true elements.")
+
+    new_mask[true_indices] &= submask
     return new_mask
 
 def max_broadcast(a, b):
