@@ -274,6 +274,13 @@ class SDM(IntEnum):
     SAME = 2
     DIFF = 3
 
+class SD(IntEnum):
+    """
+    Set Dimension Enum [NODES, FEATS]
+    """
+    NODES = 0
+    FEATS = 1
+
 
 null = -99.0
 """Null value for float tensors: -99.0"""
