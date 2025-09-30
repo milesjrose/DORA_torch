@@ -278,16 +278,6 @@ class Network(object):
         else:
             raise ValueError("Invalid reference type.")
     
-    def initialise_made_unit(self):
-        """
-        Initialise the made unit for all tokens.
-        TODO: Update tensors to be null by default for these values.
-        currently some routines will not work unless this is run.
-        """
-        for set in Set:
-            self.sets[set].nodes[:, TF.MADE_UNIT] = null
-    
-    
     def get_max_map_value(self, reference: Ref_Token, map_set: Set = None) -> float:
         """
         Get the maximum mapping weight for a referenced token.
