@@ -249,19 +249,25 @@ class EntropyOperations:
             # get semantics that have weight>0.9
             po_set = ref_po.set
             # NOTE: idk if this is inefficient, but it should work for now
-            po_sems = self.network.links[po_set][idxs[ref_po], :] > 0.9
-            po_sems = tOps.sub_union(po_sems, self.network.semantics.nodes[po_sems, SF.DIM] != null)
-            po_sems = tOps.sub_union(po_sems, self.network.semantics.nodes[po_sems, SF.ONT] == OntStatus.STATE)
-            dims[ref_po] = set(self.network.semantics.nodes[po_sems, SF.DIM].unique())
+            po_sems_mask = self.network.links[po_set][idxs[ref_po], :] > 0.9
+            dim_mask = self.network.semantics.nodes[:, SF.DIM] != null
+            state_mask = self.network.semantics.nodes[:, SF.ONT] == OntStatus.STATE
+            final_mask = po_sems_mask & dim_mask & state_mask
+            
+            if final_mask.any():
+                dims[ref_po] = set(self.network.semantics.nodes[final_mask, SF.DIM].unique().tolist())
+            else:
+                dims[ref_po] = set()
+
         # then take the intersection of the two sets
-        intersecting_dims = dims[po1].intersection(dims[po2])
+        intersecting_dims = dims.get(po1, set()).intersection(dims.get(po2, set()))
         # 2). if there is a single matching dimension, then find value on that dimension for each
         # object and update magnitude semantic weights; elif there are multiple matching dimensions,
         # find the matching dimension that each PO is most strongly connected to, and update magnitude
         # semantic weights.
         if len(intersecting_dims) == 1:
-            self.single_dim_refinement(idxs, po1, po2, intersecting_dims[0], mag_decimal_precision)
-        else:
+            self.single_dim_refinement(idxs, po1, po2, list(intersecting_dims)[0], mag_decimal_precision)
+        elif len(intersecting_dims) > 1:
             self.multi_dim_refinement(idxs, po1, po2, mag_decimal_precision)
 
 
