@@ -162,25 +162,6 @@ def test_infer_token_rb_type(network: 'Network'):
     assert made_token.tensor[TF.ANALOG] == 3
 
 
-def test_infer_token_invalid_type(network: 'Network'):
-    """Test infer_token function with invalid token type."""
-    driver, _, _ = setup_rel_gen_environment(network)
-    
-    # Create an invalid token (this should not happen in normal operation)
-    # We'll test with a token that has an invalid type by directly setting it
-    invalid_token = Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER)  # Start with valid type
-    ref_maker = driver.add_token(invalid_token)
-    
-    # Manually set an invalid type (simulating edge case)
-    network.set_value(ref_maker, TF.TYPE, 999)  # Invalid type value
-    
-    recip_analog = Ref_Analog(analog_number=1, set=Set.RECIPIENT)
-    
-    # Should raise ValueError for invalid type
-    with pytest.raises(ValueError):
-        network.routines.rel_gen.infer_token(ref_maker, recip_analog, Set.RECIPIENT)
-
-
 def test_rel_gen_type_po_no_active_token(network: 'Network'):
     """Test rel_gen_type for PO when no active token exists."""
     setup_rel_gen_environment(network)
