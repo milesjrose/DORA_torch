@@ -175,6 +175,7 @@ class PredicationOperations:
             old_po_name = self.network.recipient().token_op.get_name(most_active_po)
             self.network.new_set().token_op.set_name(new_po_ref, old_po_name) # Set name to be same as copied object
             self.network.node_ops.set_value(most_active_po, TF.MADE_UNIT, new_po_ref.ID) # Set made unit field for most active PO
+            self.network.node_ops.set_value(most_active_po, TF.MADE_SET, new_po_ref.set) # Set made set field for most active PO
             
             # 2). infer new predicate and RB tokens
             # - add tokens to newSet
