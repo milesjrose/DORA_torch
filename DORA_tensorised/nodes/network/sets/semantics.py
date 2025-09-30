@@ -121,7 +121,7 @@ class Semantics(object):
                 self.sdms[sdm] = self.add_semantic(sdm_sem)
     
     def get_sdm_indices(self, include_diff: bool = False) -> torch.Tensor:
-        """Get the indices of the SDM/comparative semantics TODO: test"""
+        """Get the indices of the SDM/comparative semantics"""
         if None in self.sdm_dims.values():
             raise ValueError("SDM dimensions not initialised")
         if include_diff:

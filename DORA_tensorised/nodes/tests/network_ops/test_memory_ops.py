@@ -57,7 +57,7 @@ def test_swap_driver_recipient(network: Network):
     assert new_driver.names == old_rec.names
     assert new_rec.names == old_driver.names
     # Mapping object
-    # TODO: Implement this.
+    # TODO: Implement this. No point until I've updated the mappings to just be recipient.
     # Links object
     assert network.links.sets[Set.DRIVER].all() == old_rec_links.all()
     assert network.links.sets[Set.RECIPIENT].all() == old_driver_links.all()

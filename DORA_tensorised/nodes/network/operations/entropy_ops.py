@@ -233,7 +233,6 @@ class EntropyOperations:
         then activate the appropriate magnitude semantics and matching dimensions, and adjust
         weights as appropriate (i.e., turn on the appropriate magnitude semantics for each PO, 
         and adjust weight accordingly).
-        TODO: TEST
         """
         logger.debug(f"BASIC EN BASED MAG REFINEMENT: {po1.set.name}[{self.network.get_index(po1)}] and {po2.set.name}[{self.network.get_index(po2)}]")
         mag_decimal_precision = 1
