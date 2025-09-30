@@ -10,6 +10,7 @@ from functools import reduce
 from ....enums import *
 from ...single_nodes import Token, Analog, Ref_Analog, Ref_Token
 from ....utils import tensor_ops as tOps
+from ...connections import LD, MD
 
 # name -> base_set.tensor_ops
 logger = logging.getLogger(__name__)
@@ -197,12 +198,15 @@ class TensorOperations:
         # Nodes expansion
         self.expand_nodes_tensor(new_count)
         # Links expansion
-        self.expand_links_tensor(new_count)
+        self.base_set.links.expand_links_tensor(new_count, self.base_set.token_set, LD.TK)
         # Mapping expansion:
-        if self.base_set.token_set in MAPPING_SETS + [Set.DRIVER]:
-            map_exp_sets = MAPPING_SETS if self.base_set.token_set == Set.DRIVER else [self.base_set.token_set]
-            for set in map_exp_sets:
-                self.expand_mapping_tensor(set, new_count)
+        if self.base_set.token_set == Set.DRIVER:
+            for set in MAPPING_SETS:
+                self.base_set.mappings[set].expand_mapping_tensor(new_count, MD.DRI)
+        elif self.base_set.token_set in MAPPING_SETS:
+            self.base_set.mappings.expand_mapping_tensor(new_count, MD.REC)
+        else:
+            logger.debug("Mappings not initialised. Not expanding mappings tensor.")
 
         # Connections expansion
         self.expand_connections_tensor(new_count)
@@ -219,54 +223,6 @@ class TensorOperations:
             raise TypeError("nodes must be torch.float.")
         self.base_set.nodes = new_tensor
         logger.debug(f" -> Expanded {self.base_set.token_set.name} nodes tensor: {self.base_set.nodes.shape}")
-
-    def expand_links_tensor(self, new_count: int):
-        """
-        Expand links tensor for given set.
-        """
-        try:
-            links = self.base_set.links[self.base_set.token_set]
-            semantic_count = links.size(dim=1)                              # Get number of semantics in link tensor
-            new_links = torch.zeros(new_count, semantic_count).float()      # new tensor (new number of tokens) x (number of semantics)
-            rows, cols = links.shape
-            new_links[:rows, :cols] = links                                 # add current links to the tensor
-            self.base_set.links[self.base_set.token_set] = new_links        # update links object with float tensor
-            logger.debug(f"-> Expanded {self.base_set.token_set.name} links tensor: {new_links.shape}")
-        except:
-            logger.error(f"-> Error expanding {self.base_set.token_set.name} links tensor")
-
-    def expand_mapping_tensor(self, set: Set, new_count: int):
-        """
-        Expand mapping tensor for given set. If driver, expand along dim=1, else along dim=0.
-        """
-        # Get new tensor dimensions
-        if self.base_set.token_set == Set.DRIVER:
-            maps = self.base_set.mappings[set] 
-            driver_count = new_count
-            recipient_count = maps.size(dim=0)
-        else:
-            maps = self.base_set.mappings
-            driver_count = maps.size(dim=1)
-            recipient_count = new_count
-
-        # Create new tensor for each mapping field, and stack into new adj_matrix
-        stack = []
-        for field in MappingFields:          
-            stack.append(torch.zeros(
-                recipient_count, 
-                driver_count, 
-                dtype=torch.float)
-                )
-        new_adj_matrix: torch.Tensor = torch.stack(stack, dim=-1)
-        rows, cols, _ = maps.adj_matrix.shape    
-
-        # Copy weights and update object                   
-        new_adj_matrix[:rows, :cols, :] = maps.adj_matrix  
-        if self.base_set.token_set == Set.DRIVER:
-            self.base_set.mappings[set].adj_matrix = new_adj_matrix 
-        elif self.base_set.token_set in MAPPING_SETS:
-            self.base_set.mappings.adj_matrix = new_adj_matrix 
-        logger.debug(f"-> Expanded {set.name} mappings tensor: {new_adj_matrix.shape}")
     
     def expand_connections_tensor(self, new_count: int):
         """

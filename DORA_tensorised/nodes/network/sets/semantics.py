@@ -9,7 +9,7 @@ from ...enums import *
 from ...utils import tensor_ops as tOps
 
 from ..single_nodes import Ref_Semantic
-from ..connections import Links
+from ..connections import Links, LD
 from ..network_params import Params
 from ..single_nodes import Semantic
 
@@ -58,7 +58,7 @@ class Semantics(object):
         self.connections: torch.Tensor = connections
         """Same-set connections for semantics"""
         self.links: Links = None
-        """Semantic links to each token set"""
+        """Semantic links to each token set (Shape: [Token, Semantics])"""
         self.IDs = IDs
         """Map ID to index in tensor"""
         self.dimensions = {}
@@ -122,11 +122,13 @@ class Semantics(object):
     
     def get_sdm_indices(self, include_diff: bool = False) -> torch.Tensor:
         """Get the indices of the SDM/comparative semantics TODO: test"""
+        if None in self.sdm_dims.values():
+            raise ValueError("SDM dimensions not initialised")
         if include_diff:
-            sdm_dims = list(self.sdm_dims.values())
+            sdm_dims = torch.tensor(list(self.sdm_dims.values()))
         else:
-            sdm_dims = [self.sdm_dims[SDM.MORE], self.sdm_dims[SDM.LESS], self.sdm_dims[SDM.SAME]]
-        indices = self.nodes[:, SF.DIM].isin(sdm_dims).nonzero()
+            sdm_dims = torch.tensor([self.sdm_dims[SDM.MORE], self.sdm_dims[SDM.LESS], self.sdm_dims[SDM.SAME]])
+        indices = torch.isin(self.nodes[:, SF.DIM], sdm_dims).nonzero()
         return indices
     
     def check_sdm_init(self) -> bool:
@@ -163,11 +165,12 @@ class Semantics(object):
         """
         Expand the nodes, connections, and links tensors by the expansion factor.
         """
-        current_size = self.nodes.size(dim=0)
+        logger.debug("Expanding semantics tensor")
+        current_size = self.nodes.size(dim=SD.NODES)
         new_size = max(int(current_size * self.expansion_factor), current_size + 1)  # ensure we actually expand
         logger.debug(f"Expanding semantics tensor from {current_size} to {new_size}")
-        new_nodes = torch.zeros(new_size, self.nodes.size(dim=1))   # create new nodes tensor
-        new_nodes[current_size:, SF.DELETED] = B.TRUE                    # set all deleted to 1 for all new nodes
+        new_nodes = torch.zeros(new_size, len(SF))                  # create new nodes tensor
+        new_nodes[current_size:, SF.DELETED] = B.TRUE               # set all deleted to 1 for all new nodes
         new_nodes[:current_size, :] = self.nodes                    # copy over old nodes
         self.nodes = new_nodes                                      # update nodes
 
@@ -176,19 +179,9 @@ class Semantics(object):
         self.connections = new_cons                                 # update connections
 
         if self.links is not None:
-            for set in Set:                                         # expand links for each set
-                self.expand_links(set, new_size)
-
-    def expand_links(self, set: Set, new_size: int):
-        """
-        Expand the links tensors to new_size
-        """
-        links = self.links[set]
-        current_num_token = links.size(dim=0)                       # links is Token x Semantics tensor
-        current_num_sem = links.size(dim=1)                         # expand by expansion factor
-        new_links = torch.zeros(current_num_token, new_size)        # create new links tensor (same number of tokens, new size for semantics)
-        new_links[:current_num_token, :current_num_sem] = links     # copy over old links
-        self.links[set] = new_links                                 # update links
+            self.links.expand_links_tensor(new_size, None, LD.SEM)
+        else:
+            logger.debug("Links not initialised. Not expanding links tensor.")
 
     def del_semantic(self, ID):                                     # Delete a semantic from the semantics tensor.
         """

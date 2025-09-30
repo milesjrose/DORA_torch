@@ -8,10 +8,12 @@ Provides classes for representing connections between nodes in different sets.
 - Mappings: Represents mappings between nodes and semantics.
 """
 
-from .links import Links
-from .mappings import Mappings
+from .links import Links, LD
+from .mappings import Mappings, MD
 
 __all__ = [
     "Links",
-    "Mappings"
+    "Mappings",
+    "LD",
+    "MD"
 ]

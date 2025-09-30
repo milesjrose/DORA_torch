@@ -2,13 +2,25 @@
 # Mappings between nodes and semantics.
 
 import torch
+import logging
+logger = logging.getLogger(__name__)
 
 from ...enums import *
+from enum import IntEnum
 from ...utils import tensor_ops as tOps
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..sets import Driver, Recipient
+
+class MD(IntEnum):
+    """
+    Enum to access mapping dimension, i.e mappings.shape[MD.DRIVER]
+    """
+    REC = 0
+    """ Recipient dimension """
+    DRI = 1
+    """ Driver dimension """
 
 class Mappings(object):
     """
@@ -225,6 +237,36 @@ class Mappings(object):
         self.adj_matrix = torch.stack(stack, dim=-1)
     
     # ----------------------------------------------------------------
+
+    def expand_mapping_tensor(self, new_count: int, dimension: MD):
+        """
+        Expand mapping tensor for given set. If driver, expand along dim=1, else along dim=0.
+        """
+        try:
+            # Get old tensor dimensions
+            old_driver_count = self.adj_matrix.size(dim=MD.DRI)
+            old_recipient_count = self.adj_matrix.size(dim=MD.REC)
+            # Get new tensor dimensions
+            new_driver_count = new_count if dimension == MD.DRI else old_driver_count
+            new_recipient_count = new_count if dimension == MD.REC else old_recipient_count
+            # Create new tensor for each mapping field, and stack into new adj_matrix
+            stack = []
+            for field in MappingFields:          
+                stack.append(torch.zeros(
+                    new_recipient_count, 
+                    new_driver_count, 
+                    dtype=torch.float)
+                    )
+            new_adj_matrix: torch.Tensor = torch.stack(stack, dim=-1)
+            rows, cols, _ = self.adj_matrix.shape    
+
+            # Copy weights and update object                   
+            new_adj_matrix[:rows, :cols, :] = self.adj_matrix  
+            self.adj_matrix = new_adj_matrix 
+            logger.debug(f"-> Expanded {self.recipient.token_set.name} mappings tensor: {new_adj_matrix.shape}")
+        except Exception as e:
+            logger.error(f"-> Error expanding {self.recipient.token_set.name} mappings tensor {old_recipient_count}x{old_driver_count} -> {new_recipient_count}x{new_driver_count}")
+            raise e
 
     def print(self, mapping_field: MappingFields = MappingFields.WEIGHT, d_mask=None, r_mask=None):                                  # Here for testing atm
         """

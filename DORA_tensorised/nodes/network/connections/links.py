@@ -4,10 +4,21 @@
 
 import torch
 import logging
+from enum import IntEnum
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 from ...enums import *
 from ..single_nodes import Ref_Token
+
+class LD(IntEnum):
+    """
+    Enum to access link dimension, i.e links[set].shape[LD.SEMANTICS]
+    """
+    TK = 0
+    """ Token dimension """
+    SEM = 1
+    """ Semantics dimension """
 
 class Links(object): 
     """
@@ -39,7 +50,7 @@ class Links(object):
                     raise TypeError(f"Link for {set} must be torch.float.")
                 # Check correct number of semantics
                 if tensor.size(dim=1) != sem_count:
-                    raise ValueError(f"{set} links tensor has {tensor.size(dim=1)} semantics, but semantics has {sem_count}.")
+                    raise ValueError(f"{set} links tensor has {tensor.size(dim=LD.SEM)} semantics, but semantics has {sem_count}.")
         # initialise
         self.semantics = semantics
         self.sets = links
@@ -68,7 +79,7 @@ class Links(object):
         """
         if mask is None:
             # No mask, do for all semantics
-            mask = torch.ones(self.sets[ref_token.set].size(dim=1), dtype=torch.bool)
+            mask = torch.ones(self.sets[ref_token.set].size(dim=LD.SEM), dtype=torch.bool)
         # Get token index
         token_index = self.network.get_index(ref_token)
         # sem acts
@@ -126,7 +137,7 @@ class Links(object):
         """
         See get_max_lined_sem, Set = RECIPIENT, idx_tx: token index.
         """
-        semantic_index = torch.max(self.sets[set][idx_tk, :], dim=0).indices
+        semantic_index = torch.max(self.sets[set][idx_tk, :], dim=LD.TK).indices
         ref_sem = self.network.semantics.get_reference(index=semantic_index)
         return ref_sem
     
@@ -139,3 +150,36 @@ class Links(object):
             raise ValueError("Comps not initialised")
         idx_comp = self.network.get_index(ref_comp)
         self.sets[set][idx_tk, idx_comp] = 1.0
+    
+    def expand_links_tensor(self, new_size: int, set: Set, dimension: LD):
+        """
+        Expand the links tensor for given set and dimension.
+        """
+        if dimension == LD.TK:
+            logger.debug(f"Expanding {set.name} links tensor for nodes")
+            self.expand(new_size, set, LD.TK)
+        else:
+            for set in Set:
+                logger.debug(f"Expanding {set.name} links tensor for feats")
+                self.expand(new_size, set, LD.SEM)
+    
+    def expand(self, new_size: int, set: Set, dimension: LD):
+        """
+        Expand the links tensor for given set and dimension.
+        """
+        try:
+            links = self.sets[set]
+            # Get old dimensions
+            old_num_token = links.size(dim=LD.TK)
+            old_num_sem = links.size(dim=LD.SEM)
+            # Get new dimensions
+            num_token = new_size if dimension == LD.TK else old_num_token
+            num_sem = new_size if dimension == LD.SEM else old_num_sem
+            # Update tensor 
+            new_links = torch.zeros(num_token, num_sem)                         # create new links tensor
+            new_links[:links.size(dim=LD.TK), :links.size(dim=LD.SEM)] = links  # copy over old links
+            self.sets[set] = new_links                                          # update links
+            logger.debug(f"-> Expanded {set.name} links tensor: {new_links.shape}")
+        except Exception as e:
+            logger.error(f"-> Error expanding {set.name} links tensor")
+            raise e
