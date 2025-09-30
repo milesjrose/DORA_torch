@@ -24,7 +24,6 @@ if TYPE_CHECKING:
 def network():
     builder = NetworkBuilder(symProps=symProps)
     net = builder.build_network()
-    net.initialise_made_unit()
     return net
 
 

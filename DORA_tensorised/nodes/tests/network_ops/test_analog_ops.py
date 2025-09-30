@@ -189,9 +189,9 @@ def test_get_analog_from_memory(network):
 def test_find_recip_analog(network):
     """Test finding the analog in the recipient that is mapped to."""
     # add tokens to driver rand recipient
-    driver_token = network.driver().add_token(Token(Type.PO, {TF.PRED: B.FALSE})) 
+    driver_token = network.driver().add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER)) 
     idx_d_token = network.get_index(driver_token) 
-    rec_token = network.recipient().add_token(Token(Type.PO, {TF.PRED: B.FALSE}))  
+    rec_token = network.recipient().add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))  
     idx_rec_token = network.get_index(rec_token)
     # set mapping between nodes
     network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
@@ -209,9 +209,9 @@ def test_find_recip_analog(network):
 def test_find_driver_analog(network):
     """Test finding the analog in the driver that is mapped to."""
     # add tokens to driver rand recipient
-    driver_token = network.driver().add_token(Token(Type.PO, {TF.PRED: B.FALSE})) 
+    driver_token = network.driver().add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER)) 
     idx_d_token = network.get_index(driver_token) 
-    rec_token = network.recipient().add_token(Token(Type.PO, {TF.PRED: B.FALSE}))  
+    rec_token = network.recipient().add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))  
     idx_rec_token = network.get_index(rec_token)
     # set mapping between nodes
     network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0

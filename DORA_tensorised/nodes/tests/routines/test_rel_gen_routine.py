@@ -33,8 +33,8 @@ def test_rel_gen_passes(network: 'Network'):
     mappings = network.mappings[Set.RECIPIENT]
     
     # Ensure there's at least one token in each set
-    if recipient.nodes.shape[0] == 0: recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
-    if driver.nodes.shape[0] == 0: driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
+    if recipient.nodes.shape[0] == 0: recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))
+    if driver.nodes.shape[0] == 0: driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER))
 
     mappings[MappingFields.CONNECTIONS][0, 0] = 1.0
     mappings[MappingFields.WEIGHT][0, 0] = 0.8
@@ -59,8 +59,8 @@ def test_rel_gen_fails_low_weight(network: 'Network'):
     driver = network.driver()
     mappings = network.mappings[Set.RECIPIENT]
     
-    if recipient.nodes.shape[0] == 0: recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
-    if driver.nodes.shape[0] == 0: driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
+    if recipient.nodes.shape[0] == 0: recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))
+    if driver.nodes.shape[0] == 0: driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER))
 
     mappings[MappingFields.CONNECTIONS][0, 0] = 1.0
     mappings[MappingFields.WEIGHT][0, 0] = 0.5
@@ -76,9 +76,9 @@ def setup_rel_gen_environment(network: 'Network', mapping_weight=0.8):
     
     # Ensure we have tokens in both sets
     if driver.nodes.shape[0] == 0:
-        driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
+        driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER))
     if recipient.nodes.shape[0] == 0:
-        recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
+        recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))
     
     # Create a valid mapping
     mappings[MappingFields.CONNECTIONS][0, 0] = 1.0
@@ -92,7 +92,7 @@ def test_infer_token_po_type(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a PO token in driver
-    po_token = Token(Type.PO, {TF.PRED: B.FALSE})
+    po_token = Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER)
     ref_maker = driver.add_token(po_token)
     
     # Create a recipient analog
@@ -122,7 +122,7 @@ def test_infer_token_p_type(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a P token in driver
-    p_token = Token(Type.P, {TF.MODE: Mode.CHILD})
+    p_token = Token(Type.P, {TF.MODE: Mode.CHILD}, set=Set.DRIVER)
     ref_maker = driver.add_token(p_token)
     
     # Create a recipient analog
@@ -145,7 +145,7 @@ def test_infer_token_rb_type(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a RB token in driver
-    rb_token = Token(Type.RB)
+    rb_token = Token(Type.RB, set=Set.DRIVER)
     ref_maker = driver.add_token(rb_token)
     
     # Create a recipient analog
@@ -168,7 +168,7 @@ def test_infer_token_invalid_type(network: 'Network'):
     
     # Create an invalid token (this should not happen in normal operation)
     # We'll test with a token that has an invalid type by directly setting it
-    invalid_token = Token(Type.PO, {TF.PRED: B.FALSE})  # Start with valid type
+    invalid_token = Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER)  # Start with valid type
     ref_maker = driver.add_token(invalid_token)
     
     # Manually set an invalid type (simulating edge case)
@@ -201,7 +201,7 @@ def test_rel_gen_type_po_below_threshold(network: 'Network'):
     driver, _, _ = setup_rel_gen_environment(network)
     
     # Create a PO token with low activation
-    po_token = Token(Type.PO, {TF.ACT: 0.3, TF.PRED: B.FALSE})  # Below 0.5 threshold
+    po_token = Token(Type.PO, {TF.ACT: 0.3, TF.PRED: B.FALSE}, set=Set.DRIVER)  # Below 0.5 threshold
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map = 0.0
@@ -225,7 +225,7 @@ def test_rel_gen_type_po_max_map_not_zero(network: 'Network'):
     driver, _, _ = setup_rel_gen_environment(network)
     
     # Create a PO token with high activation
-    po_token = Token(Type.PO, {TF.ACT: 0.8, TF.PRED: B.FALSE})  # Above 0.5 threshold
+    po_token = Token(Type.PO, {TF.ACT: 0.8, TF.PRED: B.FALSE}, set=Set.DRIVER)  # Above 0.5 threshold
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map > 0.0
@@ -249,7 +249,7 @@ def test_rel_gen_type_po_infer_new_token(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a PO token with high activation and no made unit
-    po_token = Token(Type.PO, {TF.ACT: 0.8, TF.MADE_UNIT: null, TF.PRED: B.FALSE})
+    po_token = Token(Type.PO, {TF.ACT: 0.8, TF.MADE_UNIT: null, TF.PRED: B.FALSE}, set=Set.DRIVER)
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map = 0.0
@@ -279,11 +279,11 @@ def test_rel_gen_type_po_update_existing_made_unit(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a PO token with high activation and existing made unit
-    po_token = Token(Type.PO, {TF.ACT: 0.8, TF.PRED: B.FALSE})
+    po_token = Token(Type.PO, {TF.ACT: 0.8, TF.PRED: B.FALSE}, set=Set.DRIVER)
     ref_po = driver.add_token(po_token)
     
     # Create a made unit
-    made_po = Token(Type.PO, {TF.ACT: 0.5, TF.PRED: B.FALSE})
+    made_po = Token(Type.PO, {TF.ACT: 0.5, TF.PRED: B.FALSE}, set=Set.RECIPIENT)
     ref_made = recipient.add_token(made_po)
     made_idx = network.get_index(ref_made)
     
@@ -311,11 +311,11 @@ def test_rel_gen_type_rb_connect_to_po(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create an RB token with high activation and existing made unit
-    rb_token = Token(Type.RB, {TF.ACT: 0.8})
+    rb_token = Token(Type.RB, {TF.ACT: 0.8}, set=Set.DRIVER)
     ref_rb = driver.add_token(rb_token)
     
     # Create a made RB unit
-    made_rb = Token(Type.RB, {TF.ACT: 0.5})
+    made_rb = Token(Type.RB, {TF.ACT: 0.5}, set=Set.RECIPIENT)
     ref_made_rb = recipient.add_token(made_rb)
     made_idx = network.get_index(ref_made_rb)
     
@@ -324,7 +324,7 @@ def test_rel_gen_type_rb_connect_to_po(network: 'Network'):
     network.set_value(ref_rb, TF.MADE_SET, Set.RECIPIENT)
     
     # Create an active PO in recipient
-    active_po = Token(Type.PO, {TF.ACT: 0.8, TF.PRED: B.FALSE})
+    active_po = Token(Type.PO, {TF.ACT: 0.8, TF.PRED: B.FALSE}, set=Set.RECIPIENT)
     ref_active_po = recipient.add_token(active_po)
     
     # Set up mapping with max_map = 0.0
@@ -347,11 +347,11 @@ def test_rel_gen_type_p_child_mode(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a P token with high activation and existing made unit
-    p_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.CHILD})
+    p_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.CHILD}, set=Set.DRIVER)
     ref_p = driver.add_token(p_token)
     
     # Create a made P unit
-    made_p = Token(Type.P, {TF.ACT: 0.5, TF.MODE: Mode.CHILD})
+    made_p = Token(Type.P, {TF.ACT: 0.5, TF.MODE: Mode.CHILD}, set=Set.RECIPIENT)
     ref_made_p = recipient.add_token(made_p)
     made_idx = network.get_index(ref_made_p)
     
@@ -360,7 +360,7 @@ def test_rel_gen_type_p_child_mode(network: 'Network'):
     network.set_value(ref_p, TF.MADE_SET, Set.RECIPIENT)
     
     # Create an active RB in recipient
-    active_rb = Token(Type.RB, {TF.ACT: 0.8})
+    active_rb = Token(Type.RB, {TF.ACT: 0.8}, set=Set.RECIPIENT)
     ref_active_rb = recipient.add_token(active_rb)
     
     # Set up mapping with max_map = 0.0
@@ -383,11 +383,11 @@ def test_rel_gen_type_p_parent_mode(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a P token with high activation and existing made unit
-    p_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.PARENT})
+    p_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.PARENT}, set=Set.DRIVER)
     ref_p = driver.add_token(p_token)
     
     # Create a made P unit
-    made_p = Token(Type.P, {TF.ACT: 0.5, TF.MODE: Mode.PARENT})
+    made_p = Token(Type.P, {TF.ACT: 0.5, TF.MODE: Mode.PARENT}, set=Set.RECIPIENT)
     ref_made_p = recipient.add_token(made_p)
     made_idx = network.get_index(ref_made_p)
     
@@ -396,7 +396,7 @@ def test_rel_gen_type_p_parent_mode(network: 'Network'):
     network.set_value(ref_p, TF.MADE_SET, Set.RECIPIENT)
     
     # Create an active RB in recipient
-    active_rb = Token(Type.RB, {TF.ACT: 0.6})  # Above 0.5 threshold for parent mode
+    active_rb = Token(Type.RB, {TF.ACT: 0.6}, set=Set.RECIPIENT)  # Above 0.5 threshold for parent mode
     ref_active_rb = recipient.add_token(active_rb)
     
     # Set up mapping with max_map = 0.0
@@ -419,10 +419,10 @@ def test_rel_gen_routine_integration(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create various token types in driver
-    po_token = Token(Type.PO, {TF.ACT: 0.8, TF.MADE_UNIT: null, TF.PRED: B.FALSE})
-    rb_token = Token(Type.RB, {TF.ACT: 0.8, TF.MADE_UNIT: null})
-    p_child_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.CHILD, TF.MADE_UNIT: null})
-    p_parent_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.PARENT, TF.MADE_UNIT: null})
+    po_token = Token(Type.PO, {TF.ACT: 0.8, TF.MADE_UNIT: null, TF.PRED: B.FALSE}, set=Set.DRIVER)
+    rb_token = Token(Type.RB, {TF.ACT: 0.8, TF.MADE_UNIT: null}, set=Set.DRIVER)
+    p_child_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.CHILD, TF.MADE_UNIT: null}, set=Set.DRIVER)
+    p_parent_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.PARENT, TF.MADE_UNIT: null}, set=Set.DRIVER)
     
     ref_po = driver.add_token(po_token)
     ref_rb = driver.add_token(rb_token)
@@ -467,9 +467,9 @@ def test_requirements_multiple_mappings_all_valid(network: 'Network'):
     # Add more tokens to create multiple mappings
     for i in range(3):
         if i < driver.nodes.shape[0]:
-            driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
+            driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER))
         if i < recipient.nodes.shape[0]:
-            recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
+            recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))
     
     # Create multiple valid mappings
     for i in range(min(3, recipient.nodes.shape[0])):
@@ -487,9 +487,9 @@ def test_requirements_multiple_mappings_one_invalid(network: 'Network'):
     # Add more tokens to create multiple mappings
     for i in range(3):
         if i < driver.nodes.shape[0]:
-            driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
+            driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER))
         if i < recipient.nodes.shape[0]:
-            recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}))
+            recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))
     
     # Create multiple mappings with one invalid weight
     for i in range(min(3, recipient.nodes.shape[0])):
@@ -548,7 +548,7 @@ def test_rel_gen_type_edge_case_activation_exactly_threshold(network: 'Network')
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a PO token with activation exactly at threshold
-    po_token = Token(Type.PO, {TF.ACT: 0.5, TF.MADE_UNIT: null, TF.PRED: B.FALSE})  # Exactly at threshold
+    po_token = Token(Type.PO, {TF.ACT: 0.5, TF.MADE_UNIT: null, TF.PRED: B.FALSE}, set=Set.DRIVER)  # Exactly at threshold
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map = 0.0
@@ -573,7 +573,7 @@ def test_rel_gen_type_edge_case_activation_just_below_threshold(network: 'Networ
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a PO token with activation just below threshold
-    po_token = Token(Type.PO, {TF.ACT: 0.499999, TF.MADE_UNIT: null, TF.PRED: B.FALSE})  # Just below threshold
+    po_token = Token(Type.PO, {TF.ACT: 0.499999, TF.MADE_UNIT: null, TF.PRED: B.FALSE}, set=Set.DRIVER)  # Just below threshold
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map = 0.0
@@ -598,11 +598,11 @@ def test_rel_gen_type_rb_po_below_threshold(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create an RB token with high activation and existing made unit
-    rb_token = Token(Type.RB, {TF.ACT: 0.8})
+    rb_token = Token(Type.RB, {TF.ACT: 0.8}, set=Set.DRIVER)
     ref_rb = driver.add_token(rb_token)
     
     # Create a made RB unit
-    made_rb = Token(Type.RB, {TF.ACT: 0.5})
+    made_rb = Token(Type.RB, {TF.ACT: 0.5}, set=Set.RECIPIENT)
     ref_made_rb = recipient.add_token(made_rb)
     made_idx = network.get_index(ref_made_rb)
     
@@ -611,7 +611,7 @@ def test_rel_gen_type_rb_po_below_threshold(network: 'Network'):
     network.set_value(ref_rb, TF.MADE_SET, Set.RECIPIENT)
     
     # Create a PO in recipient with low activation (below 0.7 threshold)
-    low_act_po = Token(Type.PO, {TF.ACT: 0.6, TF.PRED: B.FALSE})  # Below 0.7 threshold
+    low_act_po = Token(Type.PO, {TF.ACT: 0.6, TF.PRED: B.FALSE}, set=Set.RECIPIENT)  # Below 0.7 threshold
     ref_low_po = recipient.add_token(low_act_po)
     
     # Set up mapping with max_map = 0.0
@@ -634,11 +634,11 @@ def test_rel_gen_type_p_child_rb_below_threshold(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a P token with high activation and existing made unit
-    p_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.CHILD})
+    p_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.CHILD}, set=Set.DRIVER)
     ref_p = driver.add_token(p_token)
     
     # Create a made P unit
-    made_p = Token(Type.P, {TF.ACT: 0.5, TF.MODE: Mode.CHILD})
+    made_p = Token(Type.P, {TF.ACT: 0.5, TF.MODE: Mode.CHILD}, set=Set.RECIPIENT)
     ref_made_p = recipient.add_token(made_p)
     made_idx = network.get_index(ref_made_p)
     
@@ -647,7 +647,7 @@ def test_rel_gen_type_p_child_rb_below_threshold(network: 'Network'):
     network.set_value(ref_p, TF.MADE_SET, Set.RECIPIENT)
     
     # Create an RB in recipient with low activation (below 0.7 threshold)
-    low_act_rb = Token(Type.RB, {TF.ACT: 0.6})  # Below 0.7 threshold
+    low_act_rb = Token(Type.RB, {TF.ACT: 0.6}, set=Set.RECIPIENT)  # Below 0.7 threshold
     ref_low_rb = recipient.add_token(low_act_rb)
     
     # Set up mapping with max_map = 0.0
@@ -670,11 +670,11 @@ def test_rel_gen_type_p_parent_rb_below_threshold(network: 'Network'):
     driver, recipient, _ = setup_rel_gen_environment(network)
     
     # Create a P token with high activation and existing made unit
-    p_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.PARENT})
+    p_token = Token(Type.P, {TF.ACT: 0.8, TF.MODE: Mode.PARENT}, set=Set.DRIVER)
     ref_p = driver.add_token(p_token)
     
     # Create a made P unit
-    made_p = Token(Type.P, {TF.ACT: 0.5, TF.MODE: Mode.PARENT})
+    made_p = Token(Type.P, {TF.ACT: 0.5, TF.MODE: Mode.PARENT}, set=Set.RECIPIENT)
     ref_made_p = recipient.add_token(made_p)
     made_idx = network.get_index(ref_made_p)
     
@@ -683,7 +683,7 @@ def test_rel_gen_type_p_parent_rb_below_threshold(network: 'Network'):
     network.set_value(ref_p, TF.MADE_SET, Set.RECIPIENT)
     
     # Create an RB in recipient with low activation (below 0.5 threshold for parent mode)
-    low_act_rb = Token(Type.RB, {TF.ACT: 0.4})  # Below 0.5 threshold
+    low_act_rb = Token(Type.RB, {TF.ACT: 0.4}, set=Set.RECIPIENT)  # Below 0.5 threshold
     ref_low_rb = recipient.add_token(low_act_rb)
     
     # Set up mapping with max_map = 0.0

@@ -30,7 +30,7 @@ def setup_predication_environment(network, mapping_weight=0.85):
     diff = d_po_mask.sum().item() - r_po_mask.sum().item()
     if diff > 0:
         for _ in range(diff):
-            new_po = Token(Type.PO, {TF.PRED: B.FALSE})
+            new_po = Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT)
             recipient.add_token(new_po)
     
     d_po_mask = driver.get_mask(Type.PO)
@@ -73,7 +73,7 @@ def test_requirements_fail_rb_connection(network):
     mapped_pairs = setup_predication_environment(network)
     _ , r_po = mapped_pairs[0]
     
-    new_rb = Token(Type.RB, {TF.PRED: B.FALSE})
+    new_rb = Token(Type.RB, {TF.PRED: B.FALSE}, set=Set.RECIPIENT)
     rb_ref = network.recipient().add_token(new_rb)
     
     r_po_index = network.recipient().token_op.get_index(r_po)
