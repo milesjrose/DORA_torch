@@ -69,17 +69,24 @@ class Token(object):
         self.tensor[key] = value
     
     def get_string(self):
+        stack_length = 3
         max_feature_length = max(len(feature.name) for feature in TF)
         string = ""
-        for feature in TF:
+        for i, feature in enumerate(TF):
             feature_value = TF_type(feature)(self.tensor[feature].item()) if self.tensor[feature].item() != null else null
-            string += f"{feature.name:<{max_feature_length}} : "
+            feat_name = f"{feature.name:<{max_feature_length}} : "
             if feature_value == null:
-                string += f"Null\n"
+                feat_val = f"Null"
             elif TF_type(feature) in [Type, Set, Mode, OntStatus, B]:
-                string += f"{feature_value.name}\n"
+                feat_val = f"{feature_value.name}"
             else:
-                string += f"{feature_value}\n"
+                feat_val = f"{feature_value}"
+            total = feat_name + feat_val
+            string += f"{total:<{max_feature_length + 2 + 7}}"
+            if ((i+1) % stack_length == 0):
+                string += "\n"
+            else:
+                string += "| "
         return string
 
 def get_default_features():
