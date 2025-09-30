@@ -240,15 +240,6 @@ class NodeOperations:
             logger.critical(f"Cant find token: {maker_unit_set.name}[{maker_unit_index}]")
             raise e
         return ref
-        
-    def initialise_made_unit(self):
-        """
-        Initialise the made unit for all tokens.
-        TODO: Update tensors to be null by default for these values.
-        currently some routines will not work unless this is run.
-        """
-        for set in Set:
-            self.network.sets[set].nodes[:, TF.MADE_UNIT] = null
     
     def kludgey_comparitor(self, set:Set, po1: int, po2: int):
         """

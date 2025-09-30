@@ -13,7 +13,6 @@ from ....utils import tensor_ops as tOps
 
 # name -> base_set.tensor_ops
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 if TYPE_CHECKING:
     from ..base_set import Base_Set

@@ -67,6 +67,25 @@ class Token(object):
 
     def __setitem__(self, key: TF, value: float):
         self.tensor[key] = value
+    
+    def get_string(self):
+        max_feature_length = max(len(feature.name) for feature in TF)
+        max_value_length = max(len(str(self.tensor[feature])) for feature in TF)
+        string = ""
+        for feature in TF:
+            feature_value = self.tensor[feature]
+            try:
+                feature_value = TF_type(feature)(feature_value)
+            except:
+                pass
+            string += f"{feature.name:<{max_feature_length}} : {feature_value:<{max_value_length}}"
+            if TF_type(feature) in [Type, Set, Mode, OntStatus, B]:
+                string += f" ({feature_value.name})\n"
+            elif TF_type(feature) == int():
+                string += f" ({int(feature_value)})\n"
+            else:
+                string += f"\n"
+        return string
 
 def get_default_features():
     """

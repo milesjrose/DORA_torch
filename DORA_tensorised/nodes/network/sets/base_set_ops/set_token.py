@@ -43,16 +43,26 @@ class TokenOperations:
             The feature for the referenced token.
 
         Raises:
-            ValueError: If the referenced token or feature is invalid.
+            IndexError: If the referenced token or feature is invalid.
+            KeyError: If the feature value is not a valid type.
+            TypeError: If the feature value is not a valid type.
+            ValueError: If the feature value is invalid.
         """
+        idx = self.get_index(ref_token)
         try:
-            feature_value = self.base_set.nodes[self.get_index(ref_token), feature].item()
-        except Exception as e:
-            logger.critical(f"Invalid reference token or feature: {ref_token.set.name}[{ref_token.ID}] {feature.name}")
-            raise ValueError("Invalid reference token or feature.")
-        # Convert to correct type:
-        f_type = TF_type(feature)
-        return f_type(feature_value)
+            feature_value = self.base_set.nodes[idx, feature].item()
+            casted_value = TF_type(feature)(feature_value) if feature_value != null else null
+            return casted_value
+        except IndexError as e:
+            logger.critical(f"Invalid reference token or feature: {ref_token.set.name}[{idx}] {feature.name}")
+            raise ValueError("Invalid reference token or feature.") from e
+        except KeyError as e:
+            logger.critical(f"No type for feature: {ref_token.set.name}[{idx}] {feature.name}")
+            raise ValueError("No type for feature.") from e
+        except (ValueError, TypeError) as e:
+            logger.critical(f"Invalid value for feature: {ref_token.set.name}[{idx}] {feature.name}, value: {feature_value}")
+            logger.critical(f"Token:\n {Token(tensor=self.base_set.nodes[idx, :]).get_string()}")
+            raise ValueError("Invalid value for feature.") from e
 
     def set_feature(self, ref_token: Ref_Token, feature: TF, value): # Set feature of single node
         """
@@ -66,8 +76,11 @@ class TokenOperations:
         Raises:
             ValueError: If the referenced token, feature, or value is invalid.
         """
+        idx = self.get_index(ref_token)
         try:
-            self.base_set.nodes[self.get_index(ref_token), feature] = float(value)
+            self.base_set.nodes[idx, feature] = float(value)
+            logger.debug(f"Set feature: {ref_token.set.name}[{idx}] {feature.name} -> {value}")
+            logger.debug(f"Token:\n{Token(tensor=self.base_set.nodes[idx, :]).get_string()}")
         except:
             raise ValueError("Invalid reference token, feature, or value.")
 
