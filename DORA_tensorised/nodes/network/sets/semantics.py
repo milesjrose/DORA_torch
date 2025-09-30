@@ -90,7 +90,7 @@ class Semantics(object):
     
     def get_dim(self, sem: Ref_Semantic) -> int:
         """Get the dimension of a semantic"""
-        dim_key = self.get(sem, SF.DIM)
+        dim_key = int(self.get(sem, SF.DIM))
         return dim_key
     
     def get_dim_name(self, dim_key: int) -> str:

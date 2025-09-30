@@ -61,3 +61,38 @@ def test_get_sdm_indices(network:Network):
     for index in sdm_indices:
         assert index in indices
 
+
+def test_add_dim(network:Network):
+    """Test that a dimension can be added to the semantics."""
+    sems:Semantics = network.semantics
+    initial_dim_count = len(sems.dimensions)
+    new_dim_key = sems.add_dim("test_dim")
+    assert len(sems.dimensions) == initial_dim_count + 1
+    assert sems.dimensions[new_dim_key] == "test_dim"
+
+def test_get_dim_and_name(network:Network):
+    """Test that the dimension of a semantic can be retrieved."""
+    sems:Semantics = network.semantics
+    sems.init_sdm()
+    
+    more_sem_ref = sems.sdms[SDM.MORE]
+    dim_key = sems.get_dim(more_sem_ref)
+    assert dim_key == sems.sdm_dims[SDM.MORE]
+    
+    dim_name = sems.get_dim_name(dim_key)
+    assert dim_name == SDM.MORE.name
+
+def test_set_dim_and_name(network:Network):
+    """Test that the dimension of a semantic can be set."""
+    sems:Semantics = network.semantics
+    sem_ref = Ref_Semantic(ID=1, name="sem1")
+
+    sems.set_dim(sem_ref, "new_dim")
+    dim_key = sems.get_dim(sem_ref)
+    dim_name = sems.get_dim_name(dim_key)
+    assert dim_name == "new_dim"
+    
+    sems.set_dim_name(dim_key, "updated_dim")
+    dim_name = sems.get_dim_name(dim_key)
+    assert dim_name == "updated_dim"
+
