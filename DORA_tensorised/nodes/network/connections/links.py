@@ -5,7 +5,7 @@ import torch
 import logging
 from enum import IntEnum
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 from ...enums import *
 from ..single_nodes import Ref_Token
@@ -155,11 +155,9 @@ class Links(object):
         Expand the links tensor for given set and dimension.
         """
         if dimension == LD.TK:
-            logger.debug(f"Expanding {set.name} links tensor for nodes")
             self.expand(new_size, set, LD.TK)
         else:
             for set in Set:
-                logger.debug(f"Expanding {set.name} links tensor for feats")
                 self.expand(new_size, set, LD.SEM)
     
     def expand(self, new_size: int, set: Set, dimension: LD):
@@ -178,7 +176,7 @@ class Links(object):
             new_links = torch.zeros(num_token, num_sem)                         # create new links tensor
             new_links[:links.size(dim=LD.TK), :links.size(dim=LD.SEM)] = links  # copy over old links
             self.sets[set] = new_links                                          # update links
-            logger.debug(f"-> Expanded {set.name} links tensor: {new_links.shape}")
+            logger.debug(f"-> Expand {set.name}: [{old_num_token}x{old_num_sem}] -> [{new_links.shape[0]}x{new_links.shape[1]}]")
         except Exception as e:
             logger.error(f"-> Error expanding {set.name} links tensor")
             raise e

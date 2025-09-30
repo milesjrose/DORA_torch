@@ -146,7 +146,7 @@ class Semantics(object):
         Args:
             semantic (Semantic): The semantic to add.
         """
-        logger.debug(f"Adding semantic {semantic.name}")
+        logger.info(f"Add sem: {semantic.name}")
         deleted_mask = self.nodes[:, SF.DELETED] == B.TRUE          # find all deleted semantics in nodes tensor
         if not deleted_mask.any():                                  # if no deleted semantics, expand tensor
             self.expand_tensor()
@@ -160,17 +160,16 @@ class Semantics(object):
         self.names[new_id] = semantic.name                          # add name to names
         self.nodes[empty_row, SF.ID] = new_id                       # set node id feature
         ref_new = Ref_Semantic(new_id, semantic.name)
-        logger.debug(f"Added semantic {semantic.name}: \n{semantic.get_string()}")
+        #logger.debug(f"Added semantic {semantic.name}: \n{semantic.get_string()}")
         return ref_new
     
     def expand_tensor(self):
         """
         Expand the nodes, connections, and links tensors by the expansion factor.
         """
-        logger.debug("Expanding semantics tensor")
         current_size = self.nodes.size(dim=SD.NODES)
-        new_size = max(int(current_size * self.expansion_factor), current_size + 1)  # ensure we actually expand
-        logger.debug(f"Expanding semantics tensor from {current_size} to {new_size}")
+        new_size = max(int(current_size * self.expansion_factor), current_size + 5)  # ensure we actually expand
+        logger.debug(f"Expand: {current_size} -> {new_size}")
         new_nodes = torch.zeros(new_size, len(SF))                  # create new nodes tensor
         new_nodes[current_size:, SF.DELETED] = B.TRUE               # set all deleted to 1 for all new nodes
         new_nodes[:current_size, :] = self.nodes                    # copy over old nodes

@@ -112,7 +112,7 @@ class TestExpandTensor:
         new_connections_size = basic_semantics.connections.size(0)
         
         # Should expand by expansion factor (but at least by 1)
-        expected_size = max(int(initial_size * basic_semantics.expansion_factor), initial_size + 1)
+        expected_size = max(int(initial_size * basic_semantics.expansion_factor), initial_size + 5)
         assert new_size == expected_size
         assert new_connections_size == expected_size
         
