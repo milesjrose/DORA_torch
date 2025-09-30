@@ -84,7 +84,7 @@ class Semantics(object):
     
     def add_dim(self, dimension: str) -> int:
         """Add a dimension to the dimensions dictionary"""
-        new_dim_key = max(self.dimensions.keys()) + 1 if self.dimensions else 0
+        new_dim_key = max(self.dimensions.keys()) + 1 if self.dimensions else 1
         self.dimensions[new_dim_key] = dimension
         return new_dim_key
     
@@ -129,6 +129,7 @@ class Semantics(object):
         else:
             sdm_dims = torch.tensor([self.sdm_dims[SDM.MORE], self.sdm_dims[SDM.LESS], self.sdm_dims[SDM.SAME]])
         indices = torch.isin(self.nodes[:, SF.DIM], sdm_dims).nonzero()
+        logger.debug(f"DIMS: {self.nodes[:, SF.DIM]}")
         return indices
     
     def check_sdm_init(self) -> bool:
@@ -151,7 +152,7 @@ class Semantics(object):
             self.expand_tensor()
         empty_rows = torch.where(self.nodes[:, SF.DELETED] == B.TRUE)[0]                   # find all empty rows in nodes tensor
         empty_row = empty_rows[0]                                   # find first empty row
-        self.nodes[empty_row, :] = semantic.tensor                   # add semantic to empty row
+        self.nodes[empty_row, :] = semantic.tensor                  # add semantic to empty row
         new_id = max(self.IDs.keys()) + 1 if self.IDs else 1        # get new id
         self.IDs[new_id] = empty_row                                # add id to IDs
         if semantic.name is None:
@@ -159,6 +160,7 @@ class Semantics(object):
         self.names[new_id] = semantic.name                          # add name to names
         self.nodes[empty_row, SF.ID] = new_id                       # set node id feature
         ref_new = Ref_Semantic(new_id, semantic.name)
+        logger.debug(f"Added semantic {semantic.name}: \n{semantic.get_string()}")
         return ref_new
     
     def expand_tensor(self):
