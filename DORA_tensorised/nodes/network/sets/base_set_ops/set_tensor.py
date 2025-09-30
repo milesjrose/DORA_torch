@@ -173,6 +173,7 @@ class TensorOperations:
         ref_token = Ref_Token(self.base_set.token_set, ID)
         ref_token.name = token.name
         logger.info(f"add_token -> {ref_token.set.name}[{idx}]({ID}):\"{ref_token.name}\"")
+        logger.debug(f"-> token:\n{Token(tensor=self.base_set.nodes[idx, :]).get_string()}")
         return ref_token
     
     def expand_tensor(self):                                        # Expand nodes, links, mappings, connnections tensors by self.expansion_factor
