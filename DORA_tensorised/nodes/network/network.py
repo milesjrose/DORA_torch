@@ -116,6 +116,8 @@ class Network(object):
         self.set_params(params)
         # TODO move the get_index call out of the links object
         links.set_network(self)
+        # Initialise SDMs
+        self.semantics.init_sdm()
         
     
     def __getattr__(self, name):
