@@ -1,6 +1,5 @@
 # nodes/sets/connections/links.py
 # Weighted connections between nodes and semantics.
-# TODO: Implement add_links
 
 import torch
 import logging
