@@ -23,8 +23,6 @@ class MappingOperations:
             network: Reference to the Network object
         """
         self.network: 'Network' = network
-
-    # ---------------------[ TODO: IMPLEMENT ]----------------------------
     
     def reset_mapping_units(self):
         """
