@@ -217,8 +217,8 @@ class SchematisationOperations:
         # Add token to new set and set maker/made unit features
         ref_made = self.network.add_token(new_token)
         idx_made = self.network.get_index(ref_made)
-        self.network.token_ops.set_value(ref_maker, TF.MADE_UNIT, idx_made)
-        self.network.token_ops.set_value(ref_maker, TF.MADE_SET, ref_made.set)
+        self.network.node_ops.set_value(ref_maker, TF.MADE_UNIT, idx_made)
+        self.network.node_ops.set_value(ref_maker, TF.MADE_SET, ref_made.set)
         logger.info(f"- {self.network.get_ref_string(ref_maker)} -> inferred -> maker={self.network.get_ref_string(ref_made)}")
         return ref_made
 
