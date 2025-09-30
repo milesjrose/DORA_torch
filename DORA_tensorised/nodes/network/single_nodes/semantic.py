@@ -33,6 +33,16 @@ class Semantic(object):
     
     def __setitem__(self, key: SF, value: float):
         self.tensor[key] = value
+    
+    def get_string(self):
+        max_feature_length = max(len(feature.name) for feature in SF)
+        string = ""
+        for feature in SF:
+            feature_value = (self.tensor[feature].item()) if self.tensor[feature].item() != null else null
+            string += f"{feature.name:<{max_feature_length}} : "
+            string += f"{feature_value}\n"
+        return string
+        
 
 class Ref_Semantic(object):
     """
