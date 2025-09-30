@@ -108,7 +108,7 @@ class AnalogOperations:
         Returns:
             List[Ref_Analog]: References to the analogs that were copied to AM.
         """
-        # TODO: Still need to check if should delete from memory set after copy - as think when am set is cleared, ill move then back to memory anyway.
+        # NOTE: Don't delete from memory after copy.
         analogs = self.check_for_copy()
         copied_analogs = []
         for analog in analogs:
@@ -166,11 +166,11 @@ class AnalogOperations:
     def find_mapping_analog(self) -> list[Ref_Analog]:
         """
         Find analogs that have a mapping connection in the recipient
-        TODO: need to add test
         """
-        self.network.mapping_ops.get_max_maps(set=Set.RECIPIENT) # update max_map for recipient tokens
+        self.network.mapping_ops.get_max_maps(set=[Set.RECIPIENT]) # update max_map for recipient tokens
         all_tks = self.network.recipient().tensor_op.get_all_nodes_mask()
-        map_tokens = self.network.recepient().nodes[all_tks, TF.MAX_MAP] > 0 # Get tokens with mapping connections
+        max_map_values = self.network.recipient().nodes[:, TF.MAX_MAP]
+        map_tokens = (max_map_values > 0) & all_tks
         if map_tokens.sum() == 0:
             logger.debug("RECIPIENT: No tokens with mapping connections")
         else:
@@ -179,13 +179,14 @@ class AnalogOperations:
     def move_mapping_analogs_to_new(self) -> Ref_Analog:
         """
         Move any analogs in the recipient that have a mapping connection to a new analog
-        TODO: add test
 
         Returns:
         - Ref_Analog: the new analog
         """
         map_analogs = self.find_mapping_analog()
-        new_id = float(self.network.recipient().tensor_ops.get_new_analog_id())
+        if not map_analogs:
+            return None
+        new_id = float(self.network.recipient().tensor_op.get_new_analog_id())
         for analog in map_analogs:
             self.set_analog_features(analog, TF.ANALOG, new_id)
         self.network.recipient().tensor_op.analog_node_count() # Update analog counts

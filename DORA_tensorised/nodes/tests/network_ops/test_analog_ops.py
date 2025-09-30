@@ -261,3 +261,101 @@ def test_print_analog(network, capsys):
     assert "analog" in print_output.lower() or len(print_output) > 0, f"Expected print output, got: {print_output}"
     print(f"Captured output: {print_output}")
 
+
+def test_check_set_match(network: Network):
+    """Test checking for set mismatches in analogs."""
+    # Manually create a mismatch
+    driver_analog_ref = Ref_Analog(0, Set.DRIVER)
+    driver_analog_indices = network.analog.get_analog_indices(driver_analog_ref)
+    
+    # Change the set of the first token in the driver analog to RECIPIENT
+    if len(driver_analog_indices) > 0:
+        token_to_modify_idx = driver_analog_indices[0]
+        network.driver().token_op.set_features([token_to_modify_idx], TF.SET, Set.RECIPIENT)
+    
+    mismatched_analogs = network.analog.check_set_match()
+    
+    # The results are a list of lists, one for each set.
+    # We expect to find a mismatch for the DRIVER set.
+    driver_mismatches = mismatched_analogs[Set.DRIVER.value]
+    assert len(driver_mismatches) > 0
+    assert driver_analog_ref in driver_mismatches
+
+def test_check_for_copy(network: Network):
+    """Test checking for analogs in memory that need to be copied."""
+    memory_analog_ref = Ref_Analog(0, Set.MEMORY)
+    memory_analog_indices = network.analog.get_analog_indices(memory_analog_ref)
+
+    if len(memory_analog_indices) > 0:
+        token_to_modify_idx = memory_analog_indices[0]
+        # Change the set of a token in the memory analog to DRIVER
+        network.memory().token_op.set_features([token_to_modify_idx], TF.SET, Set.DRIVER)
+    
+    analogs_to_copy = network.analog.check_for_copy()
+    
+    assert len(analogs_to_copy) > 0
+    assert memory_analog_ref in analogs_to_copy
+
+def test_clear_set(network: Network):
+    """Test clearing the set feature of an analog."""
+    driver_analog_ref = Ref_Analog(0, Set.DRIVER)
+    
+    network.analog.clear_set(driver_analog_ref)
+    
+    driver_analog_indices = network.driver().token_op.get_analog_indices(driver_analog_ref)
+    
+    for idx in driver_analog_indices:
+        token_ref = network.driver().token_op.get_reference(index=idx)
+        token_set = network.node_ops.get_value(token_ref, TF.SET)
+        assert token_set == Set.MEMORY.value
+
+def test_find_mapping_analog(network: Network):
+    """Test finding analogs with mapping connections in the recipient."""
+    driver_token = network.driver().add_token(Token(Type.PO, {TF.PRED: B.FALSE, TF.ANALOG: 1.0}, set=Set.DRIVER)) 
+    rec_token = network.recipient().add_token(Token(Type.PO, {TF.PRED: B.FALSE, TF.ANALOG: 1.0}, set=Set.RECIPIENT))
+    
+    idx_d_token = network.get_index(driver_token)
+    idx_rec_token = network.get_index(rec_token)
+    
+    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
+    
+    mapping_analogs = network.analog.find_mapping_analog()
+    
+    assert mapping_analogs is not None
+    assert len(mapping_analogs) > 0
+    
+    rec_analog_num = network.node_ops.get_value(rec_token, TF.ANALOG)
+    
+    found = any(a.analog_number == rec_analog_num and a.set == Set.RECIPIENT for a in mapping_analogs)
+    assert found
+
+def test_move_mapping_analogs_to_new(network: Network):
+    """Test moving mapping analogs to a new analog."""
+    driver_token1 = network.driver().add_token(Token(Type.PO, {TF.ANALOG: 1.0, TF.PRED: B.FALSE}, set=Set.DRIVER))
+    rec_token1 = network.recipient().add_token(Token(Type.PO, {TF.ANALOG: 1.0, TF.PRED: B.FALSE}, set=Set.RECIPIENT))
+    driver_token2 = network.driver().add_token(Token(Type.PO, {TF.ANALOG: 2.0, TF.PRED: B.FALSE}, set=Set.DRIVER))
+    rec_token2 = network.recipient().add_token(Token(Type.PO, {TF.ANALOG: 2.0, TF.PRED: B.FALSE}, set=Set.RECIPIENT))
+
+    idx_d_token1 = network.get_index(driver_token1)
+    idx_rec_token1 = network.get_index(rec_token1)
+    idx_d_token2 = network.get_index(driver_token2)
+    idx_rec_token2 = network.get_index(rec_token2)
+
+    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token1, idx_d_token1] = 1.0
+    
+    initial_analog_num1 = network.node_ops.get_value(rec_token1, TF.ANALOG)
+    initial_analog_num2 = network.node_ops.get_value(rec_token2, TF.ANALOG)
+    
+    network.analog.move_mapping_analogs_to_new()
+    
+    new_analog_num1 = network.node_ops.get_value(rec_token1, TF.ANALOG)
+    new_analog_num2 = network.node_ops.get_value(rec_token2, TF.ANALOG)
+    
+    assert new_analog_num1 != initial_analog_num1
+    assert new_analog_num2 == initial_analog_num2 # This one should not have changed
+    
+    # Check that the new analog ID is greater than existing ones.
+    # The new id is based on max existing id + 1
+    assert new_analog_num1 > initial_analog_num1
+    assert new_analog_num1 > initial_analog_num2
+

@@ -88,3 +88,8 @@ class Ref_Analog:
     def __init__(self, analog_number: int, set: Set):
         self.analog_number = analog_number
         self.set = set
+
+    def __eq__(self, other):
+        if not isinstance(other, Ref_Analog):
+            return NotImplemented
+        return self.analog_number == other.analog_number and self.set == other.set

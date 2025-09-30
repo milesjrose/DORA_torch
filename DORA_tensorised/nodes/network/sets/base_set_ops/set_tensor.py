@@ -498,12 +498,15 @@ class TensorOperations:
     def get_analog_ref_list(self, mask)-> list[Ref_Analog]:
         """
         Get a list of the unique analogs for a given mask
-        TODO: add test
         """
-        analogs, counts = torch.unique(self.base_set.nodes[mask, TF.ANALOG])
-        return analogs
+        unique_analog_numbers = torch.unique(self.base_set.nodes[mask, TF.ANALOG])
+        ref_analogs = []
+        for analog_num in unique_analog_numbers:
+            if analog_num.item() != null:
+                ref_analogs.append(Ref_Analog(analog_num.item(), self.base_set.token_set))
+        return ref_analogs
     
-    def get_new_analog_id(self, analogs:list[Ref_Analog]):
+    def get_new_analog_id(self):
         """
         Get a new unique analog id
         """

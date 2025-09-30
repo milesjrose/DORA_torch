@@ -58,7 +58,7 @@ class MappingOperations:
         """
         self.network.mappings[Set.RECIPIENT].update_connections(self.network.params.eta)
     
-    def get_max_maps(self, set: Set = [Set.RECIPIENT, Set.DRIVER]):
+    def get_max_maps(self, set: list[Set] = [Set.RECIPIENT, Set.DRIVER]):
         """
         Get value/token with highest mapping value for each token in sets.
         
