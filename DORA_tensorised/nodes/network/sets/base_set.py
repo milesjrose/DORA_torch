@@ -35,7 +35,6 @@ class Base_Set(object):
         - analog_counts (torch.Tensor): An Ax1 tensor listing the number of tokens per analog
         - links (Links): A shared Links object containing interset links from tokens to semantics.
         - connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
-          NOTE: I've only just realised that connections are bi-directional. Think I changed them all, but not sure.
         - masks (torch.Tensor): A Tensor of masks for the tokens in this set.
         - IDs (dict): A dictionary mapping token IDs to index in the tensor.
         - params (Params): An object containing shared parameters.

@@ -337,28 +337,24 @@ class TokenOperations:
         idx_from = self.get_index(parent)
         idx_to = self.get_index(child)
         self.base_set.connections[idx_from, idx_to] = value
-        self.base_set.connections[idx_to, idx_from] = value
     
     def connect_idx(self, from_idx: int, to_idx: int, value=B.TRUE):
         """
         Connect a token at from_idx to a token at to_idx.
         """
         self.base_set.connections[from_idx, to_idx] = value
-        self.base_set.connections[to_idx, from_idx] = value
     
     def connect_idxs(self, from_idxs: torch.Tensor, to_idxs: torch.tensor, value=B.TRUE):
         """
         Take a tensor of indices, e.g from torch.where, and connect them to each other.
         """
         self.base_set.connections[from_idxs, to_idxs] = value
-        self.base_set.connections[to_idxs, from_idxs] = value
     
     def connect_mask(self, mask_from: torch.Tensor, mask_to: torch.Tensor, value=B.TRUE):
         """
         Connect tokens in mask_from to tokens in mask_to.
         """
         self.base_set.connections[mask_from, mask_from] = value
-        self.base_set.connections[mask_to, mask_from] = value
     
     def get_connected_tokens(self, ref_token: Ref_Token) -> list[Ref_Token]:
         """
