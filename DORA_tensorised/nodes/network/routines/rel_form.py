@@ -90,8 +90,8 @@ class RelFormOperations:
             rb_mask = self.network.recipient().get_mask(Type.RB)
             active_mask = self.network.recipient().nodes[:, TF.ACT] >= threshold
             rb_to_connect = rb_mask & active_mask
-            inffered_p_index = self.network.get_index(self.inferred_p)
-            self.network.recipient().connections[inffered_p_index, rb_to_connect] = B.TRUE
+            infered_p_index = self.network.get_index(self.inferred_p)
+            self.network.recipient().token_op.connect_idx(infered_p_index, rb_to_connect)
         else:
             new_p_name = "" # Name should be RB1+RB2+...RBx. For now leave blank and name after phase set. NOTE: Why?
             new_p = Token(Type.P, {TF.SET: Set.RECIPIENT, TF.INFERRED: B.TRUE})

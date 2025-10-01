@@ -78,8 +78,8 @@ def test_requirements_fail_rb_connection(network):
     
     r_po_index = network.recipient().token_op.get_index(r_po)
     rb_ref_index = network.recipient().token_op.get_index(rb_ref)
-    
-    network.recipient().connections[r_po_index, rb_ref_index] = B.TRUE
+
+    network.recipient().token_op.connect_idx(r_po_index, rb_ref_index)
 
     assert network.routines.predication.requirements() is False, "Requirements should fail with existing RB connection"
 

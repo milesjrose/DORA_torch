@@ -130,7 +130,7 @@ def test_rel_form_fails_connected_to_p(network: 'Network'):
 
     # Connect one of the mapped RBs to a P unit
     p_index = torch.where(recipient.get_mask(Type.P))[0][0]
-    recipient.connections[r_rb_indices[0], p_index] = 1.0
+    recipient.token_op.connect_idx(r_rb_indices[0], p_index)
 
     # --------------------------[ TEST ]--------------------------
     assert network.routines.rel_form.requirements() is False

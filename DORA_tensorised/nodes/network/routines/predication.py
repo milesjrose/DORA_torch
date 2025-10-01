@@ -196,8 +196,8 @@ class PredicationOperations:
             new_rb_index = self.network.sets[new_rb_ref.set].token_op.get_index(new_rb_ref)
             new_po_index = self.network.sets[new_po_ref.set].token_op.get_index(new_po_ref)
 
-            self.network.new_set().connections[new_rb_index, new_pred_index] = B.TRUE
-            self.network.new_set().connections[new_rb_index, new_po_index] = B.TRUE
+            self.network.new_set().token_op.connect_idx(new_rb_index, new_pred_index)
+            self.network.new_set().token_op.connect_idx(new_rb_index, new_po_index)
 
             self.made_new_pred = True
             self.inferred_pred = new_pred_ref

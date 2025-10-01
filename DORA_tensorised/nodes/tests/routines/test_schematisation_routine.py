@@ -59,7 +59,7 @@ def test_schema_fails_invalid_child_connection(network: 'Network'):
     driver.nodes[1, TF.MAX_MAP] = 0.0
 
     # Connect a valid token (parent) to the invalid one (child)
-    driver.connections[0, 1] = 1.0
+    driver.token_op.connect_idx(0, 1)
 
     assert network.routines.schematisation.requirements() is False
 
@@ -76,7 +76,7 @@ def test_schema_fails_invalid_parent_connection(network: 'Network'):
     driver.nodes[0, TF.MAX_MAP] = 0.0
 
     # Connect a valid token (child) to the invalid one (parent)
-    driver.connections[0, 1] = 1.0
+    driver.token_op.connect_idx(0, 1)
 
     assert network.routines.schematisation.requirements() is False
 
