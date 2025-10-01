@@ -418,8 +418,7 @@ class DORA:
         - Both connect to an RB with no connected Ps
         - Share a P unit (i.e both connect to an RB that connects to the same p)
         """
-        # NOTE: Not even remotely vectorised, could maybe be improved?
-        # NOTE: Passing tokens as references is really inefficient, should probably just pass references and update the kludegy comparitor
+        # NOTE: Not even remotely vectorised, idk how to improve this
         # Check there are RBs
         if not self.network.params.count_by_RBs:
             return
