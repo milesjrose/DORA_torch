@@ -54,3 +54,14 @@ def test_update_input_driver(network: Network):
         if not check_nan_values(driver, update_function.__name__):
             is_nan = True
     assert not is_nan
+
+def test_update_input_recipient(network: Network):
+    """Test the update_input function for the recipient set."""
+    recipient: Recipient = network.recipient()
+    is_nan = False
+    for update_function in [recipient.update_input_p_parent, recipient.update_input_p_child, recipient.update_input_rb, recipient.update_input_po]:
+        update_function()
+        if not check_nan_values(recipient, update_function.__name__):
+            is_nan = True
+    assert not is_nan
+
