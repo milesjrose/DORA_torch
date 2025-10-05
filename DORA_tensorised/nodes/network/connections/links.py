@@ -180,3 +180,7 @@ class Links(object):
         except Exception as e:
             logger.error(f"-> Error expanding {set.name} links tensor")
             raise e
+        
+    def get_sem_count(self, set: Set, token_mask: torch.Tensor):
+        """ get the number of semantics connected to the tokens in the mask """
+        return self.sets[set][token_mask, :].sum(dim=1)
