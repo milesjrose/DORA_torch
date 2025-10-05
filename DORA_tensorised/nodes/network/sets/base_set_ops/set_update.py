@@ -2,12 +2,15 @@
 # Update operations for Base_Set class
 import torch 
 from typing import TYPE_CHECKING
+from logging import getLogger
 
 from ....enums import *
 from ....utils import tensor_ops as tOps
 
 if TYPE_CHECKING: # For autocomplete/hover-over docs
     from ..base_set import Base_Set
+
+logger = getLogger(__name__)
 
 class UpdateOperations:
     """
@@ -33,8 +36,9 @@ class UpdateOperations:
             features (list[TF]): The features to initialise.
         """
         type_mask = self.base_set.tensor_op.get_combined_mask(n_type)   # Get mask of nodes to update
-        for feature in features:
-            self.base_set.nodes[type_mask, feature] = 0.0               # Set each feature to 0.0 for masked nodes
+        if torch.any(type_mask):
+            for feature in features:
+                self.base_set.nodes[type_mask, feature] = 0.0               # Set each feature to 0.0 for masked nodes
     
     def init_input(self, n_type: list[Type], refresh: float):     # Initialize inputs to 0, and td_input to refresh.
         """ 
@@ -45,9 +49,10 @@ class UpdateOperations:
             refresh (float): The value to set the td_input to.
         """
         type_mask = self.base_set.tensor_op.get_combined_mask(n_type)
-        self.base_set.nodes[type_mask, TF.TD_INPUT] = refresh           # Set td_input to refresh
-        features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
-        self.init_float(n_type, features)                         # Set types to 0.0
+        if torch.any(type_mask):
+            self.base_set.nodes[type_mask, TF.TD_INPUT] = refresh           # Set td_input to refresh
+            features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
+            self.init_float(n_type, features)                         # Set types to 0.0
 
     def init_act(self, n_type: list[Type]):                       # Initialize act to 0.0,  and call initialise_inputs
         """Initialize act to 0.0,  and call initialise_inputs
@@ -55,8 +60,10 @@ class UpdateOperations:
         Args:
             n_type (list[Type]): The types of nodes to initialise.
         """
-        self.init_input(n_type, 0.0)
-        self.init_float(n_type, [TF.ACT])
+        type_mask = self.base_set.tensor_op.get_combined_mask(n_type)
+        if torch.any(type_mask):
+            self.init_input(n_type, 0.0)
+            self.init_float(n_type, [TF.ACT])
 
     def init_state(self, n_type: list[Type]):                     # Set self.retrieved to false, and call initialise_act
         """Set self.retrieved to false, and call initialise_act
@@ -64,11 +71,14 @@ class UpdateOperations:
         Args:
             n_type (list[Type]): The types of nodes to initialise.
         """
-        self.init_act(n_type)
-        self.init_float(n_type, [TF.RETRIEVED])                       
+        type_mask = self.base_set.tensor_op.get_combined_mask(n_type)
+        if torch.any(type_mask):
+            self.init_act(n_type)
+            self.init_float(n_type, [TF.RETRIEVED])                       
         
     def update_act(self):                                               # Update act of nodes
         """Update act of nodes. Based on params.gamma, params.delta, and params.HebbBias."""
+        if not torch.any(self.base_set.tensor_op.get_all_nodes_mask()): return;
         net_input_types = [
             TF.TD_INPUT,
             TF.BU_INPUT,
@@ -95,7 +105,9 @@ class UpdateOperations:
         Args:
             n_type (list[Type]): The types of nodes to set lateral_input to 0.
         """
-        self.init_float(n_type, [TF.LATERAL_INPUT])
+        type_mask = self.base_set.tensor_op.get_combined_mask(n_type)
+        if torch.any(type_mask):
+            self.init_float(n_type, [TF.LATERAL_INPUT])
     
     def update_inhibitor_input(self, n_type: list[Type]):               # Update inputs to inhibitors by current activation for nodes of type n_type
         """
@@ -105,7 +117,8 @@ class UpdateOperations:
             n_type (list[Type]): The types of nodes to update inhibitor inputs.
         """
         mask = self.base_set.tensor_op.get_combined_mask(n_type)
-        self.base_set.nodes[mask, TF.INHIBITOR_INPUT] += self.base_set.nodes[mask, TF.ACT]
+        if torch.any(mask):
+            self.base_set.nodes[mask, TF.INHIBITOR_INPUT] += self.base_set.nodes[mask, TF.ACT]
 
     def reset_inhibitor(self, n_type: list[Type]):                      # Reset the inhibitor input and act to 0.0 for given type
         """
@@ -115,8 +128,9 @@ class UpdateOperations:
             n_type (list[Type]): The types of nodes to reset inhibitor inputs and acts.
         """
         mask = self.base_set.tensor_op.get_combined_mask(n_type)
-        self.base_set.nodes[mask, TF.INHIBITOR_INPUT] = 0.0
-        self.base_set.nodes[mask, TF.INHIBITOR_ACT] = 0.0
+        if torch.any(mask):
+            self.base_set.nodes[mask, TF.INHIBITOR_INPUT] = 0.0
+            self.base_set.nodes[mask, TF.INHIBITOR_ACT] = 0.0
     
     def update_inhibitor_act(self, n_type: list[Type]):                 # Update the inhibitor act for given type
         """
@@ -126,23 +140,31 @@ class UpdateOperations:
             n_type (list[Type]): The types of nodes to update inhibitor acts.
         """
         type_mask = self.base_set.tensor_op.get_combined_mask(n_type)
-        input = self.base_set.nodes[type_mask, TF.INHIBITOR_INPUT]
-        threshold = self.base_set.nodes[type_mask, TF.INHIBITOR_THRESHOLD]
-        nodes_to_update = (input >= threshold)                          # if inhib_input >= inhib_threshold
-        self.base_set.nodes[nodes_to_update, TF.INHIBITOR_ACT] = 1.0    # then set to 1
+        if torch.any(type_mask):
+            input = self.base_set.nodes[type_mask, TF.INHIBITOR_INPUT]
+            threshold = self.base_set.nodes[type_mask, TF.INHIBITOR_THRESHOLD]
+            nodes_to_update = (input >= threshold)                          # if inhib_input >= inhib_threshold
+            # turn into global mask
+            update_mask = torch.zeros_like(type_mask, dtype=torch.bool)
+            update_mask[type_mask] = nodes_to_update
+            # update
+            self.base_set.nodes[update_mask, TF.INHIBITOR_ACT] = 1.0    # then set to 1
     # --------------------------------------------------------------
 
     # =======================[ P FUNCTIONS ]========================
     def p_initialise_mode(self):                                        # Initialize all p.mode back to neutral.
         """Initialize mode to neutral for all P units."""
         p = self.base_set.tensor_op.get_mask(Type.P)
-        self.base_set.nodes[p, TF.MODE] = Mode.NEUTRAL
+        if torch.any(p):
+            self.base_set.nodes[p, TF.MODE] = Mode.NEUTRAL
 
     def p_get_mode(self):                                               # Set mode for all P units
         """Set mode for all P units"""
         # Pmode = Parent: child RB act> parent RB act / Child: parent RB act > child RB act / Neutral: o.w
         p = self.base_set.tensor_op.get_mask(Type.P)
+        if not torch.any(p): return;
         rb = self.base_set.tensor_op.get_mask(Type.RB)
+        if not torch.any(rb): return;
         child_input = torch.matmul(                                 # Px1 matrix: sum of child rb for each p
             self.base_set.connections[p, rb],
             self.base_set.nodes[rb, TF.ACT]
@@ -169,8 +191,9 @@ class UpdateOperations:
             raise ValueError("Links is not initialised, po_get_weight_length.")
         
         po = self.base_set.tensor_op.get_mask(Type.PO)                  # mask links with PO
+        if not torch.any(po): return;
         mask = self.base_set.links[self.base_set.token_set][po] > 0.1   # Create sub mask for links with weight > 0.1
-        weights = (self.base_set.links[self.base_set.token_set][po] * mask).sum(dim=1, keepdim = True)  # Sum links > 0.1
+        weights = (self.base_set.links[self.base_set.token_set][po] * mask).sum(dim=1, keepdim = False)  # Sum links > 0.1
         self.base_set.nodes[po, TF.SEM_COUNT] = weights                 # Set semNormalisation
             
     def po_get_max_semantic_weight(self):                               # Get max link weight for all PO nodes
@@ -179,7 +202,8 @@ class UpdateOperations:
             raise ValueError("Links is not initialised, po_get_max_semantic_weight.")
         
         po = self.base_set.tensor_op.get_mask(Type.PO)
-        max_values, _ = torch.max(self.base_set.links[self.base_set.token_set][po], dim=1, keepdim=True)  # (max_values, _) unpacks tuple returned by torch.max
+        if not torch.any(po): return;
+        max_values, _ = torch.max(self.base_set.links[self.base_set.token_set][po], dim=1, keepdim=False)  # (max_values, _) unpacks tuple returned by torch.max
         self.base_set.nodes[po, TF.MAX_SEM_WEIGHT] = max_values         # Set max
 
     # ---------------------------------------------------------------
