@@ -240,7 +240,11 @@ class Recipient(Base_Set):
             sem_links[po],
             semantics.nodes[:, SF.ACT]
         )
-        self.nodes[po, TF.BU_INPUT] += sem_input / self.nodes[po, TF.SEM_COUNT]
+        # need to get sem count, for po normalisation.
+        self.nodes[po, TF.SEM_COUNT] = self.links.get_sem_count(self.token_set, po)
+        # mask by sem_count = zero to avoid division by zero
+        has_sem = self.nodes[:, TF.SEM_COUNT] != 0
+        self.nodes[po&has_sem, TF.BU_INPUT] += sem_input / self.nodes[po&has_sem, TF.SEM_COUNT]
         # 4). Mapping input
         self.nodes[po, TF.MAP_INPUT] += self.map_input(po) 
         # Inhibitory input:

@@ -2,6 +2,8 @@
 # Represents the memory set of tokens.
 
 import torch
+import logging
+logger = logging.getLogger(__name__)
 
 from ...enums import *
 from ...utils import tensor_ops as tOps
@@ -190,7 +192,6 @@ class Memory(Base_Set):
             sem_links = self.links[self.token_set]
         except:
             raise ValueError("Links are not initialised, update_input_po.")
-        
         # NOTE: Currently inferred nodes not updated so excluded from po mask. Inferred nodes do update other PO nodes - so all_po used for updating lat_input.
         # Exitatory: td (my RBs), bu (my semantics/sem_count[for normalisation]), mapping input.
         # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
@@ -216,7 +217,11 @@ class Memory(Base_Set):
             sem_links[po],
             semantics.nodes[:, SF.ACT]
         )
-        self.nodes[po, TF.BU_INPUT] += sem_input / self.nodes[po, TF.SEM_COUNT]
+        # need to get sem count, for po normalisation.
+        self.nodes[po, TF.SEM_COUNT] = self.links.get_sem_count(self.token_set, po)
+        # mask by sem_count = zero to avoid division by zero
+        has_sem = self.nodes[:, TF.SEM_COUNT] != 0
+        self.nodes[po&has_sem, TF.BU_INPUT] += sem_input / self.nodes[po&has_sem, TF.SEM_COUNT]
         # 4). Mapping input
         self.nodes[po, TF.MAP_INPUT] += self.map_input(po) 
         # Inhibitory input:
