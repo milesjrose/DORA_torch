@@ -143,4 +143,11 @@ class RetrievalOperations:
         """
         # Get indices of tokens to retrieve
         token_indices = torch.where(token_mask)[0]
-        # Get children...
+        # Get children
+
+        #this does stuff for now
+        for idx in token_indices:
+            # Get token reference
+            token_ref = self.network.memory().token_op.get_reference(index=idx.item())
+            # Move token to recipient
+            self.network.memory().token_op.move(token_ref, Set.RECIPIENT)
