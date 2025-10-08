@@ -117,17 +117,10 @@ def test_retrieve_tokens_bias_analogs_false(network):
     initial_recipient_count = network.recipient().get_count()
     
     # Run retrieve_tokens - this will fail due to missing move method in production code
-    try:
-        network.routines.retrieval.retrieve_tokens()
-        # Check structure (movement is probabilistic)
-        assert memory.get_count() <= initial_memory_count
-        assert network.recipient().get_count() >= initial_recipient_count
-    except AttributeError as e:
-        if "move" in str(e):
-            # This is expected - the production code doesn't have the move method yet
-            pytest.skip("TokenOperations.move method not implemented in production code")
-        else:
-            raise
+    network.routines.retrieval.retrieve_tokens()
+    # Check structure (movement is probabilistic)
+    assert memory.get_count() <= initial_memory_count
+    assert network.recipient().get_count() >= initial_recipient_count
 
 def test_retrieve_tokens_relative_act_true(network):
     """Test retrieve_tokens with use_relative_act=True."""

@@ -376,6 +376,12 @@ class TokenOperations:
         self.base_set.nodes[all_nodes_mask, TF.INFERRED] = B.FALSE
         self.base_set.nodes[all_nodes_mask, TF.MADE_UNIT] = null
         self.base_set.nodes[all_nodes_mask, TF.MAKER_UNIT] = null
+    
+    def get_children(self, token_mask: torch.Tensor) -> torch.Tensor:
+        """get a mask of the children of a token"""
+        children = self.base_set.connections[token_mask, :] == B.TRUE
+        children_mask = children.any(dim=0)
+        return children_mask
 
     # ----------------------------[ANALOG FUNCTIONS]-------------------------------
     def get_analog_indices(self, analog: Ref_Analog) -> list[int]:

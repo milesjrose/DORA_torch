@@ -138,16 +138,33 @@ class RetrievalOperations:
     def retrieve_tokens_with_mask(self, token_mask: torch.Tensor):
         """
         Move tokens in mask from memory to recipient, including any children of these tokens.
-        NOTE: Move or copy?
-        TODO: Implement
         """
+        if not token_mask.any():
+            return
+        memory = self.network.memory()
         # Get indices of tokens to retrieve
-        token_indices = torch.where(token_mask)[0]
+        highest_token = torch.max(memory.nodes[token_mask, TF.TYPE]).item()
+        levels_of_children = int(highest_token - 1)
         # Get children
-
-        #this does stuff for now
-        for idx in token_indices:
-            # Get token reference
-            token_ref = self.network.memory().token_op.get_reference(index=idx.item())
-            # Move token to recipient
-            self.network.memory().token_op.move(token_ref, Set.RECIPIENT)
+        for i in range(levels_of_children):
+            logger.debug(f"mask shape: {token_mask.shape}")
+            children = memory.token_op.get_children(token_mask)
+            logger.debug(f"children shape: {children.shape}")
+            token_mask |= children
+        
+        # for now just move them all to a new analog, then move the analog
+        original_analogs = memory.nodes[token_mask, TF.ANALOG]
+        #set new
+        token_indices = torch.where(token_mask)[0]
+        new_analog_id = memory.tensor_op.get_new_analog_id()
+        memory.token_op.set_features(token_indices, TF.ANALOG, new_analog_id)
+        # move the analog to recipient
+        new_analog = self.network.analog.move(Ref_Analog(new_analog_id, Set.MEMORY), Set.RECIPIENT)
+        # set retrieved to true
+        self.network.analog.set_analog_features(new_analog, TF.RETRIEVED, B.TRUE)
+        # reset analogs
+        memory.nodes[token_mask, TF.ANALOG] = original_analogs
+        # set analogs in recipient
+        new_indicies = self.network.analog.get_analog_indices(new_analog)
+        rec_analogs = original_analogs - torch.max(original_analogs).item()
+        self.network.recipient().nodes[new_indicies, TF.ANALOG] += rec_analogs
