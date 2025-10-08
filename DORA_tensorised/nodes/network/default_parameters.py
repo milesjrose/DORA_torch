@@ -7,7 +7,7 @@ parameters = {
     'bias_retrieval_analogs': True, 
     'use_relative_act': False, 
     'run_order': ['cdr', 'selectTokens', 'r', 'wp', 'm', 'p', 'f', 's', 'c'], 
-    'run_cyles': 5000, 
+    'run_cycles': 5000, 
     'write_on_iteration': 10, 
     'firingOrderRule': 'random', 
     'strategic_mapping': False, 

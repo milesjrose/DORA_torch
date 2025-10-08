@@ -65,6 +65,14 @@ class Params(object):
         """ekaterina: allows to choose whether to delete or to leave the original compressed structure from LTM after do_unpacking()
         """
 
+        self.run_order = parameters["run_order"]
+        """run_order (list): The order of operations to run."""
+        self.run_cycles = parameters["run_cycles"]
+        """run_cycles (int): The number of cycles to run."""
+        self.write_on_iteration = parameters["write_on_iteration"]
+        """write_on_iteration (int): The number of iterations to write to the output file."""
+
+
         # ==============================[ GUI ]====================================
         if run_on_iphone:
             doGUI = False
@@ -127,6 +135,9 @@ class Params(object):
             "tokenize": self.tokenize,
             "remove_uncompressed": self.remove_uncompressed,
             "remove_compressed": self.remove_compressed,
+            "run_order": self.run_order,
+            "run_cycles": self.run_cycles,
+            "write_on_iteration": self.write_on_iteration,
             "doGUI": self.doGUI,
             "screen": self.screen,
             "screen_width": self.screen_width,

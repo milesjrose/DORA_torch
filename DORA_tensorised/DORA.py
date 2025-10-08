@@ -1,8 +1,7 @@
 # DORA_tensorised/DORA.py
 # Main DORA file for tensorised version
 
-from DORA.basicRunDORA import retrieve_all_relevant_tokens
-from DORA_tensorised.nodes.network.single_nodes import Pairs
+from nodes.network.single_nodes import Pairs
 import nodes
 from nodes.enums import *
 from nodes.enums import Routines as R

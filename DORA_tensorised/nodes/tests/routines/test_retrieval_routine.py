@@ -259,9 +259,6 @@ def test_retrieval_analog_activation_calculation(network: 'Network'):
     assert len(memory.analog_counts) == len(memory.analogs)
     assert len(memory.analog_activations) == len(memory.analogs)
     
-    # The analog_activations are calculated AFTER update_act() runs, so they use the final ACT values
-    # We need to check the analog_activations array, not the raw node activations
-    
     # Find indices of each analog in the analog_activations array
     analog_0_idx = (memory.analogs == 0.0).nonzero()[0].item()
     analog_1_idx = (memory.analogs == 1.0).nonzero()[0].item()
