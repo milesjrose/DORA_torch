@@ -16,7 +16,7 @@ class DORA:
     TODO: Add tests for all of this stuff
     """
     def __init__(self):
-        pass
+        self.network: nodes.Network = None
     
     # ----------------------------[ LOADING AND SAVING ]-------------------------------
     """ 
@@ -55,6 +55,8 @@ class DORA:
         #      Need to ask about this.
         # Copy any analogs with set != memory into AM (driver/recipient)
         self.network.analog_ops.make_AM_copy()
+        # remove any memory tokens from the am TODO: check if this should be here?
+        self.network.tensor_ops.del_mem_tokens()
         # Get PO SemNormalizations.
         self.network.node_ops.get_weight_lengths()
 
@@ -308,24 +310,24 @@ class DORA:
     """ NOTE: Not implemented yet """
 
     def do_entropy_ops_within(self):
-        pass
+        raise NotImplementedError("Not implemented yet")
 
     def do_entropy_ops_between(self):
-        pass
+        raise NotImplementedError("Not implemented yet")
     # ----------------------------[ COMPRESSION ]-------------------------------
     """ NOTE: Not implemented yet """
 
     def do_compression(self):
-        pass
+        raise NotImplementedError("Not implemented yet")
 
     def collect_the_rest(self):
-        pass
+        raise NotImplementedError("Not implemented yet")
 
     def bind_others_to_unpacked(self):
-        pass
+        raise NotImplementedError("Not implemented yet")
 
     def do_unpacking(self):
-        pass
+        raise NotImplementedError("Not implemented yet")
 
     # ----------------------------[ TIME-STEP OPERATIONS ]-------------------------------
     """ Functions implementing operations performed during a single time-step in DORA. """

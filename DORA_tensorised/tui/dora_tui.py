@@ -16,7 +16,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Header, Footer, Static
 from textual.binding import Binding
 
-from DORA import DORA
+from ..DORA import DORA
 from segments.params_loader import ParamsLoaderSegment
 from segments.file_loader import FileLoaderSegment
 from segments.file_saver import FileSaverSegment

@@ -32,6 +32,11 @@ class RetrievalOperations:
         self.network: 'Network' = network
         self.debug = False
     
+    def requirements(self) -> bool:
+        """ check the requirements for retrieval """
+        # TODO: test
+        return self.network.driver().tensor_op.get_mask(Type.P).any()
+
     def retrieval_routine(self):
         """
         Run the model retrieval routine - update input/act in memory, then if bias_retrieval_analogs 
