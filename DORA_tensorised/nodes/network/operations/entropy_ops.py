@@ -471,3 +471,14 @@ class EntropyOperations:
         sem_link= links_mask & dim_sems
         logger.debug(f"-> {sem_link.sum().item()}/{sems.shape[0]} sem_link")
         return sem_link
+
+class en_based_mag_checks_results:
+    """
+    Results of en_based_mag_checks.
+    """
+    def __init__(self, po1: Ref_Token, po2: Ref_Token, high_dim: int, num_sdm_above: int, num_sdm_below: int):
+        self.po1 = po1
+        self.po2 = po2
+        self.high_dim = high_dim
+        self.num_sdm_above = num_sdm_above
+        self.num_sdm_below = num_sdm_below

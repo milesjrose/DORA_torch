@@ -113,20 +113,26 @@ class TensorOperations:
         masks = [self.base_set.masks[i] for i in n_types]
         return reduce(torch.logical_or, masks)
     
-    def get_count(self, type: Type=None):
+    def get_count(self, type: Type=None, mask: torch.tensor = None):
         """ Get number of nodes of given type in set.
         If type is None, return number of all nodes in set.
 
         Args:
             type (Type, optional): The type to get the count for. Defaults to None.
+            mask (torch.tensor, optional): The mask to use. Defaults to None (All nodes).
 
         Returns:
-            The number of nodes of the given type in the set.
+            The number of nodes of the given type in the mask/set.
         """
-        if type is None:
-            return self.get_all_nodes_mask().sum()
+        if mask is None:
+            mask = self.get_all_nodes_mask()
         else:
-            return self.get_mask(type).sum()
+            mask = mask & self.get_all_nodes_mask()
+        if type is None:
+            return mask.sum()
+        else:
+            type_mask = self.get_mask(type)
+            return (mask & type_mask).sum()
 
     def get_all_nodes_mask(self):                                   # Returns a mask for all nodes (Exluding empty or deleted rows)
         """Return mask for all non-deleted nodes"""

@@ -1,8 +1,13 @@
 # DORA_tensorised/DORA.py
 # Main DORA file for tensorised version
 
+from DORA_tensorised.nodes.network.sets.driver import Driver
 from nodes.network.single_nodes import Pairs
 import nodes
+import torch
+from random import choice
+from nodes.network.operations.entropy_ops import en_based_mag_checks_results
+from nodes.utils import tensor_ops as tOps
 from nodes.enums import *
 from nodes.enums import Routines as R
 import logging
@@ -309,8 +314,99 @@ class DORA:
     # ----------------------------[ ENTROPY OPS ]-------------------------------
     """ NOTE: Not implemented yet """
 
-    def do_entropy_ops_within(self):
-        raise NotImplementedError("Not implemented yet")
+    def do_entropy_ops_within(self, pred_only):
+        """ do entropy ops within """
+        params = self.network.params
+        old_dora = params.as_DORA
+        params.as_DORA = True
+        extend_sdml = True
+        self.do_1_to_3()
+        # iterate through analogs in the driver:
+        driver: "Driver" = self.network.driver()
+        analogs = driver.tensor_ops.get_analog_ref_list()
+        for analog in analogs:
+            idxs = self.network.analog_ops.get_analog_indices(analog)
+            # get global mask of analog tokens:
+            mask = torch.zeros_like(driver.get_mask(Type.PO), dtype=torch.bool)
+            mask[idxs] = True
+            # check there are preds in driver:
+            analog_preds = mask & driver.get_mask(Type.PO) & driver.nodes[:, TF.PRED] == B.TRUE
+            if torch.any(analog_preds):
+                # get list of preds in analog:
+                po_list = {
+                    "preds": [],
+                    "objects": [],
+                }
+                # get rb mask:
+                rb_mask = None
+                p_present = driver.tensor_ops.get_count(Type.P, mask) > 0
+                if p_present:
+                    ps = driver.nodes[idxs, TF.TYPE] == Type.P
+                    p_mask = tOps.sub_union(mask, ps) # convert to global mask
+                    rb_mask = driver.connections[p_mask, :] == B.TRUE
+                elif driver.tensor_ops.get_count(Type.RB, mask) > 0:
+                    rbs = driver.nodes[idxs, TF.TYPE] == Type.RB
+                    rb_mask = tOps.sub_union(mask, rbs) # convert to global mask
+                # get po mask:
+                if rb_mask is not None: # Use rb -> po connections
+                    po_mask = driver.connections[rb_mask, :] == B.TRUE
+                    po_mask = tOps.sub_union(mask, po_mask) # convert to global mask
+                else: # no rbs/pos, so use all pos in analog
+                    po_mask = driver.nodes[idxs, TF.TYPE] == Type.PO
+                # use po mask to get list of preds/objects:
+                po_list["preds"] = torch.where(driver.nodes[po_mask, TF.PRED] == B.TRUE)[0]
+                po_list["objects"] = torch.where(driver.nodes[po_mask, TF.PRED] == B.FALSE)[0]
+            # Now get pairs from these lists:
+            match_dim = []
+            if p_present:
+                one_above = []
+                both_above = []
+                both_below = []
+            # iterate through preds and objects:
+            for pred_type in ["preds", "objects"]:
+                for index, pred1 in enumerate(po_list[pred_type]):
+                    for pred2 in po_list[pred_type][index + 1:]:
+                        if pred1 != pred2:
+                            high_dim, num_sdm_above, num_sdm_below = self.network.entropy_ops.en_based_mag_checks(pred1, pred2)
+                            # save results:
+                            results = en_based_mag_checks_results(pred1, pred2, high_dim, num_sdm_above, num_sdm_below)
+                            if len(high_dim) > 0:
+                                match_dim.append(results)
+                            if p_present:
+                                if num_sdm_above > 0:
+                                    one_above.append(results)
+                                if num_sdm_above > 0 and num_sdm_below > 0:
+                                    both_above.append(results)
+                                if num_sdm_below > 0:
+                                    both_below.append(results)
+            # Now random selection of pair of POs if any exist.
+            ent_pair = None
+            if len(match_dim) > 0:
+                ent_pair = choice(match_dim)
+            elif p_present:
+                if len(one_above) > 0:
+                    ent_pair = choice(one_above)
+                elif len(both_above) > 0:
+                    ent_pair = choice(both_above)
+                elif len(both_below) > 0:
+                    ent_pair = choice(both_below)
+            # finally run ent ops on selected pair:
+            if ent_pair is not None:
+                self.network.entropy_ops.check_and_run_ent_ops_within(
+                    ent_pair.po1, 
+                    ent_pair.po2, 
+                    ent_pair.high_dim, 
+                    ent_pair.num_sdm_above, 
+                    ent_pair.num_sdm_below, 
+                    extend_sdml, 
+                    pred_only, 
+                    pred_present=True, 
+                    mag_decimal_precision=params.mag_decimal_precision
+                    )
+            # restore dora mode:
+            params.as_DORA = old_dora
+
+
 
     def do_entropy_ops_between(self):
         raise NotImplementedError("Not implemented yet")
@@ -392,7 +488,7 @@ class DORA:
         # if you were doing retrieval (i.e., if retrieval_license is True), 
         # then use the Luce choice axiom here to retrieve items from memorySet into the recipient.
         if retrieval_license:
-            self.network.routines.retrieval.retrieve_tokens() # TODO: Implement this.
+            self.network.routines.retrieval.retrieve_tokens()
         # reset the mode of all P units in the recipient back to neutral (i.e., 0);
         self.network.node_ops.initialise_p_mode(Set.RECIPIENT)
         # reset the activation and input of all units back to 0
