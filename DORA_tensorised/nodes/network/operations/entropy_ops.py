@@ -202,11 +202,8 @@ class EntropyOperations:
                 logger.critical(f"-> No links to absolute dimensional value found for {po.set.name}[{idxs[po]}], dim: {dim}, ont_status: {OntStatus.VALUE}")
             idx = sem_link[po].nonzero()[0]
             is_numeric = bool((sems[idx, SF.AMOUNT] != null).item())
-            if is_numeric:
-                extent[po] = sems[sem_link[po], SF.AMOUNT].mean().item()
-            else:
-                po_sem = self.network.semantics.get_reference(index=idxs[po])
-                extent[po] = self.network.semantics.get_name(po_sem)  # NOTE: This could be wrong, not sure if I need to store the value for catagorical values in a seperate hashmap. 
+            assert is_numeric, f"-> Dimension {dim} is non-numeric for {po.set.name}[{idxs[po]}]" # NOTE: This should always be true, but gonna leave in for now.
+            extent[po] = sems[sem_link[po], SF.AMOUNT].mean().item()
         # 3). compute ent_magnitudeMoreLessSame() NOTE: What if the extent is non-numeric?
         more, less, same_flag, iterations = self.ent_magnitude_more_less_same(float(extent.get(po1)), float(extent.get(po2)), mag_decimal_precision)
         for po in [po1, po2]:
