@@ -312,10 +312,18 @@ class DORA:
         params.as_DORA = init_dora
     
     # ----------------------------[ ENTROPY OPS ]-------------------------------
-    """ NOTE: Not implemented yet """
+    """ Operations to perform entropy based comparisons on POs """
 
     def do_entropy_ops_within(self, pred_only):
-        """ do entropy ops within """
+        """
+        Perform entropy over items from the same analog in the driver/recipient:
+
+        Used to compute specific kinds of similarity/difference/magnitude over dimensions
+        in the same analog in the driver/recipient. 
+
+        Args:
+            pred_only (bool): If only preds should be considered.
+        """
         params = self.network.params
         old_dora = params.as_DORA
         params.as_DORA = True
@@ -406,10 +414,15 @@ class DORA:
             # restore dora mode:
             params.as_DORA = old_dora
 
-
-
     def do_entropy_ops_between(self):
+        """
+        Perform entropy ops over mapped items across the driver and recipient:
+
+        Used to compute over-all similarity/difference between mapped items.
+        NOTE: Not implemented yet.
+        """
         raise NotImplementedError("Not implemented yet")
+
     # ----------------------------[ COMPRESSION ]-------------------------------
     """ NOTE: Not implemented yet """
 
