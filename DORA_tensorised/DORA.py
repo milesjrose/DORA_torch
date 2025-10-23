@@ -10,10 +10,11 @@ from nodes.network.operations.entropy_ops import en_based_mag_checks_results
 from nodes.utils import tensor_ops as tOps
 from nodes.enums import *
 from nodes.enums import Routines as R
-import logging
+from logging import getLogger
 import os
 
 
+logger = getLogger(__name__)
 
 class DORA:
     """
@@ -419,9 +420,27 @@ class DORA:
         Perform entropy ops over mapped items across the driver and recipient:
 
         Used to compute over-all similarity/difference between mapped items.
-        NOTE: Not implemented yet.
         """
-        raise NotImplementedError("Not implemented yet")
+        diff_ratio = "undefined"
+        self.network.mapping_ops.get_max_maps()
+        map_pos = self.network.driver().token_op.get_mapped_pos()
+        for po in map_pos:
+            # find the unit that it maps to
+            map_tk = self.network.mapping_ops.get_max_map_unit(po)
+            # activate the two pos
+            self.network.node_ops.set_value(po, TF.ACT, 1.0)
+            self.network.node_ops.set_value(map_tk, TF.ACT, 1.0)
+            # update semantics 10 times:
+            for i in range(10):
+                self.network.semantics.update_input()
+                self.network.semantics.get_max_input()
+                self.network.semantics.update_act()
+            # run ent_overall_same_diff() to compute the similarity_ratio between the mapped POs
+            diff_ratio = self.network.entropy_ops.ent_overall_same_diff(po, map_tk)
+            # finally, clear the inputs and activations of all current units
+            self.network.update_ops.initialise_act()
+            logger.info(f"Diff ratio: {diff_ratio}")
+        return diff_ratio
 
     # ----------------------------[ COMPRESSION ]-------------------------------
     """ NOTE: Not implemented yet """
