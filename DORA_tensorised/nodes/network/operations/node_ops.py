@@ -276,3 +276,14 @@ class NodeOperations:
                 self.network.links.connect_comparitive(set, po2, SDM.SAME)
         else:
             logger.debug(f"No common dimension found: {sem1_dim} != {sem2_dim}")
+    
+    def get_reference(self, tk_set: Set, index: int = None, name: str = None, id: int = None) -> Ref_Token:
+        """ Get a reference to a token at the given index in the given set """
+        none_none = 0
+        for item in [index, name, id]:
+            if item is not None:
+                none_none += 1
+        if none_none != 1:
+            raise ValueError("Exactly one of index, name, or id should be provided.")
+
+        return self.network.sets[tk_set].token_op.get_reference(index=index, name=name, id=id)

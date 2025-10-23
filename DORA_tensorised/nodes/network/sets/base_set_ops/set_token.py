@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ...single_nodes import Token, Ref_Token, Ref_Analog, Pairs, get_default_features
+from ....utils import tensor_ops as tOps
 from ....enums import *
 
 logger = logging.getLogger(__name__)
@@ -382,6 +383,15 @@ class TokenOperations:
         children = self.base_set.connections[token_mask, :] == B.TRUE
         children_mask = children.any(dim=0)
         return children_mask
+
+    def get_mapped_pos(self) -> list[Ref_Token]:
+        """
+        Get all POs that are mapped to.
+        """
+        pos = self.base_set.tensor_op.get_mask(Type.PO)
+        mapped_pos = self.base_set.nodes[pos, TF.MAX_MAP] > 0.0
+        mapped_pos = tOps.sub_union(pos, mapped_pos)
+        return self.get_reference_multiple(mask=mapped_pos)
 
     # ----------------------------[ANALOG FUNCTIONS]-------------------------------
     def get_analog_indices(self, analog: Ref_Analog) -> list[int]:

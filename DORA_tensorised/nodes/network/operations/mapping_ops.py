@@ -4,6 +4,8 @@
 from ...enums import *
 from typing import TYPE_CHECKING
 
+from ..single_nodes import Ref_Token
+
 if TYPE_CHECKING:
     from ..network import Network
     from ..sets import Driver, Recipient
@@ -72,3 +74,13 @@ class MappingOperations:
         if Set.RECIPIENT in set:
             self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP] = max_recipient.values
             self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP_UNIT] = max_recipient.indices
+    
+    def get_max_map_unit(self, reference: Ref_Token) -> Ref_Token:
+        """ Get a reference to the unit that the token maps to most """
+        mapped_idx = self.network.get_value(reference, TF.MAX_MAP_UNIT)
+        mapped_set = Set.RECIPIENT
+        if reference.set == Set.RECIPIENT:
+            mapped_set = Set.DRIVER
+        mapped_ref = self.network.node_ops.get_reference(tk_set=mapped_set, index=mapped_idx)
+        return mapped_ref
+            

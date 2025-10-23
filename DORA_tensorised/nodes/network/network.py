@@ -293,15 +293,13 @@ class Network(object):
         """
         logger.debug(f"Get max map value for {reference.set.name}[{reference.ID}]")
         if reference.set == Set.DRIVER: 
-            if map_set == None:
-                raise ValueError("Map set must be provided if reference is from driver.")
-            else:
-                index = self.get_index(reference)
-                try:
-                    max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][:, index], dim=0)
-                except Exception as e:
-                    logger.error(f"Can't get max map value for {reference.set.name}[{index}] (ID={reference.ID})  in {map_set.name} map tens: {self.mappings[map_set][MappingFields.WEIGHT].shape} // slice: {self.mappings[map_set][MappingFields.WEIGHT][:, index].shape}")
-                    raise(e)
+            map_set = Set.RECIPIENT
+            index = self.get_index(reference)
+            try:
+                max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][:, index], dim=0)
+            except Exception as e:
+                logger.error(f"Can't get max map value for {reference.set.name}[{index}] (ID={reference.ID})  in {map_set.name} map tens: {self.mappings[map_set][MappingFields.WEIGHT].shape} // slice: {self.mappings[map_set][MappingFields.WEIGHT][:, index].shape}")
+                raise(e)
         elif reference.set in MAPPING_SETS:
             map_set = reference.set
             index = self.get_index(reference)
