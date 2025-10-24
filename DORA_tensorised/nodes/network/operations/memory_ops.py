@@ -6,6 +6,7 @@ from ..sets import Driver, Recipient
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..network import Network
+    from ..single_nodes import Ref_Analog
 
 class TensorOperations:
     """
@@ -24,40 +25,22 @@ class TensorOperations:
     
     # --------[ NOTE: I think i ported everything. Idk where these functions went though. ]--------
 
-    def make_am_copy(self):
+    def make_am(self, copy = True):
         """
         Copy any analogues from memory into AM - based on the set feature.
         Equivalent to make_AM_copy() from helpers.py.
         """
-        pass
+        analogs = self.network.analog.check_for_copy()
+        for analog in analogs:
+            if copy:
+                self.network.analog.copy(analog, Set.DRIVER)
+            else:
+                self.network.analog.move(analog, Set.DRIVER)
     
-    def check_analog_for_tokens_to_copy(self):
+    def check_analog_for_tokens_to_copy(self) -> list[Ref_Analog]:
         """Find any analogues with set != memory to move."""
-        pass
-    
-    def copy_analog(self):
-        """Copy an analogue from memory to AM."""
-        pass
-    
-    def copy_analog_tokens(self):
-        """Copy each token and add them to the AM set."""
-        pass
-    
-    def clear_set(self):
-        """Sets set feature to memory for tokens in an analogue."""
-        pass
-    
-    def delete_unretrieved_tokens(self):
-        """Delete any tokens from analogue that is unretrieved (set == memory)."""
-        pass
-    
-    def initialize_am(self):
-        """Clear activations to all AM."""
-        pass
-    
-    def initialize_memory_set(self):
-        """Clear activation and input to all Memory."""
-        pass
+        analogs = self.network.analog.check_for_copy()
+        return analogs
 
     def del_mem_tokens(self, sets: list[Set] = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]):
         """ delete any memory tokens from the am """
@@ -75,11 +58,18 @@ class TensorOperations:
     def clear_set(self, set: Set):
         """Clear the set of the tokens. (Move to memory set, or delete tokens?)"""
         self.network.sets[set].token_op.set_features_all(TF.SET, Set.MEMORY)
+        # if the tokens are retrieved from memory, delete them, otherwise move them to memory I think?
+        # this gets painful if any retrieved tokens are connected to other tokens in the set.
     
     def reset_inferences(self):
-        """Reset the inferences of all tokens in memory."""
+        """Reset the inferences of all tokens."""
         for set in Set:
             self.network.sets[set].token_op.reset_inferences()
+    
+    def reset_maker_made_units(self):
+        """Reset the maker and made units of all tokens."""
+        for set in Set:
+            self.network.sets[set].token_op.reset_maker_made_units()
     
     def swap_driver_recipient(self):
         """Swap the contents of the driver and recipient"""
