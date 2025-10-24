@@ -41,6 +41,11 @@ class AnalogOperations:
         """
         analog_obj: Analog = self.get_analog(analog)       # get copy of analog
         analog_obj.set = to_set                            # set the set of the analog
+        if analog.set == Set.MEMORY:
+            # set copied_dr_index to the index of the memory tokens
+            indicies = self.get_analog_indices(analog)
+            analog_obj.tokens[indicies, TF.COPIED_DR_INDEX] = indicies
+            analog_obj.tokens[indicies, TF.COPY_FOR_DR] = B.TRUE
         return self.add_analog(analog_obj)                 # add to new set, return the new analog reference
 
     def delete(self, analog: Ref_Analog):
@@ -68,17 +73,17 @@ class AnalogOperations:
         self.delete(analog)
         return new_analog
 
-    def check_set_match(self):
+    def check_set_match(self, sets: list[Set] = [Set.MEMORY, Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]):
         """
         Check that the tokens in an analog are from the correct set
 
         Returns:
             Lists of analog references that do not match the set.
         """
-        results = []
+        results = {}
         for set in Set:
             analogs = self.network.sets[set].token_op.get_analogs_where_not(TF.SET, set)
-            results.append(analogs)
+            results[set] = analogs
         return results
     
     def check_for_copy(self):
