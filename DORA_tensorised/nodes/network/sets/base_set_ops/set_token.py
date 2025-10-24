@@ -392,6 +392,16 @@ class TokenOperations:
         mapped_pos = self.base_set.nodes[pos, TF.MAX_MAP] > 0.0
         mapped_pos = tOps.sub_union(pos, mapped_pos)
         return self.get_reference_multiple(mask=mapped_pos)
+    
+    def reset_maker_made_units(self):
+        """
+        Reset the maker and made units of all tokens in the set.
+        """
+        all_nodes_mask = self.base_set.tensor_op.get_all_nodes_mask()
+        self.base_set.nodes[all_nodes_mask, TF.MAKER_UNIT] = null
+        self.base_set.nodes[all_nodes_mask, TF.MAKER_SET] = null
+        self.base_set.nodes[all_nodes_mask, TF.MADE_UNIT] = null
+        self.base_set.nodes[all_nodes_mask, TF.MADE_SET] = null
 
     # ----------------------------[ANALOG FUNCTIONS]-------------------------------
     def get_analog_indices(self, analog: Ref_Analog) -> list[int]:
