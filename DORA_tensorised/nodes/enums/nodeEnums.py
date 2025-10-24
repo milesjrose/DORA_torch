@@ -42,41 +42,74 @@ class TF(IntEnum):
     """
     # INT values:
     ID                  = 0
+    """ID of token"""
     TYPE                = 1
+    """Type of token"""
     SET                 = 2
+    """Set of token"""
     ANALOG              = 3
+    """Analog number token belongs to"""
     MAX_MAP_UNIT        = 4
+    """Unit token maps most to"""
     MADE_UNIT           = 5
+    """Token made by this token"""
     MADE_SET            = 30
+    """Set of the made token"""
     MAKER_UNIT          = 6
+    """Maker unit of this token"""
     MAKER_SET           = 31
+    """Set of the maker token"""
     INHIBITOR_THRESHOLD = 7
+    """Inhibitor threshold of token"""
     GROUP_LAYER         = 8     # Group
+    """Group layer of token"""
     MODE                = 9     # P unit
+    """Mode of P token"""
     TIMES_FIRED         = 10    # RB unit
+    """Times the RB token has been fired"""
     SEM_COUNT           = 11    # PO unit
+    """Number of semantics connected this PO token"""
+    COPIED_DR_INDEX     = 26
+    """The index of the token I was copied from in MEMORY"""
 
     # FLOAT values:
     ACT                 = 12
+    """Activation of token"""
     MAX_ACT             = 13
+    """Maximum activation of this token"""
     INHIBITOR_INPUT     = 14
+    """Inhibitory input to the token"""
     INHIBITOR_ACT       = 15
+    """Inhibitory activation of the token"""
     MAX_MAP             = 16
+    """Maximum mapping value from/to this token"""
     TD_INPUT            = 17
+    """Input from higher tokens"""
     BU_INPUT            = 18
+    """Input from lower nodes"""
     LATERAL_INPUT       = 19
+    """Input from tokens on the same level"""
     MAP_INPUT           = 20
+    """Input from mapping units"""
+
     NET_INPUT           = 21
+    """Total input to the token"""
     MAX_SEM_WEIGHT      = 22    # PO unit
+    """Maximum weight of semantic connections to this PO token"""
 
     # BOOL values:
     INFERRED            = 23
+    """If the token was created through inference"""
     RETRIEVED           = 24
+    """If the token was retrieved from memory"""
     COPY_FOR_DR         = 25
-    COPIED_DR_INDEX     = 26
+    """If the token has been copied into the driver or recipient"""
     SIM_MADE            = 27
+    """Was I made during a simulation - has same value as inferred, but does not get reset when the new unit leaves the newSet TODO: check if i actually use this?"""
     DELETED             = 28
+    """If the token has been deleted"""
     PRED                = 29    # PO unit
+    """If this PO token is a predicate (if false, token in an object)"""
 
 def TF_type(feature: TF):
     """
