@@ -21,7 +21,7 @@ class Commands:
     
     def selectTokens(self):
         """ select tokens from memory to place into driver NOTE not implemented yet """
-        pass
+        raise NotImplementedError("Not implemented yet")
     
     def r(self):
         """ retrieve """
@@ -73,11 +73,12 @@ class Commands:
     
     def c(self):
         """ clear : mappings, made units, inferences, driver, recipient, new_set """
+        self.network.clear(limited=False)
         raise NotImplementedError("Not implemented yet")
     
     def cl(self):
         """ limited clear : made units, inferences, new_set """
-        raise NotImplementedError("Not implemented yet")
+        self.network.clear(limited=True)
     
     def wdr(self):
         """ write driver and recipient """
