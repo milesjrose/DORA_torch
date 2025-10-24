@@ -92,14 +92,14 @@ class Network(object):
         self.routines: Routines = Routines(self)
         """ Routines object for the network. """
 
-        self.tensor_ops = TensorOperations(self)
-        self.update_ops = UpdateOperations(self)
-        self.mapping_ops = MappingOperations(self)
-        self.firing_ops = FiringOperations(self)
-        self.analog_ops = AnalogOperations(self)
-        self.entropy_ops = EntropyOperations(self)
-        self.node_ops = NodeOperations(self)
-        self.inhibitor_ops = InhibitorOperations(self)
+        self.tensor_ops: TensorOperations = TensorOperations(self)
+        self.update_ops: UpdateOperations = UpdateOperations(self)
+        self.mapping_ops: MappingOperations = MappingOperations(self)
+        self.firing_ops: FiringOperations = FiringOperations(self)
+        self.analog_ops: AnalogOperations = AnalogOperations(self)
+        self.entropy_ops: EntropyOperations = EntropyOperations(self)
+        self.node_ops: NodeOperations = NodeOperations(self)
+        self.inhibitor_ops: InhibitorOperations = InhibitorOperations(self)
 
         self._promoted_components = [
             self.tensor_ops, 
@@ -160,6 +160,30 @@ class Network(object):
         if semantics:
             count += self.semantics.get_count()
         return count
+
+    def clear(self, limited=False):
+        """
+        Clear the network:
+        limited:
+        - made_units
+        - inferences
+        - new_set
+        full:
+        - limited
+        - mappings
+        - driver
+        - recipient
+        """
+        # clear made_units, inferences, new_set
+        self.tensor_ops.reset_maker_made_units()
+        self.tensor_ops.reset_inferences()
+        self.tensor_ops.clear_set(Set.NEW_SET)
+        if not limited:
+            # mappings, driver, recipient
+            self.tensor_ops.clear_all_sets()
+        
+
+
     # ========================[ PROPERTIES ]==============================
     @property
     def tensor(self) -> 'TensorOperations':
