@@ -44,8 +44,9 @@ class AnalogOperations:
         if analog.set == Set.MEMORY:
             # set copied_dr_index to the index of the memory tokens
             indicies = self.get_analog_indices(analog)
-            analog_obj.tokens[indicies, TF.COPIED_DR_INDEX] = indicies
-            analog_obj.tokens[indicies, TF.COPY_FOR_DR] = B.TRUE
+            logger.debug(f"indicies:{indicies}, analog_tks:{analog_obj.tokens}")
+            analog_obj.tokens[:, TF.COPIED_DR_INDEX] = torch.tensor(indicies, dtype=tensor_type)
+            analog_obj.tokens[:, TF.COPY_FOR_DR] = B.TRUE
         return self.add_analog(analog_obj)                 # add to new set, return the new analog reference
 
     def delete(self, analog: Ref_Analog):
