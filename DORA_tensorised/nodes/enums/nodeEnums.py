@@ -322,5 +322,5 @@ from torch import float32
 tensor_type = float32
 """Tensor type for float tensors: torch.float32"""
 
-MAPPING_SETS = [Set.MEMORY, Set.RECIPIENT]
+MAPPING_SETS = [Set.RECIPIENT]
 """Sets that have mappings"""

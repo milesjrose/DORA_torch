@@ -58,7 +58,7 @@ def test_rel_form_passes(network: 'Network'):
     d_rb_indices = torch.where(d_rb_mask)[0]
     r_rb_indices = torch.where(r_rb_mask)[0]
 
-    mappings: 'Mappings' = network.mappings[Set.RECIPIENT]
+    mappings: 'Mappings' = network.mappings
     mappings[MappingFields.CONNECTIONS][r_rb_indices[0], d_rb_indices[0]] = 1.0
     mappings[MappingFields.WEIGHT][r_rb_indices[0], d_rb_indices[0]] = 0.9
     mappings[MappingFields.CONNECTIONS][r_rb_indices[1], d_rb_indices[1]] = 1.0
@@ -88,7 +88,7 @@ def test_rel_form_fails_low_weight(network: 'Network'):
     d_rb_indices = torch.where(d_rb_mask)[0]
     r_rb_indices = torch.where(r_rb_mask)[0]
 
-    mappings: 'Mappings' = network.mappings[Set.RECIPIENT]
+    mappings: 'Mappings' = network.mappings
     mappings[MappingFields.CONNECTIONS][r_rb_indices[0], d_rb_indices[0]] = 1.0
     mappings[MappingFields.WEIGHT][r_rb_indices[0], d_rb_indices[0]] = 0.5
     mappings[MappingFields.CONNECTIONS][r_rb_indices[1], d_rb_indices[1]] = 1.0
@@ -122,7 +122,7 @@ def test_rel_form_fails_connected_to_p(network: 'Network'):
     d_rb_indices = torch.where(d_rb_mask)[0]
     r_rb_indices = torch.where(r_rb_mask)[0]
 
-    mappings: 'Mappings' = network.mappings[Set.RECIPIENT]
+    mappings: 'Mappings' = network.mappings
     mappings[MappingFields.CONNECTIONS][r_rb_indices[0], d_rb_indices[0]] = 1.0
     mappings[MappingFields.WEIGHT][r_rb_indices[0], d_rb_indices[0]] = 0.9
     mappings[MappingFields.CONNECTIONS][r_rb_indices[1], d_rb_indices[1]] = 1.0
@@ -156,7 +156,7 @@ def test_rel_form_fails_not_enough_rbs(network: 'Network'):
     d_rb_index = torch.where(d_rb_mask)[0][0]
     r_rb_index = torch.where(r_rb_mask)[0][0]
 
-    mappings: 'Mappings' = network.mappings[Set.RECIPIENT]
+    mappings: 'Mappings' = network.mappings
     mappings[MappingFields.CONNECTIONS][r_rb_index, d_rb_index] = 1.0
     mappings[MappingFields.WEIGHT][r_rb_index, d_rb_index] = 0.9
 

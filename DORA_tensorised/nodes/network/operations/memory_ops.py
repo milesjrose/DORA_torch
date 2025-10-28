@@ -3,10 +3,10 @@
 
 from ...enums import *
 from ..sets import Driver, Recipient
+from ..single_nodes import Ref_Analog
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..network import Network
-    from ..single_nodes import Ref_Analog
 
 class TensorOperations:
     """
@@ -86,7 +86,7 @@ class TensorOperations:
         self.network.sets[Set.RECIPIENT] = new_rec
         # Update mappings
         # Just transpose the mapping tensor - idk if we should clear mappings here?
-        self.network.mappings[Set.RECIPIENT].swap_driver_recipient()
+        self.network.mappings.swap_driver_recipient()
         # Update links
         self.network.links.swap_driver_recipient()
 

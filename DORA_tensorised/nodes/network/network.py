@@ -18,7 +18,7 @@ class Network(object):
     """
     A class for holding set objects and operations.
     """
-    def __init__(self, dict_sets: dict[Set, Base_Set], semantics: Semantics, mappings: dict[int, Mappings], links: Links, params: Params = None):
+    def __init__(self, dict_sets: dict[Set, Base_Set], semantics: Semantics, mappings: Mappings, links: Links, params: Params = None):
         """
         Initialize the Network object. Checks types; sets inter-set connections and params.
 
@@ -34,8 +34,8 @@ class Network(object):
             raise ValueError("dict_sets must be a dictionary.")
         if not isinstance(semantics, Semantics):
             raise ValueError("semantics must be a Semantics object.")
-        if not isinstance(mappings, dict):
-            raise ValueError("mappings must be a dictionary.")
+        if not isinstance(mappings, Mappings):
+            raise ValueError("mappings must be a Mapping object.")
         if not isinstance(links, Links):
             raise ValueError("links must be a Links object.")
         if not isinstance(params, Params):
@@ -50,6 +50,11 @@ class Network(object):
         """ Parameters object for the network. """
 
         # add links, params, and mappings to each set
+        try:
+            self.sets[Set.RECIPIENT].mappings = mappings
+        except:
+            if set in MAPPING_SETS:
+                raise ValueError(f"Error setting mappings for {set}")
         for set in Set:
             try:
                 self.sets[set].links = links
@@ -59,23 +64,17 @@ class Network(object):
                 self.sets[set].params = params
             except:
                 raise ValueError(f"Error setting params for {set}")
-            try:
-                self.sets[set].mappings = mappings[set]
-            except:
-                if set in MAPPING_SETS:
-                    raise ValueError(f"Error setting mappings for {set}")
 
         self.semantics.links = links
         # inter-set connections
         # TODO: Only need mapping tensor for recipient set -> remove others.
         self.mappings: dict[Set, Mappings] = mappings
             # Set the map_from attribute for each mapping
-        self.mappings[Set.RECIPIENT].set_map_from(self.sets[Set.RECIPIENT]) 
-        self.mappings[Set.MEMORY].set_map_from(self.sets[Set.MEMORY])
+        self.mappings.set_map_from(self.sets[Set.RECIPIENT])
         # Set the mapping object for driver // TODO: Assign this in driver object init, need to update builder
         self.sets[Set.DRIVER].set_mappings(self.mappings)
         """ Dictionary of mappings for each set. 
-            - Mappings[set] gives set's mappings to driver
+            - Mappings gives recicient's mappings to driver
             - Mapping tensor shape: [recipient_nodes, driver_nodes]
         """
         self.links: Links = links
@@ -320,7 +319,7 @@ class Network(object):
             map_set = Set.RECIPIENT
             index = self.get_index(reference)
             try:
-                max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][:, index], dim=0)
+                max_val, max_index = torch.max(self.mappings[MappingFields.WEIGHT][:, index], dim=0)
             except Exception as e:
                 logger.error(f"Can't get max map value for {reference.set.name}[{index}] (ID={reference.ID})  in {map_set.name} map tens: {self.mappings[map_set][MappingFields.WEIGHT].shape} // slice: {self.mappings[map_set][MappingFields.WEIGHT][:, index].shape}")
                 raise(e)
@@ -328,7 +327,7 @@ class Network(object):
             map_set = reference.set
             index = self.get_index(reference)
             try:        
-                max_val, max_index = torch.max(self.mappings[map_set][MappingFields.WEIGHT][index, :], dim=0)
+                max_val, max_index = torch.max(self.mappings[MappingFields.WEIGHT][index, :], dim=0)
             except:
                 logger.error(f"Can't get max map value for {reference.set.name}[{index}] (ID={reference.ID}) weight tensor shape: {self.mappings[map_set][MappingFields.WEIGHT].shape}")
                 raise ValueError(f"Invalid mapping set: {map_set.name}.{map_set.ID}")

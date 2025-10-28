@@ -103,9 +103,9 @@ def new_mapping_driver(original_network: Network, new_nodes: torch.Tensor, drive
             map_dict(MappingFields -> torch.Tensor)
     """
     new_mappings = {}
-    for set in Set:
+    for set in [Set.RECIPIENT]:
         try:
-            mapping = original_network.mappings[set]
+            mapping = original_network.mappings
             if mapping is not None:
                 new_tensors = {}
                 for map_field in MappingFields:
@@ -116,7 +116,7 @@ def new_mapping_driver(original_network: Network, new_nodes: torch.Tensor, drive
                     new_tensors[map_field] = new_tensor
                     #print(f"DRIVER: {set.name}{map_field} tensor shape: {new_tensor.shape}, old tensor shape: {old_tensor.shape}")
                 new_map_obj = Mappings(driver, new_tensors)
-                original_network.mappings[set] = new_map_obj
+                original_network.mappings = new_map_obj
         except:
             if set in [Set.MEMORY, Set.RECIPIENT]:
                 raise ValueError(f"Mapping for {set} is not found")
@@ -131,7 +131,7 @@ def new_mapping_other(original_network: Network, new_nodes: torch.Tensor, set: S
         dict(MappingField -> torch.Tensor): A dictionary of new mappings for given set
     """
     try:
-        mapping = original_network.mappings[set]
+        mapping = original_network.mappings
         if mapping is not None:
             new_tensors = {}
             for map_field in MappingFields:
@@ -142,7 +142,7 @@ def new_mapping_other(original_network: Network, new_nodes: torch.Tensor, set: S
                 #print(f"OTHER: {set.name}{map_field} tensor shape: {new_tensor.shape}, old tensor shape: {old_tensor.shape}")
                 new_tensors[map_field] = new_tensor
             new_map_obj = Mappings(driver, new_tensors)
-            original_network.mappings[set] = new_map_obj
+            original_network.mappings = new_map_obj
             return new_tensors
     except:
         raise ValueError(f"Mapping for {set} is not found")

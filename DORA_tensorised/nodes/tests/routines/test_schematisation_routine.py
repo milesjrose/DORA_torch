@@ -100,7 +100,7 @@ def test_schematise_p_infer(network: 'Network'):
 
     # Add mapping for most active p to recipient (any token will work)
     index = network.get_index(most_active_p)
-    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][1, index] = 0.8
+    network.mappings[MappingFields.WEIGHT][1, index] = 0.8
 
 
     initial_p_count = new_set.get_mask(Type.P).sum()
@@ -165,7 +165,7 @@ def test_schematise_rb_infer(network: 'Network'):
     rb_token = network.add_token(Token(Type.RB, {TF.SET: Set.DRIVER, TF.ACT: 0.5}))
     # Add mapping for rb to recipient (any token will work)
     index = network.get_index(rb_token)
-    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][1, index] = 0.8
+    network.mappings[MappingFields.WEIGHT][1, index] = 0.8
     
     initial_rb_count = new_set.get_mask(Type.RB).sum()
     
@@ -187,7 +187,7 @@ def test_schematise_po_infer(network: 'Network'):
     po_token = network.add_token(Token(Type.PO, {TF.SET: Set.DRIVER, TF.ACT: 0.5, TF.PRED: B.TRUE}))
     # Add mapping for po to recipient (any token will work)
     index = network.get_index(po_token)
-    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][1, index] = 0.8
+    network.mappings[MappingFields.WEIGHT][1, index] = 0.8
     
     initial_po_count = new_set.get_mask(Type.PO).sum()
     

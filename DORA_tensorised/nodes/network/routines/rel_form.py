@@ -43,7 +43,7 @@ class RelFormOperations:
         def check_rbs(self):
             threshold = 0.8
             recipient: 'Recipient' = self.network.recipient()
-            mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT]
+            mappings: 'Mappings' = self.network.mappings
             # Get mask of recipient RBs that don't connect to a P unit (Parent P).
             r_rb = recipient.get_mask(Type.RB)
             if r_rb.sum() < 2:

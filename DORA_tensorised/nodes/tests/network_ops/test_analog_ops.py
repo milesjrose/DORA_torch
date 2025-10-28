@@ -194,7 +194,7 @@ def test_find_recip_analog(network):
     rec_token = network.recipient().add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))  
     idx_rec_token = network.get_index(rec_token)
     # set mapping between nodes
-    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
+    network.mappings[MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
     ref_analog = network.analog.find_mapped_analog(Set.RECIPIENT)
 
     assert ref_analog is not None, "Recipient analog should be found"
@@ -214,7 +214,7 @@ def test_find_driver_analog(network):
     rec_token = network.recipient().add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))  
     idx_rec_token = network.get_index(rec_token)
     # set mapping between nodes
-    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
+    network.mappings[MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
     ref_analog = network.analog.find_mapped_analog(Set.DRIVER)
     
     assert ref_analog is not None, " analog should be found"
@@ -317,7 +317,7 @@ def test_find_mapping_analog(network: Network):
     idx_d_token = network.get_index(driver_token)
     idx_rec_token = network.get_index(rec_token)
     
-    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
+    network.mappings[MappingFields.WEIGHT][idx_rec_token, idx_d_token] = 1.0
     
     mapping_analogs = network.analog.find_mapping_analog()
     
@@ -341,7 +341,7 @@ def test_move_mapping_analogs_to_new(network: Network):
     idx_d_token2 = network.get_index(driver_token2)
     idx_rec_token2 = network.get_index(rec_token2)
 
-    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT][idx_rec_token1, idx_d_token1] = 1.0
+    network.mappings[MappingFields.WEIGHT][idx_rec_token1, idx_d_token1] = 1.0
     
     initial_analog_num1 = network.node_ops.get_value(rec_token1, TF.ANALOG)
     initial_analog_num2 = network.node_ops.get_value(rec_token2, TF.ANALOG)
