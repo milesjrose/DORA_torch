@@ -1,15 +1,15 @@
 # DORA_tensorised/DORA.py
 # Main DORA file for tensorised version
 
-from DORA_tensorised.nodes.network.sets.driver import Driver
-from nodes.network.single_nodes import Pairs
-import nodes
+from .nodes.network.sets.driver import Driver
+from .nodes.network.single_nodes import Pairs
+from . import nodes
 import torch
 from random import choice
-from nodes.network.operations.entropy_ops import en_based_mag_checks_results
-from nodes.utils import tensor_ops as tOps
-from nodes.enums import *
-from nodes.enums import Routines as R
+from .nodes.network.operations.entropy_ops import en_based_mag_checks_results
+from .nodes.utils import tensor_ops as tOps
+from .nodes.enums import *
+from .nodes.enums import Routines as R
 from logging import getLogger
 import os
 

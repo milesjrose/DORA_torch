@@ -163,12 +163,13 @@ class Network(object):
     def clear(self, limited=False):
         """
         Clear the network:
+
         limited:
         - made_units
         - inferences
         - new_set
-        full:
-        - limited
+
+        full: limited+
         - mappings
         - driver
         - recipient

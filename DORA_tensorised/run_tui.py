@@ -16,10 +16,11 @@ sys.path.insert(0, str(current_dir))
 parent_dir = current_dir.parent
 sys.path.insert(0, str(parent_dir))
 
-if __name__ == "__main__":
+def run_tui():
+    from tui.dora_tui import main
+    main()
     try:
-        from dora_tui import main
-        main()
+        print("Running DORA TUI")
     except ImportError as e:
         print(f"Error importing required modules: {e}")
         print("Make sure you have installed the requirements:")
@@ -28,3 +29,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error running DORA TUI: {e}")
         sys.exit(1)
+
+if __name__ == "__main__":
+    run_tui()

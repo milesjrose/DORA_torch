@@ -4,7 +4,7 @@
 from ...enums import *
 
 from .node import Inter_Node
-from nodes.network.single_nodes.token import get_default_features
+from ...network.single_nodes.token import get_default_features
 
 class Inter_Token(Inter_Node):
     """

@@ -9,22 +9,19 @@ from textual.widgets import Static, Tree, Label, DataTable, Input, Button
 from textual.reactive import reactive
 from textual.message import Message
 from textual.screen import ModalScreen
-import sys
-from pathlib import Path
-
-# Add the parent directory to the path so we can import nodes
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
 try:
-    from nodes.enums import Set
-    from nodes.network.network_params import Params
+    from ...nodes.enums import Set
+    from ...nodes.network.network_params import Params
 except ImportError:
-    # Fallback if nodes module is not available
-    class Set:
-        DRIVER = "DRIVER"
-        RECIPIENT = "RECIPIENT"
-        MEMORY = "MEMORY"
-        NEW_SET = "NEW_SET"
+    try:
+        from DORA_tensorised.nodes.enums import Set
+        from DORA_tensorised.nodes.network.network_params import Params
+    except ImportError:
+        class Set:
+            DRIVER = "DRIVER"
+            RECIPIENT = "RECIPIENT"
+            MEMORY = "MEMORY"
+            NEW_SET = "NEW_SET"
 
 
 class NetworkOverviewSegment(Static):

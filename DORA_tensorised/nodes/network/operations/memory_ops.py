@@ -60,6 +60,7 @@ class TensorOperations:
         self.network.sets[set].token_op.set_features_all(TF.SET, Set.MEMORY)
         # if the tokens are retrieved from memory, delete them, otherwise move them to memory I think?
         # this gets painful if any retrieved tokens are connected to other tokens in the set.
+        #TODO: Implement this
     
     def reset_inferences(self):
         """Reset the inferences of all tokens."""
