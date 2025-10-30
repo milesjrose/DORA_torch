@@ -147,7 +147,12 @@ class NetworkOverviewSegment(Static):
         if hasattr(network, 'links') and network.links:
             connections_node.add("Links: Available")
         if hasattr(network, 'mappings') and network.mappings:
-            connections_node.add(f"Mappings: {len(network.mappings)}")
+            try:
+                rec_count = network.mappings.size(0)
+                drv_count = network.mappings.size(1)
+                connections_node.add(f"Mappings: {rec_count}×{drv_count}")
+            except Exception:
+                connections_node.add("Mappings: Available")
     
     def update_statistics(self, network) -> None:
         """Update the statistics table with network information."""
@@ -181,7 +186,12 @@ class NetworkOverviewSegment(Static):
                 self.stats_table.add_row("Links", "Available", "Inter-set connections")
             
             if hasattr(network, 'mappings') and network.mappings:
-                self.stats_table.add_row("Mappings", str(len(network.mappings)), "Set mappings")
+                try:
+                    rec_count = network.mappings.size(0)
+                    drv_count = network.mappings.size(1)
+                    self.stats_table.add_row("Mappings", f"{rec_count}×{drv_count}", "recipient × driver")
+                except Exception:
+                    self.stats_table.add_row("Mappings", "Available", "Set mappings")
             
             # Parameters
             if hasattr(network, 'params') and network.params:
