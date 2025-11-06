@@ -52,7 +52,7 @@ class NetworkBuilder(object):                              # Builds tensors for 
 
         # Built objects
         self.built_sets = {}
-        self.built_mappings = {}
+        self.built_mappings = None
         self.built_links = None
 
     def build_network(self):          # Build the network object
@@ -194,7 +194,7 @@ class NetworkBuilder(object):                              # Builds tensors for 
         self.timer(times)
 
         # ============ Build the mapping dictionary ============
-        for set in [Set.RECIPIENT, Set.MEMORY]:
+        for set in [Set.RECIPIENT]:
             # Get sizes of tensors
             map_size = torch.zeros(self.built_sets[set].nodes.shape[0], self.built_sets[Set.DRIVER].nodes.shape[0], dtype=tensor_type)
 
@@ -204,7 +204,7 @@ class NetworkBuilder(object):                              # Builds tensors for 
                 mapping_tensors[field] = torch.zeros_like(map_size, dtype=tensor_type)
 
             # Create mappings object
-            self.built_mappings[set] = Mappings(self.built_sets[Set.DRIVER], mapping_tensors)
+            self.built_mappings = Mappings(self.built_sets[Set.DRIVER], mapping_tensors)
         self.timer(times)
         
         return times

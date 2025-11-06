@@ -30,7 +30,7 @@ def test_rel_gen_passes(network: 'Network'):
     # Setup: Create one valid mapping
     recipient = network.recipient()
     driver = network.driver()
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     
     # Ensure there's at least one token in each set
     if recipient.nodes.shape[0] == 0: recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))
@@ -57,7 +57,7 @@ def test_rel_gen_fails_low_weight(network: 'Network'):
     # Setup: Create one mapping with a low weight
     recipient = network.recipient()
     driver = network.driver()
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     
     if recipient.nodes.shape[0] == 0: recipient.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.RECIPIENT))
     if driver.nodes.shape[0] == 0: driver.tensor_ops.add_token(Token(Type.PO, {TF.PRED: B.FALSE}, set=Set.DRIVER))
@@ -72,7 +72,7 @@ def setup_rel_gen_environment(network: 'Network', mapping_weight=0.8):
     """Helper to set up environment for rel_gen tests."""
     driver = network.driver()
     recipient = network.recipient()
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     
     # Ensure we have tokens in both sets
     if driver.nodes.shape[0] == 0:
@@ -186,7 +186,7 @@ def test_rel_gen_type_po_below_threshold(network: 'Network'):
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     po_idx = network.get_index(ref_po)
     mappings[MappingFields.CONNECTIONS][0, po_idx] = 0.0  # No mapping
     mappings[MappingFields.WEIGHT][0, po_idx] = 0.0
@@ -210,7 +210,7 @@ def test_rel_gen_type_po_max_map_not_zero(network: 'Network'):
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map > 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     po_idx = network.get_index(ref_po)
     mappings[MappingFields.CONNECTIONS][0, po_idx] = 1.0  # Has mapping
     mappings[MappingFields.WEIGHT][0, po_idx] = 0.8
@@ -234,7 +234,7 @@ def test_rel_gen_type_po_infer_new_token(network: 'Network'):
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     po_idx = network.get_index(ref_po)
     mappings[MappingFields.CONNECTIONS][0, po_idx] = 0.0  # No mapping
     mappings[MappingFields.WEIGHT][0, po_idx] = 0.0
@@ -273,7 +273,7 @@ def test_rel_gen_type_po_update_existing_made_unit(network: 'Network'):
     network.set_value(ref_po, TF.MADE_SET, Set.RECIPIENT)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     po_idx = network.get_index(ref_po)
     mappings[MappingFields.CONNECTIONS][0, po_idx] = 0.0
     mappings[MappingFields.WEIGHT][0, po_idx] = 0.0
@@ -309,7 +309,7 @@ def test_rel_gen_type_rb_connect_to_po(network: 'Network'):
     ref_active_po = recipient.add_token(active_po)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     rb_idx = network.get_index(ref_rb)
     mappings[MappingFields.CONNECTIONS][0, rb_idx] = 0.0
     mappings[MappingFields.WEIGHT][0, rb_idx] = 0.0
@@ -345,7 +345,7 @@ def test_rel_gen_type_p_child_mode(network: 'Network'):
     ref_active_rb = recipient.add_token(active_rb)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     p_idx = network.get_index(ref_p)
     mappings[MappingFields.CONNECTIONS][0, p_idx] = 0.0
     mappings[MappingFields.WEIGHT][0, p_idx] = 0.0
@@ -381,7 +381,7 @@ def test_rel_gen_type_p_parent_mode(network: 'Network'):
     ref_active_rb = recipient.add_token(active_rb)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     p_idx = network.get_index(ref_p)
     mappings[MappingFields.CONNECTIONS][0, p_idx] = 0.0
     mappings[MappingFields.WEIGHT][0, p_idx] = 0.0
@@ -411,7 +411,7 @@ def test_rel_gen_routine_integration(network: 'Network'):
     ref_p_parent = driver.add_token(p_parent_token)
     
     # Set up mappings with max_map = 0.0 for all
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     po_idx = network.get_index(ref_po)
     rb_idx = network.get_index(ref_rb)
     p_child_idx = network.get_index(ref_p_child)
@@ -533,7 +533,7 @@ def test_rel_gen_type_edge_case_activation_exactly_threshold(network: 'Network')
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     po_idx = network.get_index(ref_po)
     mappings[MappingFields.CONNECTIONS][0, po_idx] = 0.0
     mappings[MappingFields.WEIGHT][0, po_idx] = 0.0
@@ -558,7 +558,7 @@ def test_rel_gen_type_edge_case_activation_just_below_threshold(network: 'Networ
     ref_po = driver.add_token(po_token)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     po_idx = network.get_index(ref_po)
     mappings[MappingFields.CONNECTIONS][0, po_idx] = 0.0
     mappings[MappingFields.WEIGHT][0, po_idx] = 0.0
@@ -596,7 +596,7 @@ def test_rel_gen_type_rb_po_below_threshold(network: 'Network'):
     ref_low_po = recipient.add_token(low_act_po)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     rb_idx = network.get_index(ref_rb)
     mappings[MappingFields.CONNECTIONS][0, rb_idx] = 0.0
     mappings[MappingFields.WEIGHT][0, rb_idx] = 0.0
@@ -632,7 +632,7 @@ def test_rel_gen_type_p_child_rb_below_threshold(network: 'Network'):
     ref_low_rb = recipient.add_token(low_act_rb)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     p_idx = network.get_index(ref_p)
     mappings[MappingFields.CONNECTIONS][0, p_idx] = 0.0
     mappings[MappingFields.WEIGHT][0, p_idx] = 0.0
@@ -668,7 +668,7 @@ def test_rel_gen_type_p_parent_rb_below_threshold(network: 'Network'):
     ref_low_rb = recipient.add_token(low_act_rb)
     
     # Set up mapping with max_map = 0.0
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     p_idx = network.get_index(ref_p)
     mappings[MappingFields.CONNECTIONS][0, p_idx] = 0.0
     mappings[MappingFields.WEIGHT][0, p_idx] = 0.0

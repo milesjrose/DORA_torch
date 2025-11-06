@@ -22,7 +22,7 @@ def setup_predication_environment(network, mapping_weight=0.85):
     """Helper to synthetically create mappings for predication tests."""
     driver = network.driver()
     recipient = network.recipient()
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
 
     # Ensure recipient has enough POs for 1-to-1 mapping
     d_po_mask = driver.get_mask(Type.PO)

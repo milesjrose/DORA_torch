@@ -36,7 +36,7 @@ class RelGenOperations:
 
         def check_maps(self):
             threshold = 0.7
-            mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT] # Driver -> Recipient mappings 
+            mappings: 'Mappings' = self.network.mappings # Driver -> Recipient mappings 
 
             # Check that at least one driver unit maps to a recipient unit
             map_cons = mappings[MappingFields.CONNECTIONS]

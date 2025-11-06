@@ -1,8 +1,13 @@
 # DORA_tensorised/tui/commands.py
 # Commands for the dora tui, folling the old command line interface
-from nodes import Network
-from ..DORA import DORA
-from nodes.enums import *
+try:
+    from ..nodes import Network  # package context
+    from ..DORA import DORA
+    from ..nodes.enums import *
+except ImportError:
+    from DORA_tensorised.nodes import Network
+    from DORA_tensorised.DORA import DORA
+    from DORA_tensorised.nodes.enums import *
 
 class Commands:
     def __init__(self, dora: DORA):
@@ -81,7 +86,7 @@ class Commands:
         self.network.clear(limited=True)
     
     def wdr(self):
-        """ write driver and recipient """
+        """ write driver and recipient TODO """
         raise NotImplementedError("Not implemented yet")
     
     def wn(self):

@@ -74,7 +74,7 @@ def test_mappings_invalid_input(network: Network):
 def test_mappings_update_hypotheses(network: Network):
     driver = network.sets[Set.DRIVER]
     recipient = network.sets[Set.RECIPIENT]
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
 
     # First update nodes to have known nodes values (and make pairs of nodes that can map to each other - same mode/type)
     driver_node = Token(Type.PO, {TF.PRED: B.TRUE, TF.ACT: 0.6, TF.SET: Set.DRIVER}) # Pred PO for driver
@@ -109,7 +109,7 @@ def test_mappings_update_hypotheses(network: Network):
 def test_mappings_update_hypotheses_multiple(network: Network):
     driver = network.sets[Set.DRIVER]
     recipient = network.sets[Set.RECIPIENT]
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
 
     # First update nodes to have known nodes values (and make pairs of nodes that can map to each other - same mode/type)
     driver_node = Token(Type.PO, {TF.PRED: B.TRUE, TF.ACT: 0.6, TF.SET: Set.DRIVER}) # Pred PO for driver

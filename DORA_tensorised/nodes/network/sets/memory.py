@@ -301,6 +301,7 @@ class Memory(Base_Set):
         Returns:
             torch.Tensor: (sum(t_mask) x 1) matrix of mapping input.
         """
+        return 0 # TODO remove mappings from memory set
         driver = self.mappings.driver
         map_weights = self.mappings[MappingFields.WEIGHT][t_mask] 
         map_connections = self.mappings[MappingFields.CONNECTIONS][t_mask]

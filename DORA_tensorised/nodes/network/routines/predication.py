@@ -47,7 +47,7 @@ class PredicationOperations:
             """
             driver: 'Driver' = self.network.driver()
             recipient: 'Recipient' = self.network.recipient()
-            mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT]
+            mappings: 'Mappings' = self.network.mappings
 
             d_po = driver.get_mask(Type.PO)
             r_po = recipient.get_mask(Type.PO)
@@ -69,7 +69,7 @@ class PredicationOperations:
                 bool: True if passes check, False o.w.
             """
             threshold = 0.8
-            mappings: 'Mappings' = self.network.mappings[Set.RECIPIENT]
+            mappings: 'Mappings' = self.network.mappings
             recipient: 'Recipient' = self.network.recipient()
             driver: 'Driver' = self.network.driver()
 

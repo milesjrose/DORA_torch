@@ -208,9 +208,8 @@ class TensorOperations:
         self.base_set.links.expand_links_tensor(new_count, self.base_set.token_set, LD.TK)
         # Mapping expansion:
         if self.base_set.token_set == Set.DRIVER:
-            for set in MAPPING_SETS:
-                self.base_set.mappings[set].expand_mapping_tensor(new_count, MD.DRI)
-        elif self.base_set.token_set in MAPPING_SETS:
+                self.base_set.mappings.expand_mapping_tensor(new_count, MD.DRI)
+        elif self.base_set.token_set == Set.RECIPIENT:
             self.base_set.mappings.expand_mapping_tensor(new_count, MD.REC)
         else:
             logger.debug("Mappings not initialised. Not expanding mappings tensor.")

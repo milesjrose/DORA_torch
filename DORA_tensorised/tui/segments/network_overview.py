@@ -9,22 +9,19 @@ from textual.widgets import Static, Tree, Label, DataTable, Input, Button
 from textual.reactive import reactive
 from textual.message import Message
 from textual.screen import ModalScreen
-import sys
-from pathlib import Path
-
-# Add the parent directory to the path so we can import nodes
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
 try:
-    from nodes.enums import Set
-    from nodes.network.network_params import Params
+    from ...nodes.enums import Set
+    from ...nodes.network.network_params import Params
 except ImportError:
-    # Fallback if nodes module is not available
-    class Set:
-        DRIVER = "DRIVER"
-        RECIPIENT = "RECIPIENT"
-        MEMORY = "MEMORY"
-        NEW_SET = "NEW_SET"
+    try:
+        from DORA_tensorised.nodes.enums import Set
+        from DORA_tensorised.nodes.network.network_params import Params
+    except ImportError:
+        class Set:
+            DRIVER = "DRIVER"
+            RECIPIENT = "RECIPIENT"
+            MEMORY = "MEMORY"
+            NEW_SET = "NEW_SET"
 
 
 class NetworkOverviewSegment(Static):
@@ -150,7 +147,12 @@ class NetworkOverviewSegment(Static):
         if hasattr(network, 'links') and network.links:
             connections_node.add("Links: Available")
         if hasattr(network, 'mappings') and network.mappings:
-            connections_node.add(f"Mappings: {len(network.mappings)}")
+            try:
+                rec_count = network.mappings.size(0)
+                drv_count = network.mappings.size(1)
+                connections_node.add(f"Mappings: {rec_count}×{drv_count}")
+            except Exception:
+                connections_node.add("Mappings: Available")
     
     def update_statistics(self, network) -> None:
         """Update the statistics table with network information."""
@@ -184,7 +186,12 @@ class NetworkOverviewSegment(Static):
                 self.stats_table.add_row("Links", "Available", "Inter-set connections")
             
             if hasattr(network, 'mappings') and network.mappings:
-                self.stats_table.add_row("Mappings", str(len(network.mappings)), "Set mappings")
+                try:
+                    rec_count = network.mappings.size(0)
+                    drv_count = network.mappings.size(1)
+                    self.stats_table.add_row("Mappings", f"{rec_count}×{drv_count}", "recipient × driver")
+                except Exception:
+                    self.stats_table.add_row("Mappings", "Available", "Set mappings")
             
             # Parameters
             if hasattr(network, 'params') and network.params:

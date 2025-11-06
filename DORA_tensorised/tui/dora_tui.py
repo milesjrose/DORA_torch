@@ -16,11 +16,22 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Header, Footer, Static
 from textual.binding import Binding
 
-from ..DORA import DORA
-from segments.params_loader import ParamsLoaderSegment
-from segments.file_loader import FileLoaderSegment
-from segments.file_saver import FileSaverSegment
-from segments.network_overview import NetworkOverviewSegment, ParameterDialog
+# Support running both as a package (python -m DORA_tensorised.tui.run_tui)
+# and as a script (python DORA_tensorised/tui/run_tui.py)
+try:
+    # When run as a package
+    from ..DORA import DORA  # type: ignore
+    from .segments.params_loader import ParamsLoaderSegment  # type: ignore
+    from .segments.file_loader import FileLoaderSegment  # type: ignore
+    from .segments.file_saver import FileSaverSegment  # type: ignore
+    from .segments.network_overview import NetworkOverviewSegment, ParameterDialog  # type: ignore
+except ImportError:
+    # When run as a script with working directory inside tui/
+    from DORA_tensorised.DORA import DORA
+    from DORA_tensorised.tui.segments.params_loader import ParamsLoaderSegment
+    from DORA_tensorised.tui.segments.file_loader import FileLoaderSegment
+    from DORA_tensorised.tui.segments.file_saver import FileSaverSegment
+    from DORA_tensorised.tui.segments.network_overview import NetworkOverviewSegment, ParameterDialog
 
 
 class DORATUI(App):

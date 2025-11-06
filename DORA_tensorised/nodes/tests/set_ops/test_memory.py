@@ -178,50 +178,6 @@ def test_update_input_po(memory_set):
     # At least some inputs should have changed
     assert td_changed or bu_changed or map_changed or lateral_changed
 
-def test_map_input(memory_set):
-    """Test map_input function."""
-    # Get a mask for testing (use P nodes if available, otherwise RB nodes)
-    test_mask = memory_set.get_mask(Type.P)
-    if not torch.any(test_mask):
-        test_mask = memory_set.get_mask(Type.RB)
-    if not torch.any(test_mask):
-        test_mask = memory_set.get_mask(Type.PO)
-    if not torch.any(test_mask):
-        pytest.skip("No suitable nodes for testing map_input")
-    
-    # Call map_input
-    result = memory_set.map_input(test_mask)
-    
-    # Check that result is a tensor with correct shape
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (torch.sum(test_mask).item(),)
-    
-    # Check that result contains finite values
-    assert torch.all(torch.isfinite(result))
-
-def test_map_input_with_different_masks(memory_set):
-    """Test map_input function with different node type masks."""
-    # Test with P nodes
-    p_mask = memory_set.get_mask(Type.P)
-    if torch.any(p_mask):
-        result_p = memory_set.map_input(p_mask)
-        assert isinstance(result_p, torch.Tensor)
-        assert result_p.shape == (torch.sum(p_mask).item(),)
-    
-    # Test with RB nodes
-    rb_mask = memory_set.get_mask(Type.RB)
-    if torch.any(rb_mask):
-        result_rb = memory_set.map_input(rb_mask)
-        assert isinstance(result_rb, torch.Tensor)
-        assert result_rb.shape == (torch.sum(rb_mask).item(),)
-    
-    # Test with PO nodes
-    po_mask = memory_set.get_mask(Type.PO)
-    if torch.any(po_mask):
-        result_po = memory_set.map_input(po_mask)
-        assert isinstance(result_po, torch.Tensor)
-        assert result_po.shape == (torch.sum(po_mask).item(),)
-
 def test_memory_set_has_required_attributes(memory_set):
     """Test that memory set has all required attributes."""
     required_attrs = [
@@ -268,10 +224,6 @@ def test_memory_set_with_empty_mask(memory_set):
     """Test memory functions with empty masks."""
     # Create an empty mask
     empty_mask = torch.zeros(memory_set.nodes.shape[0], dtype=torch.bool)
-    
-    # Test map_input with empty mask
-    result = memory_set.map_input(empty_mask)
-    assert result.shape == (0,)
     
     # Test that update functions don't crash with no nodes of a type
     # This is more of a robustness test

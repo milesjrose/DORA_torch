@@ -107,7 +107,7 @@ def read_zipped_files(source_dir: str):
         set_dir = os.path.join(source_dir, s.name)
         
         # Load mappings
-        if not s == Set.NEW_SET and not s == Set.DRIVER:
+        if s == RECIPIENT:
             maps_metadata_path = os.path.join(set_dir, "maps_metadata.json")
             with open(maps_metadata_path, 'r') as f:
                 maps_metadata = json.load(f)
@@ -117,7 +117,7 @@ def read_zipped_files(source_dir: str):
             
             map_fields = {field: adj_matrix[:, :, field.value] for field in MappingFields}
             
-            mappings[s] = Mappings(driver=driver_set, map_fields=map_fields) 
+            mappings = Mappings(driver=driver_set, map_fields=map_fields) 
         
         # Load links
         links_metadata_path = os.path.join(set_dir, "links_metadata.json")
@@ -217,7 +217,7 @@ def semantics_json(network: Network, output_dir: str):
 
 def set_maps_json(network: Network, s: Set, output_dir: str):
     """Generate json object for set mappings."""
-    mappings = network.mappings[s]
+    mappings = network.mappings
     adj_matrix_path = os.path.join(output_dir, "adj_matrix.pt")
     torch.save(mappings.adj_matrix, adj_matrix_path)
     

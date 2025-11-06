@@ -36,7 +36,7 @@ def test_get_max_maps(network: Network):
     recipient = network.recipient()
     
     # --- Setup Recipient -> Driver Weights ---
-    rec_mappings = network.mappings[Set.RECIPIENT]
+    rec_mappings = network.mappings
     rec_weights = rec_mappings[MappingFields.WEIGHT]
     # zero out all weights
     rec_weights.fill_(0)
@@ -90,7 +90,7 @@ def test_reset_mapping_units(network: Network):
     """
     Tests that reset_mapping_units zeros out hypotheses, max_hyp, and connections for driver and recipient.
     """
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     mappings[MappingFields.HYPOTHESIS].fill_(1.0)
     mappings[MappingFields.MAX_HYP].fill_(1.0)
     mappings[MappingFields.WEIGHT].fill_(1.0)
@@ -106,7 +106,7 @@ def test_reset_mappings(network: Network):
     """
     Tests that reset_mappings zeros out all mapping fields for all sets.
     """
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     for field in MappingFields:
         mappings[field].fill_(1.0)
 
@@ -144,12 +144,12 @@ def test_update_mapping_hyps(network: Network):
     printer.print_tk_tensor(recipient.nodes, headers=["Recipient"], types=[TF.ID, TF.DELETED, TF.TYPE, TF.MODE, TF.ACT])
     print(network.recipient().get_mask(Type.P))
     print(network.recipient().nodes[:, TF.TYPE] == Type.P)
-    network.mappings[Set.RECIPIENT].print(MappingFields.HYPOTHESIS)
+    network.mappings.print(MappingFields.HYPOTHESIS)
 
 
     network.mapping_ops.update_mapping_hyps()
 
-    rec_mappings = network.mappings[Set.RECIPIENT]
+    rec_mappings = network.mappings
     hypotheses = rec_mappings[MappingFields.HYPOTHESIS]
 
     assert torch.isclose(hypotheses[0, 0], torch.tensor(0.5 * 0.7))
@@ -163,7 +163,7 @@ def test_reset_mapping_hyps(network: Network):
     Tests that reset_mapping_hyps zeros out hypotheses and max_hyp for driver and recipient.
     """
 
-    mappings = network.mappings[Set.RECIPIENT]
+    mappings = network.mappings
     mappings[MappingFields.HYPOTHESIS].fill_(1.0)
     mappings[MappingFields.MAX_HYP].fill_(1.0)
 
@@ -185,15 +185,15 @@ def test_update_mapping_connections(network: Network):
     hyp = import_tensor(prefix + 'hyp_data.csv')
     weight_updated = import_tensor(prefix + 'weight_updated.csv')
 
-    network.mappings[Set.RECIPIENT][MappingFields.WEIGHT] = weight
-    network.mappings[Set.RECIPIENT][MappingFields.HYPOTHESIS] = hyp
+    network.mappings[MappingFields.WEIGHT] = weight
+    network.mappings[MappingFields.HYPOTHESIS] = hyp
     print(network.params.eta)
     network.mapping_ops.update_mapping_connections()
 
-    network.mappings[Set.RECIPIENT].print(MappingFields.WEIGHT)
+    network.mappings.print(MappingFields.WEIGHT)
     printer = nodePrinter(print_to_file=False)
     printer.print_weight_tensor(weight_updated, headers=["Weight Updated"])
 
-    assert torch.allclose(network.mappings[Set.RECIPIENT][MappingFields.WEIGHT], weight_updated)
+    assert torch.allclose(network.mappings[MappingFields.WEIGHT], weight_updated)
 
 
