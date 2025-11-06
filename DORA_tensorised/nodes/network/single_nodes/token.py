@@ -140,7 +140,7 @@ class Ref_Token(object):
         set (Set): The set of the node.
         ID (int): The ID of the node.
     """
-    def __init__(self, set: Set, ID: int, name: str = None):
+    def __init__(self, set: Set, ID: int, name: str = None, idx: int = None):
         """
         Initialize the Ref_Token object.
 
@@ -148,10 +148,12 @@ class Ref_Token(object):
             set (Set): The set of the node.
             ID (int): The ID of the node.
             name (str, optional): The name of the node. Defaults to None.
+            idx (int, optional): The index of the node in the tensor. Defaults to None.
         """
         self.set: Set = set
         self.ID = ID
         self.name = name
+        self.idx = idx
     
     def print(self):
         print("Set:", self.set.name, "ID:", self.ID, "Name:", self.name)
