@@ -6,6 +6,7 @@ from typing import List
 from .cache import Cache
 from ...utils import tensor_ops as tOps
 from logging import getLogger
+from .tensor_view import TensorView
 logger = getLogger(__name__)
 
 class Token_Tensor:
@@ -83,6 +84,72 @@ class Token_Tensor:
         self.cache.cache_analogs()
         if sets_to_cache:
             self.cache.cache_sets(sets_to_cache)
+    
+    def get_feature(self, indices: torch.Tensor, feature: TF) -> torch.Tensor:
+        """
+        Get the features for the given indices.
+        Args:
+            indices: torch.Tensor - The indices of the tokens to get the features of.
+            feature: TF - The feature to get.
+        Returns:
+            torch.Tensor - The features for the given indices.
+        """
+        return self.tensor[indices, feature]
+    
+    def set_feature(self, indices: torch.Tensor, feature: TF, value: float):
+        """
+        Set the features for the given indices.
+        Args:
+            indices: torch.Tensor - The indices of the tokens to set the features of.
+            feature: TF - The feature to set.
+            value: float - The value to set the feature to.
+        """
+        self.tensor[indices, feature] = value
+    
+    def get_features(self, indices: torch.Tensor, features: torch.Tensor) -> torch.Tensor:
+        """
+        Get the features for the given indices.
+        Args:
+            indices: torch.Tensor - The indices of the tokens to get the features of.
+            features: torch.Tensor - The feature indices to get (TF enum values).
+        Returns:
+            torch.Tensor - The features for the given indices, shape (len(indices), len(features)).
+        """
+        return self.tensor[indices[:, None], features]
+    
+    def set_features(self, indices: torch.Tensor, features: torch.Tensor, values: torch.Tensor):
+        """
+        Set the features for the given indices.
+        Args:
+            indices: torch.Tensor - The indices of the tokens to set the features of.
+            features: torch.Tensor - The feature indices to set (TF enum values).
+            values: torch.Tensor - The values to set the features to, shape (len(indices), len(features)).
+        """
+        self.tensor[indices[:, None], features] = values
+    
+    def get_view(self, indices: torch.Tensor) -> TensorView:
+        """
+        Get a view of the tensor for the given indices.
+        Changes to the view will update the original tensor.
+        
+        Args:
+            indices: torch.Tensor - The indices of the tokens to create a view of.
+        Returns:
+            TensorView - A view-like object that maps operations back to the original tensor.
+        
+        Example:
+            # Get a view of tokens at indices [0, 5, 10]
+            view = token_tensor.get_view(torch.tensor([0, 5, 10]))
+            
+            # Access with view-local indices (0, 1, 2 map to original indices 0, 5, 10)
+            view[0, TF.ACT] = 1.5  # Updates token_tensor.tensor[0, TF.ACT]
+            view[1, TF.SET] = Set.DRIVER  # Updates token_tensor.tensor[5, TF.SET]
+            
+            # Use masks/indices local to the view
+            mask = torch.tensor([True, False, True])
+            view[mask, TF.ACT] = 0.0  # Updates tokens at original indices 0 and 10
+        """
+        return TensorView(self.tensor, indices)
     
     def expand_tensor(self, min_expansion: int = 5):
         """
