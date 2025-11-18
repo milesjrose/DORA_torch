@@ -2,6 +2,8 @@ import torch
 from .cache import Cache
 from .token_tensor import Token_Tensor
 from ...enums import *
+from logging import getLogger
+logger = getLogger(__name__)
 
 class Analog_ops:
     """ Class to perform operations on analogs."""
@@ -84,6 +86,7 @@ class Analog_ops:
             analog_number: int - The number of the analog to move.
             to_set: Set - The set to move the analog to.
         """
+        logger.info(f"Moving analog {analog_number} to set {to_set}")
         indices = self.get_analog_indices(analog_number)
         self.tokens.move_tokens(indices, to_set)
         self.cache.cache_analogs()
@@ -97,6 +100,7 @@ class Analog_ops:
         Returns:
             int - The number of the new analog.
         """
+        logger.info(f"Copying analog {analog_number} to set {to_set}")
         indices = self.get_analog_indices(analog_number)
         # get a new analog number
         new_analog_number = self.new_analog_id()

@@ -372,3 +372,111 @@ def test_add_tokens_with_empty_tensor():
     assert len(replace_idxs) == 3
     assert token_tensor.cache.get_set_count(Set.DRIVER) == 3
 
+
+def test_delete_tokens(token_tensor):
+    """Test deleting tokens."""
+    # Get initial state
+    initial_active = torch.where(token_tensor.tensor[:, TF.DELETED] == B.FALSE)[0]
+    initial_active_count = len(initial_active)
+    
+    # Store original values for tokens we'll delete
+    indices_to_delete = torch.tensor([0, 2, 5])
+    original_act_values = token_tensor.tensor[indices_to_delete, TF.ACT].clone()
+    original_set_values = token_tensor.tensor[indices_to_delete, TF.SET].clone()
+    
+    # Delete tokens
+    token_tensor.delete_tokens(indices_to_delete)
+    
+    # Verify tokens are marked as deleted
+    assert torch.all(token_tensor.tensor[indices_to_delete, TF.DELETED] == B.TRUE)
+    
+    # Verify all values are set to null (except DELETED which should be TRUE)
+    for idx in indices_to_delete:
+        # Check that DELETED is TRUE
+        assert token_tensor.tensor[idx, TF.DELETED] == B.TRUE, f"Token {idx} DELETED flag should be TRUE"
+        # Check that all other values are null
+        token_row = token_tensor.tensor[idx, :].clone()
+        token_row[TF.DELETED] = null  # Temporarily set DELETED to null for comparison
+        assert torch.all(token_row == null), f"Token {idx} should have all null values except DELETED"
+    
+    # Verify active count decreased
+    final_active = torch.where(token_tensor.tensor[:, TF.DELETED] == B.FALSE)[0]
+    final_active_count = len(final_active)
+    assert final_active_count == initial_active_count - len(indices_to_delete)
+    
+    # Verify non-deleted tokens are unchanged
+    non_deleted_indices = torch.tensor([1, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14])
+    for idx in non_deleted_indices:
+        assert token_tensor.tensor[idx, TF.DELETED] == B.FALSE, f"Token {idx} should still be active"
+
+
+def test_delete_tokens_single_token(token_tensor):
+    """Test deleting a single token."""
+    idx_to_delete = torch.tensor([10])
+    original_active_count = len(torch.where(token_tensor.tensor[:, TF.DELETED] == B.FALSE)[0])
+    
+    # Delete token
+    token_tensor.delete_tokens(idx_to_delete)
+    
+    # Verify token is deleted
+    assert token_tensor.tensor[10, TF.DELETED] == B.TRUE
+    # Check that all values except DELETED are null
+    token_row = token_tensor.tensor[10, :].clone()
+    token_row[TF.DELETED] = null  # Temporarily set DELETED to null for comparison
+    assert torch.all(token_row == null), "All values except DELETED should be null"
+    assert token_tensor.tensor[10, TF.DELETED] == B.TRUE  # DELETED flag should be TRUE
+    
+    # Verify count decreased
+    final_active_count = len(torch.where(token_tensor.tensor[:, TF.DELETED] == B.FALSE)[0])
+    assert final_active_count == original_active_count - 1
+
+
+def test_delete_tokens_multiple_sets(token_tensor):
+    """Test deleting tokens from multiple sets."""
+    # Delete tokens from different sets
+    # Token 0-4 are in DRIVER, token 5-9 are in RECIPIENT
+    indices_to_delete = torch.tensor([0, 1, 5, 6])  # 2 from DRIVER, 2 from RECIPIENT
+    
+    token_tensor.delete_tokens(indices_to_delete)
+    
+    # Verify all are deleted
+    assert torch.all(token_tensor.tensor[indices_to_delete, TF.DELETED] == B.TRUE)
+    
+    # Verify all values are null (except DELETED which should be TRUE)
+    for idx in indices_to_delete:
+        assert token_tensor.tensor[idx, TF.DELETED] == B.TRUE
+        token_row = token_tensor.tensor[idx, :].clone()
+        token_row[TF.DELETED] = null  # Temporarily set DELETED to null for comparison
+        assert torch.all(token_row == null), f"Token {idx} should have all null values except DELETED"
+
+
+def test_delete_tokens_already_deleted(token_tensor):
+    """Test deleting tokens that are already deleted."""
+    # Token 15 is already deleted
+    idx_already_deleted = torch.tensor([15])
+    
+    # Delete it again (should be idempotent)
+    token_tensor.delete_tokens(idx_already_deleted)
+    
+    # Should still be deleted
+    assert token_tensor.tensor[15, TF.DELETED] == B.TRUE
+    token_row = token_tensor.tensor[15, :].clone()
+    token_row[TF.DELETED] = null  # Temporarily set DELETED to null for comparison
+    assert torch.all(token_row == null), "All values except DELETED should be null"
+
+
+def test_delete_tokens_preserves_other_tokens(token_tensor):
+    """Test that deleting tokens doesn't affect other tokens."""
+    # Store original values for tokens we won't delete
+    indices_to_preserve = torch.tensor([1, 3, 7, 11, 13])
+    original_values = token_tensor.tensor[indices_to_preserve, :].clone()
+    
+    # Delete different tokens
+    indices_to_delete = torch.tensor([0, 5, 10])
+    token_tensor.delete_tokens(indices_to_delete)
+    
+    # Verify preserved tokens are unchanged
+    for i, idx in enumerate(indices_to_preserve):
+        assert torch.allclose(token_tensor.tensor[idx, :], original_values[i, :], atol=1e-6), \
+            f"Token {idx} should be unchanged"
+

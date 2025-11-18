@@ -1,5 +1,8 @@
 import torch
 from ...enums import *
+from logging import getLogger
+logger = getLogger(__name__)
+
 class Connections_Tensor:
     """Class for holding the connections between tokens"""
     def __init__(self, connections: torch.Tensor):
@@ -11,6 +14,9 @@ class Connections_Tensor:
         Connect from parent token to to child token.
         If multiple parents and children are provided, creates all combinations.
         """
+        logger.info(f"Connecting {len(parent_idxs)} parents to {len(child_idxs)} children")
+        logger.debug(f"Parent indices: {parent_idxs}")
+        logger.debug(f"Child indices: {child_idxs}")
         # Create all combinations of parents and children
         parent_expanded = parent_idxs.unsqueeze(1).expand(-1, len(child_idxs))
         child_expanded = child_idxs.unsqueeze(0).expand(len(parent_idxs), -1)
@@ -21,6 +27,9 @@ class Connections_Tensor:
         Connect from from_idxs to to_idxs and vice versa.
         If multiple indices are provided, creates all combinations.
         """
+        logger.info(f"Connecting {len(from_idxs)} indices to {len(to_idxs)} indices")
+        logger.debug(f"From indices: {from_idxs}")
+        logger.debug(f"To indices: {to_idxs}")
         # Create all combinations
         from_expanded = from_idxs.unsqueeze(1).expand(-1, len(to_idxs))
         to_expanded = to_idxs.unsqueeze(0).expand(len(from_idxs), -1)
@@ -35,6 +44,8 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of the parents of the given child_idxs.
         """
+        logger.info(f"Getting parents of {len(child_idxs)} children")
+        logger.debug(f"Child indices: {child_idxs}")
         # connections[i, j] = True means i -> j (parent i connects to child j)
         # To get parents of child j, we need all i where connections[i, j] = True
         # This is the column j, so we check connections[:, child_idxs]
@@ -53,6 +64,8 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of all ancestors (parents, grandparents, etc.) of the given child_idxs.
         """
+        logger.info(f"Getting parents recursively of {len(child_idxs)} children")
+        logger.debug(f"Child indices: {child_idxs}")
         if len(child_idxs) == 0:
             return torch.tensor([], dtype=torch.long)
         
@@ -98,6 +111,8 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of the children of the given parent_idxs.
         """
+        logger.info(f"Getting children of {len(parent_idxs)} parents")
+        logger.debug(f"Parent indices: {parent_idxs}")
         # connections[i, j] = True means i -> j (parent i connects to child j)
         # To get children of parent i, we need all j where connections[i, j] = True
         # This is the row i, so we check connections[parent_idxs, :]
@@ -116,6 +131,8 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of all descendants (children, grandchildren, etc.) of the given parent_idxs.
         """
+        logger.info(f"Getting children recursively of {len(parent_idxs)} parents")
+        logger.debug(f"Parent indices: {parent_idxs}")
         if len(parent_idxs) == 0:
             return torch.tensor([], dtype=torch.long)
         
@@ -162,6 +179,8 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of the connected tokens of the given idx.
         """
+        logger.info(f"Getting all connected of {len(idx)} indices")
+        logger.debug(f"Indices: {idx}")
         return torch.unique(torch.cat([self.get_parents(idx), self.get_children(idx)]))
     
     def get_all_connected_recursive(self, idx: torch.Tensor) -> torch.Tensor:
@@ -173,6 +192,8 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of all connected tokens of the given idx.
         """
+        logger.info(f"Getting all connected recursively of {len(idx)} indices")
+        logger.debug(f"Indices: {idx}")
         return torch.unique(torch.cat([self.get_parents_recursive(idx), self.get_children_recursive(idx)]))
     
     def get_connected_set(self, idx: torch.Tensor) -> torch.Tensor:
@@ -186,6 +207,8 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of all tokens in the connected component (including the input token(s)).
         """
+        logger.info(f"Getting connected set of {len(idx)} indices")
+        logger.debug(f"Indices: {idx}")
         if len(idx) == 0:
             return torch.tensor([], dtype=torch.long)
         
@@ -228,6 +251,7 @@ class Connections_Tensor:
         Args:
             new_size: int - The new size of the connections tensor.
         """
+        old_size = self.connections.shape[0]
         new_connections = torch.zeros(new_size, new_size, dtype=torch.bool)
         # Only copy if new size is larger than current size
         if new_size >= self.connections.shape[0] and new_size >= self.connections.shape[1]:
@@ -237,3 +261,4 @@ class Connections_Tensor:
             copy_size = min(new_size, self.connections.shape[0], self.connections.shape[1])
             new_connections[:copy_size, :copy_size] = self.connections[:copy_size, :copy_size]
         self.connections = new_connections
+        logger.info(f"Expanded connections tensor: {old_size} -> {new_size}")

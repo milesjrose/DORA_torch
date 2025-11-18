@@ -2,6 +2,8 @@ from .token_tensor import Token_Tensor
 from ...enums import *
 from ..network_params import Params
 import torch
+from logging import getLogger
+logger = getLogger(__name__)
 
 class UpdateOps:
     """ Class to perform update operations on the tensor."""
@@ -16,39 +18,43 @@ class UpdateOps:
         self.cache = tokens.cache
         self.params = params
 
-    def init_float(self, indices: torch.Tensor, features: list[TF]):
+    def set_float(self, indices: torch.Tensor, features: list[TF], value: float = 0.0):
         """
-        Initialize the float of the tokens.
+        Initialise the float of the tokens.
         Args:
-            features: list[TF] - The features to initialize.
+            indices: torch.Tensor - The indices of the tokens to set the float of.
+            features: list[TF] - The features to initialise.
+            value: float - The value to initialize the features to.
         """
-        self.tensor[features] = 0.0
+        logger.info(f"Setting float of {len(indices)} tokens for features: {features} to {value}")
+        logger.debug(f"Indices: {indices}")
+        self.tensor[indices, features] = value
     
     def init_input(self, indices: torch.Tensor, refresh: float):
         """
-        Initialize the input of the tokens.
+        Initialise the input of the tokens.
         Args:
-            indices: torch.Tensor - The indices of the tokens to initialize.
-            refresh: float - The refresh value.
+            indices: torch.Tensor - The indices of the tokens to initialise.
+            refresh: float - The value to initialise the td_input to.
         """
-        self.tensor[indices, TF.TD_INPUT] = refresh
+        self.set_float(indices, [TF.TD_INPUT], refresh)
         features = [TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT]
-        self.init_float(indices, features)
+        self.set_float(indices, features)
     
     def init_act(self, indices: torch.Tensor):
         """
-        Initialize the act of the tokens.
+        Initialise the act of the tokens.
         Args:
-            indices: torch.Tensor - The indices of the tokens to initialize.
+            indices: torch.Tensor - The indices of the tokens to initialise.
         """
-        self.tensor[indices, TF.ACT] = 0.0
+        self.set_float(indices, [TF.ACT])
         self.init_input(indices, 0.0)
     
     def init_state(self, indices: torch.Tensor):
         """
-        Initialize the state of the tokens.
+        Initialise the state of the tokens.
         Args:
-            indices: torch.Tensor - The indices of the tokens to initialize.
+            indices: torch.Tensor - The indices of the tokens to initialise.
         """
         self.tensor[indices, TF.RETRIEVED] = False
         self.init_act(indices)

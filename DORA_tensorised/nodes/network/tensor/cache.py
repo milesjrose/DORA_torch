@@ -1,6 +1,8 @@
 import torch
 from ...enums import *
 from enum import IntEnum
+from logging import getLogger
+logger = getLogger(__name__)
 
 class Analog_Cache(IntEnum):
     """ Enum for the analog cache."""
@@ -74,6 +76,7 @@ class Cache:
         Args:
             sets: list[Set] - The sets to update the cache for.
         """
+        logger.info(f"Caching sets: {sets}")
         for set in sets:
             self.get_set_mask(set)
     
@@ -81,6 +84,7 @@ class Cache:
         """
         Cache the analogs in the tensor
         """
+        logger.info(f"Caching analogs")
         # Get unique analog numbers and their counts
         analog_numbers, analog_counts = torch.unique(self.tensor[:, TF.ANALOG], return_counts=True)
 
