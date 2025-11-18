@@ -222,7 +222,6 @@ class MappingFields(IntEnum):
     WEIGHT      = 0
     HYPOTHESIS  = 1
     MAX_HYP     = 2
-    CONNECTIONS  = 3
 
 class Type(IntEnum):
     """
