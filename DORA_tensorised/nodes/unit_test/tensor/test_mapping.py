@@ -1220,3 +1220,275 @@ def test_swap_then_expand(mapping):
     # Original data should be preserved (transposed)
     assert torch.allclose(mapping.adj_matrix[:4, :5, MappingFields.WEIGHT], original_weight.t())
 
+
+# =====================[ get_view tests ]======================
+
+def test_get_view_basic(mapping):
+    """Test basic get_view functionality."""
+    indices = torch.tensor([0, 2, 4])
+    view = mapping.get_view(indices)
+    
+    # Should return a TensorView
+    from nodes.network.tensor.tensor_view import TensorView
+    assert isinstance(view, TensorView)
+    
+    # View should have correct shape (3 recipients, 4 drivers, fields)
+    assert view.shape == (3, 4, len(MappingFields))
+    
+    # View should have same dtype and device as original
+    assert view.dtype == mapping.adj_matrix.dtype
+    assert view.device == mapping.adj_matrix.device
+
+
+def test_get_view_single_index(mapping):
+    """Test get_view with a single index."""
+    indices = torch.tensor([1])
+    view = mapping.get_view(indices)
+    
+    assert view.shape == (1, 4, len(MappingFields))
+    assert len(view) == 1
+
+
+def test_get_view_multiple_indices(mapping):
+    """Test get_view with multiple indices."""
+    indices = torch.tensor([0, 1, 2, 3])
+    view = mapping.get_view(indices)
+    
+    assert view.shape == (4, 4, len(MappingFields))
+    assert len(view) == 4
+
+
+def test_get_view_non_contiguous_indices(mapping):
+    """Test get_view with non-contiguous indices."""
+    indices = torch.tensor([0, 2, 4])
+    view = mapping.get_view(indices)
+    
+    assert view.shape == (3, 4, len(MappingFields))
+    
+    # Verify we can access the view
+    # View[0] should correspond to original recipient 0
+    assert torch.equal(view[0], mapping.adj_matrix[0])
+    # View[1] should correspond to original recipient 2
+    assert torch.equal(view[1], mapping.adj_matrix[2])
+
+
+def test_get_view_read_access(mapping):
+    """Test reading values through the view."""
+    indices = torch.tensor([0, 2])
+    view = mapping.get_view(indices)
+    
+    # Read through view
+    view_recipient_0 = view[0]  # Should be recipient 0 from original
+    view_recipient_1 = view[1]  # Should be recipient 2 from original
+    
+    # Verify values match original
+    assert torch.equal(view_recipient_0, mapping.adj_matrix[0])
+    assert torch.equal(view_recipient_1, mapping.adj_matrix[2])
+    
+    # Read specific field and driver
+    assert view[0, 1, MappingFields.WEIGHT].item() == mapping.adj_matrix[0, 1, MappingFields.WEIGHT].item()
+    assert view[1, 0, MappingFields.HYPOTHESIS].item() == mapping.adj_matrix[2, 0, MappingFields.HYPOTHESIS].item()
+
+
+def test_get_view_write_access(mapping):
+    """Test writing values through the view modifies original."""
+    indices = torch.tensor([0, 2])
+    view = mapping.get_view(indices)
+    
+    # Store original values
+    original_0_1_weight = mapping.adj_matrix[0, 1, MappingFields.WEIGHT].item()
+    original_2_0_hyp = mapping.adj_matrix[2, 0, MappingFields.HYPOTHESIS].item()
+    
+    # Modify through view
+    view[0, 1, MappingFields.WEIGHT] = 0.99
+    view[1, 0, MappingFields.HYPOTHESIS] = 0.88  # view[1] corresponds to original recipient 2
+    
+    # Verify original was modified
+    assert mapping.adj_matrix[0, 1, MappingFields.WEIGHT].item() == pytest.approx(0.99, abs=1e-6)
+    assert mapping.adj_matrix[2, 0, MappingFields.HYPOTHESIS].item() == pytest.approx(0.88, abs=1e-6)
+    
+    # Verify other values unchanged
+    assert mapping.adj_matrix[0, 0, MappingFields.WEIGHT].item() == pytest.approx(0.8, abs=1e-6)
+    assert mapping.adj_matrix[2, 2, MappingFields.WEIGHT].item() == pytest.approx(0.85, abs=1e-6)
+
+
+def test_get_view_slice_access(mapping):
+    """Test accessing view with slices."""
+    indices = torch.tensor([0, 1, 2, 3])
+    view = mapping.get_view(indices)
+    
+    # Get slice of view
+    view_slice = view[0:2]  # Should return another TensorView
+    
+    from nodes.network.tensor.tensor_view import TensorView
+    assert isinstance(view_slice, TensorView)
+    assert view_slice.shape == (2, 4, len(MappingFields))
+    
+    # Verify slice values
+    assert torch.equal(view_slice[0], mapping.adj_matrix[0])
+    assert torch.equal(view_slice[1], mapping.adj_matrix[1])
+
+
+def test_get_view_all_drivers(mapping):
+    """Test accessing all drivers for recipients in view."""
+    indices = torch.tensor([0, 2, 4])
+    view = mapping.get_view(indices)
+    
+    # Get all drivers for first recipient in view
+    all_drivers = view[0, :, MappingFields.WEIGHT]
+    assert torch.equal(all_drivers, mapping.adj_matrix[0, :, MappingFields.WEIGHT])
+    
+    # Get all drivers for second recipient in view
+    all_drivers_2 = view[1, :, MappingFields.HYPOTHESIS]
+    assert torch.equal(all_drivers_2, mapping.adj_matrix[2, :, MappingFields.HYPOTHESIS])
+
+
+def test_get_view_empty_indices(mapping):
+    """Test get_view with empty indices."""
+    indices = torch.tensor([], dtype=torch.long)
+    view = mapping.get_view(indices)
+    
+    assert view.shape == (0, 4, len(MappingFields))
+    assert len(view) == 0
+
+
+def test_get_view_reordered_indices(mapping):
+    """Test get_view with reordered indices."""
+    indices = torch.tensor([4, 2, 0])  # Reversed order
+    view = mapping.get_view(indices)
+    
+    assert view.shape == (3, 4, len(MappingFields))
+    
+    # View[0] should be recipient 4
+    assert torch.equal(view[0], mapping.adj_matrix[4])
+    # View[1] should be recipient 2
+    assert torch.equal(view[1], mapping.adj_matrix[2])
+    # View[2] should be recipient 0
+    assert torch.equal(view[2], mapping.adj_matrix[0])
+
+
+def test_get_view_modify_through_view(mapping):
+    """Test that modifications through view affect original tensor."""
+    indices = torch.tensor([1, 3])
+    view = mapping.get_view(indices)
+    
+    # Modify entire row through view (all fields for one recipient)
+    new_weight = torch.tensor([0.1, 0.2, 0.3, 0.4])
+    view[0, :, MappingFields.WEIGHT] = new_weight  # Should modify original recipient 1
+    
+    # Verify original was modified
+    assert torch.allclose(mapping.adj_matrix[1, :, MappingFields.WEIGHT], new_weight)
+    
+    # Original recipient 3 should be unchanged by this operation
+    assert mapping.adj_matrix[3, 0, MappingFields.WEIGHT].item() == 0.0
+
+
+def test_get_view_modify_all_fields(mapping):
+    """Test modifying all fields through view."""
+    indices = torch.tensor([0, 2])
+    view = mapping.get_view(indices)
+    
+    # Modify all fields for a specific mapping
+    view[0, 1, MappingFields.WEIGHT] = 0.9
+    view[0, 1, MappingFields.HYPOTHESIS] = 0.8
+    view[0, 1, MappingFields.MAX_HYP] = 0.7
+    
+    # Verify all fields were modified
+    assert mapping.adj_matrix[0, 1, MappingFields.WEIGHT].item() == pytest.approx(0.9, abs=1e-6)
+    assert mapping.adj_matrix[0, 1, MappingFields.HYPOTHESIS].item() == pytest.approx(0.8, abs=1e-6)
+    assert mapping.adj_matrix[0, 1, MappingFields.MAX_HYP].item() == pytest.approx(0.7, abs=1e-6)
+
+
+def test_get_view_clone(mapping):
+    """Test cloning the view creates independent copy."""
+    indices = torch.tensor([0, 2])
+    view = mapping.get_view(indices)
+    
+    # Clone the view
+    cloned = view.clone()
+    
+    # Modify clone
+    cloned[0, 1, MappingFields.WEIGHT] = 0.99
+    
+    # Original should be unchanged (clone is independent)
+    assert mapping.adj_matrix[0, 1, MappingFields.WEIGHT].item() != pytest.approx(0.99, abs=1e-6)
+    
+    # But view should still reflect original
+    assert view[0, 1, MappingFields.WEIGHT].item() == mapping.adj_matrix[0, 1, MappingFields.WEIGHT].item()
+
+
+def test_get_view_multiple_views(mapping):
+    """Test creating multiple views of the same tensor."""
+    indices1 = torch.tensor([0, 1])
+    indices2 = torch.tensor([2, 3])
+    
+    view1 = mapping.get_view(indices1)
+    view2 = mapping.get_view(indices2)
+    
+    # Both views should work independently
+    assert view1.shape == (2, 4, len(MappingFields))
+    assert view2.shape == (2, 4, len(MappingFields))
+    
+    # Modify through view1
+    view1[0, 0, MappingFields.WEIGHT] = 0.99
+    
+    # Should affect original
+    assert mapping.adj_matrix[0, 0, MappingFields.WEIGHT].item() == pytest.approx(0.99, abs=1e-6)
+    
+    # view2 should still work correctly
+    assert view2[0, 0, MappingFields.WEIGHT].item() == mapping.adj_matrix[2, 0, MappingFields.WEIGHT].item()
+
+
+def test_get_view_overlapping_indices(mapping):
+    """Test creating views with overlapping indices."""
+    indices1 = torch.tensor([0, 1, 2])
+    indices2 = torch.tensor([1, 2, 3])
+    
+    view1 = mapping.get_view(indices1)
+    view2 = mapping.get_view(indices2)
+    
+    # Modify through view1 (affects recipient 1)
+    view1[1, 0, MappingFields.WEIGHT] = 0.99  # view1[1] is original recipient 1
+    
+    # Should affect original
+    assert mapping.adj_matrix[1, 0, MappingFields.WEIGHT].item() == pytest.approx(0.99, abs=1e-6)
+    
+    # view2 should see the change (view2[0] is also original recipient 1)
+    assert view2[0, 0, MappingFields.WEIGHT].item() == pytest.approx(0.99, abs=1e-6)
+
+
+def test_get_view_with_field_access(mapping):
+    """Test using view with field access patterns."""
+    indices = torch.tensor([0, 1, 2])
+    view = mapping.get_view(indices)
+    
+    # Access weight field for all recipients in view
+    weight_view = view[:, :, MappingFields.WEIGHT]
+    
+    # Should be able to read
+    assert weight_view.shape == (3, 4)
+    assert weight_view[0, 0].item() == mapping.adj_matrix[0, 0, MappingFields.WEIGHT].item()
+    
+    # Modify through weight view
+    weight_view[0, 1] = 0.95
+    
+    # Original should be updated
+    assert mapping.adj_matrix[0, 1, MappingFields.WEIGHT].item() == pytest.approx(0.95, abs=1e-6)
+
+
+def test_get_view_batch_operations(mapping):
+    """Test batch operations through view."""
+    indices = torch.tensor([0, 1, 2])
+    view = mapping.get_view(indices)
+    
+    # Set all weights for recipients in view to a specific value
+    view[:, :, MappingFields.WEIGHT] = 0.5
+    
+    # Verify all were set
+    assert torch.all(mapping.adj_matrix[0, :, MappingFields.WEIGHT] == 0.5)
+    assert torch.all(mapping.adj_matrix[1, :, MappingFields.WEIGHT] == 0.5)
+    assert torch.all(mapping.adj_matrix[2, :, MappingFields.WEIGHT] == 0.5)
+    
+    # Other recipients should be unchanged
+    assert mapping.adj_matrix[3, 0, MappingFields.WEIGHT].item() == 0.0
+

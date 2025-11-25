@@ -3,6 +3,7 @@ from enum import IntEnum
 from ...enums import *
 from ...utils import tensor_ops as tOps
 from logging import getLogger
+from .tensor_view import TensorView
 logger = getLogger(__name__)
 
 class MD(IntEnum):
@@ -184,6 +185,16 @@ class Mapping:
         self.update_hypothesis(d_other, r_other)
     
     # =====================[ Other functions ]======================
+    def get_view(self, indices: torch.Tensor):
+        """
+        Get a view of the mapping tensor for the given indices.
+        Args:
+            indices: torch.Tensor - The indices of the tokens to create a view of.
+        Returns:
+            TensorView - A view-like object that maps operations back to the original tensor.
+        """
+        return TensorView(self.adj_matrix, indices)
+
     def expand(self, new_count: int, dimension: MD):
         """
         Expand mapping tensor for given set. If driver, expand along dim=1, else along dim=0.

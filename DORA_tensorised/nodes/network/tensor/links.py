@@ -2,6 +2,7 @@ from ...enums import *
 from enum import IntEnum
 import torch 
 from logging import getLogger
+from .tensor_view import TensorView
 logger = getLogger(__name__)
 
 class LD(IntEnum):
@@ -25,6 +26,16 @@ class Links:
         """
         self.adj_matrix: torch.Tensor = links
         """ Tensor of links between tokens and semantics """
+    
+    def get_view(self, indices: torch.Tensor):
+        """
+        Get a view of the links tensor for the given indices.
+        Args:
+            indices: torch.Tensor - The indices of the tokens to create a view of.
+        Returns:
+            TensorView - A view-like object that maps operations back to the original tensor.
+        """
+        return TensorView(self.adj_matrix, indices)
     
     def size(self, dim):
         return self.adj_matrix.size(dim=dim)

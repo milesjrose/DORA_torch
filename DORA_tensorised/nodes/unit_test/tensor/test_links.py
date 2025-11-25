@@ -386,3 +386,223 @@ def test_round_and_delete_links(links):
     assert links.adj_matrix[1, 0].item() == 0.0  # Below 0.4, deleted
     assert links.adj_matrix[1, 1].item() == pytest.approx(0.8, abs=1e-6)  # Between thresholds, unchanged
 
+
+# =====================[ get_view tests ]======================
+
+def test_get_view_basic(links):
+    """Test basic get_view functionality."""
+    indices = torch.tensor([0, 2, 5])
+    view = links.get_view(indices)
+    
+    # Should return a TensorView
+    from nodes.network.tensor.tensor_view import TensorView
+    assert isinstance(view, TensorView)
+    
+    # View should have correct shape (3 tokens, 5 semantics)
+    assert view.shape == (3, 5)
+    
+    # View should have same dtype and device as original
+    assert view.dtype == links.adj_matrix.dtype
+    assert view.device == links.adj_matrix.device
+
+
+def test_get_view_single_index(links):
+    """Test get_view with a single index."""
+    indices = torch.tensor([2])
+    view = links.get_view(indices)
+    
+    assert view.shape == (1, 5)
+    assert len(view) == 1
+
+
+def test_get_view_multiple_indices(links):
+    """Test get_view with multiple indices."""
+    indices = torch.tensor([0, 1, 3, 5])
+    view = links.get_view(indices)
+    
+    assert view.shape == (4, 5)
+    assert len(view) == 4
+
+
+def test_get_view_non_contiguous_indices(links):
+    """Test get_view with non-contiguous indices."""
+    indices = torch.tensor([0, 2, 5, 7])
+    view = links.get_view(indices)
+    
+    assert view.shape == (4, 5)
+    
+    # Verify we can access the view
+    # View[0] should correspond to original token 0
+    assert torch.equal(view[0], links.adj_matrix[0])
+    # View[1] should correspond to original token 2
+    assert torch.equal(view[1], links.adj_matrix[2])
+
+
+def test_get_view_read_access(links):
+    """Test reading values through the view."""
+    indices = torch.tensor([0, 2])
+    view = links.get_view(indices)
+    
+    # Read through view
+    view_token_0 = view[0]  # Should be token 0 from original
+    view_token_1 = view[1]  # Should be token 2 from original
+    
+    # Verify values match original
+    assert torch.equal(view_token_0, links.adj_matrix[0])
+    assert torch.equal(view_token_1, links.adj_matrix[2])
+    
+    # Read specific semantic
+    assert view[0, 1].item() == links.adj_matrix[0, 1].item()
+    assert view[1, 0].item() == links.adj_matrix[2, 0].item()
+
+
+def test_get_view_write_access(links):
+    """Test writing values through the view modifies original."""
+    indices = torch.tensor([0, 2])
+    view = links.get_view(indices)
+    
+    # Store original values
+    original_0_1 = links.adj_matrix[0, 1].item()
+    original_2_3 = links.adj_matrix[2, 3].item()
+    
+    # Modify through view
+    view[0, 1] = 0.99
+    view[1, 3] = 0.88  # view[1] corresponds to original token 2
+    
+    # Verify original was modified
+    assert links.adj_matrix[0, 1].item() == pytest.approx(0.99, abs=1e-6)
+    assert links.adj_matrix[2, 3].item() == pytest.approx(0.88, abs=1e-6)
+    
+    # Verify other values unchanged
+    assert links.adj_matrix[0, 0].item() == pytest.approx(0.8, abs=1e-6)
+    assert links.adj_matrix[2, 2].item() == pytest.approx(0.85, abs=1e-6)
+
+
+def test_get_view_slice_access(links):
+    """Test accessing view with slices."""
+    indices = torch.tensor([0, 1, 2, 3])
+    view = links.get_view(indices)
+    
+    # Get slice of view
+    view_slice = view[0:2]  # Should return another TensorView
+    
+    from nodes.network.tensor.tensor_view import TensorView
+    assert isinstance(view_slice, TensorView)
+    assert view_slice.shape == (2, 5)
+    
+    # Verify slice values
+    assert torch.equal(view_slice[0], links.adj_matrix[0])
+    assert torch.equal(view_slice[1], links.adj_matrix[1])
+
+
+def test_get_view_all_semantics(links):
+    """Test accessing all semantics for tokens in view."""
+    indices = torch.tensor([0, 2, 5])
+    view = links.get_view(indices)
+    
+    # Get all semantics for first token in view
+    all_sems = view[0, :]
+    assert torch.equal(all_sems, links.adj_matrix[0, :])
+    
+    # Get all semantics for second token in view
+    all_sems_2 = view[1, :]
+    assert torch.equal(all_sems_2, links.adj_matrix[2, :])
+
+
+def test_get_view_empty_indices(links):
+    """Test get_view with empty indices."""
+    indices = torch.tensor([], dtype=torch.long)
+    view = links.get_view(indices)
+    
+    assert view.shape == (0, 5)
+    assert len(view) == 0
+
+
+def test_get_view_reordered_indices(links):
+    """Test get_view with reordered indices."""
+    indices = torch.tensor([5, 2, 0])  # Reversed order
+    view = links.get_view(indices)
+    
+    assert view.shape == (3, 5)
+    
+    # View[0] should be token 5
+    assert torch.equal(view[0], links.adj_matrix[5])
+    # View[1] should be token 2
+    assert torch.equal(view[1], links.adj_matrix[2])
+    # View[2] should be token 0
+    assert torch.equal(view[2], links.adj_matrix[0])
+
+
+def test_get_view_modify_through_view(links):
+    """Test that modifications through view affect original tensor."""
+    indices = torch.tensor([1, 3])
+    view = links.get_view(indices)
+    
+    # Modify entire row through view
+    new_values = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5])
+    view[0] = new_values  # Should modify original token 1
+    
+    # Verify original was modified
+    assert torch.allclose(links.adj_matrix[1], new_values)
+    
+    # Original token 3 should be unchanged by this operation
+    assert links.adj_matrix[3, 1].item() == pytest.approx(0.3, abs=1e-6)
+
+
+def test_get_view_clone(links):
+    """Test cloning the view creates independent copy."""
+    indices = torch.tensor([0, 2])
+    view = links.get_view(indices)
+    
+    # Clone the view
+    cloned = view.clone()
+    
+    # Modify clone
+    cloned[0, 1] = 0.99
+    
+    # Original should be unchanged (clone is independent)
+    assert links.adj_matrix[0, 1].item() != pytest.approx(0.99, abs=1e-6)
+    
+    # But view should still reflect original
+    assert view[0, 1].item() == links.adj_matrix[0, 1].item()
+
+
+def test_get_view_multiple_views(links):
+    """Test creating multiple views of the same tensor."""
+    indices1 = torch.tensor([0, 1])
+    indices2 = torch.tensor([2, 3])
+    
+    view1 = links.get_view(indices1)
+    view2 = links.get_view(indices2)
+    
+    # Both views should work independently
+    assert view1.shape == (2, 5)
+    assert view2.shape == (2, 5)
+    
+    # Modify through view1
+    view1[0, 0] = 0.99
+    
+    # Should affect original
+    assert links.adj_matrix[0, 0].item() == pytest.approx(0.99, abs=1e-6)
+    
+    # view2 should still work correctly
+    assert view2[0, 0].item() == links.adj_matrix[2, 0].item()
+
+
+def test_get_view_overlapping_indices(links):
+    """Test creating views with overlapping indices."""
+    indices1 = torch.tensor([0, 1, 2])
+    indices2 = torch.tensor([1, 2, 3])
+    
+    view1 = links.get_view(indices1)
+    view2 = links.get_view(indices2)
+    
+    # Modify through view1 (affects token 1)
+    view1[1, 0] = 0.99  # view1[1] is original token 1
+    
+    # Should affect original
+    assert links.adj_matrix[1, 0].item() == pytest.approx(0.99, abs=1e-6)
+    
+    # view2 should see the change (view2[0] is also original token 1)
+    assert view2[0, 0].item() == pytest.approx(0.99, abs=1e-6)
+

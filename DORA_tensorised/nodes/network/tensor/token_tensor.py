@@ -37,10 +37,10 @@ class Token_Tensor:
         Returns:
             tuple[list[Set], torch.Tensor] - The sets that were changed and the indices that were replaced.
         """
+        num_to_add = tokens.size(dim=0)
         logger.info(f"Adding {num_to_add} tokens to the tensor.")
         logger.debug(f"Tokens: {tokens}")
         logger.debug(f"Names: {names}")
-        num_to_add = tokens.size(dim=0)
         num_deleted = (self.tensor[:, TF.DELETED]==B.TRUE).sum()
         if num_to_add > num_deleted:
             # Expand to ensure we have enough deleted slots
@@ -150,6 +150,16 @@ class Token_Tensor:
             view[mask, TF.ACT] = 0.0  # Updates tokens at original indices 0 and 10
         """
         return TensorView(self.tensor, indices)
+    
+    def get_set_view(self, set: Set) -> TensorView:
+        """
+        Get a view of the tensor for the given set.
+        Args:
+            set: Set - The set to create a view of.
+        Returns:
+            TensorView - A view-like object that maps operations back to the original tensor.
+        """
+        return TensorView(self.tensor, self.cache.get_set_indices(set))
     
     def expand_tensor(self, min_expansion: int = 5):
         """
