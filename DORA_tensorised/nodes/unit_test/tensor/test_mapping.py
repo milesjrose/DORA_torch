@@ -3,7 +3,7 @@
 
 import pytest
 import torch
-from nodes.network.tensor.mapping import Mapping, MD
+from nodes.network.tokens.connections.mapping import Mapping, MD
 from nodes.enums import MappingFields
 
 
@@ -1229,7 +1229,7 @@ def test_get_view_basic(mapping):
     view = mapping.get_view(indices)
     
     # Should return a TensorView
-    from nodes.network.tensor.tensor_view import TensorView
+    from nodes.network.tokens.tensor_view import TensorView
     assert isinstance(view, TensorView)
     
     # View should have correct shape (3 recipients, 4 drivers, fields)
@@ -1320,7 +1320,7 @@ def test_get_view_slice_access(mapping):
     # Get slice of view
     view_slice = view[0:2]  # Should return another TensorView
     
-    from nodes.network.tensor.tensor_view import TensorView
+    from nodes.network.tokens.tensor_view import TensorView
     assert isinstance(view_slice, TensorView)
     assert view_slice.shape == (2, 4, len(MappingFields))
     

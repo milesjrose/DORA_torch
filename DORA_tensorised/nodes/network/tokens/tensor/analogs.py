@@ -1,7 +1,7 @@
 import torch
 from .cache import Cache
 from .token_tensor import Token_Tensor
-from ...enums import *
+from ....enums import *
 from logging import getLogger
 logger = getLogger(__name__)
 

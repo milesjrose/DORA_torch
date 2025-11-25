@@ -3,7 +3,7 @@
 
 import pytest
 import torch
-from nodes.network.tensor.cache import Cache, Analog_Cache
+from nodes.network.tokens.tensor.cache import Cache, Analog_Cache
 from nodes.enums import Set, TF, B, null, tensor_type
 
 

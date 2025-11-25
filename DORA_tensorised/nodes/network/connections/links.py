@@ -67,7 +67,7 @@ class Links(object):
         self.params = params
     
     def update_link(self, set, token_index, semantic_index, weight):
-        """
+        """!
         Update the link between a token and a semantic.
         """
         self.sets[set][token_index, semantic_index] = weight
@@ -95,7 +95,7 @@ class Links(object):
         self.sets[key] = value
 
     def del_small_link(self, threshold: float):
-        """
+        """!
         Delete links below threshold.
         """
         # set any values in links tensor below threshold to 0.0
@@ -103,7 +103,7 @@ class Links(object):
             self.sets[set] = torch.where(self.sets[set] < threshold, 0.0, self.sets[set])
     
     def round_big_link(self, threshold: float):
-        """
+        """!
         Round links above threshold to 1.0.
         """
         # set any values in links tensor above threshold to 1.0
@@ -111,7 +111,9 @@ class Links(object):
             self.sets[set] = torch.where(self.sets[set] > threshold, 1.0, self.sets[set])
 
     def calibrate_weights(self):
-        """Update weights for most strongly connected semantics for driver POs (set to 1.0)"""
+        """!
+        Update weights for most strongly connected semantics for driver POs (set to 1.0)
+        """
         # For each po, get the max weight link, then set that to 1.0
         po_mask = self.network.driver().get_mask(Type.PO)
         links = self.sets[Set.DRIVER]
@@ -126,14 +128,14 @@ class Links(object):
         self.sets[Set.DRIVER], self.sets[Set.RECIPIENT] = self.sets[Set.RECIPIENT], self.sets[Set.DRIVER]
 
     def get_max_linked_sem(self, ref_tk: Ref_Token):
-        """
+        """!
         Get the semantic with the highest link weight to the token.
         """
         idx_tk = self.network.get_index(ref_tk)
         return self.get_max_linked_sem_idx(ref_tk.set, idx_tk)
     
     def get_max_linked_sem_idx(self, set:Set, idx_tk: int):
-        """
+        """!
         See get_max_lined_sem, Set = RECIPIENT, idx_tx: token index.
         """
         semantic_index = torch.max(self.sets[set][idx_tk, :], dim=LD.TK).indices
@@ -161,7 +163,7 @@ class Links(object):
                 self.expand(new_size, set, LD.SEM)
     
     def expand(self, new_size: int, set: Set, dimension: LD):
-        """
+        """!
         Expand the links tensor for given set and dimension.
         """
         try:
@@ -182,5 +184,7 @@ class Links(object):
             raise e
         
     def get_sem_count(self, set: Set, token_mask: torch.Tensor):
-        """ get the number of semantics connected to the tokens in the mask """
+        """ !
+        get the number of semantics connected to the tokens in the mask 
+        """
         return self.sets[set][token_mask, :].sum(dim=1)

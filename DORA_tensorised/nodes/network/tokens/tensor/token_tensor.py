@@ -1,12 +1,12 @@
 import torch
-from ..single_nodes import Token, Ref_Token
-from ...enums import *
-from ..connections import Mappings
+from ...single_nodes import Token, Ref_Token
+from ....enums import *
+from ..connections.mapping import Mapping
 from typing import List
 from .cache import Cache
-from ...utils import tensor_ops as tOps
+from ....utils import tensor_ops as tOps
 from logging import getLogger
-from .tensor_view import TensorView
+from ..tensor_view import TensorView
 logger = getLogger(__name__)
 
 class Token_Tensor:

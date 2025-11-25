@@ -3,7 +3,7 @@
 
 import pytest
 import torch
-from nodes.network.tensor.token_tensor import Token_Tensor
+from nodes.network.tokens.tensor.token_tensor import Token_Tensor
 from nodes.enums import Set, TF, B, null, tensor_type
 
 

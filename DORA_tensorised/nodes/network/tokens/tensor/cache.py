@@ -1,5 +1,5 @@
 import torch
-from ...enums import *
+from ....enums import *
 from enum import IntEnum
 from logging import getLogger
 logger = getLogger(__name__)

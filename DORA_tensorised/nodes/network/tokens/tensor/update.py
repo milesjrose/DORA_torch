@@ -1,6 +1,6 @@
 from .token_tensor import Token_Tensor
-from ...enums import *
-from ..network_params import Params
+from ....enums import *
+from ...network_params import Params
 import torch
 from logging import getLogger
 logger = getLogger(__name__)

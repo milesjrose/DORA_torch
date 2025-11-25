@@ -91,7 +91,7 @@ class Mappings(object):
 
     # =====================[ Update functions ]======================
     def update_hypotheses(self):
-        """
+        """!
         Update the hypotheses matrix.
         NOTE: Seems very inefficient
         TODO: Implement a more efficient method
@@ -140,7 +140,7 @@ class Mappings(object):
         self.update_hypothesis(d_other, r_other)
 
     def update_hypothesis(self, driver_mask, map_from_mask):
-        """
+        """!
         Update the hypothesis matrix, for nodes in given masks.
         """
         # Hypothesis = hypothesis + (driver_token.act * recipient_token.act)
@@ -155,21 +155,21 @@ class Mappings(object):
         self[MappingFields.HYPOTHESIS] += activation_product * mask_2d
 
     def reset_hypotheses(self):
-        """
+        """!
         Reset the hypotheses/max hypotheses to 0.
         """
         self[MappingFields.HYPOTHESIS] = 0.0
         self[MappingFields.MAX_HYP] = 0.0
     
     def reset_mapping_units(self):
-        """
+        """!
         Reset the hypotheses and connections.
         """
         self.reset_hypotheses()
         self[MappingFields.WEIGHT] = 0.0
     
     def reset_mappings(self):
-        """
+        """!
         Reset the hypotheses, connections, and max map.
         """
         self.reset_mapping_units()
@@ -178,7 +178,7 @@ class Mappings(object):
         self[MappingFields.MAX_HYP] = 0.0
     
     def update_connections(self, eta):
-        """
+        """! update_weight
         Update the weight matrix.
         Args:
             eta (float): Learning rate.
@@ -197,7 +197,7 @@ class Mappings(object):
             0, 1)
 
     def get_max_hypothesis(self):
-        """
+        """ ! update_max_hyp
         For each hypothesis, find the maximum hypothesis of either unit involved in that hypothesis.
         """
         # max_hypothesis[i,j] = max(max(hypothesis[i,:]), max(hypothesis[:,j]))
@@ -207,10 +207,9 @@ class Mappings(object):
         max_values = tOps.max_broadcast(max_recipient, max_driver)
 
         self[MappingFields.MAX_HYP] = max_values
-        
     
     def get_max_map(self):
-        """
+        """!
         For each token, find the token with the highest connection weight.
 
         NOTE: Not sure on usage on these values currently. 
@@ -226,7 +225,7 @@ class Mappings(object):
         return max_recipient, max_driver
     
     def swap_driver_recipient(self):
-        """
+        """!
         swap the driver and recipient
         NOTE:clear mappings? Currently just transposing the mapping tensor
         """
@@ -239,7 +238,7 @@ class Mappings(object):
     # ----------------------------------------------------------------
 
     def expand_mapping_tensor(self, new_count: int, dimension: MD):
-        """
+        """!
         Expand mapping tensor for given set. If driver, expand along dim=1, else along dim=0.
         """
         try:

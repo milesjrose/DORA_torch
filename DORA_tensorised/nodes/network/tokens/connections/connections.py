@@ -1,5 +1,5 @@
 import torch
-from ...enums import *
+from ....enums import *
 from logging import getLogger
 logger = getLogger(__name__)
 
@@ -244,7 +244,15 @@ class Connections_Tensor:
             return torch.tensor([], dtype=torch.long)
         return torch.tensor(list(connected_set), dtype=torch.long)
         
-    
+    def delete_connections(self, indices: torch.Tensor):
+        """
+        Delete connections to/from the given indices.
+        Args:
+            indices: torch.Tensor - The indices of the tokens to delete connections from.
+        """
+        self.connections[indices, :] = B.FALSE
+        self.connections[:, indices] = B.FALSE
+
     def expand_to(self, new_size: int):
         """
         Expand the connections tensor to the given size

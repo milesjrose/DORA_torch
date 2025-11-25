@@ -1,9 +1,9 @@
 import torch
 from enum import IntEnum
-from ...enums import *
-from ...utils import tensor_ops as tOps
+from ....enums import *
+from ....utils import tensor_ops as tOps
 from logging import getLogger
-from .tensor_view import TensorView
+from ..tensor_view import TensorView
 logger = getLogger(__name__)
 
 class MD(IntEnum):
@@ -235,3 +235,10 @@ class Mapping:
             stack.append(self[field].t())
         #stack
         self.adj_matrix = torch.stack(stack, dim=-1)
+    
+    def delete_connections(self, indices: torch.Tensor):
+        """
+        Delete connections to/from the given indices.
+        """
+        self.adj_matrix[:, indices, :] = 0.0
+        self.adj_matrix[indices, :, :] = 0.0

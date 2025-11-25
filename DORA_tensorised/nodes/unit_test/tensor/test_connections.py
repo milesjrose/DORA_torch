@@ -3,7 +3,7 @@
 
 import pytest
 import torch
-from nodes.network.tensor.connections import Connections_Tensor
+from nodes.network.tokens.connections.connections import Connections_Tensor
 
 
 @pytest.fixture

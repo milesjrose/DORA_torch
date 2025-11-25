@@ -1,8 +1,8 @@
-from ...enums import *
+from ....enums import *
 from enum import IntEnum
 import torch 
 from logging import getLogger
-from .tensor_view import TensorView
+from ..tensor_view import TensorView
 logger = getLogger(__name__)
 
 class LD(IntEnum):
