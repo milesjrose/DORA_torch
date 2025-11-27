@@ -14,14 +14,21 @@ class Analog_ops:
             tokens: Token_Tensor - The tokens object.
         """
         self.tokens = tokens
-        self.tensor = tokens.tensor
         self.cache = tokens.cache
+    
+    @property
+    def tensor(self):
+        """Get the current tensor"""
+        return self.tokens.tensor
 
     def new_analog_id(self) -> int:
         """
         Get a new analog id.
         """
-        return torch.max(self.tensor[:, TF.ANALOG]) + 1
+        max_analog = torch.max(self.tensor[:, TF.ANALOG])
+        if isinstance(max_analog, torch.Tensor):
+            return int(max_analog.item()) + 1
+        return int(max_analog) + 1
     
     def get_analog_indices(self, analog_number: int) -> torch.Tensor:
         """
@@ -105,8 +112,9 @@ class Analog_ops:
         # get a new analog number
         new_analog_number = self.new_analog_id()
         # Clone tokens and update both SET and ANALOG fields
-        self.tokens.copy_tokens(indices, to_set)
-        # Get names for the tokens
-        self.tensor[indices, TF.ANALOG] = new_analog_number
+        # copy_tokens returns the indices of the newly copied tokens
+        new_indices = self.tokens.copy_tokens(indices, to_set)
+        # Update ANALOG field on the newly copied tokens (not the original ones)
+        self.tensor[new_indices, TF.ANALOG] = new_analog_number
         self.cache.cache_analogs()
         return new_analog_number
