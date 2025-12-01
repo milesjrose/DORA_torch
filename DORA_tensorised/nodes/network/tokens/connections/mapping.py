@@ -236,9 +236,17 @@ class Mapping:
         #stack
         self.adj_matrix = torch.stack(stack, dim=-1)
     
-    def delete_connections(self, indices: torch.Tensor):
+    def del_mappings(self, indices: torch.Tensor):
         """
-        Delete connections to/from the given indices.
+        Delete mappings to/from the given indices.
         """
         self.adj_matrix[:, indices, :] = 0.0
         self.adj_matrix[indices, :, :] = 0.0
+
+    def get_driver_count(self):
+        """Get the number of tokens in mapping table for the driver"""
+        return self.adj_matrix.size(MD.DRI)
+    
+    def get_recipient_count(self):
+        """Get the number of tokens in the mapping table for the recipient"""
+        return self.adj_matrix.size(MD.REC)

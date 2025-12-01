@@ -16,7 +16,7 @@ class LD(IntEnum):
 
 class Links:
     """
-    A class for holding the links between tokens and semantics.
+    A class for holding the links between tokens and semantics. Tensor shape: [tokens, semantics]
     """
     def __init__(self, links: torch.Tensor):
         """
@@ -25,7 +25,17 @@ class Links:
             links: torch.Tensor - The tensor of links.
         """
         self.adj_matrix: torch.Tensor = links
-        """ Tensor of links between tokens and semantics """
+        """ Tensor of links between tokens and semantics. Tensor shape: [tokens, semantics]"""
+    
+    def get_count(self, dimension: LD) -> int:
+        """
+        Get the number of tokens or semantics in the links tensor.
+        Args:
+            dimension: LD - The dimension to get the count for.
+        Returns:
+            int - The number of tokens or semantics in the links tensor.
+        """
+        return self.adj_matrix.size(dim=dimension)
     
     def get_view(self, indices: torch.Tensor):
         """
@@ -93,28 +103,52 @@ class Links:
         """
         return torch.max(self.adj_matrix[tk_idx], dim=LD.SEM).indices
 
-    def expand(self, new_size: int, dimension: LD):
+    def expand_to(self, new_size: int, dimension: LD):
         """
         Expand the links tensor for a given dimension
         Args:
             new_size: int - The new size of the tensor.
             dimension: LD - The dimension to expand along.
+        Raises:
+            ValueError: If new_size is smaller than the current size.
         """
         try:
             # Get old dimensions
             old_num_token = self.adj_matrix.size(dim=LD.TK)
             old_num_sem = self.adj_matrix.size(dim=LD.SEM)
+            # Currently don't allow shrinking the tensor
+            if dimension == LD.TK and new_size < old_num_token:
+                raise ValueError(f"Cannot shrink tensor: current size is {old_num_token}, requested size is {new_size}")
+            if dimension == LD.SEM and new_size < old_num_sem:
+                raise ValueError(f"Cannot shrink tensor: current size is {old_num_sem}, requested size is {new_size}")
+            
             # Get new dimensions
             new_num_token = new_size if dimension == LD.TK else old_num_token
             new_num_sem = new_size if dimension == LD.SEM else old_num_sem
+            
+            # If sizes are the same, no need to do anything
+            if new_num_token == old_num_token and new_num_sem == old_num_sem:
+                return
+            
             # Create new tensor
-            self.adj_matrix = torch.zeros(new_num_token, new_num_sem)
-            # Copy over old links
-            self.adj_matrix[:old_num_token, :old_num_sem] = self.adj_matrix
+            new_adj_matrix = torch.zeros(new_num_token, new_num_sem)
+            # Copy over old links from the saved old tensor
+            new_adj_matrix[:old_num_token, :old_num_sem] = self.adj_matrix
+            # Update the adj_matrix
+            self.adj_matrix = new_adj_matrix
             logger.info(f"-> Expanded links tensor: {old_num_token}x{old_num_sem} -> {new_num_token}x{new_num_sem}")
         except Exception as e:
             logger.error(f"-> Error expanding links tensor: {e}")
             raise e
+        
+    def del_links(self, indices: torch.Tensor):
+        """
+        Delete the links for the given token indices.
+        Clears all links from the specified tokens (rows), but preserves links to the corresponding semantics (columns).
+        Args:
+            indices: torch.Tensor - The indices of the tokens whose links should be deleted.
+        """
+        self.adj_matrix[indices, :] = 0.0
     
     def get_sem_count(self, indices: torch.Tensor) -> torch.Tensor:
         """

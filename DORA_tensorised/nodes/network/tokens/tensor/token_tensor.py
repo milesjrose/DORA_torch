@@ -28,6 +28,24 @@ class Token_Tensor:
         self.cache = Cache(tokens)
         """holds the cache object"""
     
+    def get_count(self) -> int:
+        """
+        Get the number of tokens in the tensor.
+        Returns:
+            int - The number of tokens in the tensor.
+        """
+        return self.tensor.size(dim=0)
+    
+    def get_set_count(self, set: Set) -> int:
+        """
+        Get the number of tokens in the tensor for the given set.
+        Args:
+            set: Set - The set to get the count for.
+        Returns:
+            int - The number of tokens in the tensor for the given set.
+        """
+        return self.cache.get_set_mask(set).sum()
+    
     def add_tokens(self, tokens: torch.Tensor, names: List[str]) -> torch.Tensor:
         """
         add a tokens to the tensor.
@@ -60,7 +78,7 @@ class Token_Tensor:
         self.cache.cache_sets(sets_changed)
         return replace_idxs
     
-    def delete_tokens(self, indices: torch.Tensor):
+    def del_tokens(self, indices: torch.Tensor):
         """
         Delete the tokens at the given indices.
         Args:
@@ -159,7 +177,7 @@ class Token_Tensor:
         Returns:
             TensorView - A view-like object that maps operations back to the original tensor.
         """
-        return TensorView(self.tensor, self.cache.get_set_indices(set))
+        return self.get_view(self.cache.get_set_indices(set))
     
     def expand_tensor(self, min_expansion: int = 5):
         """
@@ -178,6 +196,8 @@ class Token_Tensor:
         new_tokens[:current_size, :] = self.tensor
         # Update tokens
         self.tensor = new_tokens
+        # Update cache's tensor reference to point to the new tensor
+        self.cache.tensor = self.tensor
         logger.info(f"Expanded tensor: {current_size} -> {new_size}")
     
     def move_tokens(self, indices: torch.Tensor, to_set: Set):

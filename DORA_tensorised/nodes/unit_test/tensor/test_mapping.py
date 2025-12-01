@@ -1492,3 +1492,215 @@ def test_get_view_batch_operations(mapping):
     # Other recipients should be unchanged
     assert mapping.adj_matrix[3, 0, MappingFields.WEIGHT].item() == 0.0
 
+
+# =====================[ get_driver_count and get_recipient_count tests ]======================
+
+def test_get_driver_count_basic(mapping):
+    """Test basic get_driver_count functionality."""
+    # From mock_mapping_tensor fixture: 4 drivers
+    count = mapping.get_driver_count()
+    assert count == 4
+    assert isinstance(count, int)
+
+
+def test_get_recipient_count_basic(mapping):
+    """Test basic get_recipient_count functionality."""
+    # From mock_mapping_tensor fixture: 5 recipients
+    count = mapping.get_recipient_count()
+    assert count == 5
+    assert isinstance(count, int)
+
+
+def test_get_driver_count_after_expansion(mapping):
+    """Test get_driver_count after expanding driver dimension."""
+    initial_driver_count = mapping.get_driver_count()
+    initial_recipient_count = mapping.get_recipient_count()
+    
+    assert initial_driver_count == 4
+    assert initial_recipient_count == 5
+    
+    # Expand driver dimension
+    mapping.expand(new_count=8, dimension=MD.DRI)
+    
+    # Driver count should have increased
+    new_driver_count = mapping.get_driver_count()
+    assert new_driver_count == 8
+    assert new_driver_count > initial_driver_count
+    
+    # Recipient count should remain unchanged
+    assert mapping.get_recipient_count() == initial_recipient_count
+
+
+def test_get_recipient_count_after_expansion(mapping):
+    """Test get_recipient_count after expanding recipient dimension."""
+    initial_driver_count = mapping.get_driver_count()
+    initial_recipient_count = mapping.get_recipient_count()
+    
+    assert initial_driver_count == 4
+    assert initial_recipient_count == 5
+    
+    # Expand recipient dimension
+    mapping.expand(new_count=10, dimension=MD.REC)
+    
+    # Recipient count should have increased
+    new_recipient_count = mapping.get_recipient_count()
+    assert new_recipient_count == 10
+    assert new_recipient_count > initial_recipient_count
+    
+    # Driver count should remain unchanged
+    assert mapping.get_driver_count() == initial_driver_count
+
+
+def test_get_driver_count_after_swap(mapping):
+    """Test get_driver_count after swapping driver and recipient."""
+    initial_driver_count = mapping.get_driver_count()
+    initial_recipient_count = mapping.get_recipient_count()
+    
+    assert initial_driver_count == 4
+    assert initial_recipient_count == 5
+    
+    # Swap driver and recipient
+    mapping.swap_driver_recipient()
+    
+    # Counts should be swapped
+    assert mapping.get_driver_count() == initial_recipient_count  # Was 5 (recipients)
+    assert mapping.get_recipient_count() == initial_driver_count  # Was 4 (drivers)
+
+
+def test_get_recipient_count_after_swap(mapping):
+    """Test get_recipient_count after swapping driver and recipient."""
+    initial_driver_count = mapping.get_driver_count()
+    initial_recipient_count = mapping.get_recipient_count()
+    
+    # Swap driver and recipient
+    mapping.swap_driver_recipient()
+    
+    # Counts should be swapped
+    assert mapping.get_recipient_count() == initial_driver_count  # Was 4 (drivers)
+    assert mapping.get_driver_count() == initial_recipient_count  # Was 5 (recipients)
+
+
+def test_get_driver_count_after_swap_and_expand(mapping):
+    """Test get_driver_count after swapping and then expanding."""
+    initial_driver_count = mapping.get_driver_count()
+    initial_recipient_count = mapping.get_recipient_count()
+    
+    # Swap first
+    mapping.swap_driver_recipient()
+    assert mapping.get_driver_count() == initial_recipient_count  # 5
+    assert mapping.get_recipient_count() == initial_driver_count  # 4
+    
+    # Expand what is now the driver dimension (was recipient)
+    mapping.expand(new_count=7, dimension=MD.DRI)
+    
+    # Driver count should have increased
+    assert mapping.get_driver_count() == 7
+    assert mapping.get_recipient_count() == initial_driver_count  # Still 4
+
+
+def test_get_recipient_count_after_swap_and_expand(mapping):
+    """Test get_recipient_count after swapping and then expanding."""
+    initial_driver_count = mapping.get_driver_count()
+    initial_recipient_count = mapping.get_recipient_count()
+    
+    # Swap first
+    mapping.swap_driver_recipient()
+    assert mapping.get_driver_count() == initial_recipient_count  # 5
+    assert mapping.get_recipient_count() == initial_driver_count  # 4
+    
+    # Expand what is now the recipient dimension (was driver)
+    mapping.expand(new_count=6, dimension=MD.REC)
+    
+    # Recipient count should have increased
+    assert mapping.get_recipient_count() == 6
+    assert mapping.get_driver_count() == initial_recipient_count  # Still 5
+
+
+def test_get_driver_count_consistency(mapping):
+    """Test that get_driver_count matches size(MD.DRI)."""
+    driver_count = mapping.get_driver_count()
+    size_dri = mapping.size(MD.DRI)
+    
+    assert driver_count == size_dri
+    assert driver_count == mapping.adj_matrix.size(MD.DRI)
+
+
+def test_get_recipient_count_consistency(mapping):
+    """Test that get_recipient_count matches size(MD.REC)."""
+    recipient_count = mapping.get_recipient_count()
+    size_rec = mapping.size(MD.REC)
+    
+    assert recipient_count == size_rec
+    assert recipient_count == mapping.adj_matrix.size(MD.REC)
+
+
+def test_get_driver_count_after_operations(mapping):
+    """Test get_driver_count remains consistent after operations."""
+    initial_driver_count = mapping.get_driver_count()
+    
+    # Perform various operations that don't change dimensions
+    mapping.update_weight(eta=0.1)
+    mapping.update_max_hyp()
+    mapping.reset_hypotheses()  # reset_hypotheses takes no arguments
+    
+    # Driver count should remain the same
+    assert mapping.get_driver_count() == initial_driver_count
+
+
+def test_get_recipient_count_after_operations(mapping):
+    """Test get_recipient_count remains consistent after operations."""
+    initial_recipient_count = mapping.get_recipient_count()
+    
+    # Perform various operations that don't change dimensions
+    mapping.update_weight(eta=0.1)
+    mapping.update_max_hyp()
+    mapping.reset_hypotheses()  # reset_hypotheses takes no arguments
+    
+    # Recipient count should remain the same
+    assert mapping.get_recipient_count() == initial_recipient_count
+
+
+def test_get_driver_count_empty_mapping():
+    """Test get_driver_count with an empty mapping."""
+    empty_tensor = torch.zeros((0, 0, len(MappingFields)))
+    empty_mapping = Mapping(empty_tensor)
+    
+    count = empty_mapping.get_driver_count()
+    assert count == 0
+    assert isinstance(count, int)
+
+
+def test_get_recipient_count_empty_mapping():
+    """Test get_recipient_count with an empty mapping."""
+    empty_tensor = torch.zeros((0, 0, len(MappingFields)))
+    empty_mapping = Mapping(empty_tensor)
+    
+    count = empty_mapping.get_recipient_count()
+    assert count == 0
+    assert isinstance(count, int)
+
+
+def test_get_driver_count_square_mapping():
+    """Test get_driver_count with square mapping (same recipient and driver count)."""
+    square_tensor = torch.zeros((5, 5, len(MappingFields)))
+    square_mapping = Mapping(square_tensor)
+    
+    driver_count = square_mapping.get_driver_count()
+    recipient_count = square_mapping.get_recipient_count()
+    
+    assert driver_count == 5
+    assert recipient_count == 5
+    assert driver_count == recipient_count
+
+
+def test_get_recipient_count_rectangular_mapping():
+    """Test get_recipient_count with rectangular mapping."""
+    rectangular_tensor = torch.zeros((8, 3, len(MappingFields)))
+    rectangular_mapping = Mapping(rectangular_tensor)
+    
+    driver_count = rectangular_mapping.get_driver_count()
+    recipient_count = rectangular_mapping.get_recipient_count()
+    
+    assert driver_count == 3
+    assert recipient_count == 8
+    assert driver_count != recipient_count

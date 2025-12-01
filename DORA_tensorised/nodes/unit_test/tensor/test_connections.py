@@ -767,3 +767,324 @@ def test_get_connected_set_large_cycle(connections_tensor):
     assert len(connected) == 5
     for i in range(5):
         assert i in connected
+
+
+# =====================[ get_count tests ]======================
+
+def test_get_count_basic(connections_tensor):
+    """Test basic get_count functionality."""
+    # Initial count should match the connections tensor size
+    count = connections_tensor.get_count()
+    assert count == 10  # From mock_connections fixture
+    assert isinstance(count, int)
+
+
+def test_get_count_after_expansion(connections_tensor):
+    """Test get_count after expanding the connections tensor."""
+    initial_count = connections_tensor.get_count()
+    assert initial_count == 10
+    
+    # Expand to larger size
+    connections_tensor.expand_to(15)
+    new_count = connections_tensor.get_count()
+    assert new_count == 15
+    assert new_count > initial_count
+
+
+def test_get_count_after_shrinking(connections_tensor):
+    """Test get_count after shrinking the connections tensor."""
+    initial_count = connections_tensor.get_count()
+    assert initial_count == 10
+    
+    # Shrink to smaller size
+    connections_tensor.expand_to(5)
+    new_count = connections_tensor.get_count()
+    assert new_count == 5
+    assert new_count < initial_count
+
+
+def test_get_count_empty_connections():
+    """Test get_count with an empty connections tensor."""
+    empty_connections = torch.zeros((0, 0), dtype=torch.bool)
+    empty_connections_tensor = Connections_Tensor(empty_connections)
+    
+    count = empty_connections_tensor.get_count()
+    assert count == 0
+    assert isinstance(count, int)
+
+
+def test_get_count_after_operations(connections_tensor):
+    """Test get_count remains consistent after operations."""
+    initial_count = connections_tensor.get_count()
+    
+    # Perform various operations
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect_bi(torch.tensor([2]), torch.tensor([3]))
+    connections_tensor.del_connections(torch.tensor([4]))
+    
+    # Count should remain the same (operations don't change tensor size)
+    count_after_ops = connections_tensor.get_count()
+    assert count_after_ops == initial_count
+
+
+# =====================[ get_view tests ]======================
+
+def test_get_view_basic(connections_tensor):
+    """Test basic view creation and access."""
+    # Create some connections first
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([2]), torch.tensor([3]))
+    
+    indices = torch.tensor([0, 2, 4])
+    view = connections_tensor.get_view(indices)
+    
+    # Verify view properties
+    assert view.shape == (3, 10)  # 3 rows (selected indices), 10 columns (all connections)
+    assert len(view) == 3
+    assert view.dtype == connections_tensor.connections.dtype
+    
+    # Verify we can read from the view
+    assert view[0, 1] == True  # connection[0, 1] should be True
+    assert view[1, 3] == True  # connection[2, 3] should be True (view index 1 maps to original index 2)
+
+
+def test_get_view_updates_original(connections_tensor):
+    """Test that modifications to the view update the original tensor."""
+    indices = torch.tensor([0, 1, 2])
+    view = connections_tensor.get_view(indices)
+    
+    # Store original values
+    original_0_1 = connections_tensor.connections[0, 1].item()
+    original_1_2 = connections_tensor.connections[1, 2].item()
+    
+    # Modify through view
+    view[0, 1] = True
+    view[1, 2] = True
+    
+    # Verify original tensor was updated
+    assert connections_tensor.connections[0, 1] == True
+    assert connections_tensor.connections[1, 2] == True
+    
+    # Restore original values
+    view[0, 1] = original_0_1
+    view[1, 2] = original_1_2
+
+
+def test_get_view_empty_indices(connections_tensor):
+    """Test get_view with empty indices."""
+    empty_indices = torch.tensor([], dtype=torch.long)
+    view = connections_tensor.get_view(empty_indices)
+    
+    assert len(view) == 0
+    assert view.shape == (0, 10)  # 0 rows, 10 columns
+    from nodes.network.tokens.tensor_view import TensorView
+    assert isinstance(view, TensorView)
+
+
+def test_get_view_single_index(connections_tensor):
+    """Test get_view with a single index."""
+    # Create a connection first
+    connections_tensor.connect(torch.tensor([5]), torch.tensor([6]))
+    
+    indices = torch.tensor([5])
+    view = connections_tensor.get_view(indices)
+    
+    assert len(view) == 1
+    assert view.shape == (1, 10)
+    
+    # Verify we can access the single row
+    assert view[0, 6] == True  # connection[5, 6] should be True
+    
+    # Modify through view
+    view[0, 7] = True
+    assert connections_tensor.connections[5, 7] == True
+
+
+def test_get_view_all_indices(connections_tensor):
+    """Test get_view with all indices."""
+    # Create some connections
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([2]), torch.tensor([3]))
+    
+    all_indices = torch.arange(0, connections_tensor.get_count(), dtype=torch.long)
+    view = connections_tensor.get_view(all_indices)
+    
+    assert len(view) == connections_tensor.get_count()
+    assert view.shape == (connections_tensor.get_count(), connections_tensor.get_count())
+    
+    # Verify all connections are accessible
+    assert view[0, 1] == True
+    assert view[2, 3] == True
+
+
+def test_get_view_non_contiguous_indices(connections_tensor):
+    """Test get_view with non-contiguous indices."""
+    # Create connections
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([3]), torch.tensor([4]))
+    connections_tensor.connect(torch.tensor([7]), torch.tensor([8]))
+    
+    indices = torch.tensor([0, 3, 7])
+    view = connections_tensor.get_view(indices)
+    
+    assert len(view) == 3
+    
+    # Verify mapping is correct
+    assert view[0, 1] == True  # connection[0, 1]
+    assert view[1, 4] == True  # connection[3, 4] (view index 1 maps to original index 3)
+    assert view[2, 8] == True  # connection[7, 8] (view index 2 maps to original index 7)
+
+
+def test_get_view_reordered_indices(connections_tensor):
+    """Test get_view with reordered indices."""
+    # Create connections
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([5]), torch.tensor([6]))
+    connections_tensor.connect(torch.tensor([2]), torch.tensor([3]))
+    
+    indices = torch.tensor([2, 5, 0])  # Reverse order
+    view = connections_tensor.get_view(indices)
+    
+    # View index 0 should map to original index 2
+    assert view[0, 3] == True  # connection[2, 3]
+    # View index 1 should map to original index 5
+    assert view[1, 6] == True  # connection[5, 6]
+    # View index 2 should map to original index 0
+    assert view[2, 1] == True  # connection[0, 1]
+
+
+def test_get_view_slice_indexing(connections_tensor):
+    """Test slice indexing on the view."""
+    # Create connections
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([1]), torch.tensor([2]))
+    connections_tensor.connect(torch.tensor([2]), torch.tensor([3]))
+    
+    indices = torch.tensor([0, 1, 2, 5, 6])
+    view = connections_tensor.get_view(indices)
+    
+    # Get a slice of the view
+    sub_view = view[0:3]  # Should map to original indices 0, 1, 2
+    
+    # Modify through sub-view
+    sub_view[0, 4] = True
+    sub_view[1, 5] = True
+    sub_view[2, 6] = True
+    
+    # Verify original tensor was updated
+    assert connections_tensor.connections[0, 4] == True
+    assert connections_tensor.connections[1, 5] == True
+    assert connections_tensor.connections[2, 6] == True
+
+
+def test_get_view_boolean_mask(connections_tensor):
+    """Test boolean mask indexing on the view."""
+    # Create connections
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([2]), torch.tensor([3]))
+    connections_tensor.connect(torch.tensor([5]), torch.tensor([6]))
+    
+    indices = torch.tensor([0, 1, 2, 5, 6])
+    view = connections_tensor.get_view(indices)
+    
+    # Create a mask local to the view
+    mask = torch.tensor([True, False, True, False, True])
+    
+    # Get values using mask
+    masked_view = view[mask]
+    assert len(masked_view) == 3
+    
+    # Set values using mask
+    view[mask, 7] = True
+    
+    # Verify original tensor was updated (indices 0, 2, 6)
+    assert connections_tensor.connections[0, 7] == True
+    assert connections_tensor.connections[2, 7] == True
+    assert connections_tensor.connections[6, 7] == True
+
+
+def test_get_view_broadcast_assignment(connections_tensor):
+    """Test broadcast assignment through view."""
+    indices = torch.tensor([0, 1, 2, 3, 4])
+    view = connections_tensor.get_view(indices)
+    
+    # Broadcast a single value to all connections in view
+    view[:, 5] = True
+    
+    # Verify all were updated
+    for idx in indices:
+        assert connections_tensor.connections[idx, 5] == True
+
+
+def test_get_view_column_access(connections_tensor):
+    """Test accessing columns through view."""
+    # Create connections
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([2]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([3]), torch.tensor([1]))
+    
+    indices = torch.tensor([0, 2, 3])
+    view = connections_tensor.get_view(indices)
+    
+    # Access column 1 (all connections to node 1)
+    column_1 = view[:, 1]
+    assert len(column_1) == 3
+    # All should be True (all connect to node 1)
+    assert torch.all(column_1 == True)
+
+
+def test_get_view_nested_views(connections_tensor):
+    """Test nested views (view of a view)."""
+    # Create connections
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([2]), torch.tensor([3]))
+    connections_tensor.connect(torch.tensor([5]), torch.tensor([6]))
+    
+    indices = torch.tensor([0, 1, 2, 5, 6, 7, 8])
+    view1 = connections_tensor.get_view(indices)
+    
+    # Create a nested view
+    # view1 maps: [0,1,2,3,4,5,6] -> original [0,1,2,5,6,7,8]
+    # To get original indices [0, 2, 5], we need view1 indices [0, 2, 3]
+    # because view1[0]=original[0], view1[2]=original[2], view1[3]=original[5]
+    nested_indices = torch.tensor([0, 2, 3])  # Indices into view1 that map to original[0, 2, 5]
+    view2 = view1[nested_indices]
+    
+    # view2[0] should map to view1[0] which maps to original[0]
+    assert view2[0, 1] == True  # connection[0, 1]
+    # view2[1] should map to view1[2] which maps to original[2]
+    assert view2[1, 3] == True  # connection[2, 3]
+    # view2[2] should map to view1[3] which maps to original[5]
+    assert view2[2, 6] == True  # connection[5, 6]
+
+
+def test_get_view_clone(connections_tensor):
+    """Test cloning a view."""
+    # Create a connection
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    
+    indices = torch.tensor([0, 2, 5])
+    view = connections_tensor.get_view(indices)
+    
+    # Clone the view - this creates a copy of the data at the time of cloning
+    cloned = view.clone()
+    
+    # Cloned should be a tensor, not a view
+    assert isinstance(cloned, torch.Tensor)
+    assert cloned.shape == view.shape
+    
+    # Verify clone has the same initial values
+    assert cloned[0, 1].item() == True
+    
+    # Modify cloned - should not affect original
+    cloned[0, 1] = False
+    assert connections_tensor.connections[0, 1] == True  # Original unchanged
+    
+    # Modify original through view at a different location - clone should remain unchanged
+    # This verifies that clone is independent
+    view[0, 2] = True  # Modify original at [0, 2]
+    assert cloned[0, 2].item() == False  # Clone unchanged (still has original False value)
+    
+    # Verify modifying clone doesn't affect original
+    cloned[0, 3] = True
+    assert connections_tensor.connections[0, 3] == False  # Original unchanged

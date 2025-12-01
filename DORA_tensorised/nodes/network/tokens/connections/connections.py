@@ -1,13 +1,23 @@
 import torch
 from ....enums import *
 from logging import getLogger
+from ..tensor_view import TensorView
 logger = getLogger(__name__)
 
 class Connections_Tensor:
-    """Class for holding the connections between tokens"""
+    """Class for holding the connections between tokens. Shape: [tokens, tokens]"""
     def __init__(self, connections: torch.Tensor):
         self.connections: torch.Tensor = connections
+        """Tensor of connections between tokens. Shape: [tokens, tokens]"""
         assert connections.dtype == torch.bool, "Connections tensor must be a boolean tensor"
+    
+    def get_count(self) -> int:
+        """
+        Get the number of connections in the tensor.
+        Returns:
+            int - The number of connections in the tensor.
+        """
+        return self.connections.shape[0]
     
     def connect(self, parent_idxs: torch.Tensor, child_idxs: torch.Tensor, value=True):
         """
@@ -244,7 +254,7 @@ class Connections_Tensor:
             return torch.tensor([], dtype=torch.long)
         return torch.tensor(list(connected_set), dtype=torch.long)
         
-    def delete_connections(self, indices: torch.Tensor):
+    def del_connections(self, indices: torch.Tensor):
         """
         Delete connections to/from the given indices.
         Args:
@@ -270,3 +280,13 @@ class Connections_Tensor:
             new_connections[:copy_size, :copy_size] = self.connections[:copy_size, :copy_size]
         self.connections = new_connections
         logger.info(f"Expanded connections tensor: {old_size} -> {new_size}")
+    
+    def get_view(self, indices: torch.Tensor) -> TensorView:
+        """
+        Get a view of the connections for the given set.
+        Args:
+            indices: torch.Tensor - The indices of the tokens to get the view for.
+        Returns:
+            TensorView - A view-like object that maps operations back to the original tensor.
+        """
+        return TensorView(self.connections, indices)

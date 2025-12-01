@@ -385,7 +385,7 @@ def test_delete_tokens(token_tensor):
     original_set_values = token_tensor.tensor[indices_to_delete, TF.SET].clone()
     
     # Delete tokens
-    token_tensor.delete_tokens(indices_to_delete)
+    token_tensor.del_tokens(indices_to_delete)
     
     # Verify tokens are marked as deleted
     assert torch.all(token_tensor.tensor[indices_to_delete, TF.DELETED] == B.TRUE)
@@ -416,7 +416,7 @@ def test_delete_tokens_single_token(token_tensor):
     original_active_count = len(torch.where(token_tensor.tensor[:, TF.DELETED] == B.FALSE)[0])
     
     # Delete token
-    token_tensor.delete_tokens(idx_to_delete)
+    token_tensor.del_tokens(idx_to_delete)
     
     # Verify token is deleted
     assert token_tensor.tensor[10, TF.DELETED] == B.TRUE
@@ -437,7 +437,7 @@ def test_delete_tokens_multiple_sets(token_tensor):
     # Token 0-4 are in DRIVER, token 5-9 are in RECIPIENT
     indices_to_delete = torch.tensor([0, 1, 5, 6])  # 2 from DRIVER, 2 from RECIPIENT
     
-    token_tensor.delete_tokens(indices_to_delete)
+    token_tensor.del_tokens(indices_to_delete)
     
     # Verify all are deleted
     assert torch.all(token_tensor.tensor[indices_to_delete, TF.DELETED] == B.TRUE)
@@ -456,7 +456,7 @@ def test_delete_tokens_already_deleted(token_tensor):
     idx_already_deleted = torch.tensor([15])
     
     # Delete it again (should be idempotent)
-    token_tensor.delete_tokens(idx_already_deleted)
+    token_tensor.del_tokens(idx_already_deleted)
     
     # Should still be deleted
     assert token_tensor.tensor[15, TF.DELETED] == B.TRUE
@@ -473,7 +473,7 @@ def test_delete_tokens_preserves_other_tokens(token_tensor):
     
     # Delete different tokens
     indices_to_delete = torch.tensor([0, 5, 10])
-    token_tensor.delete_tokens(indices_to_delete)
+    token_tensor.del_tokens(indices_to_delete)
     
     # Verify preserved tokens are unchanged
     for i, idx in enumerate(indices_to_preserve):

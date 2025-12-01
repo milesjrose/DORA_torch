@@ -258,55 +258,75 @@ def test_get_max_linked_sem_no_connections(links):
 
 def test_expand_token_dimension(links):
     """Test expanding the links tensor along the token dimension."""
-    # Note: This test will fail due to a bug in expand - it overwrites adj_matrix
-    # before copying old values
     original_size_tk = links.size(LD.TK)
     original_size_sem = links.size(LD.SEM)
     original_links = links.adj_matrix.clone()
     
-    # This will fail with RuntimeError until the bug is fixed
-    with pytest.raises(RuntimeError):
-        links.expand(new_size=15, dimension=LD.TK)
+    # Expand token dimension
+    links.expand_to(new_size=15, dimension=LD.TK)
+    
+    # Verify size increased
+    assert links.size(LD.TK) == 15
+    assert links.size(LD.SEM) == original_size_sem
+    
+    # Verify old links are preserved
+    assert torch.allclose(links.adj_matrix[:original_size_tk, :original_size_sem], original_links)
+    
+    # Verify new rows are zeros
+    assert torch.all(links.adj_matrix[original_size_tk:, :] == 0.0)
 
 
 def test_expand_semantic_dimension(links):
     """Test expanding the links tensor along the semantic dimension."""
-    # Note: This test will fail due to a bug in expand
     original_size_tk = links.size(LD.TK)
     original_size_sem = links.size(LD.SEM)
     original_links = links.adj_matrix.clone()
     
-    # This will fail with RuntimeError until the bug is fixed
-    with pytest.raises(RuntimeError):
-        links.expand(new_size=8, dimension=LD.SEM)
+    # Expand semantic dimension
+    links.expand_to(new_size=8, dimension=LD.SEM)
+    
+    # Verify size increased
+    assert links.size(LD.TK) == original_size_tk
+    assert links.size(LD.SEM) == 8
+    
+    # Verify old links are preserved
+    assert torch.allclose(links.adj_matrix[:original_size_tk, :original_size_sem], original_links)
+    
+    # Verify new columns are zeros
+    assert torch.all(links.adj_matrix[:, original_size_sem:] == 0.0)
 
 
 def test_expand_both_dimensions(links):
     """Test expanding both dimensions separately."""
-    # Note: This test will fail due to a bug in expand
+    original_size_tk = links.size(LD.TK)
+    original_size_sem = links.size(LD.SEM)
     original_links = links.adj_matrix.clone()
     
-    # This will fail with RuntimeError until the bug is fixed
-    with pytest.raises(RuntimeError):
-        links.expand(new_size=12, dimension=LD.TK)
+    # Expand token dimension first
+    links.expand_to(new_size=12, dimension=LD.TK)
+    assert links.size(LD.TK) == 12
+    assert links.size(LD.SEM) == original_size_sem
+    assert torch.allclose(links.adj_matrix[:original_size_tk, :original_size_sem], original_links)
+    
+    # Expand semantic dimension
+    links.expand_to(new_size=8, dimension=LD.SEM)
+    assert links.size(LD.TK) == 12
+    assert links.size(LD.SEM) == 8
+    assert torch.allclose(links.adj_matrix[:original_size_tk, :original_size_sem], original_links)
 
 
 def test_expand_smaller_size(links):
-    """Test expanding to a smaller size (should still work, just truncate)."""
-    # Note: The expand method has a bug where it overwrites adj_matrix before copying,
-    # so when expanding to a smaller size, it doesn't preserve the old values.
-    # This test documents the current (buggy) behavior.
+    """Test expanding to a smaller size (should raise ValueError - shrinking not allowed)."""
+    original_size_tk = links.size(LD.TK)
     original_links = links.adj_matrix.clone()
     
-    # Expand to smaller size - due to bug, old values are lost
-    links.expand(new_size=8, dimension=LD.TK)
+    # Try to expand to smaller size - should raise ValueError
+    with pytest.raises(ValueError, match="Cannot shrink tensor"):
+        links.expand_to(new_size=8, dimension=LD.TK)
     
-    # Verify size changed
-    assert links.size(LD.TK) == 8
-    
-    # Due to the bug, old values are not preserved (all zeros)
-    # This test documents the buggy behavior
-    assert torch.all(links.adj_matrix == 0.0)
+    # Verify tensor is unchanged after error
+    assert links.size(LD.TK) == original_size_tk
+    assert torch.allclose(links.adj_matrix, original_links)
 
 
 def test_get_sem_count(links):
@@ -606,3 +626,414 @@ def test_get_view_overlapping_indices(links):
     # view2 should see the change (view2[0] is also original token 1)
     assert view2[0, 0].item() == pytest.approx(0.99, abs=1e-6)
 
+
+# =====================[ del_links tests ]======================
+
+def test_del_links_basic(links):
+    """Test basic del_links functionality."""
+    # Store original values for verification
+    original_1_1 = links.adj_matrix[1, 1].item()
+    original_2_0 = links.adj_matrix[2, 0].item()  # Token 2's link to semantic 0
+    
+    # Delete links for token 0
+    links.del_links(torch.tensor([0]))
+    
+    # All links from token 0 should be deleted (row 0)
+    assert torch.all(links.adj_matrix[0, :] == 0.0)
+    
+    # Links to semantic 0 should be preserved (other tokens can still link to semantic 0)
+    assert links.adj_matrix[2, 0].item() == pytest.approx(original_2_0, abs=1e-6)
+    
+    # Other links should be preserved
+    assert links.adj_matrix[1, 1].item() == pytest.approx(original_1_1, abs=1e-6)
+
+
+def test_del_links_multiple_indices(links):
+    """Test del_links with multiple indices."""
+    # Store original values
+    original_2_0 = links.adj_matrix[2, 0].item()  # Token 2's link to semantic 0
+    original_2_1 = links.adj_matrix[2, 1].item()  # Token 2's link to semantic 1
+    original_2_2 = links.adj_matrix[2, 2].item()
+    original_3_3 = links.adj_matrix[3, 3].item()
+    original_5_4 = links.adj_matrix[5, 4].item()
+    
+    # Delete links for tokens 0 and 1
+    links.del_links(torch.tensor([0, 1]))
+    
+    # All links from tokens 0 and 1 should be deleted
+    assert torch.all(links.adj_matrix[0, :] == 0.0)
+    assert torch.all(links.adj_matrix[1, :] == 0.0)
+    
+    # Links to semantics 0 and 1 should be preserved (other tokens can still link to them)
+    assert links.adj_matrix[2, 0].item() == pytest.approx(original_2_0, abs=1e-6)
+    assert links.adj_matrix[2, 1].item() == pytest.approx(original_2_1, abs=1e-6)
+    
+    # Other links should be preserved
+    assert links.adj_matrix[2, 2].item() == pytest.approx(original_2_2, abs=1e-6)
+    assert links.adj_matrix[3, 3].item() == pytest.approx(original_3_3, abs=1e-6)
+    assert links.adj_matrix[5, 4].item() == pytest.approx(original_5_4, abs=1e-6)
+
+
+def test_del_links_single_index(links):
+    """Test del_links with a single index."""
+    # Store original values for token 2
+    original_2_0 = links.adj_matrix[2, 0].item()
+    original_2_2 = links.adj_matrix[2, 2].item()
+    original_2_4 = links.adj_matrix[2, 4].item()
+    original_3_2 = links.adj_matrix[3, 2].item()  # Token 3's link to semantic 2
+    
+    # Verify token 2 has connections
+    assert original_2_0 > 0.0
+    assert original_2_2 > 0.0
+    assert original_2_4 > 0.0
+    
+    # Delete links for token 2
+    links.del_links(torch.tensor([2]))
+    
+    # All links from token 2 should be deleted
+    assert torch.all(links.adj_matrix[2, :] == 0.0)
+    
+    # Links to semantic 2 should be preserved (other tokens can still link to semantic 2)
+    assert links.adj_matrix[3, 2].item() == pytest.approx(original_3_2, abs=1e-6)
+
+
+def test_del_links_preserves_other_links(links):
+    """Test that del_links doesn't affect other links."""
+    # Store original values for tokens we won't delete
+    original_3_0 = links.adj_matrix[3, 0].item()  # Token 3's link to semantic 0
+    original_3_1 = links.adj_matrix[3, 1].item()
+    original_3_2 = links.adj_matrix[3, 2].item()
+    original_3_3 = links.adj_matrix[3, 3].item()
+    original_3_4 = links.adj_matrix[3, 4].item()
+    original_5_0 = links.adj_matrix[5, 0].item()  # Token 5's link to semantic 0
+    
+    # Delete links for token 0
+    links.del_links(torch.tensor([0]))
+    
+    # Token 3 links should all be preserved (including semantic 0)
+    assert links.adj_matrix[3, 0].item() == pytest.approx(original_3_0, abs=1e-6)
+    assert links.adj_matrix[3, 1].item() == pytest.approx(original_3_1, abs=1e-6)
+    assert links.adj_matrix[3, 2].item() == pytest.approx(original_3_2, abs=1e-6)
+    assert links.adj_matrix[3, 3].item() == pytest.approx(original_3_3, abs=1e-6)
+    assert links.adj_matrix[3, 4].item() == pytest.approx(original_3_4, abs=1e-6)
+    
+    # Token 5 links should all be preserved (including semantic 0)
+    assert links.adj_matrix[5, 0].item() == pytest.approx(original_5_0, abs=1e-6)
+    assert links.adj_matrix[5, 1].item() == pytest.approx(0.5, abs=1e-6)
+    assert links.adj_matrix[5, 2].item() == pytest.approx(0.5, abs=1e-6)
+
+
+def test_del_links_empty_indices(links):
+    """Test del_links with empty indices."""
+    # Store original state
+    original_links = links.adj_matrix.clone()
+    
+    # Delete with empty indices (should do nothing)
+    links.del_links(torch.tensor([], dtype=torch.long))
+    
+    # Nothing should have changed
+    assert torch.allclose(links.adj_matrix, original_links)
+
+
+def test_del_links_all_indices(links):
+    """Test del_links with all indices."""
+    # Delete links for all tokens
+    all_indices = torch.arange(0, links.size(LD.TK), dtype=torch.long)
+    links.del_links(all_indices)
+    
+    # All token links should be deleted (all rows should be zero)
+    assert torch.all(links.adj_matrix == 0.0)
+
+
+def test_del_links_only_deletes_token_links(links):
+    """Test that del_links only deletes token links (rows), not semantic links (columns)."""
+    # Token 0 has links to semantics 0, 1, 2
+    # Token 2 has links to semantics 0, 2, 4
+    # So semantic 0 is connected to both token 0 and token 2
+    
+    original_2_0 = links.adj_matrix[2, 0].item()  # Token 2's link to semantic 0
+    original_2_2 = links.adj_matrix[2, 2].item()  # Token 2's link to semantic 2
+    original_2_4 = links.adj_matrix[2, 4].item()   # Token 2's link to semantic 4
+    original_3_0 = links.adj_matrix[3, 0].item()  # Token 3's link to semantic 0 (if any)
+    
+    # Delete links for token 0
+    links.del_links(torch.tensor([0]))
+    
+    # Row 0 (token 0) should be all zeros
+    assert torch.all(links.adj_matrix[0, :] == 0.0)
+    
+    # Column 0 (semantic 0) should be preserved - other tokens can still link to semantic 0
+    assert links.adj_matrix[2, 0].item() == pytest.approx(original_2_0, abs=1e-6)
+    
+    # Column 1 (semantic 1) should be preserved
+    # Column 2 (semantic 2) should be preserved
+    assert links.adj_matrix[2, 2].item() == pytest.approx(original_2_2, abs=1e-6)
+    
+    # Token 2's connection to semantic 4 should remain
+    assert links.adj_matrix[2, 4].item() == pytest.approx(original_2_4, abs=1e-6)
+
+
+def test_del_links_non_contiguous_indices(links):
+    """Test del_links with non-contiguous indices."""
+    # Store original values
+    original_5_0 = links.adj_matrix[5, 0].item()  # Token 5's link to semantic 0
+    original_5_1 = links.adj_matrix[5, 1].item()
+    original_5_2 = links.adj_matrix[5, 2].item()  # Token 5's link to semantic 2
+    original_5_4 = links.adj_matrix[5, 4].item()  # Token 5's link to semantic 4
+    original_3_0 = links.adj_matrix[3, 0].item()  # Token 3's link to semantic 0 (if any)
+    original_3_2 = links.adj_matrix[3, 2].item()  # Token 3's link to semantic 2
+    original_3_4 = links.adj_matrix[3, 4].item()  # Token 3's link to semantic 4
+    
+    # Delete links for tokens 0, 2, 4 (non-contiguous)
+    links.del_links(torch.tensor([0, 2, 4]))
+    
+    # All links from tokens 0, 2, 4 should be deleted
+    assert torch.all(links.adj_matrix[0, :] == 0.0)
+    assert torch.all(links.adj_matrix[2, :] == 0.0)
+    assert torch.all(links.adj_matrix[4, :] == 0.0)
+    
+    # Links to semantics 0, 2, 4 should be preserved (other tokens can still link to them)
+    assert links.adj_matrix[5, 0].item() == pytest.approx(original_5_0, abs=1e-6)
+    assert links.adj_matrix[5, 2].item() == pytest.approx(original_5_2, abs=1e-6)
+    assert links.adj_matrix[5, 4].item() == pytest.approx(original_5_4, abs=1e-6)
+    assert links.adj_matrix[3, 2].item() == pytest.approx(original_3_2, abs=1e-6)
+    assert links.adj_matrix[3, 4].item() == pytest.approx(original_3_4, abs=1e-6)
+    
+    # Token 5's links to semantics 1 and 3 should be preserved
+    assert links.adj_matrix[5, 1].item() == pytest.approx(original_5_1, abs=1e-6)
+    assert links.adj_matrix[5, 3].item() == pytest.approx(0.5, abs=1e-6)
+
+
+def test_del_links_idempotent(links):
+    """Test that deleting links multiple times is idempotent."""
+    # Delete links for token 0
+    links.del_links(torch.tensor([0]))
+    
+    # Store state after first deletion
+    state_after_first = links.adj_matrix.clone()
+    
+    # Delete links for token 0 again
+    links.del_links(torch.tensor([0]))
+    
+    # State should be unchanged (idempotent)
+    assert torch.allclose(links.adj_matrix, state_after_first)
+
+
+def test_del_links_sequential_deletion(links):
+    """Test deleting links sequentially."""
+    # Store original values for token 3
+    original_3_0 = links.adj_matrix[3, 0].item()  # Token 3's link to semantic 0 (if any)
+    original_3_1 = links.adj_matrix[3, 1].item()
+    original_3_2 = links.adj_matrix[3, 2].item()
+    original_3_3 = links.adj_matrix[3, 3].item()
+    original_3_4 = links.adj_matrix[3, 4].item()
+    
+    # Delete token 0
+    links.del_links(torch.tensor([0]))
+    assert torch.all(links.adj_matrix[0, :] == 0.0)
+    # Semantic 0 links should be preserved
+    assert links.adj_matrix[3, 0].item() == pytest.approx(original_3_0, abs=1e-6)
+    
+    # Delete token 1
+    links.del_links(torch.tensor([1]))
+    assert torch.all(links.adj_matrix[1, :] == 0.0)
+    # Semantic 1 links should be preserved
+    assert links.adj_matrix[3, 1].item() == pytest.approx(original_3_1, abs=1e-6)
+    
+    # Delete token 2
+    links.del_links(torch.tensor([2]))
+    assert torch.all(links.adj_matrix[2, :] == 0.0)
+    # Semantic 2 links should be preserved
+    assert links.adj_matrix[3, 2].item() == pytest.approx(original_3_2, abs=1e-6)
+    
+    # Token 3's links should all still be preserved
+    assert links.adj_matrix[3, 3].item() == pytest.approx(original_3_3, abs=1e-6)
+    assert links.adj_matrix[3, 4].item() == pytest.approx(original_3_4, abs=1e-6)
+
+
+# =====================[ get_count tests ]======================
+
+def test_get_count_token_basic(links):
+    """Test basic get_count functionality for token dimension."""
+    # From mock_links fixture: 10 tokens
+    count = links.get_count(LD.TK)
+    assert count == 10
+    assert isinstance(count, int)
+
+
+def test_get_count_sem_basic(links):
+    """Test basic get_count functionality for semantic dimension."""
+    # From mock_links fixture: 5 semantics
+    count = links.get_count(LD.SEM)
+    assert count == 5
+    assert isinstance(count, int)
+
+
+def test_get_count_token_after_expansion(links):
+    """Test get_count for token dimension after expanding token dimension."""
+    initial_token_count = links.get_count(LD.TK)
+    initial_sem_count = links.get_count(LD.SEM)
+    
+    assert initial_token_count == 10
+    assert initial_sem_count == 5
+    
+    # Expand token dimension
+    links.expand_to(new_size=15, dimension=LD.TK)
+    
+    # Token count should have increased
+    new_token_count = links.get_count(LD.TK)
+    assert new_token_count == 15
+    assert new_token_count > initial_token_count
+    
+    # Semantic count should remain unchanged
+    assert links.get_count(LD.SEM) == initial_sem_count
+
+
+def test_get_count_sem_after_expansion(links):
+    """Test get_count for semantic dimension after expanding semantic dimension."""
+    initial_token_count = links.get_count(LD.TK)
+    initial_sem_count = links.get_count(LD.SEM)
+    
+    assert initial_token_count == 10
+    assert initial_sem_count == 5
+    
+    # Expand semantic dimension
+    links.expand_to(new_size=8, dimension=LD.SEM)
+    
+    # Semantic count should have increased
+    new_sem_count = links.get_count(LD.SEM)
+    assert new_sem_count == 8
+    assert new_sem_count > initial_sem_count
+    
+    # Token count should remain unchanged
+    assert links.get_count(LD.TK) == initial_token_count
+
+
+def test_get_count_token_consistency(links):
+    """Test that get_count(LD.TK) matches size(LD.TK)."""
+    token_count = links.get_count(LD.TK)
+    size_tk = links.size(LD.TK)
+    
+    assert token_count == size_tk
+    assert token_count == links.adj_matrix.size(LD.TK)
+
+
+def test_get_count_sem_consistency(links):
+    """Test that get_count(LD.SEM) matches size(LD.SEM)."""
+    sem_count = links.get_count(LD.SEM)
+    size_sem = links.size(LD.SEM)
+    
+    assert sem_count == size_sem
+    assert sem_count == links.adj_matrix.size(LD.SEM)
+
+
+def test_get_count_token_after_operations(links):
+    """Test get_count(LD.TK) remains consistent after operations that don't change dimensions."""
+    initial_token_count = links.get_count(LD.TK)
+    
+    # Perform various operations that don't change dimensions
+    links.round_big_link(threshold=0.5)
+    links.del_small_link(threshold=0.1)
+    links.update_link(token_index=0, semantic_index=0, weight=0.9)
+    links.calibrate_weights(torch.tensor([0, 1]))
+    
+    # Token count should remain the same
+    assert links.get_count(LD.TK) == initial_token_count
+
+
+def test_get_count_sem_after_operations(links):
+    """Test get_count(LD.SEM) remains consistent after operations that don't change dimensions."""
+    initial_sem_count = links.get_count(LD.SEM)
+    
+    # Perform various operations that don't change dimensions
+    links.round_big_link(threshold=0.5)
+    links.del_small_link(threshold=0.1)
+    links.update_link(token_index=0, semantic_index=0, weight=0.9)
+    links.calibrate_weights(torch.tensor([0, 1]))
+    
+    # Semantic count should remain the same
+    assert links.get_count(LD.SEM) == initial_sem_count
+
+
+def test_get_count_token_empty_links():
+    """Test get_count(LD.TK) with empty links tensor."""
+    empty_tensor = torch.zeros((0, 5))
+    empty_links = Links(empty_tensor)
+    
+    count = empty_links.get_count(LD.TK)
+    assert count == 0
+    assert isinstance(count, int)
+
+
+def test_get_count_sem_empty_links():
+    """Test get_count(LD.SEM) with empty links tensor."""
+    empty_tensor = torch.zeros((10, 0))
+    empty_links = Links(empty_tensor)
+    
+    count = empty_links.get_count(LD.SEM)
+    assert count == 0
+    assert isinstance(count, int)
+
+
+def test_get_count_square_links():
+    """Test get_count with square links tensor (same token and semantic count)."""
+    square_tensor = torch.zeros((5, 5))
+    square_links = Links(square_tensor)
+    
+    token_count = square_links.get_count(LD.TK)
+    sem_count = square_links.get_count(LD.SEM)
+    
+    assert token_count == 5
+    assert sem_count == 5
+    assert token_count == sem_count
+
+
+def test_get_count_rectangular_links():
+    """Test get_count with rectangular links tensor."""
+    rectangular_tensor = torch.zeros((8, 3))
+    rectangular_links = Links(rectangular_tensor)
+    
+    token_count = rectangular_links.get_count(LD.TK)
+    sem_count = rectangular_links.get_count(LD.SEM)
+    
+    assert token_count == 8
+    assert sem_count == 3
+    assert token_count != sem_count
+
+
+def test_get_count_token_after_del_links(links):
+    """Test get_count(LD.TK) after deleting links (should not change count)."""
+    initial_token_count = links.get_count(LD.TK)
+    
+    # Delete links for some tokens
+    links.del_links(torch.tensor([0, 1, 2]))
+    
+    # Token count should remain the same (deleting links doesn't change tensor size)
+    assert links.get_count(LD.TK) == initial_token_count
+
+
+def test_get_count_sem_after_del_links(links):
+    """Test get_count(LD.SEM) after deleting links (should not change count)."""
+    initial_sem_count = links.get_count(LD.SEM)
+    
+    # Delete links for some tokens
+    links.del_links(torch.tensor([0, 1, 2]))
+    
+    # Semantic count should remain the same (deleting links doesn't change tensor size)
+    assert links.get_count(LD.SEM) == initial_sem_count
+
+
+def test_get_count_both_dimensions(links):
+    """Test get_count for both dimensions simultaneously."""
+    token_count = links.get_count(LD.TK)
+    sem_count = links.get_count(LD.SEM)
+    
+    # Both should return valid counts
+    assert token_count > 0
+    assert sem_count > 0
+    assert isinstance(token_count, int)
+    assert isinstance(sem_count, int)
+    
+    # Should match tensor shape
+    assert token_count == links.adj_matrix.shape[LD.TK]
+    assert sem_count == links.adj_matrix.shape[LD.SEM]
