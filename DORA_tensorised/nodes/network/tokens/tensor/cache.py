@@ -45,10 +45,13 @@ class Cache:
         """
         Get the indices for the given set.
         Args:
-            set: Set - The set to get the indices for.
+            set: Set - The set to get the indices for. If None, returns all indices.
         Returns:
             torch.Tensor - The indices for the given set.
         """
+        if set is None:
+            # Return all indices (all non-deleted tokens)
+            return torch.where(self.get_all_nodes_mask())[0]
         indices = torch.where(self.get_set_mask(set))[0]
         return indices
     
@@ -78,6 +81,8 @@ class Cache:
         """
         logger.info(f"Caching sets: {sets}")
         for set in sets:
+            if set in self.masks:
+                del self.masks[set]
             self.get_set_mask(set)
     
     def cache_analogs(self):
