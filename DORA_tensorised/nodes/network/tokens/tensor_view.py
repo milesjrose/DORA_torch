@@ -1,6 +1,9 @@
 from ...enums import *
 from ...utils import tensor_ops as tOps
 import torch
+from logging import getLogger
+
+logger = getLogger(__name__)
 
 class FieldView:
     """
@@ -136,14 +139,75 @@ class TensorView:
     def to_local(self, idxs):
         """
         Convert global indicies to local (set view) indicies
+        
+        Args:
+            idxs: torch.Tensor - Global indices (positions in the original tensor)
+        
+        Returns:
+            torch.Tensor - Local indices (positions in the view where these global indices appear)
+        
+        Raises:
+            ValueError: If any global index is not found in the view
         """
-        pass
+        # Convert to tensor if needed
+        if not isinstance(idxs, torch.Tensor):
+            idxs = torch.tensor(idxs, dtype=torch.long, device=self._indices.device)
+        
+        # Handle empty input
+        if len(idxs) == 0:
+            return torch.tensor([], dtype=torch.long, device=self._indices.device)
+        
+        # Use broadcasting to find matches: (len(self._indices), len(idxs))
+        matches = (self._indices.unsqueeze(1) == idxs.unsqueeze(0))
+        
+        # Check which indices actually have matches
+        has_match = matches.any(dim=0)
+        
+        # Check for invalid indices
+        invalid_mask = ~has_match
+        if invalid_mask.any():
+            invalid_indices = idxs[invalid_mask].tolist()
+            logger.error(f"Invalid global indices provided to to_local: {invalid_indices}. "
+                        f"These indices are not present in the view. View contains indices: {self._indices.tolist()}")
+            raise ValueError(f"Invalid global indices: {invalid_indices}. These indices are not present in the view.")
+        
+        # Find the first occurrence of each global index in self._indices
+        # Convert boolean to float for argmax (True=1.0, False=0.0)
+        # argmax returns the first True value (first 1.0)
+        matches_float = matches.float()
+        local_positions = matches_float.argmax(dim=0)
+        
+        return local_positions
 
     def to_global(self, idxs):
         """
         Convert local indicies to global indicies
+        
+        Args:
+            idxs: torch.Tensor - Local indices (positions in the view)
+        
+        Returns:
+            torch.Tensor - Global indices (positions in the original tensor)
+        
+        Raises:
+            IndexError: If any local index is out of bounds for the view
         """
-        pass
+        # Convert to tensor if needed
+        if not isinstance(idxs, torch.Tensor):
+            idxs = torch.tensor(idxs, dtype=torch.long, device=self._indices.device)
+        
+        # Check for out-of-bounds indices
+        view_size = len(self._indices)
+        if (idxs < 0).any() or (idxs >= view_size).any():
+            invalid_mask = (idxs < 0) | (idxs >= view_size)
+            invalid_indices = idxs[invalid_mask].tolist()
+            logger.error(f"Invalid local indices provided to to_global: {invalid_indices}. "
+                        f"View size is {view_size}, valid indices are 0 to {view_size - 1}")
+            raise IndexError(f"Invalid local indices: {invalid_indices}. View size is {view_size}, "
+                           f"valid indices are 0 to {view_size - 1}")
+        
+        # Simply index into self._indices to get the global indices
+        return self._indices[idxs]
     
     @property
     def shape(self):
