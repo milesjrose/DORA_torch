@@ -209,8 +209,18 @@ class Token_Tensor:
         """
         logger.info(f"Moving tokens to set: {to_set}")
         logger.debug(f"Indices: {indices}")
+        # Get old set values before moving (needed for cache update)
+        sets_to_cache = [to_set]
+        if len(indices) > 0:
+            old_set_values = self.tensor[indices, TF.SET]
+            unique_old_sets = torch.unique(old_set_values)
+            # Filter out null values before converting to Set enum
+            valid_old_sets = unique_old_sets[unique_old_sets != null]
+            if len(valid_old_sets) > 0:
+                old_sets = [Set(int(set_val.item())) for set_val in valid_old_sets]
+                sets_to_cache.extend(old_sets)
         self.tensor[indices, TF.SET] = to_set
-        self.cache.cache_sets([to_set])
+        self.cache.cache_sets(sets_to_cache)
     
     def copy_tokens(self, indices: torch.Tensor, to_set: Set) -> torch.Tensor:
         """
@@ -251,6 +261,25 @@ class Token_Tensor:
             str - The string representation of the token.
         """
         return f"{self.tensor[idx, TF.SET]}[{idx}]"
+    
+    def get_name(self, idx: int) -> str:
+        """
+        Get the name of the token at the given index.
+        Args:
+            idx: int - The index of the token to get the name of.
+        Returns:
+            str - The name of the token.
+        """
+        return self.names[idx.item()]
+    
+    def set_name(self, idx: int, name: str):
+        """
+        Set the name of the token at the given index.
+        Args:
+            idx: int - The index of the token to set the name of.
+            name: str - The name to set the token to.
+        """
+        self.names[idx.item()] = name
     
     def get_string(self, cols_per_table: int = 16) -> str:
         """

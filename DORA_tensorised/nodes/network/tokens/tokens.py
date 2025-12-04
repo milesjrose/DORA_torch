@@ -137,3 +137,22 @@ class Tokens:
                 return self.mapping.adj_matrix # only one view for mappings, so can just return the whole tensor
             case _:
                 raise ValueError(f"Invalid view type: {view_type}")
+    
+    def set_name(self, idx: int, name: str):
+        """
+        Set the name of the token at the given index.
+        Args:
+            idx: int - The index of the token to set the name of.
+            name: str - The name to set the token to.
+        """
+        self.token_tensor.set_name(idx, name)
+    
+    def get_name(self, idx: int) -> str:
+        """
+        Get the name of the token at the given index.
+        Args:
+            idx: int - The index of the token to get the name of.
+        Returns:
+            str - The name of the token.
+        """
+        return self.token_tensor.get_name(idx)
