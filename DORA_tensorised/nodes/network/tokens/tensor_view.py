@@ -132,6 +132,18 @@ class TensorView:
         self._tensor = tensor
         self._indices = indices
         self._shape = (len(indices),) + tensor.shape[1:]
+
+    def to_local(self, idxs):
+        """
+        Convert global indicies to local (set view) indicies
+        """
+        pass
+
+    def to_global(self, idxs):
+        """
+        Convert local indicies to global indicies
+        """
+        pass
     
     @property
     def shape(self):
