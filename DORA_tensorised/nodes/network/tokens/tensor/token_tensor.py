@@ -283,7 +283,7 @@ class Token_Tensor:
         Returns:
             str - The name of the token.
         """
-        return self.names[idx.item()]
+        return self.names[idx]
     
     def set_name(self, idx: int, name: str):
         """
@@ -292,7 +292,7 @@ class Token_Tensor:
             idx: int - The index of the token to set the name of.
             name: str - The name to set the token to.
         """
-        self.names[idx.item()] = name
+        self.names[idx] = name
     
     def get_string(self, cols_per_table: int = 16) -> str:
         """
