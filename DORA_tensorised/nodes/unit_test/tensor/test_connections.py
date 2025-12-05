@@ -42,12 +42,14 @@ def test_connect(connections_tensor):
     assert connections_tensor.connections[0, 1] == True
     assert connections_tensor.connections[1, 0] == False  # Not bidirectional
     
-    # Connect multiple parents to multiple children
+    # Connect multiple parents to multiple children pairwise
     connections_tensor.connect(torch.tensor([2, 3]), torch.tensor([4, 5]))
+    # Should connect pairwise: 2->4, 3->5
     assert connections_tensor.connections[2, 4] == True
-    assert connections_tensor.connections[2, 5] == True
-    assert connections_tensor.connections[3, 4] == True
     assert connections_tensor.connections[3, 5] == True
+    # These should NOT be connected (not all combinations)
+    assert connections_tensor.connections[2, 5] == False
+    assert connections_tensor.connections[3, 4] == False
 
 
 def test_connect_with_value(connections_tensor):
@@ -59,6 +61,15 @@ def test_connect_with_value(connections_tensor):
     # Disconnect with False
     connections_tensor.connect(torch.tensor([0]), torch.tensor([1]), value=False)
     assert connections_tensor.connections[0, 1] == False
+
+
+def test_connect_mismatched_lengths(connections_tensor):
+    """Test that connect raises ValueError when parent and child tensors have different lengths."""
+    with pytest.raises(ValueError, match="parent_idxs and child_idxs must have the same length"):
+        connections_tensor.connect(torch.tensor([0, 1]), torch.tensor([2, 3, 4]))
+    
+    with pytest.raises(ValueError, match="parent_idxs and child_idxs must have the same length"):
+        connections_tensor.connect(torch.tensor([0, 1, 2]), torch.tensor([3, 4]))
 
 
 def test_connect_bi(connections_tensor):
@@ -118,12 +129,14 @@ def test_get_parents(connections_tensor):
 
 def test_get_parents_multiple_children(connections_tensor):
     """Test getting parents of multiple children."""
-    # Set up: 0->2, 1->2, 0->3, 1->3
+    # Set up: 0->2, 1->3 (pairwise connection)
     connections_tensor.connect(torch.tensor([0, 1]), torch.tensor([2, 3]))
+    # Also add: 0->3 to test multiple parents for child 3
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([3]))
     
     # Get parents of children [2, 3]
     parents = connections_tensor.get_parents(torch.tensor([2, 3]))
-    # Should return all unique parents: [0, 1]
+    # Should return all unique parents: [0, 1] (0 is parent of both 2 and 3, 1 is parent of 3)
     assert len(parents) == 2
     assert 0 in parents
     assert 1 in parents
@@ -158,12 +171,14 @@ def test_get_children(connections_tensor):
 
 def test_get_children_multiple_parents(connections_tensor):
     """Test getting children of multiple parents."""
-    # Set up: 0->2, 0->3, 1->2, 1->3
+    # Set up: 0->2, 1->3 (pairwise connection)
     connections_tensor.connect(torch.tensor([0, 1]), torch.tensor([2, 3]))
+    # Also add: 0->3 to test multiple children for parent 0
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([3]))
     
     # Get children of parents [0, 1]
     children = connections_tensor.get_children(torch.tensor([0, 1]))
-    # Should return all unique children: [2, 3]
+    # Should return all unique children: [2, 3] (0 has children 2 and 3, 1 has child 3)
     assert len(children) == 2
     assert 2 in children
     assert 3 in children
