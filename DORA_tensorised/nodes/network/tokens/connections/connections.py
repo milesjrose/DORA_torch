@@ -8,7 +8,7 @@ class Connections_Tensor:
     """Class for holding the connections between tokens. Shape: [tokens, tokens]"""
     def __init__(self, connections: torch.Tensor):
         self.connections: torch.Tensor = connections
-        """Tensor of connections between tokens. Shape: [tokens, tokens]"""
+        """Tensor of connections between tokens. Shape: [parent_tokens, child_tokens]"""
         assert connections.dtype == torch.bool, "Connections tensor must be a boolean tensor"
     
     def get_count(self) -> int:
