@@ -9,28 +9,28 @@ class Base_Set:
     """
     Base class for token sets.
     """
-    def __init__(self, tokens: torch.Tensor, token_set: Set, params: Params):
+    def __init__(self, tokens: Token_Tensor, token_set: Set, params: Params):
         self.glbl: Token_Tensor = tokens
         """Token_Tensor: Global view of the tensor"""
         self.tk_set: Set = token_set
         """Set: Token set"""
-        self.lcl = self.glbl.get_set_view(self.tk_set)
+        self.lcl: TensorView = self.glbl.get_set_view(self.tk_set)
         """TensorView: Local view of the tensor"""
-        self.params = params
+        self.params: Params = params
         """Params: Parameters for the set"""
-        self.tensor_op = TensorOperations(self)
+        self.tensor_op: TensorOperations = TensorOperations(self)
         self.tnsr = self.tensor_op
         """TensorOperations: Operations for the tensor"""
-        self.update_op = UpdateOperations(self)
+        self.update_op: UpdateOperations = UpdateOperations(self)
         self.updt = self.update_op
         """UpdateOperations: Operations for the update"""
-        self.analog_op = AnalogOperations(self)
+        self.analog_op: AnalogOperations = AnalogOperations(self)
         self.anlg = self.analog_op
         """AnalogOperations: Operations for the analogs"""
-        self.kludgey_op = KludgeyOperations(self)
+        self.kludgey_op: KludgeyOperations = KludgeyOperations(self)
         self.klud = self.kludgey_op
         """KludgeyOperations: Operations for the kludgey"""
-        self.token_op = TokenOperations(self)
+        self.token_op: TokenOperations = TokenOperations(self)
         self.tkop = self.token_op
         """TokenOperations: Operations for the tokens"""
     
@@ -43,6 +43,12 @@ class Base_Set:
     def update_view(self) -> TensorView:
         self.lcl = self.glbl.get_set_view(self.tk_set)
         return self.lcl
+    
+    def get_count(self) -> int:
+        """
+        Get the count of tokens in the set.
+        """
+        return self.lcl.get_count()
 
     
     

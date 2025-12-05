@@ -133,8 +133,17 @@ class TensorView:
             indices: torch.Tensor - The indices into the first dimension of the tensor.
         """
         self._tensor = tensor
+        """torch.Tensor: The original tensor"""
         self._indices = indices
+        """torch.Tensor: The indices into the first dimension of the tensor"""
         self._shape = (len(indices),) + tensor.shape[1:]
+        """tuple: The shape of the view"""
+    
+    def get_count(self) -> int:
+        """
+        Get the count of tokens in the view.
+        """
+        return len(self._indices)
 
     def to_local(self, idxs):
         """
@@ -281,7 +290,17 @@ class TensorView:
                     # For 3D+ tensors, use FieldView to handle field access
                     if len(self._tensor.shape) == 2:
                         # 2D tensor (e.g., token tensor) - return tensor slice directly
-                        return self._tensor[mapped_rows, col_key[0]]
+                        # Handle both single column index and list/tensor of column indices
+                        col_idx = col_key[0]
+                        if isinstance(col_idx, (list, torch.Tensor)):
+                            # Multiple columns: first select rows, then select columns
+                            # This gives us shape [N, M] where N is num rows, M is num cols
+                            if isinstance(col_idx, list):
+                                col_idx = torch.tensor(col_idx, dtype=torch.long)
+                            return self._tensor[mapped_rows][:, col_idx]
+                        else:
+                            # Single column index
+                            return self._tensor[mapped_rows, col_idx]
                     else:
                         # 3D+ tensor (e.g., mapping tensor) - use FieldView
                         return FieldView(self._tensor, mapped_rows, col_key[0])
@@ -346,7 +365,16 @@ class TensorView:
                 if len(col_key) == 0:
                     self._tensor[mapped_rows] = value
                 elif len(col_key) == 1:
-                    self._tensor[mapped_rows, col_key[0]] = value
+                    # Handle both single column index and list/tensor of column indices
+                    col_idx = col_key[0]
+                    if isinstance(col_idx, (list, torch.Tensor)):
+                        # Multiple columns: first select rows, then assign to columns
+                        if isinstance(col_idx, list):
+                            col_idx = torch.tensor(col_idx, dtype=torch.long)
+                        self._tensor[mapped_rows][:, col_idx] = value
+                    else:
+                        # Single column index
+                        self._tensor[mapped_rows, col_idx] = value
                 else:
                     self._tensor[tuple([mapped_rows] + list(col_key))] = value
         else:
