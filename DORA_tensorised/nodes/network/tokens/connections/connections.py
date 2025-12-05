@@ -21,16 +21,27 @@ class Connections_Tensor:
     
     def connect(self, parent_idxs: torch.Tensor, child_idxs: torch.Tensor, value=True):
         """
-        Connect from parent token to to child token.
-        If multiple parents and children are provided, creates all combinations.
+        Connect from parent token to child token.
+        If multiple parents and children are provided, connects pairwise on input indices.
+        (e.g parent_idxs[0] -> child_idxs[0], parent_idxs[1] -> child_idxs[1], etc.)
+        
+        Args:
+            parent_idxs: torch.Tensor - The indices of parent tokens
+            child_idxs: torch.Tensor - The indices of child tokens (must be same length as parent_idxs)
+            value: bool - The connection value to set (default: True)
+        
+        Raises:
+            ValueError: If parent_idxs and child_idxs have different lengths
         """
-        logger.info(f"Connecting {len(parent_idxs)} parents to {len(child_idxs)} children")
+        if len(parent_idxs) != len(child_idxs):
+            raise ValueError(f"parent_idxs and child_idxs must have the same length. "
+                           f"Got {len(parent_idxs)} parents and {len(child_idxs)} children")
+        
+        logger.info(f"Connecting {len(parent_idxs)} parents to {len(child_idxs)} children pairwise")
         logger.debug(f"Parent indices: {parent_idxs}")
         logger.debug(f"Child indices: {child_idxs}")
-        # Create all combinations of parents and children
-        parent_expanded = parent_idxs.unsqueeze(1).expand(-1, len(child_idxs))
-        child_expanded = child_idxs.unsqueeze(0).expand(len(parent_idxs), -1)
-        self.connections[parent_expanded, child_expanded] = value
+        # Connect pairwise: parent_idxs[i] -> child_idxs[i]
+        self.connections[parent_idxs, child_idxs] = value
     
     def connect_bi(self, from_idxs: torch.Tensor, to_idxs: torch.Tensor, value=True):
         """
