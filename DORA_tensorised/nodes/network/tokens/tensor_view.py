@@ -184,7 +184,7 @@ class TensorView:
         Convert local indicies to global indicies
         
         Args:
-            idxs: torch.Tensor - Local indices (positions in the view)
+            idxs: torch.Tensor or int - Local indices (positions in the view)
         
         Returns:
             torch.Tensor - Global indices (positions in the original tensor)
@@ -192,9 +192,17 @@ class TensorView:
         Raises:
             IndexError: If any local index is out of bounds for the view
         """
-        # Convert to tensor if needed
+        # Convert to tensor if needed, ensuring it's 1-d
         if not isinstance(idxs, torch.Tensor):
-            idxs = torch.tensor(idxs, dtype=torch.long, device=self._indices.device)
+            # If it's a single int, wrap it in a list to create 1-d tensor
+            if isinstance(idxs, int):
+                idxs = torch.tensor([idxs], dtype=torch.long, device=self._indices.device)
+            else:
+                idxs = torch.tensor(idxs, dtype=torch.long, device=self._indices.device)
+        
+        # Ensure it's 1-d (handle 0-d tensors)
+        if idxs.dim() == 0:
+            idxs = idxs.unsqueeze(0)
         
         # Check for out-of-bounds indices
         view_size = len(self._indices)
@@ -207,7 +215,11 @@ class TensorView:
                            f"valid indices are 0 to {view_size - 1}")
         
         # Simply index into self._indices to get the global indices
-        return self._indices[idxs]
+        result = self._indices[idxs]
+        # Ensure result is always 1-d (handle case where single element might return 0-d)
+        if result.dim() == 0:
+            result = result.unsqueeze(0)
+        return result
     
     @property
     def shape(self):
