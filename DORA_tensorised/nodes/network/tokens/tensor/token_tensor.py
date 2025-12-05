@@ -1,6 +1,7 @@
 import torch
 from ...single_nodes import Token, Ref_Token
 from ....enums import *
+from ..connections.connections import Connections_Tensor
 from ..connections.mapping import Mapping
 from typing import List
 from .cache import Cache
@@ -13,16 +14,16 @@ class Token_Tensor:
     """
     A class for holding all the tokens in the network.
     """
-    def __init__(self, tokens: torch.Tensor, connections: torch.Tensor, names: dict[int, str]):
+    def __init__(self, tokens: torch.Tensor, connections: Connections_Tensor, names: dict[int, str]):
         """
         Initialize the Tokens object.
         Args:
             tokens: torch.Tensor - The tensor of tokens.
-            connections: torch.Tensor - The tensor of connections.
+            connections: Connections_Tensor - The connections object.
             names: dict[int, str] - The dictionary of names.
         """
         self.tensor: torch.Tensor = tokens
-        self.connections: torch.Tensor = connections
+        self.connections: Connections_Tensor = connections
         self.names: dict[int, str] = names # idx -> name
         self.expansion_factor = 1.1
         self.cache = Cache(tokens)
@@ -144,6 +145,18 @@ class Token_Tensor:
             values: torch.Tensor - The values to set the features to, shape (len(indices), len(features)).
         """
         self.tensor[indices[:, None], features] = values
+    
+    def get_max(self, feature: TF, indicies: torch.Tensor) -> float:
+        """
+        Get the maximum value of the given feature for the given indices.
+        Args:
+            feature: TF - The feature to get the maximum value of.
+            indices: torch.Tensor - The indices of the tokens to get the maximum value of.
+        Returns:
+            int, float - The index and value of the maximum value of the given feature for the given indices.
+        """
+        max_val, max_idx = self.tensor[indicies, feature].max(dim=0)
+        return max_idx.item(), max_val.item()
     
     def get_view(self, indices: torch.Tensor) -> TensorView:
         """
