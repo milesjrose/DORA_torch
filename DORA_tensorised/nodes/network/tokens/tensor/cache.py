@@ -29,6 +29,12 @@ class Cache:
         self.analogs = torch.tensor([], dtype = tensor_type)
         """holds a tensor, with columns: [analog_number, analog_set, count, activation]"""
     
+    def get_type_mask(self, type: Type) -> torch.Tensor:
+        """
+        get a mask for a given token type.
+        """
+        return self.tensor[:, TF.TYPE] == type
+    
     def get_set_mask(self, set: Set) -> torch.Tensor:
         """
         Get the mask for the given set.
