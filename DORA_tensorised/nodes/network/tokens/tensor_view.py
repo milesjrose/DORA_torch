@@ -139,6 +139,12 @@ class TensorView:
         self._shape = (len(indices),) + tensor.shape[1:]
         """tuple: The shape of the view"""
     
+    def get_sub_tensor(self) -> torch.Tensor:
+        """
+        Get the sub_tensor of the view.
+        """
+        return self._tensor[self._indices]
+    
     def get_count(self) -> int:
         """
         Get the count of tokens in the view.
