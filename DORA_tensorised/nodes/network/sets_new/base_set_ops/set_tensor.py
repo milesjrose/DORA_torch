@@ -19,6 +19,15 @@ class TensorOperations:
         mask = (self.base_set.lcl[:, TF.TYPE] == token_type)
         return mask
     
+    def get_arb_mask(self, dict: dict[TF, float]) -> torch.Tensor:
+        """
+        Get a mask of tokens that match the given dictionary of features and values.
+        """
+        mask = (self.base_set.lcl[:, TF.DELETED] == B.FALSE)
+        for feature, value in dict.items():
+            mask = mask & (self.base_set.lcl[:, feature] == value)
+        return mask
+    
     def get_combined_mask(self, token_types: list[Type]) -> torch.Tensor:
         """
         Return combined mask of given types
