@@ -21,6 +21,7 @@ class Cache:
     def __init__(self, tensor: torch.Tensor):
         """
         Initialize the Set_Cache object.
+
         Args:
             tensor: torch.Tensor - The tensor of tokens.
         """
@@ -29,9 +30,41 @@ class Cache:
         self.analogs = torch.tensor([], dtype = tensor_type)
         """holds a tensor, with columns: [analog_number, analog_set, count, activation]"""
     
+    def get_arbitrary_mask(self, dict: dict[TF, float]) -> torch.Tensor:
+        """
+        Get a mask of tokens that match the given dictionary of features and values.
+        Args:
+            dict: dict[TF, float] - The features and values to match.
+        Returns:
+            torch.Tensor - The mask of tokens that match the given features and values.
+        """
+        mask = self.tensor[:, TF.DELETED] == B.FALSE # Make sure tokens not deleted
+        for feature, value in dict.items():
+            mask = mask & (self.tensor[:, feature] == value)
+        return mask
+    
+    def get_set_type_mask(self, set: Set, type: Type) -> torch.Tensor:
+        """
+        Get the mask for the given set and type.
+
+        Args:
+            set: Set - The set to get the mask for.
+            type: Type - The type to get the mask for.
+        Returns:
+            torch.Tensor - The mask for the given set and type.
+        """
+        mask = self.tensor[:, TF.DELETED] == B.FALSE  # Exclude deleted tokens
+        mask = mask & self.get_type_mask(type) & self.get_set_mask(set)
+        return mask
+    
     def get_type_mask(self, type: Type) -> torch.Tensor:
         """
         get a mask for a given token type.
+
+        Args:
+            type: Type - The type to get the mask for.
+        Returns:
+            torch.Tensor - The mask for the given type.
         """
         return self.tensor[:, TF.TYPE] == type
     

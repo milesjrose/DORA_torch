@@ -4,7 +4,7 @@
 import pytest
 import torch
 from nodes.network.tokens.tensor.cache import Cache, Analog_Cache
-from nodes.enums import Set, TF, B, null, tensor_type
+from nodes.enums import Set, TF, B, Type, null, tensor_type
 
 
 @pytest.fixture
@@ -261,4 +261,258 @@ def test_cache_with_all_tokens_same_set():
     memory_indices = cache.get_set_indices(Set.MEMORY)
     assert len(memory_indices) == 10
     assert torch.equal(memory_indices, torch.arange(10))
+
+
+# =====================[ get_arbitrary_mask tests ]======================
+
+def test_get_arbitrary_mask_single_feature(cache):
+    """Test get_arbitrary_mask with a single feature."""
+    # Test matching SET feature
+    mask = cache.get_arbitrary_mask({TF.SET: Set.DRIVER})
+    assert mask.dtype == torch.bool
+    assert mask.sum() == 5
+    assert torch.all(mask[0:5])
+    assert not torch.any(mask[5:20])
+    
+    # Test matching ANALOG feature
+    mask = cache.get_arbitrary_mask({TF.ANALOG: 0})
+    assert mask.sum() == 5
+    assert torch.all(mask[0:5])
+    
+    # Test matching ACT feature (should match none since values are different)
+    mask = cache.get_arbitrary_mask({TF.ACT: 0.1})
+    assert mask.sum() == 1
+    assert mask[0] == True
+    assert not torch.any(mask[1:20])
+
+
+def test_get_arbitrary_mask_multiple_features(cache):
+    """Test get_arbitrary_mask with multiple features."""
+    # Test matching SET and ANALOG together
+    mask = cache.get_arbitrary_mask({TF.SET: Set.DRIVER, TF.ANALOG: 0})
+    assert mask.sum() == 5
+    assert torch.all(mask[0:5])
+    assert not torch.any(mask[5:20])
+    
+    # Test matching SET and ANALOG that don't match together
+    mask = cache.get_arbitrary_mask({TF.SET: Set.DRIVER, TF.ANALOG: 1})
+    assert mask.sum() == 0  # No tokens match both
+    
+    # Test matching SET and ACT
+    mask = cache.get_arbitrary_mask({TF.SET: Set.DRIVER, TF.ACT: 0.1})
+    assert mask.sum() == 1
+    assert mask[0] == True
+
+
+def test_get_arbitrary_mask_excludes_deleted(cache):
+    """Test that get_arbitrary_mask excludes deleted tokens."""
+    # Mark some tokens as deleted
+    cache.tensor[2, TF.DELETED] = B.TRUE
+    cache.tensor[7, TF.DELETED] = B.TRUE
+    
+    # Test that deleted tokens are excluded even if they match
+    mask = cache.get_arbitrary_mask({TF.SET: Set.DRIVER})
+    assert mask.sum() == 4  # 5 - 1 deleted = 4
+    assert mask[0] == True
+    assert mask[1] == True
+    assert mask[2] == False  # This one is deleted
+    assert mask[3] == True
+    assert mask[4] == True
+    
+    mask = cache.get_arbitrary_mask({TF.SET: Set.RECIPIENT})
+    assert mask.sum() == 4  # 5 - 1 deleted = 4
+    assert mask[7] == False  # This one is deleted
+
+
+def test_get_arbitrary_mask_empty_result(cache):
+    """Test get_arbitrary_mask when no tokens match."""
+    # Test with non-existent SET
+    mask = cache.get_arbitrary_mask({TF.SET: 999})
+    assert mask.sum() == 0
+    assert not torch.any(mask)
+    
+    # Test with non-existent ANALOG
+    mask = cache.get_arbitrary_mask({TF.ANALOG: 999})
+    assert mask.sum() == 0
+    
+    # Test with combination that doesn't exist
+    mask = cache.get_arbitrary_mask({TF.SET: Set.DRIVER, TF.ANALOG: 999})
+    assert mask.sum() == 0
+
+
+def test_get_arbitrary_mask_three_features(cache):
+    """Test get_arbitrary_mask with three features."""
+    # Set up some tokens with specific combinations
+    cache.tensor[0, TF.SET] = Set.DRIVER
+    cache.tensor[0, TF.ANALOG] = 0
+    cache.tensor[0, TF.ACT] = 0.1
+    
+    cache.tensor[1, TF.SET] = Set.DRIVER
+    cache.tensor[1, TF.ANALOG] = 0
+    cache.tensor[1, TF.ACT] = 0.2  # Different ACT
+    
+    # Test matching all three features
+    mask = cache.get_arbitrary_mask({TF.SET: Set.DRIVER, TF.ANALOG: 0, TF.ACT: 0.1})
+    assert mask.sum() == 1
+    assert mask[0] == True
+    assert mask[1] == False  # Different ACT value
+
+
+def test_get_arbitrary_mask_float_values(cache):
+    """Test get_arbitrary_mask with float feature values."""
+    # Test matching ACT values
+    mask = cache.get_arbitrary_mask({TF.ACT: 0.1})
+    assert mask.sum() == 1
+    assert mask[0] == True
+    
+    # Test matching different ACT value
+    mask = cache.get_arbitrary_mask({TF.ACT: 0.5})
+    assert mask.sum() == 1
+    assert mask[4] == True
+
+
+def test_get_arbitrary_mask_empty_dict(cache):
+    """Test get_arbitrary_mask with empty dict (should return all non-deleted tokens)."""
+    # Empty dict should match all non-deleted tokens
+    mask = cache.get_arbitrary_mask({})
+    assert mask.sum() == 20  # All 20 tokens are non-deleted
+    assert torch.all(mask)
+    
+    # Mark some tokens as deleted
+    cache.tensor[5, TF.DELETED] = B.TRUE
+    cache.tensor[10, TF.DELETED] = B.TRUE
+    
+    # Empty dict should now match only non-deleted tokens
+    mask = cache.get_arbitrary_mask({})
+    assert mask.sum() == 18  # 20 - 2 deleted = 18
+    assert mask[5] == False  # Deleted
+    assert mask[10] == False  # Deleted
+
+
+# =====================[ get_set_type_mask tests ]======================
+
+def test_get_set_type_mask_basic(cache):
+    """Test basic get_set_type_mask functionality."""
+    # Set up tokens with different types
+    # DRIVER set: tokens 0-4
+    cache.tensor[0:2, TF.TYPE] = Type.PO
+    cache.tensor[2:4, TF.TYPE] = Type.RB
+    cache.tensor[4, TF.TYPE] = Type.P
+    
+    # RECIPIENT set: tokens 5-9
+    cache.tensor[5:7, TF.TYPE] = Type.PO
+    cache.tensor[7:9, TF.TYPE] = Type.RB
+    cache.tensor[9, TF.TYPE] = Type.P
+    
+    # Test DRIVER + PO
+    mask = cache.get_set_type_mask(Set.DRIVER, Type.PO)
+    assert mask.sum() == 2
+    assert mask[0] == True
+    assert mask[1] == True
+    assert not torch.any(mask[2:20])
+    
+    # Test DRIVER + RB
+    mask = cache.get_set_type_mask(Set.DRIVER, Type.RB)
+    assert mask.sum() == 2
+    assert mask[2] == True
+    assert mask[3] == True
+    assert not torch.any(mask[0:2])
+    assert not torch.any(mask[4:20])
+    
+    # Test RECIPIENT + PO
+    mask = cache.get_set_type_mask(Set.RECIPIENT, Type.PO)
+    assert mask.sum() == 2
+    assert mask[5] == True
+    assert mask[6] == True
+    assert not torch.any(mask[0:5])
+    assert not torch.any(mask[7:20])
+
+
+def test_get_set_type_mask_no_matches(cache):
+    """Test get_set_type_mask when no tokens match."""
+    # Set all tokens to specific types
+    cache.tensor[0:5, TF.TYPE] = Type.PO
+    cache.tensor[5:10, TF.TYPE] = Type.RB
+    
+    # Test for a combination that doesn't exist
+    mask = cache.get_set_type_mask(Set.DRIVER, Type.RB)
+    assert mask.sum() == 0  # DRIVER has PO, not RB
+    
+    mask = cache.get_set_type_mask(Set.RECIPIENT, Type.PO)
+    assert mask.sum() == 0  # RECIPIENT has RB, not PO
+    
+    # Test with non-existent set
+    mask = cache.get_set_type_mask(999, Type.PO)
+    assert mask.sum() == 0
+
+
+def test_get_set_type_mask_all_types(cache):
+    """Test get_set_type_mask with all different types."""
+    # Set up tokens with all types in DRIVER set
+    cache.tensor[0, TF.TYPE] = Type.PO
+    cache.tensor[1, TF.TYPE] = Type.RB
+    cache.tensor[2, TF.TYPE] = Type.P
+    cache.tensor[3, TF.TYPE] = Type.GROUP
+    cache.tensor[4, TF.TYPE] = Type.SEMANTIC
+    
+    # Test each type
+    for i, token_type in enumerate([Type.PO, Type.RB, Type.P, Type.GROUP, Type.SEMANTIC]):
+        mask = cache.get_set_type_mask(Set.DRIVER, token_type)
+        assert mask.sum() == 1
+        assert mask[i] == True
+        assert not torch.any(mask[0:i])
+        assert not torch.any(mask[i+1:20])
+
+
+def test_get_set_type_mask_excludes_deleted(cache):
+    """Test that get_set_type_mask excludes deleted tokens."""
+    # Set up tokens
+    cache.tensor[0:3, TF.TYPE] = Type.PO
+    cache.tensor[3:5, TF.TYPE] = Type.RB
+    
+    # Mark one as deleted
+    cache.tensor[1, TF.DELETED] = B.TRUE
+    
+    # Test that deleted token is excluded
+    mask = cache.get_set_type_mask(Set.DRIVER, Type.PO)
+    assert mask.sum() == 2  # 3 - 1 deleted = 2
+    assert mask[0] == True
+    assert mask[1] == False  # Deleted
+    assert mask[2] == True
+
+
+def test_get_set_type_mask_multiple_sets(cache):
+    """Test get_set_type_mask across multiple sets."""
+    # Set up same type in different sets
+    cache.tensor[0:2, TF.TYPE] = Type.PO  # DRIVER
+    cache.tensor[5:7, TF.TYPE] = Type.PO  # RECIPIENT
+    cache.tensor[10:12, TF.TYPE] = Type.PO  # MEMORY
+    
+    # Test each set separately
+    mask = cache.get_set_type_mask(Set.DRIVER, Type.PO)
+    assert mask.sum() == 2
+    assert torch.all(mask[0:2])
+    
+    mask = cache.get_set_type_mask(Set.RECIPIENT, Type.PO)
+    assert mask.sum() == 2
+    assert torch.all(mask[5:7])
+    
+    mask = cache.get_set_type_mask(Set.MEMORY, Type.PO)
+    assert mask.sum() == 2
+    assert torch.all(mask[10:12])
+
+
+def test_get_set_type_mask_uses_cached_masks(cache):
+    """Test that get_set_type_mask uses cached set masks."""
+    # First call should cache the set mask
+    mask1 = cache.get_set_type_mask(Set.DRIVER, Type.PO)
+    
+    # Verify the set mask is cached
+    assert Set.DRIVER in cache.masks
+    
+    # Second call should use the cached mask
+    mask2 = cache.get_set_type_mask(Set.DRIVER, Type.PO)
+    
+    # Results should be the same
+    assert torch.equal(mask1, mask2)
 
