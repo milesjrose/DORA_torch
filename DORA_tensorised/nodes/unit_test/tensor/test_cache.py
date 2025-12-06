@@ -473,6 +473,8 @@ def test_get_set_type_mask_excludes_deleted(cache):
     # Mark one as deleted
     cache.tensor[1, TF.DELETED] = B.TRUE
     
+    cache.cache_sets()
+    
     # Test that deleted token is excluded
     mask = cache.get_set_type_mask(Set.DRIVER, Type.PO)
     assert mask.sum() == 2  # 3 - 1 deleted = 2

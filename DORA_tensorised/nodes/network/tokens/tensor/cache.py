@@ -53,8 +53,7 @@ class Cache:
         Returns:
             torch.Tensor - The mask for the given set and type.
         """
-        mask = self.tensor[:, TF.DELETED] == B.FALSE  # Exclude deleted tokens
-        mask = mask & self.get_type_mask(type) & self.get_set_mask(set)
+        mask = self.get_type_mask(type) & self.get_set_mask(set)
         return mask
     
     def get_type_mask(self, type: Type) -> torch.Tensor:
@@ -77,7 +76,7 @@ class Cache:
             torch.Tensor - The mask for the given set.
         """
         if set not in self.masks:
-            self.masks[set] = (self.tensor[:, TF.SET] == set)
+            self.masks[set] = (self.tensor[:, TF.SET] == set) & (self.tensor[:, TF.DELETED] == B.FALSE) # Shouldn't be needed as when deleting we set features to null, but just in case. Maybe remove later idk.
         return self.masks[set]
     
     def get_set_indices(self, set: Set) -> torch.Tensor:
@@ -112,7 +111,7 @@ class Cache:
         """
         return self.get_set_mask(set).sum()
     
-    def cache_sets(self, sets: list[Set]):
+    def cache_sets(self, sets: list[Set] = [set for set in Set]):
         """
         Update the cache for the given sets.
         Args:
