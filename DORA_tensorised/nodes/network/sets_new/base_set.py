@@ -19,20 +19,72 @@ class Base_Set:
         self.params: Params = params
         """Params: Parameters for the set"""
         self.tensor_op: TensorOperations = TensorOperations(self)
-        self.tnsr = self.tensor_op
-        """TensorOperations: Operations for the tensor"""
+        """TensorOperations: Operations for the tensor.
+            Functions:
+            - get_mask(token_type: Type) -> torch.Tensor
+            - get_combined_mask(token_types: list[Type]) -> torch.Tensor
+            - get_count(token_type: Type=None, mask: torch.Tensor = None) -> int
+            - print(f_types=None)
+            - print_tokens(f_types=None)
+        """
+        self.tnop = self.tensor_op
         self.update_op: UpdateOperations = UpdateOperations(self)
-        self.updt = self.update_op
-        """UpdateOperations: Operations for the update"""
+        """UpdateOperations: Operations for the update.
+            Functions:
+            - init_float(n_type: list[Type], features: list[TF], value: float = 0.0)
+            - init_input(n_type: list[Type], refresh: float)
+            - init_act(n_type: list[Type])
+            - init_state(n_type: list[Type])
+            - update_act()
+            - zero_laternal_input(n_type: list[Type])
+            - update_inhibitor_input(n_type: list[Type])
+            - reset_inhibitor(n_type: list[Type])
+            - update_inhibitor_act(n_type: list[Type])
+            - p_initialise_mode()
+            - p_get_mode()
+            - po_get_weight_length()
+            - po_get_max_semantic_weight()
+        """
+        self.upop = self.update_op
         self.analog_op: AnalogOperations = AnalogOperations(self)
-        self.anlg = self.analog_op
-        """AnalogOperations: Operations for the analogs"""
+        """AnalogOperations: Operations for the analogs.
+            Functions:
+            - get_analog_indices(analog: int) -> torch.Tensor
+            - get_analogs_where(feature: TF, value: float) -> torch.Tensor
+            - get_analogs_where_not(feature: TF, value: float) -> torch.Tensor
+            - get_analogs_active() -> torch.Tensor
+            - get_analog_ref_list(mask) -> torch.Tensor
+        """
+        self.anop = self.analog_op
         self.kludgey_op: KludgeyOperations = KludgeyOperations(self)
+        """KludgeyOperations: Operations for the kludgey.
+            Functions:
+            - get_pred_rb_no_ps(pairs: Pairs) -> Pairs
+            - get_pred_rb_shared_p(pairs: Pairs) -> Pairs
+        """
         self.klud = self.kludgey_op
-        """KludgeyOperations: Operations for the kludgey"""
         self.token_op: TokenOperations = TokenOperations(self)
+        """TokenOperations: Operations for the tokens.
+            Functions:
+            - get_features(idxs: torch.Tensor, features: torch.Tensor) -> torch.Tensor
+            - set_features(idxs: torch.Tensor, features: torch.Tensor, values: torch.Tensor)
+            - set_features_all(feature: TF, value: float)
+            - get_name(idx: int) -> str
+            - set_name(idx: int, name: str)
+            - get_index(idxs: torch.Tensor) -> torch.Tensor
+            - get_single_token(idx: int) -> Token
+            - get_max_acts()
+            - get_highest_token_type() -> Type
+            - get_child_idxs(idx: int) -> torch.Tensor
+            - get_most_active_token() -> int
+            - connect(parent_idx: int, child_idx: int, value=B.TRUE)
+            - connect_multiple(parent_idxs: torch.Tensor, child_idxs: torch.Tensor, value=B.TRUE)
+            - get_ref_string(idx: int) -> str
+            - reset_inferences()
+            - reset_maker_made_units()
+            - get_mapped_pos() -> list[Ref_Token]
+        """
         self.tkop = self.token_op
-        """TokenOperations: Operations for the tokens"""
     
     def get_tensor(self) -> torch.Tensor:
         return self.lcl
