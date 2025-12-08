@@ -20,14 +20,14 @@ class Recipient(Base_Set):
         """
         super().__init__(tokens, Set.RECIPIENT, params)
     
-    def update_input(self):
+    def update_input(self, semantics: Semantics, links: Links):
         """
         Update all input in the recipient.
         """
         self.update_input_p_parent()
         self.update_input_p_child()
         self.update_input_rb()
-        self.update_input_po()
+        self.update_input_po(semantics, links)
     
     def update_input_p_parent(self):
         """
