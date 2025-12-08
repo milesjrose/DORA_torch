@@ -1,25 +1,19 @@
-from .base_set import Base_Set
-from ...enums import *
-import torch 
 from ..tokens.tensor.token_tensor import Token_Tensor
+from ..network_params import Params
+from ...enums import *
+from .base_set import Base_Set
+import torch
+from ...utils import tensor_ops as tOps
 from ..tokens.connections.links import Links
 from .semantics import Semantics
-from ..network_params import Params
-from ...utils import tensor_ops as tOps
 
-class Recipient(Base_Set):
+class Memory(Base_Set):
     """
-    A class for representing the recipient set of tokens.
+    A class for representing a memory of tokens.
     """
-    def __init__(self, tokens: Token_Tensor, params: Params):
-        """
-        Initialise a Recipient object
-        Args:
-            tokens: Token_Tensor - Global token tensor.
-            params: Params - The parameters for the recipient set.
-        """
-        super().__init__(tokens, Set.RECIPIENT, params)
-    
+    def __init__(self, tokens: Token_Tensor, token_set: Set, params: Params):
+        super().__init__(tokens, token_set, params)
+        
     def update_input(self):
         """
         Update all input in the recipient.
@@ -301,51 +295,8 @@ class Recipient(Base_Set):
         inhib_act = torch.mul(10, nodes[po, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
         nodes[po, TF.LATERAL_INPUT] -= inhib_act               # Update lat input
     
-    # =================[ MAPPING INPUT FUNCTION ]===================
-    def map_input(self, t_mask):                                        # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
+    def map_input(self, t_mask):
         """
-        Calculate mapping input for tokens in mask
-        NOTE: Not implemented yet.
-
-        Args:
-            t_mask (torch.Tensor): Token mask to get mapping input for.
-        Returns:
-            torch.Tensor: (sum(t_mask) x 1) matrix of mapping input.
+        No mapping for memory set, uses recipient map_input function so just return 0.
         """
-        return 0 # TODO: implement mapping input for recipient set
-        """
-        driver = self.mappings.driver
-        map_weights = self.mappings[MappingFields.WEIGHT][t_mask] 
-        map_connections = self.mappings[MappingFields.CONNECTIONS][t_mask]
-
-        # 1). weight = (3*map_weight*driverToken.act)
-        weight = torch.mul(                                         
-            3,
-            torch.matmul(
-                map_weights,
-                driver.nodes[:, TF.ACT]
-            )
-        )
-
-        # 2). max_map = (self.max_map*driverToken.act)
-        act_sum = torch.matmul(                                     
-            map_connections,
-            driver.nodes[:, TF.ACT]
-        )
-        max_map = act_sum * self.nodes[t_mask, TF.MAX_MAP]
-
-        # 3). driver_max_map = (driverToken.max_map*driverToken.act)
-        driver_max_map_vals = torch.mul(                                      
-            driver.nodes[:, TF.MAX_MAP],
-            driver.nodes[:, TF.ACT]
-        )
-        driver_max_map = torch.matmul(
-            map_connections,
-            driver_max_map_vals
-        )
-        # 4). map_input = (3*driver.act*mapping_weight) 
-        #                   - max(mapping_weight_driver_unit) 
-        #                   - max(own_mapping_weight)
-        return (weight - max_map - driver_max_map)     
-        """                  
-    # --------------------------------------------------------------
+        return 0
