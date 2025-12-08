@@ -860,3 +860,742 @@ def test_update_input_p_child_no_child_ps_no_error(driver_child_p):
     except Exception as e:
         pytest.fail(f"update_input_p_child raised an exception when no child P nodes exist: {e}")
 
+
+# =====================[ update_input_rb tests ]======================
+
+@pytest.fixture
+def mock_tensor_with_rb():
+    """
+    Create a mock tensor with RB nodes, P nodes, and PO nodes for testing update_input_rb.
+    Structure:
+    - Tokens 0-1: RB nodes in DRIVER
+    - Tokens 2-3: P nodes (parent and child) in DRIVER
+    - Tokens 4-5: PO nodes (predicate and object) in DRIVER
+    - Token 6: RB node in RECIPIENT (should not be affected)
+    """
+    num_tokens = 20
+    num_features = len(TF)
+    
+    # Create tensor with all features
+    tensor = torch.full((num_tokens, num_features), null, dtype=tensor_type)
+    
+    # Set DELETED to False for all active tokens
+    tensor[:, TF.DELETED] = B.FALSE
+    
+    # DRIVER set: tokens 0-9
+    tensor[0:10, TF.SET] = Set.DRIVER
+    tensor[0:10, TF.ID] = torch.arange(0, 10)
+    tensor[0:10, TF.ANALOG] = 0
+    
+    # RB nodes in DRIVER
+    tensor[0:2, TF.TYPE] = Type.RB
+    tensor[0:2, TF.ACT] = torch.tensor([0.5, 0.6])  # RB activations
+    tensor[0:2, TF.INHIBITOR_ACT] = torch.tensor([0.1, 0.2])  # Inhibitor activations
+    
+    # P nodes in DRIVER
+    tensor[2:4, TF.TYPE] = Type.P
+    tensor[2, TF.MODE] = Mode.PARENT  # Parent P node
+    tensor[3, TF.MODE] = Mode.CHILD   # Child P node
+    tensor[2:4, TF.ACT] = torch.tensor([0.7, 0.8])  # P activations
+    
+    # PO nodes in DRIVER
+    tensor[4:6, TF.TYPE] = Type.PO
+    tensor[4, TF.PRED] = B.TRUE   # Predicate
+    tensor[5, TF.PRED] = B.FALSE  # Object
+    tensor[4:6, TF.ACT] = torch.tensor([0.3, 0.4])  # PO activations
+    
+    # RECIPIENT set: tokens 10-14
+    tensor[10:15, TF.SET] = Set.RECIPIENT
+    tensor[10:15, TF.ID] = torch.arange(10, 15)
+    tensor[10:15, TF.ANALOG] = 1
+    
+    # RB node in RECIPIENT (should NOT be affected)
+    tensor[10, TF.TYPE] = Type.RB
+    tensor[10, TF.ACT] = 0.5
+    tensor[10, TF.INHIBITOR_ACT] = 0.1
+    
+    # Initialize input values to 0 for clean testing
+    tensor[:, TF.TD_INPUT] = 0.0
+    tensor[:, TF.BU_INPUT] = 0.0
+    tensor[:, TF.LATERAL_INPUT] = 0.0
+    tensor[:, TF.MAP_INPUT] = 0.0
+    tensor[:, TF.NET_INPUT] = 0.0
+    
+    return tensor
+
+
+@pytest.fixture
+def mock_connections_with_rb():
+    """
+    Create connections for testing update_input_rb.
+    Connections (parent -> child):
+    - P[2] (parent) -> RB[0], RB[1] (P is parent of RB)
+    - P[3] (child) -> RB[0] (P is child of RB, so RB is parent of P)
+    - RB[0] -> PO[4] (predicate), PO[5] (object)
+    - RB[1] -> PO[4] (predicate)
+    - P[3] (child) -> RB[0] means RB[0] is parent of P[3]
+    """
+    num_tokens = 20
+    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
+    
+    # P[2] (parent) -> RB connections (P is parent of RB)
+    connections[2, 0] = True  # P[2] -> RB[0]
+    connections[2, 1] = True  # P[2] -> RB[1]
+    
+    # RB -> P[3] connections (RB is parent of child P)
+    connections[0, 3] = True  # RB[0] -> P[3]
+    
+    # RB -> PO connections
+    connections[0, 4] = True  # RB[0] -> PO[4] (predicate)
+    connections[0, 5] = True  # RB[0] -> PO[5] (object)
+    connections[1, 4] = True  # RB[1] -> PO[4] (predicate)
+    
+    return connections
+
+
+@pytest.fixture
+def token_tensor_rb(mock_tensor_with_rb, mock_connections_with_rb, mock_names):
+    """Create a Token_Tensor instance with mock data for RB tests."""
+    from nodes.network.tokens.connections.connections import Connections_Tensor
+    connections_tensor = Connections_Tensor(mock_connections_with_rb)
+    return Token_Tensor(mock_tensor_with_rb, connections_tensor, mock_names)
+
+
+@pytest.fixture
+def driver_rb(token_tensor_rb, mock_params):
+    """Create a Driver instance for RB tests."""
+    return Driver(token_tensor_rb, mock_params)
+
+
+def test_update_input_rb_td_input_from_parent_ps(driver_rb):
+    """
+    Test that TD_INPUT is correctly updated from connected parent P nodes.
+    RB[0] has parent P[2] (act=0.7) via transpose connection
+    Expected TD_INPUT for RB[0]: 0.7
+    
+    RB[1] has parent P[2] (act=0.7) via transpose connection
+    Expected TD_INPUT for RB[1]: 0.7
+    """
+    # Get global indices for RB nodes
+    cache = driver_rb.glbl.cache
+    rb_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.RB,
+        TF.SET: Set.DRIVER
+    })
+    rb_indices = torch.where(rb_mask)[0]
+    
+    # Get initial TD_INPUT values
+    initial_td_input = driver_rb.glbl.tensor[rb_indices, TF.TD_INPUT].clone()
+    
+    # Call the function
+    driver_rb.update_input_rb()
+    
+    # Get updated TD_INPUT values
+    updated_td_input = driver_rb.glbl.tensor[rb_indices, TF.TD_INPUT]
+    
+    # Calculate expected values (using transpose connections for parent P nodes)
+    con_tensor = driver_rb.glbl.connections.connections
+    t_con = torch.transpose(con_tensor, 0, 1)
+    p_mask = cache.get_type_mask(Type.P)
+    p_indices = torch.where(p_mask)[0]
+    
+    # Calculate expected TD_INPUT for each RB node from parent P nodes
+    expected_td_input = torch.matmul(
+        t_con[rb_indices][:, p_indices].float(),
+        driver_rb.glbl.tensor[p_indices, TF.ACT]
+    )
+    
+    # Verify TD_INPUT was incremented correctly
+    assert torch.allclose(updated_td_input, initial_td_input + expected_td_input, atol=1e-5), \
+        f"TD_INPUT not updated correctly from parent P nodes. Expected increment: {expected_td_input}, Got: {updated_td_input - initial_td_input}"
+
+
+def test_update_input_rb_bu_input_from_po_and_child_p(driver_rb):
+    """
+    Test that BU_INPUT is correctly updated from connected PO and child P nodes.
+    RB[0] is connected to PO[4] (act=0.3), PO[5] (act=0.4), and P[3] (child, act=0.8)
+    Expected BU_INPUT for RB[0]: 0.3 + 0.4 + 0.8 = 1.5
+    
+    RB[1] is connected to PO[4] (act=0.3)
+    Expected BU_INPUT for RB[1]: 0.3
+    """
+    # Get global indices for RB nodes
+    cache = driver_rb.glbl.cache
+    rb_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.RB,
+        TF.SET: Set.DRIVER
+    })
+    rb_indices = torch.where(rb_mask)[0]
+    
+    # Get initial BU_INPUT values
+    initial_bu_input = driver_rb.glbl.tensor[rb_indices, TF.BU_INPUT].clone()
+    
+    # Call the function
+    driver_rb.update_input_rb()
+    
+    # Get updated BU_INPUT values
+    updated_bu_input = driver_rb.glbl.tensor[rb_indices, TF.BU_INPUT]
+    
+    # Calculate expected values
+    con_tensor = driver_rb.glbl.connections.connections
+    po_mask = cache.get_type_mask(Type.PO)
+    p_mask = cache.get_type_mask(Type.P)
+    po_p_mask = torch.bitwise_or(po_mask, p_mask)
+    po_p_indices = torch.where(po_p_mask)[0]
+    
+    # Calculate expected BU_INPUT for each RB node from PO and child P nodes
+    expected_bu_input = torch.matmul(
+        con_tensor[rb_indices][:, po_p_indices].float(),
+        driver_rb.glbl.tensor[po_p_indices, TF.ACT]
+    )
+    
+    # Verify BU_INPUT was incremented correctly
+    assert torch.allclose(updated_bu_input, initial_bu_input + expected_bu_input, atol=1e-5), \
+        f"BU_INPUT not updated correctly from PO and child P nodes. Expected increment: {expected_bu_input}, Got: {updated_bu_input - initial_bu_input}"
+
+
+def test_update_input_rb_lateral_input_from_other_rbs(driver_rb):
+    """
+    Test that LATERAL_INPUT is correctly decremented by 3 * (sum of other RB activations).
+    RB[0] (act=0.5) and RB[1] (act=0.6) are both in DRIVER.
+    For RB[0]: LATERAL_INPUT should decrease by 3 * 0.6 = 1.8 (from RB[1])
+    For RB[1]: LATERAL_INPUT should decrease by 3 * 0.5 = 1.5 (from RB[0])
+    
+    Note: We set inhibitor_act to 0 to isolate just the other RB contribution.
+    """
+    # Get local RB mask
+    local_rb_mask = driver_rb.tnop.get_arb_mask({TF.TYPE: Type.RB})
+    local_rb_indices = torch.where(local_rb_mask)[0]
+    
+    # Set inhibitor_act to 0 to isolate other RB contribution
+    driver_rb.lcl[local_rb_mask, TF.INHIBITOR_ACT] = 0.0
+    
+    # Get initial LATERAL_INPUT values
+    initial_lateral_input = driver_rb.lcl[local_rb_indices, TF.LATERAL_INPUT].clone()
+    
+    # Call the function
+    driver_rb.update_input_rb()
+    
+    # Get updated LATERAL_INPUT values
+    updated_lateral_input = driver_rb.lcl[local_rb_indices, TF.LATERAL_INPUT]
+    
+    # Calculate expected lateral input change from other RBs only
+    from nodes.utils import tensor_ops as tOps
+    diag_zeroes = tOps.diag_zeros(sum(local_rb_mask))
+    expected_decrement = 3 * torch.matmul(
+        diag_zeroes.float(),
+        driver_rb.lcl[local_rb_mask, TF.ACT]
+    )
+    
+    # Verify LATERAL_INPUT was decremented correctly
+    actual_decrement = initial_lateral_input - updated_lateral_input
+    assert torch.allclose(actual_decrement, expected_decrement, atol=1e-5), \
+        f"LATERAL_INPUT not updated correctly from other RBs. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
+
+
+def test_update_input_rb_lateral_input_from_inhibitor(driver_rb):
+    """
+    Test that LATERAL_INPUT is correctly decremented by 10 * inhibitor_act.
+    RB[0] has inhibitor_act=0.1, so LATERAL_INPUT should decrease by 1.0
+    RB[1] has inhibitor_act=0.2, so LATERAL_INPUT should decrease by 2.0
+    """
+    # Get local RB mask
+    local_rb_mask = driver_rb.tnop.get_arb_mask({TF.TYPE: Type.RB})
+    local_rb_indices = torch.where(local_rb_mask)[0]
+    
+    # Reset lateral input to 0 for clean test
+    driver_rb.glbl.tensor[:, TF.LATERAL_INPUT] = 0.0
+    
+    # Call the function
+    driver_rb.update_input_rb()
+    
+    # Get updated LATERAL_INPUT values
+    updated_lateral_input = driver_rb.lcl[local_rb_indices, TF.LATERAL_INPUT]
+    
+    # Calculate expected decrement from inhibitor (10 * inhibitor_act)
+    expected_inhibitor_decrement = 10 * driver_rb.lcl[local_rb_mask, TF.INHIBITOR_ACT]
+    
+    # Also account for other RB contributions (3 * other RBs)
+    from nodes.utils import tensor_ops as tOps
+    diag_zeroes = tOps.diag_zeros(sum(local_rb_mask))
+    other_rb_decrement = 3 * torch.matmul(
+        diag_zeroes.float(),
+        driver_rb.lcl[local_rb_mask, TF.ACT]
+    )
+    
+    # Total expected decrement
+    total_expected_decrement = other_rb_decrement + expected_inhibitor_decrement
+    
+    # Verify LATERAL_INPUT was decremented correctly
+    actual_decrement = -updated_lateral_input  # Since we started at 0
+    assert torch.allclose(actual_decrement, total_expected_decrement, atol=1e-5), \
+        f"LATERAL_INPUT not updated correctly from inhibitor. Expected total decrement: {total_expected_decrement}, Got: {actual_decrement}"
+
+
+def test_update_input_rb_only_affects_driver_set(driver_rb):
+    """
+    Test that RB nodes in other sets (e.g., RECIPIENT) are NOT affected.
+    """
+    # Get global index for RB node in RECIPIENT (token 10)
+    recipient_rb_global_idx = 10
+    
+    # Get initial input values
+    initial_td_input = driver_rb.glbl.tensor[recipient_rb_global_idx, TF.TD_INPUT].item()
+    initial_bu_input = driver_rb.glbl.tensor[recipient_rb_global_idx, TF.BU_INPUT].item()
+    initial_lateral_input = driver_rb.glbl.tensor[recipient_rb_global_idx, TF.LATERAL_INPUT].item()
+    
+    # Call the function
+    driver_rb.update_input_rb()
+    
+    # Get updated input values
+    updated_td_input = driver_rb.glbl.tensor[recipient_rb_global_idx, TF.TD_INPUT].item()
+    updated_bu_input = driver_rb.glbl.tensor[recipient_rb_global_idx, TF.BU_INPUT].item()
+    updated_lateral_input = driver_rb.glbl.tensor[recipient_rb_global_idx, TF.LATERAL_INPUT].item()
+    
+    # Verify RECIPIENT RB node inputs were NOT changed
+    assert updated_td_input == initial_td_input, "TD_INPUT should not change for RB nodes in other sets"
+    assert updated_bu_input == initial_bu_input, "BU_INPUT should not change for RB nodes in other sets"
+    assert updated_lateral_input == initial_lateral_input, "LATERAL_INPUT should not change for RB nodes in other sets"
+
+
+def test_update_input_rb_increments_not_overwrites(driver_rb):
+    """
+    Test that update_input_rb increments input values rather than overwriting them.
+    """
+    # Set initial TD_INPUT and BU_INPUT values for RB nodes
+    cache = driver_rb.glbl.cache
+    rb_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.RB,
+        TF.SET: Set.DRIVER
+    })
+    rb_indices = torch.where(rb_mask)[0]
+    
+    # Set initial values
+    initial_td = torch.tensor([1.0, 2.0])  # Different initial values
+    initial_bu = torch.tensor([0.5, 1.5])
+    driver_rb.glbl.tensor[rb_indices, TF.TD_INPUT] = initial_td
+    driver_rb.glbl.tensor[rb_indices, TF.BU_INPUT] = initial_bu
+    
+    # Call the function
+    driver_rb.update_input_rb()
+    
+    # Get updated values
+    updated_td = driver_rb.glbl.tensor[rb_indices, TF.TD_INPUT]
+    updated_bu = driver_rb.glbl.tensor[rb_indices, TF.BU_INPUT]
+    
+    # Verify values were incremented (not overwritten)
+    assert torch.all(updated_td > initial_td), "TD_INPUT should be incremented, not overwritten"
+    assert torch.all(updated_bu > initial_bu), "BU_INPUT should be incremented, not overwritten"
+
+
+def test_update_input_rb_no_rbs_no_error(driver_rb):
+    """
+    Test that update_input_rb handles the case where there are no RB nodes gracefully.
+    """
+    # Set all RB nodes to a different type
+    cache = driver_rb.glbl.cache
+    rb_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.RB,
+        TF.SET: Set.DRIVER
+    })
+    rb_indices = torch.where(rb_mask)[0]
+    driver_rb.glbl.tensor[rb_indices, TF.TYPE] = Type.PO
+    
+    # This should not raise an error
+    try:
+        driver_rb.update_input_rb()
+    except Exception as e:
+        pytest.fail(f"update_input_rb raised an exception when no RB nodes exist: {e}")
+
+
+# =====================[ update_input_po tests ]======================
+
+@pytest.fixture
+def mock_tensor_with_po():
+    """
+    Create a mock tensor with PO nodes (predicates and objects), RB nodes, and P nodes for testing update_input_po.
+    Structure:
+    - Tokens 0-1: PO nodes (predicate and object) in DRIVER
+    - Tokens 2-3: RB nodes in DRIVER
+    - Token 4: P node (child mode) in DRIVER
+    - Token 5: PO node in RECIPIENT (should not be affected)
+    """
+    num_tokens = 20
+    num_features = len(TF)
+    
+    # Create tensor with all features
+    tensor = torch.full((num_tokens, num_features), null, dtype=tensor_type)
+    
+    # Set DELETED to False for all active tokens
+    tensor[:, TF.DELETED] = B.FALSE
+    
+    # DRIVER set: tokens 0-9
+    tensor[0:10, TF.SET] = Set.DRIVER
+    tensor[0:10, TF.ID] = torch.arange(0, 10)
+    tensor[0:10, TF.ANALOG] = 0
+    
+    # PO nodes in DRIVER
+    tensor[0:2, TF.TYPE] = Type.PO
+    tensor[0, TF.PRED] = B.TRUE   # Predicate
+    tensor[1, TF.PRED] = B.FALSE  # Object
+    tensor[0:2, TF.ACT] = torch.tensor([0.5, 0.6])  # PO activations
+    tensor[0:2, TF.INHIBITOR_ACT] = torch.tensor([0.1, 0.2])  # Inhibitor activations
+    
+    # RB nodes in DRIVER
+    tensor[2:4, TF.TYPE] = Type.RB
+    tensor[2:4, TF.ACT] = torch.tensor([0.7, 0.8])  # RB activations
+    
+    # P node (child mode) in DRIVER
+    tensor[4, TF.TYPE] = Type.P
+    tensor[4, TF.MODE] = Mode.CHILD
+    tensor[4, TF.ACT] = 0.9
+    
+    # RECIPIENT set: tokens 10-14
+    tensor[10:15, TF.SET] = Set.RECIPIENT
+    tensor[10:15, TF.ID] = torch.arange(10, 15)
+    tensor[10:15, TF.ANALOG] = 1
+    
+    # PO node in RECIPIENT (should NOT be affected)
+    tensor[10, TF.TYPE] = Type.PO
+    tensor[10, TF.PRED] = B.TRUE
+    tensor[10, TF.ACT] = 0.5
+    tensor[10, TF.INHIBITOR_ACT] = 0.1
+    
+    # Initialize input values to 0 for clean testing
+    tensor[:, TF.TD_INPUT] = 0.0
+    tensor[:, TF.BU_INPUT] = 0.0
+    tensor[:, TF.LATERAL_INPUT] = 0.0
+    tensor[:, TF.MAP_INPUT] = 0.0
+    tensor[:, TF.NET_INPUT] = 0.0
+    
+    return tensor
+
+
+@pytest.fixture
+def mock_connections_with_po():
+    """
+    Create connections for testing update_input_po.
+    Connections (parent -> child):
+    - RB[2] -> PO[0] (predicate), PO[1] (object) - both POs connected to same RB
+    - RB[3] -> PO[0] (predicate) - PO[0] connected to two RBs
+    """
+    num_tokens = 20
+    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
+    
+    # RB -> PO connections
+    connections[2, 0] = True  # RB[2] -> PO[0] (predicate)
+    connections[2, 1] = True  # RB[2] -> PO[1] (object)
+    connections[3, 0] = True  # RB[3] -> PO[0] (predicate)
+    
+    return connections
+
+
+@pytest.fixture
+def token_tensor_po(mock_tensor_with_po, mock_connections_with_po, mock_names):
+    """Create a Token_Tensor instance with mock data for PO tests."""
+    from nodes.network.tokens.connections.connections import Connections_Tensor
+    connections_tensor = Connections_Tensor(mock_connections_with_po)
+    return Token_Tensor(mock_tensor_with_po, connections_tensor, mock_names)
+
+
+@pytest.fixture
+def driver_po(token_tensor_po, mock_params):
+    """Create a Driver instance for PO tests."""
+    return Driver(token_tensor_po, mock_params)
+
+
+def test_update_input_po_td_input_from_rbs_with_gain(driver_po):
+    """
+    Test that TD_INPUT is correctly updated from connected RB nodes with gain (2x for predicates, 1x for objects).
+    PO[0] (predicate) is connected to RB[2] (act=0.7) and RB[3] (act=0.8)
+    Expected TD_INPUT for PO[0]: 2 * (0.7 + 0.8) = 3.0 (predicate gets 2x gain)
+    
+    PO[1] (object) is connected to RB[2] (act=0.7)
+    Expected TD_INPUT for PO[1]: 1 * 0.7 = 0.7 (object gets 1x gain)
+    """
+    # Get global indices for PO nodes
+    cache = driver_po.glbl.cache
+    po_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.PO,
+        TF.SET: Set.DRIVER
+    })
+    po_indices = torch.where(po_mask)[0]
+    
+    # Get initial TD_INPUT values
+    initial_td_input = driver_po.glbl.tensor[po_indices, TF.TD_INPUT].clone()
+    
+    # Call the function
+    driver_po.update_input_po()
+    
+    # Get updated TD_INPUT values
+    updated_td_input = driver_po.glbl.tensor[po_indices, TF.TD_INPUT]
+    
+    # Calculate expected values
+    con_tensor = driver_po.glbl.connections.connections
+    parent_cons = torch.transpose(con_tensor, 0, 1)
+    rb_mask = cache.get_type_mask(Type.RB)
+    rb_indices = torch.where(rb_mask)[0]
+    
+    # Get connections from PO to RB
+    cons = parent_cons[po_indices][:, rb_indices].clone().float()
+    # Apply gain: 2x for predicates, 1x for objects
+    pred_mask = driver_po.glbl.tensor[po_indices, TF.PRED] == B.TRUE
+    cons[pred_mask] = cons[pred_mask] * 2
+    
+    # Calculate expected TD_INPUT
+    expected_td_input = torch.matmul(
+        cons,
+        driver_po.glbl.tensor[rb_indices, TF.ACT]
+    )
+    
+    # Verify TD_INPUT was incremented correctly
+    assert torch.allclose(updated_td_input, initial_td_input + expected_td_input, atol=1e-5), \
+        f"TD_INPUT not updated correctly from RBs with gain. Expected increment: {expected_td_input}, Got: {updated_td_input - initial_td_input}"
+
+
+def test_update_input_po_lateral_input_from_shared_pos_dora_mode(driver_po):
+    """
+    Test that LATERAL_INPUT is correctly decremented from POs connected to same RB when as_DORA=True.
+    PO[0] and PO[1] both connect to RB[2], so they share an RB.
+    For PO[0]: LATERAL_INPUT should decrease by 3 * 0.6 = 1.8 (from PO[1])
+    For PO[1]: LATERAL_INPUT should decrease by 3 * 0.5 = 1.5 (from PO[0])
+    """
+    # Set as_DORA to True
+    driver_po.params.as_DORA = True
+    
+    # Get global indices for PO nodes
+    cache = driver_po.glbl.cache
+    po_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.PO,
+        TF.SET: Set.DRIVER
+    })
+    po_indices = torch.where(po_mask)[0]
+    
+    # Set inhibitor_act to 0 to isolate PO contribution
+    driver_po.glbl.tensor[po_indices, TF.INHIBITOR_ACT] = 0.0
+    
+    # Reset lateral input
+    driver_po.glbl.tensor[:, TF.LATERAL_INPUT] = 0.0
+    
+    # Call the function
+    driver_po.update_input_po()
+    
+    # Get updated LATERAL_INPUT values
+    updated_lateral_input = driver_po.glbl.tensor[po_indices, TF.LATERAL_INPUT]
+    
+    # Calculate expected lateral input change
+    con_tensor = driver_po.glbl.connections.connections
+    parent_cons = torch.transpose(con_tensor, 0, 1)
+    rb_mask = cache.get_type_mask(Type.RB)
+    rb_indices = torch.where(rb_mask)[0]
+    
+    # Find shared RBs
+    shared = torch.matmul(
+        parent_cons[po_indices][:, rb_indices].float(),
+        con_tensor[rb_indices][:, po_indices].float()
+    )
+    shared = torch.gt(shared, 0).int()
+    from nodes.utils import tensor_ops as tOps
+    diag_zeroes = tOps.diag_zeros(len(po_indices))
+    shared = torch.bitwise_and(shared.int(), diag_zeroes.int()).float()
+    
+    # In DORA mode, use shared POs
+    po_connections = shared
+    expected_decrement = 3 * torch.matmul(
+        po_connections,
+        driver_po.glbl.tensor[po_indices, TF.ACT]
+    )
+    
+    # Verify LATERAL_INPUT was decremented correctly
+    actual_decrement = -updated_lateral_input  # Since we started at 0
+    assert torch.allclose(actual_decrement, expected_decrement, atol=1e-5), \
+        f"LATERAL_INPUT not updated correctly from shared POs in DORA mode. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
+
+
+def test_update_input_po_lateral_input_from_non_shared_pos_non_dora_mode(driver_po):
+    """
+    Test that LATERAL_INPUT is correctly decremented from POs NOT connected to same RB when as_DORA=False.
+    PO[0] and PO[1] both connect to RB[2], so they share an RB -> should NOT contribute to each other.
+    But PO[0] also connects to RB[3], which PO[1] doesn't connect to.
+    Actually, since they share RB[2], they should NOT contribute to each other's lateral input.
+    """
+    # Set as_DORA to False
+    driver_po.params.as_DORA = False
+    
+    # Get global indices for PO nodes
+    cache = driver_po.glbl.cache
+    po_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.PO,
+        TF.SET: Set.DRIVER
+    })
+    po_indices = torch.where(po_mask)[0]
+    
+    # Set inhibitor_act to 0 to isolate PO contribution
+    driver_po.glbl.tensor[po_indices, TF.INHIBITOR_ACT] = 0.0
+    
+    # Reset lateral input
+    driver_po.glbl.tensor[:, TF.LATERAL_INPUT] = 0.0
+    
+    # Call the function
+    driver_po.update_input_po()
+    
+    # Get updated LATERAL_INPUT values
+    updated_lateral_input = driver_po.glbl.tensor[po_indices, TF.LATERAL_INPUT]
+    
+    # Calculate expected lateral input change
+    con_tensor = driver_po.glbl.connections.connections
+    parent_cons = torch.transpose(con_tensor, 0, 1)
+    rb_mask = cache.get_type_mask(Type.RB)
+    rb_indices = torch.where(rb_mask)[0]
+    
+    # Find shared RBs
+    shared = torch.matmul(
+        parent_cons[po_indices][:, rb_indices].float(),
+        con_tensor[rb_indices][:, po_indices].float()
+    )
+    shared = torch.gt(shared, 0).int()
+    from nodes.utils import tensor_ops as tOps
+    diag_zeroes = tOps.diag_zeros(len(po_indices))
+    shared = torch.bitwise_and(shared.int(), diag_zeroes.int()).float()
+    
+    # In non-DORA mode, use non-shared POs
+    po_connections = 1 - shared
+    expected_decrement = 3 * torch.matmul(
+        po_connections,
+        driver_po.glbl.tensor[po_indices, TF.ACT]
+    )
+    
+    # Verify LATERAL_INPUT was decremented correctly
+    actual_decrement = -updated_lateral_input  # Since we started at 0
+    assert torch.allclose(actual_decrement, expected_decrement, atol=1e-5), \
+        f"LATERAL_INPUT not updated correctly from non-shared POs in non-DORA mode. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
+
+
+def test_update_input_po_lateral_input_from_inhibitor(driver_po):
+    """
+    Test that LATERAL_INPUT is correctly decremented by 10 * inhibitor_act.
+    PO[0] has inhibitor_act=0.1, so LATERAL_INPUT should decrease by 1.0
+    PO[1] has inhibitor_act=0.2, so LATERAL_INPUT should decrease by 2.0
+    """
+    # Get global indices for PO nodes
+    cache = driver_po.glbl.cache
+    po_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.PO,
+        TF.SET: Set.DRIVER
+    })
+    po_indices = torch.where(po_mask)[0]
+    
+    # Reset lateral input to 0 for clean test
+    driver_po.glbl.tensor[:, TF.LATERAL_INPUT] = 0.0
+    
+    # Call the function
+    driver_po.update_input_po()
+    
+    # Get updated LATERAL_INPUT values
+    updated_lateral_input = driver_po.glbl.tensor[po_indices, TF.LATERAL_INPUT]
+    
+    # Calculate expected decrement from inhibitor (10 * inhibitor_act)
+    expected_inhibitor_decrement = 10 * driver_po.glbl.tensor[po_indices, TF.INHIBITOR_ACT]
+    
+    # Also account for other PO contributions (3 * other POs)
+    con_tensor = driver_po.glbl.connections.connections
+    parent_cons = torch.transpose(con_tensor, 0, 1)
+    rb_mask = cache.get_type_mask(Type.RB)
+    rb_indices = torch.where(rb_mask)[0]
+    
+    shared = torch.matmul(
+        parent_cons[po_indices][:, rb_indices].float(),
+        con_tensor[rb_indices][:, po_indices].float()
+    )
+    shared = torch.gt(shared, 0).int()
+    from nodes.utils import tensor_ops as tOps
+    diag_zeroes = tOps.diag_zeros(len(po_indices))
+    shared = torch.bitwise_and(shared.int(), diag_zeroes.int()).float()
+    
+    if driver_po.params.as_DORA:
+        po_connections = shared
+    else:
+        po_connections = 1 - shared
+    
+    other_po_decrement = 3 * torch.matmul(
+        po_connections,
+        driver_po.glbl.tensor[po_indices, TF.ACT]
+    )
+    
+    # Total expected decrement
+    total_expected_decrement = other_po_decrement + expected_inhibitor_decrement
+    
+    # Verify LATERAL_INPUT was decremented correctly
+    actual_decrement = -updated_lateral_input  # Since we started at 0
+    assert torch.allclose(actual_decrement, total_expected_decrement, atol=1e-5), \
+        f"LATERAL_INPUT not updated correctly from inhibitor. Expected total decrement: {total_expected_decrement}, Got: {actual_decrement}"
+
+
+def test_update_input_po_only_affects_driver_set(driver_po):
+    """
+    Test that PO nodes in other sets (e.g., RECIPIENT) are NOT affected.
+    """
+    # Get global index for PO node in RECIPIENT (token 10)
+    recipient_po_global_idx = 10
+    
+    # Get initial input values
+    initial_td_input = driver_po.glbl.tensor[recipient_po_global_idx, TF.TD_INPUT].item()
+    initial_lateral_input = driver_po.glbl.tensor[recipient_po_global_idx, TF.LATERAL_INPUT].item()
+    
+    # Call the function
+    driver_po.update_input_po()
+    
+    # Get updated input values
+    updated_td_input = driver_po.glbl.tensor[recipient_po_global_idx, TF.TD_INPUT].item()
+    updated_lateral_input = driver_po.glbl.tensor[recipient_po_global_idx, TF.LATERAL_INPUT].item()
+    
+    # Verify RECIPIENT PO node inputs were NOT changed
+    assert updated_td_input == initial_td_input, "TD_INPUT should not change for PO nodes in other sets"
+    assert updated_lateral_input == initial_lateral_input, "LATERAL_INPUT should not change for PO nodes in other sets"
+
+
+def test_update_input_po_increments_not_overwrites(driver_po):
+    """
+    Test that update_input_po increments input values rather than overwriting them.
+    """
+    # Set initial TD_INPUT values for PO nodes
+    cache = driver_po.glbl.cache
+    po_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.PO,
+        TF.SET: Set.DRIVER
+    })
+    po_indices = torch.where(po_mask)[0]
+    
+    # Set initial values
+    initial_td = torch.tensor([1.0, 2.0])  # Different initial values
+    driver_po.glbl.tensor[po_indices, TF.TD_INPUT] = initial_td
+    
+    # Call the function
+    driver_po.update_input_po()
+    
+    # Get updated values
+    updated_td = driver_po.glbl.tensor[po_indices, TF.TD_INPUT]
+    
+    # Verify values were incremented (not overwritten)
+    assert torch.all(updated_td > initial_td), "TD_INPUT should be incremented, not overwritten"
+
+
+def test_update_input_po_no_pos_no_error(driver_po):
+    """
+    Test that update_input_po handles the case where there are no PO nodes gracefully.
+    """
+    # Set all PO nodes to a different type
+    cache = driver_po.glbl.cache
+    po_mask = cache.get_arbitrary_mask({
+        TF.TYPE: Type.PO,
+        TF.SET: Set.DRIVER
+    })
+    po_indices = torch.where(po_mask)[0]
+    driver_po.glbl.tensor[po_indices, TF.TYPE] = Type.RB
+    
+    # This should not raise an error
+    try:
+        driver_po.update_input_po()
+    except Exception as e:
+        pytest.fail(f"update_input_po raised an exception when no PO nodes exist: {e}")
+

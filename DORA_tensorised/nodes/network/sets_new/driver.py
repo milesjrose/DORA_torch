@@ -170,3 +170,93 @@ class Driver(Base_Set):
                     result = result.unsqueeze(0)
                 nodes[p, TF.LATERAL_INPUT] -= result
    
+    def update_input_rb(self):                                      # update RB inputs - driver:
+        """Update input in driver for RB units"""
+        # Exitatory: td (my parent P), bu (my PO and child P).
+        # Inhibitory: lateral (other RBs*3), inhibitor.
+        cache = self.glbl.cache
+        con_tensor = self.glbl.connections.connections
+        nodes = self.glbl.tensor
+        # 1). get masks
+        rb = cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.DRIVER})
+        po = cache.get_type_mask(Type.PO)
+        p = cache.get_type_mask(Type.P)
+
+        # Exitatory input:
+        if not torch.any(rb): return;
+        # 2). TD_INPUT: my_parent_p
+        t_con = torch.transpose(con_tensor, 0 , 1)   # Connnections: Parent -> child, take transpose to get list of parents instead
+        nodes[rb, TF.TD_INPUT] += torch.matmul(      # matmul outputs martix (sum(rb) x 1) of values to add to current input value
+            t_con[rb][:, p].float(),                 # Masks connections between rb[i] and its ps
+            nodes[p, TF.ACT]                         # For each rb node -> sum of act of connected p nodes
+            )
+        # 3). BU_INPUT: my_po, my_child_p           # NOTE: Old function explicitly took myPred[0].act etc. as there should only be one pred/child/etc. This version sums all connections, so if rb mistakenly connected to multiple of a node type it will not give expected output.
+        po_p = torch.bitwise_or(po, p)              # Get mask of both pos and ps
+        nodes[rb, TF.BU_INPUT] += torch.matmul(     # matmul outputs martix (sum(rb) x 1) of values to add to current input value
+            con_tensor[rb][:, po_p].float(),        # Masks connections between rb[i] and its po and child p nodes
+            nodes[po_p, TF.ACT]                     # For each rb node -> sum of act of connected po and child p nodes
+            )
+        
+        # Inhibitory input: NOTE: Inhibitory input only comes from local nodes.
+        # 4). LATERAL: (other RBs*3), inhibitor*10
+        # 4a). (other RBs*3)
+        diag_zeroes = tOps.diag_zeros(sum(rb))      # Connects each rb to every other rb, but not themself
+        nodes[rb, TF.LATERAL_INPUT] -= torch.mul(
+            3, 
+            torch.matmul(                 # matmul outputs martix (sum(rb) x 1) of values to add to current input value
+                diag_zeroes,              # Masks connections between rb[i] and its po and child p nodes
+                nodes[rb, TF.ACT]         # For each rb node -> sum of act of connected po and child p nodes
+            )
+        )
+        # 4b). ihibitior * 10
+        inhib_act = torch.mul(10, nodes[rb, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
+        nodes[rb, TF.LATERAL_INPUT] -= inhib_act               # Update lat input
+    
+    def update_input_po(self): 
+        """Update input in driver for PO units"""
+        as_DORA = self.params.as_DORA
+        # Exitatory: td (my RB) * gain (2 for preds, 1 for objects).
+        # Inhibitory: lateral (other POs not connected to my RB and Ps in child mode, if in DORA mode, then other PO connected to my RB), inhibitor.
+        cache = self.glbl.cache
+        con_tensor = self.glbl.connections.connections
+        nodes = self.glbl.tensor
+        # 1). get masks
+        po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.DRIVER})
+        if not torch.any(po): return;
+        rb = cache.get_type_mask(Type.RB)
+        pred_sub = (nodes[po, TF.PRED] == B.TRUE)        # predicate sub mask of po nodes
+        parent_cons = torch.transpose(con_tensor, 0 , 1) # Transpose of connections matrix, so that index by child node (PO) to parent (RB)
+
+        # Exitatory input:
+        # 2). TD_INPUT: my_rb * gain(pred:2, obj:1)
+        cons = parent_cons[po][:, rb].clone().float()   # get copy of connections matrix from po to rb (child to parent connection)
+        cons[pred_sub] = cons[pred_sub] * 2             # multipy predicate -> rb connections by 2
+        nodes[po, TF.TD_INPUT] += torch.matmul(         # matmul outputs martix (sum(po) x 1) of values to add to current input value
+            cons,                                       # Masks connections between po[i] and its rbs
+            nodes[rb, TF.ACT]                           # For each po node -> sum of act of connected rb nodes (multiplied by 2 for predicates)
+            )
+        
+        # Inhibitory input:
+        # 3). LATERAL: 3 * (if DORA_mode: PO connected to same rb / Else: POs not connected to same RBs)
+        # 3a). find other PO connected to same RB     
+        shared = torch.matmul(                     # PxObject tensor, shared[i][j] > 1 if Po[i] and Po[j] share an RB, 0 o.w
+            parent_cons[po][:, rb].float(),
+            con_tensor[rb][:, po].float()
+            ) 
+        shared = torch.gt(shared, 0).int()         # now shared[i][j] = 1 if p[i] and object[j] share an RB, 0 o.w
+        diag_zeroes = tOps.diag_zeros(sum(po))     # (po x po) matrix: 0 for po[i] -> po[i] connections, 1 o.w
+        shared = torch.bitwise_and(shared.int(), diag_zeroes.int()).float() # remove po[i] -> po[i] connections
+        # 3ai). if DORA: Other po connected to same rb / else: POs not connected to same RBs
+        if as_DORA: # PO connected to same rb
+            po_connections = shared                # shared PO
+        else:       # POs not connected to same RBs
+            po_connections = 1 - shared            # non shared PO: mask[i][j] = 0 if p[i] and object[j] share an RB, 1 o.w
+        # 3aii). updaet lat input: 3 * (filtered nodes connected in po_connections)
+        nodes[po, TF.LATERAL_INPUT] -= 3 * torch.matmul(
+            po_connections.float(),
+            nodes[po, TF.ACT]
+        )
+        # 4b). ihibitior * 10
+        inhib_act = torch.mul(10, nodes[po, TF.INHIBITOR_ACT])  # Get inhibitor act * 10
+        nodes[po, TF.LATERAL_INPUT] -= inhib_act                # Update lat input
+    # --------------------------------------------------------------
