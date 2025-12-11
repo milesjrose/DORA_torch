@@ -4,7 +4,7 @@
 import pytest
 import torch
 from nodes.network.tokens.connections.mapping import Mapping, MD
-from nodes.enums import MappingFields
+from nodes.enums import MappingFields, Set
 
 
 @pytest.fixture
@@ -311,6 +311,242 @@ def test_mapping_get_max_map_empty():
     with pytest.raises(IndexError):
         max_recipient, max_driver = mapping.get_max_map()
 
+
+# =====================[ get_single_max_map tests ]======================
+
+def test_get_single_max_map_recipient_basic(mapping):
+    """Test get_single_max_map for RECIPIENT set with basic values."""
+    # Recipient 0: weights are [0.8, 0.9, 0.7, 0.0], max is 0.9
+    max_map = mapping.get_single_max_map(idx=0, from_set=Set.RECIPIENT)
+    assert max_map == pytest.approx(0.9, abs=1e-6)
+    assert isinstance(max_map, float)
+    
+    # Recipient 1: weights are [0.6, 0.5, 0.0, 0.0], max is 0.6
+    max_map = mapping.get_single_max_map(idx=1, from_set=Set.RECIPIENT)
+    assert max_map == pytest.approx(0.6, abs=1e-6)
+    
+    # Recipient 2: weights are [0.95, 0.0, 0.85, 0.0], max is 0.95
+    max_map = mapping.get_single_max_map(idx=2, from_set=Set.RECIPIENT)
+    assert max_map == pytest.approx(0.95, abs=1e-6)
+
+
+def test_get_single_max_map_driver_basic(mapping):
+    """Test get_single_max_map for DRIVER set with basic values."""
+    # Driver 0: weights are [0.8, 0.6, 0.95, 0.0, 0.0], max is 0.95
+    max_map = mapping.get_single_max_map(idx=0, from_set=Set.DRIVER)
+    assert max_map == pytest.approx(0.95, abs=1e-6)
+    assert isinstance(max_map, float)
+    
+    # Driver 1: weights are [0.9, 0.5, 0.0, 0.0, 0.0], max is 0.9
+    max_map = mapping.get_single_max_map(idx=1, from_set=Set.DRIVER)
+    assert max_map == pytest.approx(0.9, abs=1e-6)
+    
+    # Driver 2: weights are [0.7, 0.0, 0.85, 0.0, 0.0], max is 0.85
+    max_map = mapping.get_single_max_map(idx=2, from_set=Set.DRIVER)
+    assert max_map == pytest.approx(0.85, abs=1e-6)
+
+
+def test_get_single_max_map_consistency_with_get_max_map(mapping):
+    """Test that get_single_max_map returns same values as get_max_map."""
+    max_recipient, max_driver = mapping.get_max_map()
+    
+    # Check consistency for recipients
+    for idx in range(mapping.size(MD.REC)):
+        single_max = mapping.get_single_max_map(idx=idx, from_set=Set.RECIPIENT)
+        assert single_max == pytest.approx(max_recipient.values[idx].item(), abs=1e-6)
+    
+    # Check consistency for drivers
+    for idx in range(mapping.size(MD.DRI)):
+        single_max = mapping.get_single_max_map(idx=idx, from_set=Set.DRIVER)
+        assert single_max == pytest.approx(max_driver.values[idx].item(), abs=1e-6)
+
+
+def test_get_single_max_map_recipient_all_zeros(mapping):
+    """Test get_single_max_map for RECIPIENT when row is all zeros."""
+    # Set recipient 3 to all zeros
+    mapping[MappingFields.WEIGHT][3, :] = 0.0
+    
+    max_map = mapping.get_single_max_map(idx=3, from_set=Set.RECIPIENT)
+    assert max_map == 0.0
+
+
+def test_get_single_max_map_driver_all_zeros(mapping):
+    """Test get_single_max_map for DRIVER when column is all zeros."""
+    # Set driver 3 to all zeros
+    mapping[MappingFields.WEIGHT][:, 3] = 0.0
+    
+    max_map = mapping.get_single_max_map(idx=3, from_set=Set.DRIVER)
+    assert max_map == 0.0
+
+
+def test_get_single_max_map_recipient_single_value(mapping):
+    """Test get_single_max_map for RECIPIENT with single non-zero value."""
+    # Set recipient 4 to have only one non-zero value
+    mapping[MappingFields.WEIGHT][4, :] = 0.0
+    mapping[MappingFields.WEIGHT][4, 2] = 0.75
+    
+    max_map = mapping.get_single_max_map(idx=4, from_set=Set.RECIPIENT)
+    assert max_map == pytest.approx(0.75, abs=1e-6)
+
+
+def test_get_single_max_map_driver_single_value(mapping):
+    """Test get_single_max_map for DRIVER with single non-zero value."""
+    # Set driver 3 to have only one non-zero value
+    mapping[MappingFields.WEIGHT][:, 3] = 0.0
+    mapping[MappingFields.WEIGHT][2, 3] = 0.65
+    
+    max_map = mapping.get_single_max_map(idx=3, from_set=Set.DRIVER)
+    assert max_map == pytest.approx(0.65, abs=1e-6)
+
+
+def test_get_single_max_map_recipient_ties(mapping):
+    """Test get_single_max_map for RECIPIENT when there are ties."""
+    # Set recipient 3 to have multiple equal max values
+    mapping[MappingFields.WEIGHT][3, 0] = 0.8
+    mapping[MappingFields.WEIGHT][3, 1] = 0.8  # Tie
+    mapping[MappingFields.WEIGHT][3, 2] = 0.7
+    
+    max_map = mapping.get_single_max_map(idx=3, from_set=Set.RECIPIENT)
+    # Should return the max value (0.8), even if there are ties
+    assert max_map == pytest.approx(0.8, abs=1e-6)
+
+
+def test_get_single_max_map_driver_ties(mapping):
+    """Test get_single_max_map for DRIVER when there are ties."""
+    # Set driver 3 to have multiple equal max values
+    mapping[MappingFields.WEIGHT][0, 3] = 0.7
+    mapping[MappingFields.WEIGHT][1, 3] = 0.7  # Tie
+    mapping[MappingFields.WEIGHT][2, 3] = 0.6
+    
+    max_map = mapping.get_single_max_map(idx=3, from_set=Set.DRIVER)
+    # Should return the max value (0.7), even if there are ties
+    assert max_map == pytest.approx(0.7, abs=1e-6)
+
+
+def test_get_single_max_map_invalid_from_set(mapping):
+    """Test get_single_max_map raises ValueError for invalid from_set."""
+    with pytest.raises(ValueError, match="Invalid from_set"):
+        mapping.get_single_max_map(idx=0, from_set=Set.MEMORY)
+    
+    with pytest.raises(ValueError, match="Invalid from_set"):
+        mapping.get_single_max_map(idx=0, from_set=Set.NEW_SET)
+
+
+def test_get_single_max_map_boundary_indices(mapping):
+    """Test get_single_max_map with boundary indices."""
+    # Test first recipient
+    max_map = mapping.get_single_max_map(idx=0, from_set=Set.RECIPIENT)
+    assert max_map == pytest.approx(0.9, abs=1e-6)
+    
+    # Test last recipient
+    max_map = mapping.get_single_max_map(idx=4, from_set=Set.RECIPIENT)
+    assert max_map == 0.0  # All zeros in mock data
+    
+    # Test first driver
+    max_map = mapping.get_single_max_map(idx=0, from_set=Set.DRIVER)
+    assert max_map == pytest.approx(0.95, abs=1e-6)
+    
+    # Test last driver
+    max_map = mapping.get_single_max_map(idx=3, from_set=Set.DRIVER)
+    assert max_map == 0.0  # All zeros in mock data
+
+
+def test_get_single_max_map_all_zeros_mapping():
+    """Test get_single_max_map when entire mapping is zeros."""
+    tensor = torch.zeros((5, 4, len(MappingFields)))
+    mapping = Mapping(tensor)
+    
+    # All should return 0.0
+    for idx in range(5):
+        max_map = mapping.get_single_max_map(idx=idx, from_set=Set.RECIPIENT)
+        assert max_map == 0.0
+    
+    for idx in range(4):
+        max_map = mapping.get_single_max_map(idx=idx, from_set=Set.DRIVER)
+        assert max_map == 0.0
+
+
+def test_get_single_max_map_single_recipient():
+    """Test get_single_max_map with single recipient."""
+    tensor = torch.zeros((1, 4, len(MappingFields)))
+    tensor[0, 0, MappingFields.WEIGHT] = 0.8
+    tensor[0, 1, MappingFields.WEIGHT] = 0.9
+    tensor[0, 2, MappingFields.WEIGHT] = 0.7
+    
+    mapping = Mapping(tensor)
+    max_map = mapping.get_single_max_map(idx=0, from_set=Set.RECIPIENT)
+    assert max_map == pytest.approx(0.9, abs=1e-6)
+
+
+def test_get_single_max_map_single_driver():
+    """Test get_single_max_map with single driver."""
+    tensor = torch.zeros((5, 1, len(MappingFields)))
+    tensor[0, 0, MappingFields.WEIGHT] = 0.8
+    tensor[1, 0, MappingFields.WEIGHT] = 0.9
+    tensor[2, 0, MappingFields.WEIGHT] = 0.7
+    
+    mapping = Mapping(tensor)
+    max_map = mapping.get_single_max_map(idx=0, from_set=Set.DRIVER)
+    assert max_map == pytest.approx(0.9, abs=1e-6)
+
+
+def test_get_single_max_map_negative_values(mapping):
+    """Test get_single_max_map handles negative values correctly."""
+    # Set entire row to negative weights (though unlikely in practice)
+    mapping[MappingFields.WEIGHT][0, :] = torch.tensor([-0.5, -0.3, -0.1, -0.2])
+    
+    max_map = mapping.get_single_max_map(idx=0, from_set=Set.RECIPIENT)
+    # Should return the maximum (least negative)
+    assert max_map == pytest.approx(-0.1, abs=1e-6)
+
+
+def test_get_single_max_map_after_weight_update(mapping):
+    """Test get_single_max_map after updating weights."""
+    # Set initial weights
+    mapping[MappingFields.WEIGHT][0, :] = torch.tensor([0.1, 0.2, 0.3, 0.4])
+    initial_max = mapping.get_single_max_map(idx=0, from_set=Set.RECIPIENT)
+    assert initial_max == pytest.approx(0.4, abs=1e-6)
+    
+    # Update weights
+    mapping[MappingFields.WEIGHT][0, :] = torch.tensor([0.5, 0.6, 0.7, 0.8])
+    updated_max = mapping.get_single_max_map(idx=0, from_set=Set.RECIPIENT)
+    assert updated_max == pytest.approx(0.8, abs=1e-6)
+
+
+def test_get_single_max_map_recipient_vs_driver_different(mapping):
+    """Test that get_single_max_map can return different values for same index."""
+    # Set up asymmetric weights - set column first, then override specific value
+    mapping[MappingFields.WEIGHT][:, 0] = 0.1  # Column 0 has low weights
+    mapping[MappingFields.WEIGHT][0, 0] = 0.9  # But [0, 0] has high weight
+    
+    # Recipient 0 max (along driver dimension) - should find 0.9
+    recipient_max = mapping.get_single_max_map(idx=0, from_set=Set.RECIPIENT)
+    
+    # Driver 0 max (along recipient dimension) - should find 0.9 (from [0, 0])
+    driver_max = mapping.get_single_max_map(idx=0, from_set=Set.DRIVER)
+    
+    # Recipient 0 should see 0.9 as max
+    assert recipient_max == pytest.approx(0.9, abs=1e-6)
+    # Driver 0 should also see 0.9 as max (from position [0, 0])
+    assert driver_max == pytest.approx(0.9, abs=1e-6)
+
+
+def test_get_single_max_map_empty_recipient_dimension():
+    """Test get_single_max_map raises error with empty recipient dimension."""
+    tensor = torch.zeros((0, 4, len(MappingFields)))
+    mapping = Mapping(tensor)
+    
+    with pytest.raises(IndexError):
+        mapping.get_single_max_map(idx=0, from_set=Set.RECIPIENT)
+
+
+def test_get_single_max_map_empty_driver_dimension():
+    """Test get_single_max_map raises error with empty driver dimension."""
+    tensor = torch.zeros((5, 0, len(MappingFields)))
+    mapping = Mapping(tensor)
+    
+    with pytest.raises(IndexError):
+        mapping.get_single_max_map(idx=0, from_set=Set.DRIVER)
 
 def test_mapping_size_all_dimensions(mapping):
     """Test size method for all dimensions."""

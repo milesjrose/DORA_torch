@@ -7,8 +7,8 @@ class New_Set(Base_Set):
     """
     A class for representing a new set of tokens.
     """
-    def __init__(self, tokens: Token_Tensor, token_set: Set, params: Params):
-        super().__init__(tokens, token_set, params)
+    def __init__(self, tokens: Token_Tensor, params: Params):
+        super().__init__(tokens, Set.NEW_SET, params)
         
     def update_input(self):
         """ Update the input of the new set.

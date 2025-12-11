@@ -11,8 +11,8 @@ class Memory(Base_Set):
     """
     A class for representing a memory of tokens.
     """
-    def __init__(self, tokens: Token_Tensor, token_set: Set, params: Params):
-        super().__init__(tokens, token_set, params)
+    def __init__(self, tokens: Token_Tensor, params: Params):
+        super().__init__(tokens, Set.MEMORY, params)
         
     def update_input(self, semantics: Semantics, links: Links):
         """
