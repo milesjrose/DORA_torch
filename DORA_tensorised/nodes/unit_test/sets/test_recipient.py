@@ -126,7 +126,7 @@ def token_tensor_recipient(mock_tensor_with_parent_p_recipient, mock_connections
 @pytest.fixture
 def recipient(token_tensor_recipient, mock_params):
     """Create a Recipient instance."""
-    recipient_obj = Recipient(token_tensor_recipient, mock_params)
+    recipient_obj = Recipient(token_tensor_recipient, mock_params, mappings=None)
     # Mock map_input to return zeros for now (since it requires mappings)
     recipient_obj.map_input = lambda p: torch.zeros(torch.sum(p).item() if torch.any(p) else 0)
     return recipient_obj
@@ -609,7 +609,7 @@ def token_tensor_child_p_recipient(mock_tensor_with_child_p_recipient, mock_conn
 @pytest.fixture
 def recipient_child_p(token_tensor_child_p_recipient, mock_params):
     """Create a Recipient instance for child P tests."""
-    recipient_obj = Recipient(token_tensor_child_p_recipient, mock_params)
+    recipient_obj = Recipient(token_tensor_child_p_recipient, mock_params, mappings=None)
     # Mock map_input to return zeros for now (since it requires mappings)
     recipient_obj.map_input = lambda p: torch.zeros(torch.sum(p).item() if torch.any(p) else 0)
     return recipient_obj
@@ -1029,7 +1029,7 @@ def token_tensor_rb_recipient(mock_tensor_with_rb_recipient, mock_connections_wi
 @pytest.fixture
 def recipient_rb(token_tensor_rb_recipient, mock_params):
     """Create a Recipient instance for RB tests."""
-    recipient_obj = Recipient(token_tensor_rb_recipient, mock_params)
+    recipient_obj = Recipient(token_tensor_rb_recipient, mock_params, mappings=None)
     # Mock map_input to return zeros for now (since it requires mappings)
     recipient_obj.map_input = lambda rb: torch.zeros(torch.sum(rb).item() if torch.any(rb) else 0)
     return recipient_obj
@@ -1466,7 +1466,7 @@ def token_tensor_po_recipient(mock_tensor_with_po_recipient, mock_connections_wi
 @pytest.fixture
 def recipient_po(token_tensor_po_recipient, mock_params):
     """Create a Recipient instance for PO tests."""
-    recipient_obj = Recipient(token_tensor_po_recipient, mock_params)
+    recipient_obj = Recipient(token_tensor_po_recipient, mock_params, mappings=None)
     # Mock map_input to return zeros for now (since it requires mappings)
     recipient_obj.map_input = lambda po: torch.zeros(torch.sum(po).item() if torch.any(po) else 0)
     return recipient_obj

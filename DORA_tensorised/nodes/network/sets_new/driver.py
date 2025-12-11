@@ -6,20 +6,25 @@ logger = getLogger(__name__)
 from ..tokens.tensor.token_tensor import Token_Tensor
 from ..network_params import Params
 from ...utils import tensor_ops as tOps
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..tokens.connections.mapping import Mapping
 
 class Driver(Base_Set):
     """
     A class for representing the driver set of tokens.
     """
-    def __init__(self, tokens: Token_Tensor, params: Params):
-        super().__init__(tokens, Set.DRIVER, params)
+    def __init__(self, tokens: Token_Tensor, params: Params, mappings: 'Mapping'):
         """
         Initialize the Driver object.
         Args:
             tokens: Token_Tensor - The tokens in the driver set.
-            mappings: Mappings - The mappings object for the driver set.
             params: Params - The parameters for the driver set.
+            mappings: Mapping - The mappings object for the driver set.
         """
+        super().__init__(tokens, Set.DRIVER, params)
+        self.mappings: 'Mapping' = mappings
+
     
     def check_local_inhibitor(self):
         """

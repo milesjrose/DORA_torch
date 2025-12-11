@@ -6,19 +6,24 @@ from ..tokens.connections.links import Links
 from .semantics import Semantics
 from ..network_params import Params
 from ...utils import tensor_ops as tOps
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..tokens.connections.mapping import Mapping
 
 class Recipient(Base_Set):
     """
     A class for representing the recipient set of tokens.
     """
-    def __init__(self, tokens: Token_Tensor, params: Params):
+    def __init__(self, tokens: Token_Tensor, params: Params, mappings: 'Mapping'):
         """
         Initialise a Recipient object
         Args:
             tokens: Token_Tensor - Global token tensor.
             params: Params - The parameters for the recipient set.
+            mappings: Mapping - The mappings object for the recipient set.
         """
         super().__init__(tokens, Set.RECIPIENT, params)
+        self.mappings: 'Mapping' = mappings
     
     def update_input(self, semantics: Semantics, links: Links):
         """

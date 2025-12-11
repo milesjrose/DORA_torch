@@ -125,7 +125,7 @@ def token_tensor(mock_tensor_with_parent_p, mock_connections_with_parent_p, mock
 @pytest.fixture
 def driver(token_tensor, mock_params):
     """Create a Driver instance."""
-    return Driver(token_tensor, mock_params)
+    return Driver(token_tensor, mock_params, mappings=None)
 
 
 # =====================[ update_input_p_parent tests ]======================
@@ -497,7 +497,7 @@ def token_tensor_child_p(mock_tensor_with_child_p, mock_connections_with_child_p
 @pytest.fixture
 def driver_child_p(token_tensor_child_p, mock_params):
     """Create a Driver instance for child P tests."""
-    return Driver(token_tensor_child_p, mock_params)
+    return Driver(token_tensor_child_p, mock_params, mappings=None)
 
 
 def test_update_input_p_child_td_input_from_groups(driver_child_p):
@@ -964,7 +964,7 @@ def token_tensor_rb(mock_tensor_with_rb, mock_connections_with_rb, mock_names):
 @pytest.fixture
 def driver_rb(token_tensor_rb, mock_params):
     """Create a Driver instance for RB tests."""
-    return Driver(token_tensor_rb, mock_params)
+    return Driver(token_tensor_rb, mock_params, mappings=None)
 
 
 def test_update_input_rb_td_input_from_parent_ps(driver_rb):
@@ -1301,7 +1301,7 @@ def token_tensor_po(mock_tensor_with_po, mock_connections_with_po, mock_names):
 @pytest.fixture
 def driver_po(token_tensor_po, mock_params):
     """Create a Driver instance for PO tests."""
-    return Driver(token_tensor_po, mock_params)
+    return Driver(token_tensor_po, mock_params, mappings=None)
 
 
 def test_update_input_po_td_input_from_rbs_with_gain(driver_po):
