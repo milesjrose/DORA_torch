@@ -5,6 +5,11 @@ from logging import getLogger
 from ..tensor_view import TensorView
 logger = getLogger(__name__)
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ...network_params import Params
+    from ...network import Network
+
 class LD(IntEnum):
     """
     Enum to access link dimension, i.e links[set].shape[LD.SEMANTICS]
@@ -26,6 +31,24 @@ class Links:
         """
         self.adj_matrix: torch.Tensor = links
         """ Tensor of links between tokens and semantics. Tensor shape: [tokens, semantics]"""
+        self.params: 'Params' = None
+        self.network: 'Network' = None
+    
+    def set_params(self, params: 'Params'):
+        """
+        Set the parameters for the links object.
+        Args:
+            params: 'Params' - The parameters for the links object.
+        """
+        self.params: 'Params' = params
+    
+    def set_network(self, network: 'Network'):
+        """
+        Set the network for the links object.
+        Args:
+            network: 'Network' - The network for the links object.
+        """
+        self.network: 'Network' = network
     
     def get_count(self, dimension: LD) -> int:
         """
