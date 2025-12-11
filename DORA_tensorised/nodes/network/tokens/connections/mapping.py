@@ -6,6 +6,11 @@ from logging import getLogger
 from ..tensor_view import TensorView
 logger = getLogger(__name__)
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ...sets_new.driver import Driver
+    from ...sets_new.recipient import Recipient
+
 class MD(IntEnum):
     """
     Enum to access mapping dimension, i.e mappings.shape[MD.DRIVER]
@@ -31,6 +36,8 @@ class Mapping:
         assert len(adj_matrix.shape) == 3, "Mapping tensor must have 3 dimensions"
         assert adj_matrix.shape[2] == len(MappingFields), f"Mapping tensor must have {len(MappingFields)} fields in the third dimension"
         self.adj_matrix: torch.Tensor = adj_matrix
+        self.driver = None
+        self.recipient = None
     
     # ===================[ Getters and setters ]====================
     def size(self, dim):
@@ -57,6 +64,40 @@ class Mapping:
         max_recipient: torch.return_types.max = self[MappingFields.WEIGHT].max(dim=MD.DRI)
         max_driver: torch.return_types.max = self[MappingFields.WEIGHT].max(dim=MD.REC)
         return max_recipient, max_driver
+    
+    def get_single_max_map(self, idx: int, from_set: Set) -> float:
+        """
+        Get the maximum mapping weight for a token at the given index.
+
+        Args:
+            idx: int - The index of the token to get the maximum map for.
+            from_set: Set - The set of the token.
+        Returns:
+            float: The maximum mapping weight for the token.
+        """
+        if from_set == Set.DRIVER:
+            max_map, _ = torch.max(self[MappingFields.WEIGHT][:, idx], dim=0)
+        elif from_set == Set.RECIPIENT:
+            max_map, _ = torch.max(self[MappingFields.WEIGHT][idx, :], dim=0)
+        else:
+            raise ValueError(f"Invalid from_set: {from_set}")
+        return max_map.item()
+    
+    def set_driver(self, driver: 'Driver'):
+        """
+        Set the driver for the mapping.
+        Args:
+            driver: Driver - The driver for the mapping.
+        """
+        self.driver = driver
+    
+    def set_recipient(self, recipient: 'Recipient'):
+        """
+        Set the recipient for the mapping.
+        Args:
+            recipient: Recipient - The recipient for the mapping.
+        """
+        self.recipient = recipient
     
     # =====================[ Reset functions ]======================
     def reset_hypotheses(self):
