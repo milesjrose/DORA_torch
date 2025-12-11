@@ -5,20 +5,20 @@ logger = logging.getLogger(__name__)
 
 from ..enums import *
 
-from .sets import Driver, Recipient, Memory, New_Set, Semantics, Base_Set
-from .connections import Mappings, Links
 from .network_params import Params, load_from_json
-from .single_nodes import Token, Semantic
-from .single_nodes import Ref_Token, Ref_Semantic
 from .operations import TensorOperations, UpdateOperations, MappingOperations, FiringOperations, AnalogOperations, EntropyOperations, NodeOperations, InhibitorOperations
 from .routines import Routines
 import torch
+
+# new imports
+from .tokens import Tokens, Mapping, Links, Token_Tensor
+from .sets_new import Driver, Recipient, Memory, New_Set, Semantics, Base_Set
 
 class Network(object):
     """
     A class for holding set objects and operations.
     """
-    def __init__(self, dict_sets: dict[Set, Base_Set], semantics: Semantics, mappings: Mappings, links: Links, params: Params = None):
+    def __init__(self, tokens: Tokens, semantics: Semantics, mappings: Mapping, links: Links, params: Params = None):
         """
         Initialize the Network object. Checks types; sets inter-set connections and params.
 
@@ -30,67 +30,47 @@ class Network(object):
             params (Params): The parameters object.
         """
         # Check types
-        if not isinstance(dict_sets, dict):
-            raise ValueError("dict_sets must be a dictionary.")
         if not isinstance(semantics, Semantics):
             raise ValueError("semantics must be a Semantics object.")
-        if not isinstance(mappings, Mappings):
+        if not isinstance(mappings, Mapping):
             raise ValueError("mappings must be a Mapping object.")
         if not isinstance(links, Links):
             raise ValueError("links must be a Links object.")
         if not isinstance(params, Params):
             raise ValueError("params must be a Params object.")
-
         # set objects
+        self.tokens: Tokens = tokens
+        """ Tokens object for the network. """
+        self.token_tensor: Token_Tensor = tokens.token_tensor
+        """ Token tensor object for the network. """
         self.semantics: Semantics = semantics
         """ Semantics object for the network. """
-        self.sets: dict[Set, Base_Set] = dict_sets
-        """ Dictionary of set objects for the network. """
         self.params: Params = params
         """ Parameters object for the network. """
-
-        # add links, params, and mappings to each set
-        try:
-            self.sets[Set.RECIPIENT].mappings = mappings
-        except:
-            if set in MAPPING_SETS:
-                raise ValueError(f"Error setting mappings for {set}")
-        for set in Set:
-            try:
-                self.sets[set].links = links
-            except:
-                raise ValueError(f"Error setting links for {set}")
-            try:
-                self.sets[set].params = params
-            except:
-                raise ValueError(f"Error setting params for {set}")
-
-        self.semantics.links = links
-        # inter-set connections
-        # TODO: Only need mapping tensor for recipient set -> remove others.
-        self.mappings: dict[Set, Mappings] = mappings
-            # Set the map_from attribute for each mapping
-        self.mappings.set_map_from(self.sets[Set.RECIPIENT])
-        # Set the mapping object for driver // TODO: Assign this in driver object init, need to update builder
-        self.sets[Set.DRIVER].set_mappings(self.mappings)
-        """ Dictionary of mappings for each set. 
-            - Mappings gives recicient's mappings to driver
-            - Mapping tensor shape: [recipient_nodes, driver_nodes]
-        """
+        self.mappings: Mapping = mappings
+        """ Mappings object for the network. """
         self.links: Links = links
         """ Links object for the network. 
             - Links[set] gives set's links to semantics
             - Link tensor shape: [nodes, semantics]
         """
+        self.sets: dict[Set, Base_Set] = {
+            Set.DRIVER: Driver(self.token_tensor, self.params, self.mappings),
+            Set.RECIPIENT: Recipient(self.token_tensor, self.params, self.mappings),
+            Set.MEMORY: Memory(self.token_tensor, self.params),
+            Set.NEW_SET: New_Set(self.token_tensor, self.params)
+        }
+        """ Dictionary of set objects for the network. """
 
-        # inhibitors
+        # Setup sets and semantics
+        self.setup_sets_and_semantics()
+
+        # Initialise inhibitors
         self.local_inhibitor = 0.0
         self.global_inhibitor = 0.0
         
-        # routines
+        # Operations and routines
         self.routines: Routines = Routines(self)
-        """ Routines object for the network. """
-
         self.tensor_ops: TensorOperations = TensorOperations(self)
         self.update_ops: UpdateOperations = UpdateOperations(self)
         self.mapping_ops: MappingOperations = MappingOperations(self)
@@ -99,7 +79,6 @@ class Network(object):
         self.entropy_ops: EntropyOperations = EntropyOperations(self)
         self.node_ops: NodeOperations = NodeOperations(self)
         self.inhibitor_ops: InhibitorOperations = InhibitorOperations(self)
-
         self._promoted_components = [
             self.tensor_ops, 
             self.update_ops, 
@@ -110,23 +89,18 @@ class Network(object):
             self.node_ops, 
             self.inhibitor_ops
             ]
-        
-        # set params for lower objects
-        self.set_params(params)
-        # TODO move the get_index call out of the links object
-        links.set_network(self)
-        # Initialise SDMs
-        self.semantics.init_sdm()
-        
     
     def __getattr__(self, name):
         # Only search through the designated "promoted" components
+        # Check if _promoted_components exists to avoid recursion during initialization
+        if not hasattr(self, '_promoted_components'):
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        
         for component in self._promoted_components:
             if hasattr(component, name):
                 return getattr(component, name)
         
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """
@@ -138,6 +112,26 @@ class Network(object):
         self.semantics.params = params
         self.links.set_params(params) # Set params for links
     
+    def setup_sets_and_semantics(self):
+        """Setup the sets and semantics for the network."""
+        # Setup mapping 
+        self.mappings.set_driver(self.sets[Set.DRIVER])
+        self.mappings.set_recipient(self.sets[Set.RECIPIENT])
+        # Add links and params to each set
+        for set in Set:
+            try:
+                self.sets[set].links = self.links
+            except:
+                raise ValueError(f"Error setting links for {set}")
+        # Add links to semantics
+        self.semantics.links = self.links
+        self.set_params(self.params)
+        # Set network for links
+        # TODO move the get_index call out of the links object
+        self.links.set_network(self)
+        # Initialise SDMs
+        self.semantics.init_sdm()
+
     def load_json_params(self, file_path: str):
         """
         Load parameters from a JSON file.
@@ -153,12 +147,7 @@ class Network(object):
     
     def get_count(self, semantics = True):
         """Get the number of nodes in the network."""
-        count = 0
-        for set in Set:
-            count += self.sets[set].get_count()
-        if semantics:
-            count += self.semantics.get_count()
-        return count
+        self.token_tensor.get_count()
 
     def clear(self, limited=False):
         """
@@ -181,8 +170,6 @@ class Network(object):
         if not limited:
             # mappings, driver, recipient
             self.tensor_ops.clear_all_sets()
-        
-
 
     # ========================[ PROPERTIES ]==============================
     @property
@@ -275,79 +262,79 @@ class Network(object):
         """
         return self.sets[Set.NEW_SET]
     
-    def semantics(self) -> 'Semantics':
-        """
-        Get the semantics set object.
-        """
-        return self.semantics
-    
 # ======================[ OTHER FUNCTIONS / TODO: Move to operations] ======================
 
-    def set_name(self, reference: Ref_Token, name: str):
+    def set_name(self, idx: int, name: str):
         """
-        Set the name for a referenced token.
+        Set the name for a token at the given index.
 
         Args:
-            reference (Ref_Token): A reference to the token to set the name for.
+            idx (int): The index of the token to set the name for.
             name (str): The name to set the token to.
         """
-        self.sets[reference.set].token_op.set_name(reference, name)
+        self.tokens.set_name(idx, name)
     
-    def get_index(self, reference) -> int:
+    def get_max_map_value(self, idx: int) -> float:
         """
-        Get the index for a referenced node (token or semantic).
-        """
-        if isinstance(reference, Ref_Semantic):
-            return self.semantics.get_index(reference)
-        elif isinstance(reference, Ref_Token):
-            return self.sets[reference.set].token_op.get_index(reference)
-        else:
-            raise ValueError("Invalid reference type.")
-    
-    def get_max_map_value(self, reference: Ref_Token, map_set: Set = None) -> float:
-        """
-        Get the maximum mapping weight for a referenced token.
+        Get the maximum mapping weight for a token at the given index.
 
         Args:
-            reference (Ref_Token): The reference to the token to get the maximum map for.
-            map_set (Set, optional): The set to get max_map to. Only required if reference is from driver.
-
+            idx (int): The index of the token to get the maximum map for.
         Returns:
-            float: The maximum mapping weight for the referenced token.
+            float: The maximum mapping weight for the token at the given index.
         """
-        logger.debug(f"Get max map value for {reference.set.name}[{reference.ID}]")
-        if reference.set == Set.DRIVER: 
-            map_set = Set.RECIPIENT
-            index = self.get_index(reference)
-            try:
-                max_val, max_index = torch.max(self.mappings[MappingFields.WEIGHT][:, index], dim=0)
-            except Exception as e:
-                logger.error(f"Can't get max map value for {reference.set.name}[{index}] (ID={reference.ID})  in {map_set.name} map tens: {self.mappings[map_set][MappingFields.WEIGHT].shape} // slice: {self.mappings[map_set][MappingFields.WEIGHT][:, index].shape}")
-                raise(e)
-        elif reference.set in MAPPING_SETS:
-            map_set = reference.set
-            index = self.get_index(reference)
-            try:        
-                max_val, max_index = torch.max(self.mappings[MappingFields.WEIGHT][index, :], dim=0)
-            except:
-                logger.error(f"Can't get max map value for {reference.set.name}[{index}] (ID={reference.ID}) weight tensor shape: {self.mappings[map_set][MappingFields.WEIGHT].shape}")
-                raise ValueError(f"Invalid mapping set: {map_set.name}.{map_set.ID}")
-        else:
-            raise ValueError(f"Invalid reference: {reference.set.name}.{reference.ID}")
-        
-        logger.info(f"Max map val({reference.set.name}[{reference.ID}]:mapping.{map_set.name}) = {max_val.item()}")
-        
-        return max_val.item()
+        logger.debug(f"Get max map value for {self.get_ref_string(idx)}")
+        tk_set = self.to_type(self.token_tensor.get_feature(idx, TF.SET), TF.SET)
+        # Mapping tensor is local to driver/recipient
+        local_idx_tensor = self.sets[tk_set].lcl.to_local(torch.tensor([idx]))
+        local_idx = local_idx_tensor[0].item()
+        return self.mappings.get_single_max_map(local_idx, tk_set)
     
-    def get_ref_string(self, reference: Ref_Token):
+    def get_ref_string(self, idx: int):
         """
         Get a string representation of a reference token.
         """
-        if reference is None:
-            return "(None)"
-        try:
-            index = self.get_index(reference)
-        except Exception as e:
-            logger.critical(f"Cant find index for {reference.set.name}[{reference.ID}]")
-            return f"{reference.set.name}[N/A]({reference.ID})"
-        return f"{reference.set.name}[{index}]({reference.ID})"
+        return self.token_tensor.get_ref_string(idx)
+    
+    def to_local(self, idxs):
+        """
+        Convert global idx(s) to local idx(s)
+        """
+        if isinstance(idxs, int):
+            tk_set = self.token_tensor.get_feature(idxs, TF.SET)
+        else:
+            tk_sets = (self.token_tensor.get_features(idxs, TF.SET)).unique()
+            if tk_sets.size(0) == 1:
+                tk_set = tk_sets[0]
+            else:
+                raise ValueError(f"Multiple sets found for indices: {idxs}")
+        return self.sets[tk_set].lcl.to_global(idxs)
+    
+    def to_global(self, idxs):
+        """
+        Convert local idx(s) to global idx(s)
+        """
+        if isinstance(idxs, int):
+            tk_set = self.token_tensor.get_feature(idxs, TF.SET)
+        else:
+            tk_sets: torch.Tensor = (self.token_tensor.get_features(idxs, TF.SET)).unique()
+            if tk_sets.size(0) == 1:
+                tk_set = tk_sets[0]
+            else:
+                raise ValueError(f"Multiple sets found for indices: {idxs}")
+        return self.sets[tk_set].lcl.to_global(idxs)
+    
+    def to_type(self, value, feature: TF):
+        """
+        Convert a value to the type of the feature.
+        Args:
+            value: torch.Tensor, float, int - The value to convert.
+            feature: TF - The feature to convert to.
+        Returns:
+            TF_type(feature): The converted value.
+        """
+        if isinstance(value, torch.Tensor):
+            value = value.item()
+        else:
+            return TF_type(feature)(value)
+        return TF_type(feature)(value)
