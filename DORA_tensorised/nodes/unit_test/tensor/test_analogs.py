@@ -121,6 +121,147 @@ def test_get_analog_indices(analog_ops):
     assert len(indices) == 0
 
 
+def test_get_analog_indices_multiple(analog_ops):
+    """Test getting indices for multiple analogs."""
+    # Test getting indices for analogs 0 and 1
+    analog_numbers = torch.tensor([0, 1])
+    indices = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    # Should include tokens from both analogs
+    # Analog 0: tokens 0-4
+    # Analog 1: tokens 5-9
+    expected = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    assert torch.equal(torch.sort(indices)[0], torch.sort(expected)[0])
+    assert len(indices) == 10
+
+
+def test_get_analog_indices_multiple_three_analogs(analog_ops):
+    """Test getting indices for three analogs."""
+    # Test getting indices for analogs 0, 1, and 2
+    analog_numbers = torch.tensor([0, 1, 2])
+    indices = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    # Should include tokens from all three analogs
+    # Analog 0: tokens 0-4
+    # Analog 1: tokens 5-9
+    # Analog 2: tokens 10-14
+    expected = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
+    assert torch.equal(torch.sort(indices)[0], torch.sort(expected)[0])
+    assert len(indices) == 15
+
+
+def test_get_analog_indices_multiple_non_contiguous(analog_ops):
+    """Test getting indices for non-contiguous analogs."""
+    # Test getting indices for analogs 0 and 2 (skipping 1)
+    analog_numbers = torch.tensor([0, 2])
+    indices = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    # Should include tokens from analogs 0 and 2
+    # Analog 0: tokens 0-4
+    # Analog 2: tokens 10-14
+    expected = torch.tensor([0, 1, 2, 3, 4, 10, 11, 12, 13, 14])
+    assert torch.equal(torch.sort(indices)[0], torch.sort(expected)[0])
+    assert len(indices) == 10
+
+
+def test_get_analog_indices_multiple_single_analog(analog_ops):
+    """Test getting indices for a single analog (should match get_analog_indices)."""
+    # Test with single analog number
+    analog_numbers = torch.tensor([1])
+    indices_multiple = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    # Should match the result from get_analog_indices
+    indices_single = analog_ops.get_analog_indices(1)
+    assert torch.equal(torch.sort(indices_multiple)[0], torch.sort(indices_single)[0])
+
+
+def test_get_analog_indices_multiple_empty_tensor(analog_ops):
+    """Test getting indices with empty tensor (should return empty result)."""
+    analog_numbers = torch.tensor([], dtype=torch.long)
+    indices = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    assert len(indices) == 0
+    assert isinstance(indices, torch.Tensor)
+
+
+def test_get_analog_indices_multiple_non_existent(analog_ops):
+    """Test getting indices for non-existent analogs."""
+    # Test with non-existent analog numbers
+    analog_numbers = torch.tensor([99, 100])
+    indices = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    assert len(indices) == 0
+    assert isinstance(indices, torch.Tensor)
+
+
+def test_get_analog_indices_multiple_mixed_existent_non_existent(analog_ops):
+    """Test getting indices with mix of existent and non-existent analogs."""
+    # Mix of existent (0, 1) and non-existent (99) analogs
+    analog_numbers = torch.tensor([0, 1, 99])
+    indices = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    # Should only return indices for existent analogs (0 and 1)
+    expected = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    assert torch.equal(torch.sort(indices)[0], torch.sort(expected)[0])
+    assert len(indices) == 10
+
+
+def test_get_analog_indices_multiple_all_analogs(analog_ops):
+    """Test getting indices for all analogs."""
+    # Get indices for all existing analogs (0-4)
+    analog_numbers = torch.tensor([0, 1, 2, 3, 4])
+    indices = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    # Should include all active tokens (0-24)
+    expected = torch.arange(0, 25)
+    assert torch.equal(torch.sort(indices)[0], torch.sort(expected)[0])
+    assert len(indices) == 25
+
+
+def test_get_analog_indices_multiple_consistency_with_single(analog_ops):
+    """Test that get_analog_indices_multiple is consistent with multiple calls to get_analog_indices."""
+    # Get indices using multiple single calls
+    indices_0 = analog_ops.get_analog_indices(0)
+    indices_1 = analog_ops.get_analog_indices(1)
+    indices_2 = analog_ops.get_analog_indices(2)
+    expected = torch.cat([indices_0, indices_1, indices_2])
+    
+    # Get indices using get_analog_indices_multiple
+    analog_numbers = torch.tensor([0, 1, 2])
+    indices_multiple = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    # Should match (order may differ, so sort both)
+    assert torch.equal(torch.sort(expected)[0], torch.sort(indices_multiple)[0])
+
+
+def test_get_analog_indices_multiple_duplicate_analogs(analog_ops):
+    """Test getting indices with duplicate analog numbers in input."""
+    # Include duplicate analog numbers
+    analog_numbers = torch.tensor([0, 1, 0, 2, 1])  # Duplicates of 0 and 1
+    indices = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    # Should return same result as without duplicates
+    analog_numbers_unique = torch.tensor([0, 1, 2])
+    indices_unique = analog_ops.get_analog_indices_multiple(analog_numbers_unique)
+    
+    assert torch.equal(torch.sort(indices)[0], torch.sort(indices_unique)[0])
+
+
+def test_get_analog_indices_multiple_different_sets(analog_ops):
+    """Test getting indices for analogs from different sets."""
+    # Analog 0 is in DRIVER, analog 1 is in RECIPIENT, analog 2 is in MEMORY
+    analog_numbers = torch.tensor([0, 1, 2])
+    indices = analog_ops.get_analog_indices_multiple(analog_numbers)
+    
+    # Should get tokens from all sets
+    assert len(indices) == 15
+    
+    # Verify tokens are from correct sets
+    assert torch.all(analog_ops.tensor[indices[:5], TF.SET] == Set.DRIVER)  # Analog 0
+    assert torch.all(analog_ops.tensor[indices[5:10], TF.SET] == Set.RECIPIENT)  # Analog 1
+    assert torch.all(analog_ops.tensor[indices[10:15], TF.SET] == Set.MEMORY)  # Analog 2
+
+
 def test_get_analogs_where(analog_ops):
     """Test getting analogs where tokens have a specific feature value."""
     # Get analogs with tokens in DRIVER set
@@ -363,3 +504,158 @@ def test_get_analogs_where_excludes_deleted_tokens(analog_ops):
     # Should find analog 0 (from the active token)
     assert 0 in analogs
 
+
+# =====================[ delete_analog Tests ]======================
+
+def test_delete_analog_basic(analog_ops):
+    """Test deleting an analog."""
+    # Get initial indices for analog 0
+    initial_indices = analog_ops.get_analog_indices(0)
+    assert len(initial_indices) == 5  # Should have 5 tokens
+    
+    # Delete analog 0
+    analog_ops.delete_analog(0)
+    
+    # Verify tokens are deleted (DELETED flag set to TRUE)
+    assert torch.all(analog_ops.tensor[initial_indices, TF.DELETED] == B.TRUE)
+    
+    # Verify tokens are set to null
+    assert torch.all(analog_ops.tensor[initial_indices, TF.SET] == null)
+    assert torch.all(analog_ops.tensor[initial_indices, TF.ANALOG] == null)
+    
+    # Verify get_analog_indices returns empty for deleted analog
+    deleted_indices = analog_ops.get_analog_indices(0)
+    assert len(deleted_indices) == 0
+
+
+def test_delete_analog_other_analogs_unchanged(analog_ops):
+    """Test that deleting one analog doesn't affect others."""
+    # Get initial state of analog 1
+    analog_1_indices = analog_ops.get_analog_indices(1)
+    analog_1_tokens_before = analog_ops.tensor[analog_1_indices, :].clone()
+    
+    # Delete analog 0
+    analog_ops.delete_analog(0)
+    
+    # Verify analog 1 is unchanged
+    assert torch.equal(analog_ops.tensor[analog_1_indices, :], analog_1_tokens_before)
+    assert torch.all(analog_ops.tensor[analog_1_indices, TF.DELETED] == B.FALSE)
+    assert torch.all(analog_ops.tensor[analog_1_indices, TF.ANALOG] == 1)
+
+
+def test_delete_analog_cache_updated(analog_ops):
+    """Test that cache is updated after deleting an analog."""
+    # Delete analog 0
+    analog_ops.delete_analog(0)
+    
+    # Verify cache was updated (analogs cache should be refreshed)
+    # The analog should no longer appear in active analogs
+    active_analogs = analog_ops.get_analogs_active()
+    assert 0 not in active_analogs
+    
+    # Verify analog 0 is not found when searching for DRIVER set
+    analogs_in_driver = analog_ops.get_analogs_where(TF.SET, Set.DRIVER)
+    assert 0 not in analogs_in_driver
+
+
+def test_delete_analog_multiple_analogs(analog_ops):
+    """Test deleting multiple analogs sequentially."""
+    # Delete analog 0
+    analog_ops.delete_analog(0)
+    assert len(analog_ops.get_analog_indices(0)) == 0
+    
+    # Delete analog 1
+    analog_ops.delete_analog(1)
+    assert len(analog_ops.get_analog_indices(1)) == 0
+    
+    # Verify analog 2 is still intact
+    analog_2_indices = analog_ops.get_analog_indices(2)
+    assert len(analog_2_indices) == 5
+    assert torch.all(analog_ops.tensor[analog_2_indices, TF.DELETED] == B.FALSE)
+    assert torch.all(analog_ops.tensor[analog_2_indices, TF.ANALOG] == 2)
+
+
+def test_delete_analog_non_existent(analog_ops):
+    """Test deleting a non-existent analog (should not raise error)."""
+    # Try to delete analog 99 (doesn't exist)
+    initial_count = analog_ops.tokens.get_count()
+    
+    # Should not raise an error
+    analog_ops.delete_analog(99)
+    
+    # Token count should be unchanged
+    assert analog_ops.tokens.get_count() == initial_count
+
+
+def test_delete_analog_empty_analog(analog_ops):
+    """Test deleting an analog that has no tokens."""
+    # Create an analog with no tokens (analog 10)
+    # This is essentially the same as non-existent, but tests the edge case
+    
+    # Should not raise an error
+    analog_ops.delete_analog(10)
+    
+    # Verify no tokens were affected
+    assert len(analog_ops.get_analog_indices(0)) == 5
+    assert len(analog_ops.get_analog_indices(1)) == 5
+
+
+def test_delete_analog_preserves_other_tokens(analog_ops):
+    """Test that deleting an analog preserves tokens from other analogs."""
+    # Get all tokens before deletion
+    all_indices_before = torch.where(analog_ops.tensor[:, TF.DELETED] == B.FALSE)[0]
+    
+    # Delete analog 0
+    analog_ops.delete_analog(0)
+    
+    # Get all tokens after deletion
+    all_indices_after = torch.where(analog_ops.tensor[:, TF.DELETED] == B.FALSE)[0]
+    
+    # Should have 5 fewer tokens (analog 0 had 5 tokens)
+    assert len(all_indices_after) == len(all_indices_before) - 5
+    
+    # Verify tokens from other analogs are still present
+    analog_1_indices = analog_ops.get_analog_indices(1)
+    assert len(analog_1_indices) == 5
+    assert torch.all(analog_ops.tensor[analog_1_indices, TF.DELETED] == B.FALSE)
+
+
+def test_delete_analog_different_sets(analog_ops):
+    """Test deleting analogs from different sets."""
+    # Delete analog 0 (DRIVER set)
+    analog_ops.delete_analog(0)
+    
+    # Delete analog 1 (RECIPIENT set)
+    analog_ops.delete_analog(1)
+    
+    # Delete analog 2 (MEMORY set)
+    analog_ops.delete_analog(2)
+    
+    # Verify all were deleted
+    assert len(analog_ops.get_analog_indices(0)) == 0
+    assert len(analog_ops.get_analog_indices(1)) == 0
+    assert len(analog_ops.get_analog_indices(2)) == 0
+    
+    # Verify remaining analogs are intact
+    assert len(analog_ops.get_analog_indices(3)) == 5
+    assert len(analog_ops.get_analog_indices(4)) == 5
+
+
+def test_delete_analog_cache_analogs_refreshed(analog_ops):
+    """Test that cache_analogs is called after deletion."""
+    # Get initial active analogs
+    initial_active = analog_ops.get_analogs_active()
+    assert 0 in initial_active
+    
+    # Delete analog 0
+    analog_ops.delete_analog(0)
+    
+    # Verify analog 0 is no longer in active analogs
+    updated_active = analog_ops.get_analogs_active()
+    assert 0 not in updated_active
+    
+    # Verify other active analogs are still present
+    assert 1 in updated_active
+    assert 2 in updated_active
+    assert 3 in updated_active
+    assert 4 in updated_active
