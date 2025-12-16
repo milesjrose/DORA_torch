@@ -2,6 +2,7 @@ from .tensor.token_tensor import Token_Tensor
 from .connections.connections import Connections_Tensor
 from .connections.links import Links, LD
 from .connections.mapping import Mapping, MD
+from .tensor.analogs import Analog_ops
 from .tensor_view import TensorView
 import torch
 from ...enums import *
@@ -39,6 +40,8 @@ class Tokens:
         """holds the token tensor"""
         self.connections: Connections_Tensor = connections
         """holds the connections tensor"""
+        self.analog_ops: Analog_ops = Analog_ops(self.token_tensor)
+        """holds the analog operations"""
         self.links: Links = links
         """holds the links tensor"""
         self.mapping: Mapping = mapping
@@ -101,17 +104,21 @@ class Tokens:
         self.check_count()
         return new_indicies
     
-    def copy_tokens(self, indices: torch.Tensor, to_set: Set) -> torch.Tensor:
+    def copy_tokens(self, indices: torch.Tensor, to_set: Set, connect_to_copies: bool = False) -> torch.Tensor:
         """
         Copy the tokens at the given indices to the given set.
         Args:
             indices: torch.Tensor - The indices of the tokens to copy.
             to_set: Set - The set to copy the tokens to.
+            connect_to_copies: bool - Whether to connect the new tokens to the copies of the original tokens.
         Returns:
             torch.Tensor - The indices of the tokens that were replaced.
         """
         copy_indicies =  self.token_tensor.copy_tokens(indices, to_set)
         self.check_count()
+        if connect_to_copies:
+            internal_connections = self.connections.connections[indices, indices].clone()
+            self.connections.connections[copy_indicies, copy_indicies] = internal_connections
         return copy_indicies
     
     def get_view(self, view_type: TensorTypes, set: Set = None) -> TensorView | torch.Tensor:
