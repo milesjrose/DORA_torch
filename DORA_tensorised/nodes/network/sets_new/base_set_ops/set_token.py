@@ -145,7 +145,7 @@ class TokenOperations:
         self.base_set.lcl[:, TF.MAKER_UNIT] = null
         self.base_set.lcl[:, TF.MADE_UNIT] = null
     
-    def get_mapped_pos(self) -> list[Ref_Token]:
+    def get_mapped_pos(self) -> torch.Tensor:
         """
         get all Pos that are mapped to.
         """
