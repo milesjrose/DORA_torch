@@ -101,6 +101,18 @@ class Network(object):
                 return getattr(component, name)
         
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+    
+    def cache_analogs(self):
+        """
+        Recache the analogs in the network.
+        """
+        self.tokens.token_tensor.cache.cache_analogs()
+    
+    def cache_sets(self):
+        """
+        Recache the tokens in the network.
+        """
+        self.tokens.token_tensor.cache.cache_sets()
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """
