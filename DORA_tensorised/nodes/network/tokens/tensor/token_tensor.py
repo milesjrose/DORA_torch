@@ -294,6 +294,48 @@ class Token_Tensor:
         """
         self.names[idx] = name
     
+    def get_tokens_where(self, feature: TF, value: float, indices: torch.Tensor, local=False) -> torch.Tensor:
+        """
+        Get the indices of the tokens that have the given feature and value.
+        
+        Args:
+            feature: TF - The feature to check.
+            value: float - The value to match.
+            indices: torch.Tensor - The indices to check within the tensor.
+            local: bool - Whether to return indices into the input indices tensor or the global tensor.
+        
+        Returns:
+            torch.Tensor - The indices of the tokens that match.
+        """
+        matching_tokens = (self.tensor[indices, feature] == value)
+        if not torch.any(matching_tokens):
+            return torch.tensor([], dtype=torch.long)  # Return empty tensor (No matching tokens)
+        
+        if local:
+            return torch.where(matching_tokens)[0]
+        else:
+            matching_token_indices = indices[matching_tokens]
+            return matching_token_indices
+    
+    def get_tokens_where_not(self, feature: TF, value: float, indices: torch.Tensor, local=False) -> torch.Tensor:
+        """
+        Get the indices of the tokens that do not have the given feature and value.
+        Args:
+            feature: TF - The feature to check.
+            value: float - The value to match.
+            indices: torch.Tensor - The indices to check within the tensor.
+            local: bool - Whether to return indices into the input indices tensor or the global tensor.
+        """
+        matching_tokens = (self.tensor[indices, feature] != value)
+        if not torch.any(matching_tokens):
+            return torch.tensor([], dtype=torch.long)  # Return empty tensor (No matching tokens)
+        
+        if local:
+            return torch.where(matching_tokens)[0]
+        else:
+            matching_token_indices = indices[matching_tokens]
+            return matching_token_indices
+    
     def get_string(self, cols_per_table: int = 16) -> str:
         """
         Get the string representation of the tensor.
