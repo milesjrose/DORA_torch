@@ -36,6 +36,18 @@ class Analog_ops:
         """
         return torch.where(self.tensor[:, TF.ANALOG] == analog_number)[0]
     
+    def get_analog_indices_multiple(self, analog_numbers: torch.Tensor) -> torch.Tensor:
+        """
+        Get the indices of the tokens in the given analogs.
+        
+        Args:
+            analog_numbers: torch.Tensor - The analog numbers to get indices for.
+        
+        Returns:
+            torch.Tensor - The indices of tokens belonging to any of the given analogs.
+        """
+        return torch.where(torch.isin(self.tensor[:, TF.ANALOG], analog_numbers))[0]
+    
     def get_analogs_where(self, feature: TF, value) -> torch.Tensor:
         """
         Get any analogs that contain a token with a given feature and value.
@@ -118,3 +130,14 @@ class Analog_ops:
         self.tensor[new_indices, TF.ANALOG] = new_analog_number
         self.cache.cache_analogs()
         return new_analog_number
+    
+    def delete_analog(self, analog_number: int):
+        """
+        Delete the tokens in the analog with the given number.
+        Args:
+            analog_number: int - The number of the analog to delete.
+        """
+        logger.info(f"Deleting analog {analog_number}")
+        indices = self.get_analog_indices(analog_number)
+        self.tokens.del_tokens(indices)
+        self.cache.cache_analogs()
