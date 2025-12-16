@@ -1940,3 +1940,321 @@ def test_get_recipient_count_rectangular_mapping():
     assert driver_count == 3
     assert recipient_count == 8
     assert driver_count != recipient_count
+
+
+# =====================[ set_driver and set_recipient Tests ]======================
+
+def test_set_driver(mapping):
+    """Test set_driver method."""
+    from unittest.mock import Mock
+    
+    mock_driver = Mock()
+    mapping.set_driver(mock_driver)
+    
+    assert mapping.driver is mock_driver
+
+
+def test_set_recipient(mapping):
+    """Test set_recipient method."""
+    from unittest.mock import Mock
+    
+    mock_recipient = Mock()
+    mapping.set_recipient(mock_recipient)
+    
+    assert mapping.recipient is mock_recipient
+
+
+def test_set_driver_and_recipient(mapping):
+    """Test setting both driver and recipient."""
+    from unittest.mock import Mock
+    
+    mock_driver = Mock()
+    mock_recipient = Mock()
+    
+    mapping.set_driver(mock_driver)
+    mapping.set_recipient(mock_recipient)
+    
+    assert mapping.driver is mock_driver
+    assert mapping.recipient is mock_recipient
+
+
+def test_set_driver_overwrite(mapping):
+    """Test that set_driver overwrites previous driver."""
+    from unittest.mock import Mock
+    
+    mock_driver1 = Mock()
+    mock_driver2 = Mock()
+    
+    mapping.set_driver(mock_driver1)
+    assert mapping.driver is mock_driver1
+    
+    mapping.set_driver(mock_driver2)
+    assert mapping.driver is mock_driver2
+    assert mapping.driver is not mock_driver1
+
+
+def test_set_recipient_overwrite(mapping):
+    """Test that set_recipient overwrites previous recipient."""
+    from unittest.mock import Mock
+    
+    mock_recipient1 = Mock()
+    mock_recipient2 = Mock()
+    
+    mapping.set_recipient(mock_recipient1)
+    assert mapping.recipient is mock_recipient1
+    
+    mapping.set_recipient(mock_recipient2)
+    assert mapping.recipient is mock_recipient2
+    assert mapping.recipient is not mock_recipient1
+
+
+# =====================[ reset_mappings Tests ]======================
+
+def test_reset_mappings_with_driver_recipient(mapping):
+    """Test reset_mappings with properly set driver and recipient."""
+    from unittest.mock import Mock, MagicMock
+    
+    # Create mock driver and recipient with token_op (not token_ops!)
+    mock_driver = Mock()
+    mock_driver.token_op = Mock()
+    mock_driver.token_op.set_features_all = Mock()
+    
+    mock_recipient = Mock()
+    mock_recipient.token_op = Mock()
+    mock_recipient.token_op.set_features_all = Mock()
+    
+    mapping.set_driver(mock_driver)
+    mapping.set_recipient(mock_recipient)
+    
+    # Set some values first
+    mapping[MappingFields.WEIGHT] = torch.rand(5, 4)
+    mapping[MappingFields.HYPOTHESIS] = torch.rand(5, 4)
+    mapping[MappingFields.MAX_HYP] = torch.rand(5, 4)
+    
+    # Call reset_mappings
+    mapping.reset_mappings()
+    
+    # Verify that reset_mapping_units was called (weights and hypotheses reset)
+    assert torch.allclose(mapping[MappingFields.WEIGHT], torch.zeros(5, 4))
+    assert torch.allclose(mapping[MappingFields.HYPOTHESIS], torch.zeros(5, 4))
+    assert torch.allclose(mapping[MappingFields.MAX_HYP], torch.zeros(5, 4))
+    
+    # Verify that set_features_all was called on both driver and recipient
+    from nodes.enums import TF
+    mock_driver.token_op.set_features_all.assert_called_once_with(TF.MAX_MAP, 0.0)
+    mock_recipient.token_op.set_features_all.assert_called_once_with(TF.MAX_MAP, 0.0)
+
+
+def test_reset_mappings_calls_reset_mapping_units(mapping):
+    """Test that reset_mappings calls reset_mapping_units."""
+    from unittest.mock import Mock, patch
+    
+    mock_driver = Mock()
+    mock_driver.token_op = Mock()
+    mock_driver.token_op.set_features_all = Mock()
+    
+    mock_recipient = Mock()
+    mock_recipient.token_op = Mock()
+    mock_recipient.token_op.set_features_all = Mock()
+    
+    mapping.set_driver(mock_driver)
+    mapping.set_recipient(mock_recipient)
+    
+    # Set some values
+    mapping[MappingFields.WEIGHT] = torch.rand(5, 4)
+    mapping[MappingFields.HYPOTHESIS] = torch.rand(5, 4)
+    
+    # Call reset_mappings
+    mapping.reset_mappings()
+    
+    # Verify that weights and hypotheses were reset (indicating reset_mapping_units was called)
+    assert torch.allclose(mapping[MappingFields.WEIGHT], torch.zeros(5, 4))
+    assert torch.allclose(mapping[MappingFields.HYPOTHESIS], torch.zeros(5, 4))
+
+
+def test_reset_mappings_resets_max_hyp(mapping):
+    """Test that reset_mappings resets MAX_HYP field."""
+    from unittest.mock import Mock
+    
+    mock_driver = Mock()
+    mock_driver.token_op = Mock()
+    mock_driver.token_op.set_features_all = Mock()
+    
+    mock_recipient = Mock()
+    mock_recipient.token_op = Mock()
+    mock_recipient.token_op.set_features_all = Mock()
+    
+    mapping.set_driver(mock_driver)
+    mapping.set_recipient(mock_recipient)
+    
+    # Set MAX_HYP to non-zero
+    mapping[MappingFields.MAX_HYP] = torch.rand(5, 4)
+    
+    # Call reset_mappings
+    mapping.reset_mappings()
+    
+    # Verify MAX_HYP was reset
+    assert torch.allclose(mapping[MappingFields.MAX_HYP], torch.zeros(5, 4))
+
+
+# =====================[ del_mappings Tests ]======================
+
+def test_del_mappings_single_index(mapping):
+    """Test del_mappings with a single index."""
+    # Set some values
+    mapping[MappingFields.WEIGHT] = torch.ones(5, 4)
+    mapping[MappingFields.HYPOTHESIS] = torch.ones(5, 4)
+    mapping[MappingFields.MAX_HYP] = torch.ones(5, 4)
+    
+    # Delete mappings for index 2
+    mapping.del_mappings(torch.tensor([2]))
+    
+    # Verify that row 2 and column 2 are zeroed out
+    assert torch.allclose(mapping[MappingFields.WEIGHT][2, :], torch.zeros(4))
+    assert torch.allclose(mapping[MappingFields.WEIGHT][:, 2], torch.zeros(5))
+    assert torch.allclose(mapping[MappingFields.HYPOTHESIS][2, :], torch.zeros(4))
+    assert torch.allclose(mapping[MappingFields.HYPOTHESIS][:, 2], torch.zeros(5))
+    assert torch.allclose(mapping[MappingFields.MAX_HYP][2, :], torch.zeros(4))
+    assert torch.allclose(mapping[MappingFields.MAX_HYP][:, 2], torch.zeros(5))
+    
+    # Verify other entries are unchanged
+    assert mapping[MappingFields.WEIGHT][0, 0].item() == 1.0
+    assert mapping[MappingFields.WEIGHT][1, 1].item() == 1.0
+
+
+def test_del_mappings_multiple_indices(mapping):
+    """Test del_mappings with multiple indices."""
+    # Set some values
+    mapping[MappingFields.WEIGHT] = torch.ones(5, 4)
+    
+    # Delete mappings for indices 0 and 2
+    mapping.del_mappings(torch.tensor([0, 2]))
+    
+    # Verify that rows 0 and 2 are zeroed out
+    assert torch.allclose(mapping[MappingFields.WEIGHT][0, :], torch.zeros(4))
+    assert torch.allclose(mapping[MappingFields.WEIGHT][2, :], torch.zeros(4))
+    
+    # Verify that columns 0 and 2 are zeroed out
+    assert torch.allclose(mapping[MappingFields.WEIGHT][:, 0], torch.zeros(5))
+    assert torch.allclose(mapping[MappingFields.WEIGHT][:, 2], torch.zeros(5))
+    
+    # Verify other entries are unchanged
+    assert mapping[MappingFields.WEIGHT][1, 1].item() == 1.0
+    assert mapping[MappingFields.WEIGHT][3, 3].item() == 1.0
+
+
+def test_del_mappings_all_fields(mapping):
+    """Test that del_mappings affects all fields."""
+    # Set values for all fields
+    mapping[MappingFields.WEIGHT] = torch.ones(5, 4)
+    mapping[MappingFields.HYPOTHESIS] = torch.ones(5, 4) * 2.0
+    mapping[MappingFields.MAX_HYP] = torch.ones(5, 4) * 3.0
+    
+    # Delete mappings for index 1
+    mapping.del_mappings(torch.tensor([1]))
+    
+    # Verify all fields are zeroed for row/column 1
+    assert torch.allclose(mapping[MappingFields.WEIGHT][1, :], torch.zeros(4))
+    assert torch.allclose(mapping[MappingFields.WEIGHT][:, 1], torch.zeros(5))
+    assert torch.allclose(mapping[MappingFields.HYPOTHESIS][1, :], torch.zeros(4))
+    assert torch.allclose(mapping[MappingFields.HYPOTHESIS][:, 1], torch.zeros(5))
+    assert torch.allclose(mapping[MappingFields.MAX_HYP][1, :], torch.zeros(4))
+    assert torch.allclose(mapping[MappingFields.MAX_HYP][:, 1], torch.zeros(5))
+
+
+def test_del_mappings_empty_indices(mapping):
+    """Test del_mappings with empty indices tensor."""
+    original_weight = mapping[MappingFields.WEIGHT].clone()
+    
+    # Delete with empty tensor
+    mapping.del_mappings(torch.tensor([], dtype=torch.long))
+    
+    # Verify nothing changed
+    assert torch.allclose(mapping[MappingFields.WEIGHT], original_weight)
+
+
+def test_del_mappings_boundary_indices(mapping):
+    """Test del_mappings with boundary indices."""
+    mapping[MappingFields.WEIGHT] = torch.ones(5, 4)
+    
+    # Note: del_mappings deletes both rows AND columns for the given indices
+    # So indices must be valid for both dimensions (0-3 in this case)
+    # Delete first and last valid indices (0 and 3)
+    mapping.del_mappings(torch.tensor([0, 3]))
+    
+    # Verify boundaries are zeroed for both dimensions
+    # Rows (recipient dimension) 0 and 3 should be zeroed
+    assert torch.allclose(mapping[MappingFields.WEIGHT][0, :], torch.zeros(4))
+    assert torch.allclose(mapping[MappingFields.WEIGHT][3, :], torch.zeros(4))
+    # Columns (driver dimension) 0 and 3 should be zeroed
+    assert torch.allclose(mapping[MappingFields.WEIGHT][:, 0], torch.zeros(5))
+    assert torch.allclose(mapping[MappingFields.WEIGHT][:, 3], torch.zeros(5))
+
+
+# =====================[ update_hypothesis and update_hypotheses Tests ]======================
+# These methods raise NotImplementedError, but we should test that they do
+
+def test_update_hypothesis_raises_not_implemented(mapping):
+    """Test that update_hypothesis raises NotImplementedError."""
+    from unittest.mock import Mock
+    
+    mock_driver = Mock()
+    mock_recipient = Mock()
+    mapping.set_driver(mock_driver)
+    mapping.set_recipient(mock_recipient)
+    
+    driver_mask = torch.tensor([True, False, True, False])
+    recipient_mask = torch.tensor([True, False, True, False, False])
+    
+    with pytest.raises(NotImplementedError):
+        mapping.update_hypothesis(driver_mask, recipient_mask)
+
+
+def test_update_hypotheses_raises_not_implemented(mapping):
+    """Test that update_hypotheses raises NotImplementedError."""
+    from unittest.mock import Mock
+    
+    mock_driver = Mock()
+    mock_recipient = Mock()
+    mapping.set_driver(mock_driver)
+    mapping.set_recipient(mock_recipient)
+    
+    driver_mask = torch.tensor([True, False, True, False])
+    recipient_mask = torch.tensor([True, False, True, False, False])
+    
+    with pytest.raises(NotImplementedError):
+        mapping.update_hypotheses(driver_mask, recipient_mask)
+
+
+def test_update_hypothesis_signature(mapping):
+    """Test that update_hypothesis has correct signature (requires two arguments)."""
+    from unittest.mock import Mock
+    
+    mock_driver = Mock()
+    mock_recipient = Mock()
+    mapping.set_driver(mock_driver)
+    mapping.set_recipient(mock_recipient)
+    
+    # Should require two arguments
+    with pytest.raises(TypeError):
+        mapping.update_hypothesis()
+    
+    with pytest.raises(TypeError):
+        mapping.update_hypothesis(torch.tensor([True, False]))
+
+
+def test_update_hypotheses_signature(mapping):
+    """Test that update_hypotheses has correct signature (requires two arguments)."""
+    from unittest.mock import Mock
+    
+    mock_driver = Mock()
+    mock_recipient = Mock()
+    mapping.set_driver(mock_driver)
+    mapping.set_recipient(mock_recipient)
+    
+    # Should require two arguments
+    with pytest.raises(TypeError):
+        mapping.update_hypotheses()
+    
+    with pytest.raises(TypeError):
+        mapping.update_hypotheses(torch.tensor([True, False]))

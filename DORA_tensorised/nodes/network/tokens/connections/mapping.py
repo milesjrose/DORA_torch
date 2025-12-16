@@ -122,8 +122,8 @@ class Mapping:
         """
         logger.debug(f"-> Resetting mappings")
         self.reset_mapping_units()
-        self.driver.token_ops.set_features_all(TF.MAX_MAP, 0.0)
-        self.recipient.token_ops.set_features_all(TF.MAX_MAP, 0.0)
+        self.driver.token_op.set_features_all(TF.MAX_MAP, 0.0)
+        self.recipient.token_op.set_features_all(TF.MAX_MAP, 0.0)
         self[MappingFields.MAX_HYP] = 0.0
     
     # =====================[ Update functions ]======================
@@ -159,7 +159,7 @@ class Mapping:
 
         self[MappingFields.MAX_HYP] = max_values
     
-    def update_hypothesis(self, driver_mask, recipient_mask):
+    def update_hypothesis(self, driver_mask=None, recipient_mask=None):
         """
         Update the hypothesis matrix, for nodes in given masks.
         """
@@ -175,7 +175,7 @@ class Mapping:
         mask_2d = torch.outer(recipient_mask, driver_mask)
         self[MappingFields.HYPOTHESIS] += activation_product * mask_2d
     
-    def update_hypotheses(self, driver_mask, recipient_mask):
+    def update_hypotheses(self, driver_mask=None, recipient_mask=None):
         """
         Update the hypotheses matrix.
         NOTE: Seems very inefficient
