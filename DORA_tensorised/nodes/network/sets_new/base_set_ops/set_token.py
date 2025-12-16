@@ -155,4 +155,16 @@ class TokenOperations:
         set_pos = torch.where(pos_mask & set_mask)[0]
         return self.base_set.glbl.get_mapped_pos(set_pos)
     
+    def set_max_maps(self, max_maps: torch.Tensor):
+        """
+        Set the max maps for all tokens in the set.
+        """
+        self.base_set.lcl[:, TF.MAX_MAP] = max_maps
+    
+    def set_max_map_units(self, max_map_units: torch.Tensor):
+        """
+        Set the max map units for all tokens in the set.
+        """
+        self.base_set.lcl[:, TF.MAX_MAP_UNIT] = max_map_units
+    
         
