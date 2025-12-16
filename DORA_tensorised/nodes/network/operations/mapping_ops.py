@@ -8,7 +8,6 @@ from ..single_nodes import Ref_Token
 
 if TYPE_CHECKING:
     from ..network import Network
-    from ..sets import Driver, Recipient
 
 
 class MappingOperations:
@@ -38,7 +37,6 @@ class MappingOperations:
         """
         self.network.mappings.reset_mappings()
 
-    
     def update_mapping_hyps(self):
         """
         Update all mapping hypotheses.
@@ -55,7 +53,7 @@ class MappingOperations:
         """
         Update mapping connections.
         """
-        self.network.mappings.update_connections(self.network.params.eta)
+        self.network.mappings.update_weight(self.network.params.eta)
     
     def get_max_maps(self, set: list[Set] = [Set.RECIPIENT, Set.DRIVER]):
         """
@@ -67,19 +65,14 @@ class MappingOperations:
         max_recipient, max_driver = self.network.mappings.get_max_map()
         # Set max map for driver
         if Set.DRIVER in set:
-            self.network.sets[Set.DRIVER].nodes[:, TF.MAX_MAP] = max_driver.values
-            self.network.sets[Set.DRIVER].nodes[:, TF.MAX_MAP_UNIT] = max_driver.indices
+            self.network.sets[Set.DRIVER].token_op.set_max_maps(max_driver.values)
+            self.network.sets[Set.DRIVER].token_op.set_max_map_units(max_driver.indices)
         # Set max map for recipient
         if Set.RECIPIENT in set:
-            self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP] = max_recipient.values
-            self.network.sets[Set.RECIPIENT].nodes[:, TF.MAX_MAP_UNIT] = max_recipient.indices
+            self.network.sets[Set.RECIPIENT].token_op.set_max_maps(max_recipient.values)
+            self.network.sets[Set.RECIPIENT].token_op.set_max_map_units(max_recipient.indices)
     
-    def get_max_map_unit(self, reference: Ref_Token) -> Ref_Token:
+    def get_max_map_unit(self, idx: int) -> Ref_Token:
         """ Get a reference to the unit that the token maps to most """
-        mapped_idx = self.network.get_value(reference, TF.MAX_MAP_UNIT)
-        mapped_set = Set.RECIPIENT
-        if reference.set == Set.RECIPIENT:
-            mapped_set = Set.DRIVER
-        mapped_ref = self.network.node_ops.get_reference(tk_set=mapped_set, index=mapped_idx)
-        return mapped_ref
-            
+        mapped_idx = self.network.token_tensor.get_feature(idx, TF.MAX_MAP_UNIT)
+        return int(mapped_idx.item())
