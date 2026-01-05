@@ -32,24 +32,24 @@ class InhibitorOperations:
         - Only updates act of RB in driver.
         """
         #update input driver/recipient RBs, POs
-        self.network.driver().update_ops.update_inhibitor_input([Type.RB, Type.PO])
-        self.network.recipient().update_ops.update_inhibitor_input([Type.RB, Type.PO])
+        self.network.driver().update_op.update_inhibitor_input([Type.RB, Type.PO])
+        self.network.recipient().update_op.update_inhibitor_input([Type.RB, Type.PO])
         #update driver rb, PO inhibitor act only if in DORA mode
         if self.network.params.as_DORA:
-            self.network.driver().update_ops.update_inhibitor_act([Type.RB, Type.PO])
-            self.network.recipient().update_ops.update_inhibitor_act([Type.PO])
+            self.network.driver().update_op.update_inhibitor_act([Type.RB, Type.PO])
+            self.network.recipient().update_op.update_inhibitor_act([Type.PO])
         else:
-            self.network.driver().update_ops.update_inhibitor_act([Type.RB])
+            self.network.driver().update_op.update_inhibitor_act([Type.RB])
 
     def reset(self):                                                    # Reset inhibitors (for RB and PO units) NOTE: Check if required to set for memory and new_set
         """
         Reset the inhibitors (for RB and PO units).
         (driver, recipient, new_set, memory)
         """
-        self.network.driver().update_ops.reset_inhibitor([Type.RB, Type.PO])
-        self.network.recipient().update_ops.reset_inhibitor([Type.RB, Type.PO])
-        self.network.memory().update_ops.reset_inhibitor([Type.RB, Type.PO])
-        self.network.new_set().update_ops.reset_inhibitor([Type.RB, Type.PO])
+        self.network.driver().update_op.reset_inhibitor([Type.RB, Type.PO])
+        self.network.recipient().update_op.reset_inhibitor([Type.RB, Type.PO])
+        self.network.memory().update_op.reset_inhibitor([Type.RB, Type.PO])
+        self.network.new_set().update_op.reset_inhibitor([Type.RB, Type.PO])
 
     def check_local(self):                                              # Check local inhibition
         """Check local inhibitor activation."""
@@ -58,8 +58,8 @@ class InhibitorOperations:
     
     def fire_local(self):                                               # Fire local inhibitor
         """Fire the local inhibitor."""
-        self.network.driver().update_ops.init_act([Type.PO])
-        self.network.recipient().update_ops.init_act([Type.PO])
+        self.network.driver().update_op.init_act([Type.PO])
+        self.network.recipient().update_op.init_act([Type.PO])
         self.network.semantics.init_sem()
     
     def check_global(self):                                             # Check global inhibition
@@ -69,7 +69,7 @@ class InhibitorOperations:
         
     def fire_global(self):                                              # Fire global inhibitor
         """Fire the global inhibitor."""
-        self.network.driver().update_ops.init_act([Type.PO, Type.RB, Type.P])
-        self.network.recipient().update_ops.init_act([Type.PO, Type.RB, Type.P])
-        self.network.memory().update_ops.init_act([Type.PO, Type.RB, Type.P])
+        self.network.driver().update_op.init_act([Type.PO, Type.RB, Type.P])
+        self.network.recipient().update_op.init_act([Type.PO, Type.RB, Type.P])
+        self.network.memory().update_op.init_act([Type.PO, Type.RB, Type.P])
         self.network.semantics.init_sem()
