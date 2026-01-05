@@ -113,6 +113,13 @@ class Network(object):
         Recache the tokens in the network.
         """
         self.tokens.token_tensor.cache.cache_sets()
+    
+    def recache(self):
+        """
+        Recache the tokens and analogs in the network.
+        """
+        self.cache_sets()
+        self.cache_analogs()
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """
