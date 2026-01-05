@@ -67,7 +67,7 @@ class AnalogOperations:
         Returns:
             Torch.tensor: The analogs that have set != memory.
         """
-        analogs = self.network.sets[Set.MEMORY].analog_ops.get_analogs_where_not(TF.SET, Set.MEMORY)
+        analogs = self.network.sets[Set.MEMORY].analog_op.get_analogs_where_not(TF.SET, Set.MEMORY)
         return analogs
     
     def clear_set(self, analog: int):
@@ -156,7 +156,7 @@ class AnalogOperations:
     def set_analog_features(self, analog: int, feature: TF, value):
         """ Set a feature of the tokens in an analog. """
         indices = self.get_analog_indices(analog)
-        self.network.tokens.token_tensor.set_features(indices, feature, value)
+        self.network.tokens.token_tensor.set_feature(indices, feature, float(value))
     
     def find_mapped_analog(self, set:Set) -> int:
         """

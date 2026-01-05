@@ -134,7 +134,7 @@ def test_check_for_copy_runs_without_error(network):
     # This is a wrapper function, so we just verify it doesn't raise an exception
     # Mock the underlying get_analogs_where_not
     mock_analogs = torch.tensor([1, 2, 3])
-    with patch.object(network.sets[Set.MEMORY].analog_ops, 'get_analogs_where_not', return_value=mock_analogs):
+    with patch.object(network.sets[Set.MEMORY].analog_op, 'get_analogs_where_not', return_value=mock_analogs):
         result = network.analog_ops.check_for_copy()
         assert torch.equal(result, mock_analogs)
 
@@ -143,13 +143,13 @@ def test_clear_set_runs_without_error(network):
     """Test that clear_set runs without error."""
     # This is a wrapper function that calls set_analog_features
     analog_num = 1
-    # Mock get_analog_indices and set_features
+    # Mock get_analog_indices and set_feature
     mock_indices = torch.tensor([5, 6, 7])
     with patch.object(network.analog_ops, 'get_analog_indices', return_value=mock_indices):
-        with patch.object(network.tokens.token_tensor, 'set_features') as mock_set_features:
+        with patch.object(network.tokens.token_tensor, 'set_feature') as mock_set_feature:
             network.analog_ops.clear_set(analog_num)
-            # Verify set_features was called with correct parameters
-            mock_set_features.assert_called_once_with(mock_indices, TF.SET, Set.MEMORY)
+            # Verify set_feature was called with correct parameters
+            mock_set_feature.assert_called_once_with(mock_indices, TF.SET, float(Set.MEMORY))
 
 
 def test_get_analog_indices_runs_without_error(network):
@@ -164,19 +164,19 @@ def test_get_analog_indices_runs_without_error(network):
 
 def test_set_analog_features_runs_without_error(network):
     """Test that set_analog_features runs without error."""
-    # This function has its own logic (calls get_analog_indices then set_features)
+    # This function has its own logic (calls get_analog_indices then set_feature)
     analog_num = 1
     feature = TF.ACT
     value = 0.5
     mock_indices = torch.tensor([1, 2, 3])
     
     with patch.object(network.analog_ops, 'get_analog_indices', return_value=mock_indices):
-        with patch.object(network.tokens.token_tensor, 'set_features') as mock_set_features:
+        with patch.object(network.tokens.token_tensor, 'set_feature') as mock_set_feature:
             network.analog_ops.set_analog_features(analog_num, feature, value)
             # Verify get_analog_indices was called
             network.analog_ops.get_analog_indices.assert_called_once_with(analog_num)
-            # Verify set_features was called with correct parameters
-            mock_set_features.assert_called_once_with(mock_indices, feature, value)
+            # Verify set_feature was called with correct parameters
+            mock_set_feature.assert_called_once_with(mock_indices, feature, float(value))
 
 
 # =====================[ NotImplementedError Tests ]======================
@@ -192,7 +192,12 @@ def test_get_analog_raises_not_implemented(network):
 def test_add_analog_raises_not_implemented(network):
     """Test that add_analog raises NotImplementedError."""
     from nodes.network.single_nodes import Analog
-    analog = Analog(1, Set.DRIVER)
+    # Analog requires (tokens, connections, links, name_dict)
+    tokens = torch.zeros((1, len(TF)))
+    connections = torch.zeros((1, 1), dtype=torch.bool)
+    links = torch.zeros((1, 5))
+    name_dict = {}
+    analog = Analog(tokens, connections, links, name_dict)
     with pytest.raises(NotImplementedError, match="add_analog is not implemented"):
         network.analog_ops.add_analog(analog)
 
@@ -208,28 +213,34 @@ def test_make_AM_copy_with_single_analog(network):
     driver_indices = torch.tensor([3, 4])
     
     # Set up tokens
-    network.tokens.token_tensor.set_features(memory_indices, TF.SET, Set.MEMORY)
-    network.tokens.token_tensor.set_features(driver_indices, TF.SET, Set.DRIVER)
-    network.tokens.token_tensor.set_features(torch.cat([memory_indices, driver_indices]), TF.ANALOG, 1.0)
+    network.tokens.token_tensor.set_features(memory_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.MEMORY)], [float(Set.MEMORY)], [float(Set.MEMORY)]], dtype=torch.float32))
+    network.tokens.token_tensor.set_features(driver_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.DRIVER)], [float(Set.DRIVER)]], dtype=torch.float32))
+    all_indices = torch.cat([memory_indices, driver_indices])
+    network.tokens.token_tensor.set_features(all_indices, torch.tensor([TF.ANALOG]), torch.tensor([[1.0], [1.0], [1.0], [1.0], [1.0]], dtype=torch.float32))
     
     # Mock check_for_copy to return analog 1
     with patch.object(network.analog_ops, 'check_for_copy', return_value=torch.tensor([1])):
         # Mock get_analog_indices to return all tokens in analog
         all_analog_indices = torch.cat([memory_indices, driver_indices])
         with patch.object(network.tokens.analog_ops, 'get_analog_indices', return_value=all_analog_indices):
-            # Mock copy_tokens to return new indices
-            new_indices = torch.tensor([10, 11])
-            with patch.object(network.tokens, 'copy_tokens', return_value=new_indices):
-                # Mock new_analog_id to return a new analog number
-                with patch.object(network.tokens.analog_ops, 'new_analog_id', return_value=2):
-                    with patch.object(network, 'cache_sets'):
-                        with patch.object(network, 'cache_analogs'):
-                            result = network.analog_ops.make_AM_copy()
+            # Mock get_tokens_where_not to return driver indices
+            with patch.object(network.tokens.token_tensor, 'get_tokens_where_not', return_value=driver_indices):
+                # Mock get_children_recursive to return empty (no children in this test)
+                with patch.object(network.tokens.connections, 'get_children_recursive', return_value=torch.tensor([], dtype=torch.long)):
+                    # Mock copy_tokens to return new indices
+                    new_indices = torch.tensor([10, 11])
+                    with patch.object(network.tokens, 'copy_tokens', return_value=new_indices):
+                        # Mock new_analog_id to return a new analog number
+                        with patch.object(network.tokens.analog_ops, 'new_analog_id', return_value=2):
+                            with patch.object(network.tokens.token_tensor, 'set_feature') as mock_set_feature:
+                                with patch.object(network, 'cache_sets'):
+                                    with patch.object(network, 'cache_analogs'):
+                                        result = network.analog_ops.make_AM_copy()
     
     # Verify result
     assert result == [2]
     # Verify new analog number was set on copied tokens
-    network.tokens.token_tensor.set_feature.assert_called_once_with(new_indices, TF.ANALOG, 2)
+    mock_set_feature.assert_called_once_with(new_indices, TF.ANALOG, 2)
 
 
 def test_make_AM_copy_with_multiple_analogs(network):
@@ -238,10 +249,10 @@ def test_make_AM_copy_with_multiple_analogs(network):
     analog1_tokens = torch.tensor([0, 1])
     analog2_tokens = torch.tensor([2, 3])
     
-    network.tokens.token_tensor.set_features(analog1_tokens, TF.SET, Set.DRIVER)
-    network.tokens.token_tensor.set_features(analog2_tokens, TF.SET, Set.RECIPIENT)
-    network.tokens.token_tensor.set_features(analog1_tokens, TF.ANALOG, 1.0)
-    network.tokens.token_tensor.set_features(analog2_tokens, TF.ANALOG, 2.0)
+    network.tokens.token_tensor.set_features(analog1_tokens, torch.tensor([TF.SET]), torch.tensor([[float(Set.DRIVER)], [float(Set.DRIVER)]], dtype=torch.float32))
+    network.tokens.token_tensor.set_features(analog2_tokens, torch.tensor([TF.SET]), torch.tensor([[float(Set.RECIPIENT)], [float(Set.RECIPIENT)]], dtype=torch.float32))
+    network.tokens.token_tensor.set_features(analog1_tokens, torch.tensor([TF.ANALOG]), torch.tensor([[1.0], [1.0]], dtype=torch.float32))
+    network.tokens.token_tensor.set_features(analog2_tokens, torch.tensor([TF.ANALOG]), torch.tensor([[2.0], [2.0]], dtype=torch.float32))
     
     # Mock check_for_copy to return both analogs
     with patch.object(network.analog_ops, 'check_for_copy', return_value=torch.tensor([1, 2])):
@@ -252,28 +263,35 @@ def test_make_AM_copy_with_multiple_analogs(network):
             elif analog == 2:
                 return analog2_tokens
         with patch.object(network.tokens.analog_ops, 'get_analog_indices', side_effect=get_analog_indices_side_effect):
-            # Mock copy_tokens to return new indices
-            new_indices1 = torch.tensor([10, 11])
-            new_indices2 = torch.tensor([12, 13])
-            copy_call_count = 0
-            def copy_tokens_side_effect(indices, to_set, connect_to_copies):
-                nonlocal copy_call_count
-                copy_call_count += 1
-                if copy_call_count == 1:
-                    return new_indices1
-                else:
-                    return new_indices2
-            with patch.object(network.tokens, 'copy_tokens', side_effect=copy_tokens_side_effect):
-                # Mock new_analog_id to return sequential analog numbers
-                analog_id_call_count = 0
-                def new_analog_id_side_effect():
-                    nonlocal analog_id_call_count
-                    analog_id_call_count += 1
-                    return analog_id_call_count + 2  # Return 3, 4
-                with patch.object(network.tokens.analog_ops, 'new_analog_id', side_effect=new_analog_id_side_effect):
-                    with patch.object(network, 'cache_sets'):
-                        with patch.object(network, 'cache_analogs'):
-                            result = network.analog_ops.make_AM_copy()
+            # Mock get_tokens_where_not to return the tokens themselves (they're not in memory)
+            def get_tokens_where_not_side_effect(feature, value, indices):
+                return indices  # Return all indices since they're not in memory
+            with patch.object(network.tokens.token_tensor, 'get_tokens_where_not', side_effect=get_tokens_where_not_side_effect):
+                # Mock get_children_recursive to return empty (no children in this test)
+                with patch.object(network.tokens.connections, 'get_children_recursive', return_value=torch.tensor([], dtype=torch.long)):
+                    # Mock copy_tokens to return new indices
+                    new_indices1 = torch.tensor([10, 11])
+                    new_indices2 = torch.tensor([12, 13])
+                    copy_call_count = 0
+                    def copy_tokens_side_effect(indices, to_set, connect_to_copies):
+                        nonlocal copy_call_count
+                        copy_call_count += 1
+                        if copy_call_count == 1:
+                            return new_indices1
+                        else:
+                            return new_indices2
+                    with patch.object(network.tokens, 'copy_tokens', side_effect=copy_tokens_side_effect):
+                        # Mock new_analog_id to return sequential analog numbers
+                        analog_id_call_count = 0
+                        def new_analog_id_side_effect():
+                            nonlocal analog_id_call_count
+                            analog_id_call_count += 1
+                            return analog_id_call_count + 2  # Return 3, 4
+                        with patch.object(network.tokens.analog_ops, 'new_analog_id', side_effect=new_analog_id_side_effect):
+                            with patch.object(network.tokens.token_tensor, 'set_feature'):
+                                with patch.object(network, 'cache_sets'):
+                                    with patch.object(network, 'cache_analogs'):
+                                        result = network.analog_ops.make_AM_copy()
     
     # Verify result contains both new analog numbers
     assert result == [3, 4]
@@ -283,8 +301,8 @@ def test_make_AM_copy_skips_analogs_with_no_non_memory_tokens(network):
     """Test that make_AM_copy skips analogs that have no non-memory tokens."""
     # Set up: Create an analog where all tokens are in memory
     memory_indices = torch.tensor([0, 1, 2])
-    network.tokens.token_tensor.set_features(memory_indices, TF.SET, Set.MEMORY)
-    network.tokens.token_tensor.set_features(memory_indices, TF.ANALOG, 1.0)
+    network.tokens.token_tensor.set_features(memory_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.MEMORY)], [float(Set.MEMORY)], [float(Set.MEMORY)]], dtype=torch.float32))
+    network.tokens.token_tensor.set_features(memory_indices, torch.tensor([TF.ANALOG]), torch.tensor([[1.0], [1.0], [1.0]], dtype=torch.float32))
     
     # Mock check_for_copy to return analog 1
     with patch.object(network.analog_ops, 'check_for_copy', return_value=torch.tensor([1])):
@@ -306,26 +324,29 @@ def test_make_AM_copy_includes_children(network):
     parent_indices = torch.tensor([3, 4])
     child_indices = torch.tensor([5, 6])
     
-    network.tokens.token_tensor.set_features(parent_indices, TF.SET, Set.DRIVER)
-    network.tokens.token_tensor.set_features(parent_indices, TF.ANALOG, 1.0)
+    network.tokens.token_tensor.set_features(parent_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.DRIVER)], [float(Set.DRIVER)]], dtype=torch.float32))
+    network.tokens.token_tensor.set_features(parent_indices, torch.tensor([TF.ANALOG]), torch.tensor([[1.0], [1.0]], dtype=torch.float32))
     
     # Set up connections: parents -> children
-    network.tokens.connections.tensor[3, 5] = True
-    network.tokens.connections.tensor[4, 6] = True
+    network.tokens.connections.connections[3, 5] = True
+    network.tokens.connections.connections[4, 6] = True
     
     # Mock check_for_copy
     with patch.object(network.analog_ops, 'check_for_copy', return_value=torch.tensor([1])):
         # Mock get_analog_indices to return parent indices
         with patch.object(network.tokens.analog_ops, 'get_analog_indices', return_value=parent_indices):
-            # get_children_recursive should return child indices
-            with patch.object(network.tokens.connections, 'get_children_recursive', return_value=child_indices):
-                # Mock copy_tokens
-                new_indices = torch.tensor([10, 11, 12, 13])  # Both parents and children
-                with patch.object(network.tokens, 'copy_tokens', return_value=new_indices) as mock_copy:
-                    with patch.object(network.tokens.analog_ops, 'new_analog_id', return_value=2):
-                        with patch.object(network, 'cache_sets'):
-                            with patch.object(network, 'cache_analogs'):
-                                result = network.analog_ops.make_AM_copy()
+            # Mock get_tokens_where_not to return parent indices (they're not in memory)
+            with patch.object(network.tokens.token_tensor, 'get_tokens_where_not', return_value=parent_indices):
+                # get_children_recursive should return child indices
+                with patch.object(network.tokens.connections, 'get_children_recursive', return_value=child_indices):
+                    # Mock copy_tokens
+                    new_indices = torch.tensor([10, 11, 12, 13])  # Both parents and children
+                    with patch.object(network.tokens, 'copy_tokens', return_value=new_indices) as mock_copy:
+                        with patch.object(network.tokens.analog_ops, 'new_analog_id', return_value=2):
+                            with patch.object(network.tokens.token_tensor, 'set_feature'):
+                                with patch.object(network, 'cache_sets'):
+                                    with patch.object(network, 'cache_analogs'):
+                                        result = network.analog_ops.make_AM_copy()
                 
                 # Verify copy_tokens was called with combined indices (parents + children)
                 call_args = mock_copy.call_args
@@ -343,12 +364,15 @@ def test_make_AM_move_updates_children_sets(network):
     parent_indices = torch.tensor([0, 1])
     child_indices = torch.tensor([2, 3])
     
-    network.tokens.token_tensor.set_features(parent_indices, TF.SET, Set.DRIVER)
-    network.tokens.token_tensor.set_features(child_indices, TF.SET, Set.MEMORY)  # Children in different set
+    network.tokens.token_tensor.set_features(parent_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.DRIVER)], [float(Set.DRIVER)]], dtype=torch.float32))
+    network.tokens.token_tensor.set_features(child_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.MEMORY)], [float(Set.MEMORY)]], dtype=torch.float32))  # Children in different set
     
     # Set up connections
-    network.tokens.connections.tensor[0, 2] = True
-    network.tokens.connections.tensor[1, 3] = True
+    network.tokens.connections.connections[0, 2] = True
+    network.tokens.connections.connections[1, 3] = True
+    
+    # Refresh cache so get_set_indices returns correct tokens
+    network.cache_sets()
     
     # Mock check_for_copy to return empty (no analogs to move)
     with patch.object(network.analog_ops, 'check_for_copy', return_value=torch.tensor([])):
@@ -368,8 +392,8 @@ def test_make_AM_move_updates_children_sets(network):
                     network.analog_ops.make_AM_move()
     
     # Verify children were updated to DRIVER set
-    child_sets = network.tokens.token_tensor.get_features(child_indices, TF.SET)
-    assert torch.all(child_sets == Set.DRIVER)
+    child_sets = network.tokens.token_tensor.get_feature(child_indices, TF.SET)
+    assert torch.all(child_sets == float(Set.DRIVER))
 
 
 def test_make_AM_move_handles_empty_sets(network):
@@ -402,9 +426,9 @@ def test_find_mapped_analog_returns_analog_number(network):
     analog_num = 2
     
     # Set up token in RECIPIENT with max_map > 0
-    network.tokens.token_tensor.set_feature(po_index, TF.SET, Set.RECIPIENT)
-    network.tokens.token_tensor.set_feature(po_index, TF.ANALOG, float(analog_num))
-    network.tokens.token_tensor.set_feature(po_index, TF.MAX_MAP, 0.5)
+    network.tokens.token_tensor.set_feature(torch.tensor([po_index]), TF.SET, float(Set.RECIPIENT))
+    network.tokens.token_tensor.set_feature(torch.tensor([po_index]), TF.ANALOG, float(analog_num))
+    network.tokens.token_tensor.set_feature(torch.tensor([po_index]), TF.MAX_MAP, 0.5)
     
     # Mock get_max_maps
     with patch.object(network.mapping_ops, 'get_max_maps'):
@@ -433,9 +457,9 @@ def test_find_mapping_analog_returns_analogs(network):
     token_indices = torch.tensor([0, 1, 2])
     analog_nums = torch.tensor([1.0, 2.0, 1.0])  # Two tokens with analog 1, one with analog 2
     
-    network.tokens.token_tensor.set_features(token_indices, TF.SET, Set.DRIVER)
-    network.tokens.token_tensor.set_features(token_indices, TF.ANALOG, analog_nums)
-    network.tokens.token_tensor.set_features(token_indices, TF.MAX_MAP, torch.tensor([0.5, 0.3, 0.7]))
+    network.tokens.token_tensor.set_features(token_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.DRIVER)], [float(Set.DRIVER)], [float(Set.DRIVER)]], dtype=torch.float32))
+    network.tokens.token_tensor.set_features(token_indices, torch.tensor([TF.ANALOG]), analog_nums.unsqueeze(1).float())
+    network.tokens.token_tensor.set_features(token_indices, torch.tensor([TF.MAX_MAP]), torch.tensor([[0.5], [0.3], [0.7]], dtype=torch.float32))
     
     # Update driver local tensor - need to refresh cache first
     network.cache_sets()
@@ -459,8 +483,8 @@ def test_find_mapping_analog_returns_none_when_no_mappings(network):
     """Test that find_mapping_analog returns None when no tokens have max_map > 0."""
     # Set up: All tokens have max_map = 0
     token_indices = torch.tensor([0, 1])
-    network.tokens.token_tensor.set_features(token_indices, TF.SET, Set.DRIVER)
-    network.tokens.token_tensor.set_features(token_indices, TF.MAX_MAP, torch.tensor([0.0, 0.0]))
+    network.tokens.token_tensor.set_features(token_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.DRIVER)], [float(Set.DRIVER)]], dtype=torch.float32))
+    network.tokens.token_tensor.set_features(token_indices, torch.tensor([TF.MAX_MAP]), torch.tensor([[0.0], [0.0]], dtype=torch.float32))
     
     # Update driver local tensor - need to refresh cache first
     network.cache_sets()
@@ -490,14 +514,15 @@ def test_move_mapping_analogs_to_new_creates_new_analog(network):
         with patch.object(network.tokens.analog_ops, 'get_analog_indices_multiple', return_value=token_indices):
             # Mock new_analog_id
             with patch.object(network.tokens.analog_ops, 'new_analog_id', return_value=5):
-                with patch.object(network, 'cache_sets'):
-                    with patch.object(network, 'cache_analogs'):
-                        result = network.analog_ops.move_mapping_analogs_to_new()
+                with patch.object(network.tokens.token_tensor, 'set_feature') as mock_set_feature:
+                    with patch.object(network, 'cache_sets'):
+                        with patch.object(network, 'cache_analogs'):
+                            result = network.analog_ops.move_mapping_analogs_to_new()
     
     # Verify new analog number was returned
     assert result == 5
     # Verify set_feature was called with new analog number
-    network.tokens.token_tensor.set_feature.assert_called_once_with(token_indices, TF.ANALOG, 5)
+    mock_set_feature.assert_called_once_with(token_indices, TF.ANALOG, 5)
 
 
 def test_move_mapping_analogs_to_new_returns_none_when_no_mappings(network):
@@ -515,7 +540,7 @@ def test_new_set_to_analog_creates_analog_for_new_set(network):
     """Test that new_set_to_analog creates a new analog for all tokens in NEW_SET."""
     # Set up: Create tokens in NEW_SET
     new_set_indices = torch.tensor([0, 1, 2])
-    network.tokens.token_tensor.set_features(new_set_indices, TF.SET, Set.NEW_SET)
+    network.tokens.token_tensor.set_features(new_set_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.NEW_SET)], [float(Set.NEW_SET)], [float(Set.NEW_SET)]], dtype=torch.float32))
     
     # Mock new_analog_id
     with patch.object(network.tokens.analog_ops, 'new_analog_id', return_value=3):
