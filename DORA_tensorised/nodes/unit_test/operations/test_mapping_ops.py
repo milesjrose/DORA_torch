@@ -130,8 +130,6 @@ def test_reset_mapping_hyps_runs_without_error(network):
 def test_update_mapping_connections_runs_without_error(network):
     """Test that update_mapping_connections runs without error."""
     # This is a wrapper function, so we just verify it doesn't raise an exception
-    # Note: The wrapper calls update_connections() but the actual method is update_weight()
-    # So this will fail, but we're testing the wrapper
     network.mapping_ops.update_mapping_connections()
     # No assertion needed - just verifying it runs
 
