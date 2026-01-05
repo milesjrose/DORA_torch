@@ -112,11 +112,12 @@ def test_reset_mappings_runs_without_error(network):
 
 def test_update_mapping_hyps_runs_without_error(network):
     """Test that update_mapping_hyps runs without error."""
-    # This is a wrapper function, so we just verify it doesn't raise an exception
-    # Note: update_hypotheses() requires driver_mask and recipient_mask but raises NotImplementedError
-    # So this will fail, but we're testing the wrapper
-    network.mapping_ops.update_mapping_hyps()
-    # No assertion needed - just verifying it runs
+    # This is a wrapper function that calls update_hypotheses()
+    # We mock the underlying method since the test fixture dimensions 
+    # (mapping: 5x4) don't match the actual set sizes (10 tokens)
+    with patch.object(network.mappings, 'update_hypotheses') as mock_update:
+        network.mapping_ops.update_mapping_hyps()
+        mock_update.assert_called_once()
 
 
 def test_reset_mapping_hyps_runs_without_error(network):

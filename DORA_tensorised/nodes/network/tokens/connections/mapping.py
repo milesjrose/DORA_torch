@@ -163,61 +163,58 @@ class Mapping:
         """
         Update the hypothesis matrix, for nodes in given masks.
         """
-        raise NotImplementedError("update_hypothesis not ported to new tensor structure yet")
         # Hypothesis = hypothesis + (driver_token.act * recipient_token.act)
-        driver_acts = self.driver.nodes[:, TF.ACT]
-        map_from_acts = self.recipient.nodes[:, TF.ACT]
+        driver_acts = self.driver.lcl[:, TF.ACT]
+        recipient_acts = self.recipient.lcl[:, TF.ACT]
         
         # Create outer product of activations for all combinations
-        activation_product = torch.outer(map_from_acts, driver_acts)
+        activation_product = torch.outer(recipient_acts, driver_acts)
         
         # Apply masks to only update the relevant node combinations
         mask_2d = torch.outer(recipient_mask, driver_mask)
         self[MappingFields.HYPOTHESIS] += activation_product * mask_2d
     
-    def update_hypotheses(self, driver_mask=None, recipient_mask=None):
+    def update_hypotheses(self):
         """
         Update the hypotheses matrix.
         NOTE: Seems very inefficient
-        TODO: Implement a more efficient method
         """
-        raise NotImplementedError("update_hypotheses not ported to new tensor structure yet")
         # Need to check that the type of p/po nodes match.
         # Can do this by refining masks to type, then updating the these masks first. So only matching node types will be included
-        r_p = self.recipient.get_mask(Type.P)
-        d_p = self.driver.get_mask(Type.P)
+        r_p = self.recipient.tensor_op.get_mask(Type.P)
+        d_p = self.driver.tensor_op.get_mask(Type.P)
 
-        r_po = self.recipient.get_mask(Type.PO)
-        d_po = self.driver.get_mask(Type.PO)
+        r_po = self.recipient.tensor_op.get_mask(Type.PO)
+        d_po = self.driver.tensor_op.get_mask(Type.PO)
 
-        print("r_p: ", r_p)
-        print("d_p: ", d_p)
+        logger.debug(f"r_p: {r_p}")
+        logger.debug(f"d_p: {d_p}")
 
         # Update child p
-        r_pc = tOps.refine_mask(self.recipient.nodes, r_p, TF.MODE, Mode.CHILD)
-        d_pc = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.CHILD)
+        r_pc = tOps.refine_mask(self.recipient.lcl, r_p, TF.MODE, Mode.CHILD)
+        d_pc = tOps.refine_mask(self.driver.lcl, d_p, TF.MODE, Mode.CHILD)
         self.update_hypothesis(d_pc, r_pc)
-        print("r_pc: ", r_pc)
-        print("d_pc: ", d_pc)
+        logger.debug(f"r_pc: {r_pc}")
+        logger.debug(f"d_pc: {d_pc}")
 
         # Update parent p
-        r_pp = tOps.refine_mask(self.recipient.nodes, r_p, TF.MODE, Mode.PARENT)
-        d_pp = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.PARENT)
+        r_pp = tOps.refine_mask(self.recipient.lcl, r_p, TF.MODE, Mode.PARENT)
+        d_pp = tOps.refine_mask(self.driver.lcl, d_p, TF.MODE, Mode.PARENT)
         self.update_hypothesis(d_pp, r_pp)
 
         # Update neutral p
-        r_pn = tOps.refine_mask(self.recipient.nodes, r_p, TF.MODE, Mode.NEUTRAL)
-        d_pn = tOps.refine_mask(self.driver.nodes, d_p, TF.MODE, Mode.NEUTRAL)
+        r_pn = tOps.refine_mask(self.recipient.lcl, r_p, TF.MODE, Mode.NEUTRAL)
+        d_pn = tOps.refine_mask(self.driver.lcl, d_p, TF.MODE, Mode.NEUTRAL)
         self.update_hypothesis(d_pn, r_pn)
 
         # Update Pred
-        r_pr = tOps.refine_mask(self.recipient.nodes, r_po, TF.PRED, B.TRUE)
-        d_pr = tOps.refine_mask(self.driver.nodes, d_po, TF.PRED, B.TRUE)
+        r_pr = tOps.refine_mask(self.recipient.lcl, r_po, TF.PRED, B.TRUE)
+        d_pr = tOps.refine_mask(self.driver.lcl, d_po, TF.PRED, B.TRUE)
         self.update_hypothesis(d_pr, r_pr)
 
         # Update Obj
-        r_ob = tOps.refine_mask(self.recipient.nodes, r_po, TF.PRED, B.FALSE)
-        d_ob = tOps.refine_mask(self.driver.nodes, d_po, TF.PRED, B.FALSE)
+        r_ob = tOps.refine_mask(self.recipient.lcl, r_po, TF.PRED, B.FALSE)
+        d_ob = tOps.refine_mask(self.driver.lcl, d_po, TF.PRED, B.FALSE)
         self.update_hypothesis(d_ob, r_ob)
 
         # Update other

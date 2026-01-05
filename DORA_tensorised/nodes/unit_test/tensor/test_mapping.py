@@ -2191,70 +2191,476 @@ def test_del_mappings_boundary_indices(mapping):
     assert torch.allclose(mapping[MappingFields.WEIGHT][:, 3], torch.zeros(5))
 
 
-# =====================[ update_hypothesis and update_hypotheses Tests ]======================
-# These methods raise NotImplementedError, but we should test that they do
+# =====================[ update_hypothesis Tests ]======================
 
-def test_update_hypothesis_raises_not_implemented(mapping):
-    """Test that update_hypothesis raises NotImplementedError."""
+@pytest.fixture
+def mapping_with_driver_recipient():
+    """Create a Mapping instance with mock driver and recipient for hypothesis tests."""
     from unittest.mock import Mock
+    from nodes.enums import TF
     
+    # Create mapping tensor (5 recipients x 4 drivers)
+    num_recipient = 5
+    num_driver = 4
+    num_fields = len(MappingFields)
+    tensor = torch.zeros((num_recipient, num_driver, num_fields))
+    mapping = Mapping(tensor)
+    
+    # Create mock driver with lcl tensor
     mock_driver = Mock()
+    mock_driver.lcl = torch.zeros((num_driver, len(TF)))
+    mock_driver.lcl[:, TF.ACT] = torch.tensor([0.5, 0.6, 0.7, 0.8])  # Driver activations
+    
+    # Create mock recipient with lcl tensor
     mock_recipient = Mock()
+    mock_recipient.lcl = torch.zeros((num_recipient, len(TF)))
+    mock_recipient.lcl[:, TF.ACT] = torch.tensor([0.2, 0.3, 0.4, 0.5, 0.6])  # Recipient activations
+    
     mapping.set_driver(mock_driver)
     mapping.set_recipient(mock_recipient)
     
-    driver_mask = torch.tensor([True, False, True, False])
-    recipient_mask = torch.tensor([True, False, True, False, False])
+    return mapping
+
+
+def test_update_hypothesis_basic(mapping_with_driver_recipient):
+    """Test basic update_hypothesis functionality."""
+    from nodes.enums import TF
     
-    with pytest.raises(NotImplementedError):
-        mapping.update_hypothesis(driver_mask, recipient_mask)
+    mapping = mapping_with_driver_recipient
+    
+    # Create masks - all True
+    driver_mask = torch.tensor([True, True, True, True])
+    recipient_mask = torch.tensor([True, True, True, True, True])
+    
+    # Initial hypothesis should be all zeros
+    assert torch.all(mapping[MappingFields.HYPOTHESIS] == 0.0)
+    
+    # Update hypothesis
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    # Hypothesis should be outer product of activations
+    # recipient_acts = [0.2, 0.3, 0.4, 0.5, 0.6]
+    # driver_acts = [0.5, 0.6, 0.7, 0.8]
+    # hypothesis[i,j] = recipient_acts[i] * driver_acts[j]
+    expected = torch.outer(
+        torch.tensor([0.2, 0.3, 0.4, 0.5, 0.6]),
+        torch.tensor([0.5, 0.6, 0.7, 0.8])
+    )
+    
+    assert torch.allclose(mapping[MappingFields.HYPOTHESIS], expected, atol=1e-6)
 
 
-def test_update_hypotheses_raises_not_implemented(mapping):
-    """Test that update_hypotheses raises NotImplementedError."""
+def test_update_hypothesis_with_masks(mapping_with_driver_recipient):
+    """Test update_hypothesis with partial masks."""
+    mapping = mapping_with_driver_recipient
+    
+    # Create partial masks
+    driver_mask = torch.tensor([True, False, True, False])  # Only indices 0, 2
+    recipient_mask = torch.tensor([True, True, False, False, False])  # Only indices 0, 1
+    
+    # Update hypothesis
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    # Only positions where both masks are True should have non-zero values
+    # Positions (0,0), (0,2), (1,0), (1,2) should be non-zero
+    hypothesis = mapping[MappingFields.HYPOTHESIS]
+    
+    # Verify non-masked positions are zero
+    assert hypothesis[0, 1].item() == 0.0  # driver_mask[1] is False
+    assert hypothesis[0, 3].item() == 0.0  # driver_mask[3] is False
+    assert hypothesis[2, 0].item() == 0.0  # recipient_mask[2] is False
+    assert hypothesis[3, 0].item() == 0.0  # recipient_mask[3] is False
+    assert hypothesis[4, 0].item() == 0.0  # recipient_mask[4] is False
+    
+    # Verify masked positions are correct
+    # hypothesis[0,0] = recipient_act[0] * driver_act[0] = 0.2 * 0.5 = 0.1
+    assert hypothesis[0, 0].item() == pytest.approx(0.1, abs=1e-6)
+    # hypothesis[0,2] = recipient_act[0] * driver_act[2] = 0.2 * 0.7 = 0.14
+    assert hypothesis[0, 2].item() == pytest.approx(0.14, abs=1e-6)
+    # hypothesis[1,0] = recipient_act[1] * driver_act[0] = 0.3 * 0.5 = 0.15
+    assert hypothesis[1, 0].item() == pytest.approx(0.15, abs=1e-6)
+    # hypothesis[1,2] = recipient_act[1] * driver_act[2] = 0.3 * 0.7 = 0.21
+    assert hypothesis[1, 2].item() == pytest.approx(0.21, abs=1e-6)
+
+
+def test_update_hypothesis_accumulates(mapping_with_driver_recipient):
+    """Test that update_hypothesis accumulates values."""
+    mapping = mapping_with_driver_recipient
+    
+    driver_mask = torch.tensor([True, True, True, True])
+    recipient_mask = torch.tensor([True, True, True, True, True])
+    
+    # Call update_hypothesis twice
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    first_hypothesis = mapping[MappingFields.HYPOTHESIS].clone()
+    
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    second_hypothesis = mapping[MappingFields.HYPOTHESIS]
+    
+    # Hypothesis should be doubled
+    assert torch.allclose(second_hypothesis, 2 * first_hypothesis, atol=1e-6)
+
+
+def test_update_hypothesis_multiple_calls_with_different_masks(mapping_with_driver_recipient):
+    """Test multiple calls with different masks accumulate correctly."""
+    mapping = mapping_with_driver_recipient
+    
+    # First call: only update specific positions
+    driver_mask1 = torch.tensor([True, False, False, False])
+    recipient_mask1 = torch.tensor([True, False, False, False, False])
+    mapping.update_hypothesis(driver_mask1, recipient_mask1)
+    
+    # Second call: update different positions
+    driver_mask2 = torch.tensor([False, True, False, False])
+    recipient_mask2 = torch.tensor([False, True, False, False, False])
+    mapping.update_hypothesis(driver_mask2, recipient_mask2)
+    
+    hypothesis = mapping[MappingFields.HYPOTHESIS]
+    
+    # Position (0,0) should have value from first call
+    # hypothesis[0,0] = 0.2 * 0.5 = 0.1
+    assert hypothesis[0, 0].item() == pytest.approx(0.1, abs=1e-6)
+    
+    # Position (1,1) should have value from second call
+    # hypothesis[1,1] = 0.3 * 0.6 = 0.18
+    assert hypothesis[1, 1].item() == pytest.approx(0.18, abs=1e-6)
+    
+    # Position (0,1) should be zero (not in either mask combination)
+    assert hypothesis[0, 1].item() == 0.0
+
+
+def test_update_hypothesis_all_false_masks(mapping_with_driver_recipient):
+    """Test update_hypothesis with all-False masks."""
+    mapping = mapping_with_driver_recipient
+    
+    driver_mask = torch.tensor([False, False, False, False])
+    recipient_mask = torch.tensor([False, False, False, False, False])
+    
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    # All hypothesis values should remain zero
+    assert torch.all(mapping[MappingFields.HYPOTHESIS] == 0.0)
+
+
+def test_update_hypothesis_single_driver(mapping_with_driver_recipient):
+    """Test update_hypothesis with single driver masked."""
+    mapping = mapping_with_driver_recipient
+    
+    # Only driver index 2
+    driver_mask = torch.tensor([False, False, True, False])
+    recipient_mask = torch.tensor([True, True, True, True, True])
+    
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    hypothesis = mapping[MappingFields.HYPOTHESIS]
+    
+    # Only column 2 should have non-zero values
+    assert torch.all(hypothesis[:, 0] == 0.0)
+    assert torch.all(hypothesis[:, 1] == 0.0)
+    assert torch.all(hypothesis[:, 3] == 0.0)
+    
+    # Column 2 should have values: recipient_act * driver_act[2] = recipient_act * 0.7
+    expected_col2 = torch.tensor([0.2, 0.3, 0.4, 0.5, 0.6]) * 0.7
+    assert torch.allclose(hypothesis[:, 2], expected_col2, atol=1e-6)
+
+
+def test_update_hypothesis_single_recipient(mapping_with_driver_recipient):
+    """Test update_hypothesis with single recipient masked."""
+    mapping = mapping_with_driver_recipient
+    
+    driver_mask = torch.tensor([True, True, True, True])
+    # Only recipient index 3
+    recipient_mask = torch.tensor([False, False, False, True, False])
+    
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    hypothesis = mapping[MappingFields.HYPOTHESIS]
+    
+    # Only row 3 should have non-zero values
+    assert torch.all(hypothesis[0, :] == 0.0)
+    assert torch.all(hypothesis[1, :] == 0.0)
+    assert torch.all(hypothesis[2, :] == 0.0)
+    assert torch.all(hypothesis[4, :] == 0.0)
+    
+    # Row 3 should have values: recipient_act[3] * driver_act = 0.5 * driver_act
+    expected_row3 = 0.5 * torch.tensor([0.5, 0.6, 0.7, 0.8])
+    assert torch.allclose(hypothesis[3, :], expected_row3, atol=1e-6)
+
+
+def test_update_hypothesis_preserves_other_fields(mapping_with_driver_recipient):
+    """Test that update_hypothesis only modifies HYPOTHESIS field."""
+    mapping = mapping_with_driver_recipient
+    
+    # Set values in other fields
+    mapping[MappingFields.WEIGHT] = torch.ones(5, 4) * 0.5
+    mapping[MappingFields.MAX_HYP] = torch.ones(5, 4) * 0.3
+    
+    driver_mask = torch.tensor([True, True, True, True])
+    recipient_mask = torch.tensor([True, True, True, True, True])
+    
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    # Other fields should be unchanged
+    assert torch.all(mapping[MappingFields.WEIGHT] == 0.5)
+    assert torch.all(mapping[MappingFields.MAX_HYP] == 0.3)
+
+
+def test_update_hypothesis_zero_activations(mapping_with_driver_recipient):
+    """Test update_hypothesis when some activations are zero."""
+    from nodes.enums import TF
+    
+    mapping = mapping_with_driver_recipient
+    
+    # Set some activations to zero
+    mapping.driver.lcl[:, TF.ACT] = torch.tensor([0.0, 0.6, 0.0, 0.8])
+    mapping.recipient.lcl[:, TF.ACT] = torch.tensor([0.2, 0.0, 0.4, 0.0, 0.6])
+    
+    driver_mask = torch.tensor([True, True, True, True])
+    recipient_mask = torch.tensor([True, True, True, True, True])
+    
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    hypothesis = mapping[MappingFields.HYPOTHESIS]
+    
+    # Columns 0 and 2 (zero driver activations) should be zero
+    assert torch.all(hypothesis[:, 0] == 0.0)
+    assert torch.all(hypothesis[:, 2] == 0.0)
+    
+    # Rows 1 and 3 (zero recipient activations) should be zero
+    assert torch.all(hypothesis[1, :] == 0.0)
+    assert torch.all(hypothesis[3, :] == 0.0)
+    
+    # Non-zero positions should have correct values
+    # hypothesis[0,1] = 0.2 * 0.6 = 0.12
+    assert hypothesis[0, 1].item() == pytest.approx(0.12, abs=1e-6)
+    # hypothesis[2,3] = 0.4 * 0.8 = 0.32
+    assert hypothesis[2, 3].item() == pytest.approx(0.32, abs=1e-6)
+
+
+def test_update_hypothesis_with_initial_values(mapping_with_driver_recipient):
+    """Test update_hypothesis when hypothesis already has values."""
+    mapping = mapping_with_driver_recipient
+    
+    # Set initial hypothesis values
+    initial_hypothesis = torch.tensor([
+        [0.1, 0.2, 0.3, 0.4],
+        [0.5, 0.6, 0.7, 0.8],
+        [0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0]
+    ])
+    mapping[MappingFields.HYPOTHESIS] = initial_hypothesis.clone()
+    
+    driver_mask = torch.tensor([True, True, True, True])
+    recipient_mask = torch.tensor([True, True, True, True, True])
+    
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    # New hypothesis should be initial + outer product
+    outer_product = torch.outer(
+        torch.tensor([0.2, 0.3, 0.4, 0.5, 0.6]),
+        torch.tensor([0.5, 0.6, 0.7, 0.8])
+    )
+    expected = initial_hypothesis + outer_product
+    
+    assert torch.allclose(mapping[MappingFields.HYPOTHESIS], expected, atol=1e-6)
+
+
+def test_update_hypothesis_high_activations(mapping_with_driver_recipient):
+    """Test update_hypothesis with high activation values."""
+    from nodes.enums import TF
+    
+    mapping = mapping_with_driver_recipient
+    
+    # Set high activations (near 1.0)
+    mapping.driver.lcl[:, TF.ACT] = torch.tensor([0.9, 0.95, 1.0, 0.85])
+    mapping.recipient.lcl[:, TF.ACT] = torch.tensor([0.9, 0.95, 1.0, 0.85, 0.8])
+    
+    driver_mask = torch.tensor([True, True, True, True])
+    recipient_mask = torch.tensor([True, True, True, True, True])
+    
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    hypothesis = mapping[MappingFields.HYPOTHESIS]
+    
+    # Maximum value should be 1.0 * 1.0 = 1.0 at position (2, 2)
+    assert hypothesis[2, 2].item() == pytest.approx(1.0, abs=1e-6)
+    
+    # All values should be reasonable products
+    assert torch.all(hypothesis <= 1.0)
+    assert torch.all(hypothesis >= 0.0)
+
+
+def test_update_hypothesis_sparse_masks(mapping_with_driver_recipient):
+    """Test update_hypothesis with sparse masks (few True values)."""
+    mapping = mapping_with_driver_recipient
+    
+    # Only one True in each mask
+    driver_mask = torch.tensor([False, False, True, False])
+    recipient_mask = torch.tensor([False, False, False, True, False])
+    
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    hypothesis = mapping[MappingFields.HYPOTHESIS]
+    
+    # Only position (3, 2) should be non-zero
+    # hypothesis[3,2] = recipient_act[3] * driver_act[2] = 0.5 * 0.7 = 0.35
+    assert hypothesis[3, 2].item() == pytest.approx(0.35, abs=1e-6)
+    
+    # All other positions should be zero
+    expected = torch.zeros(5, 4)
+    expected[3, 2] = 0.35
+    assert torch.allclose(hypothesis, expected, atol=1e-6)
+
+
+def test_update_hypothesis_float_mask_values():
+    """Test update_hypothesis behavior with float masks (should work as multipliers)."""
     from unittest.mock import Mock
+    from nodes.enums import TF
     
+    # Create mapping
+    num_recipient = 3
+    num_driver = 3
+    tensor = torch.zeros((num_recipient, num_driver, len(MappingFields)))
+    mapping = Mapping(tensor)
+    
+    # Create mock driver and recipient
     mock_driver = Mock()
+    mock_driver.lcl = torch.zeros((num_driver, len(TF)))
+    mock_driver.lcl[:, TF.ACT] = torch.tensor([1.0, 1.0, 1.0])
+    
     mock_recipient = Mock()
+    mock_recipient.lcl = torch.zeros((num_recipient, len(TF)))
+    mock_recipient.lcl[:, TF.ACT] = torch.tensor([1.0, 1.0, 1.0])
+    
     mapping.set_driver(mock_driver)
     mapping.set_recipient(mock_recipient)
     
-    driver_mask = torch.tensor([True, False, True, False])
-    recipient_mask = torch.tensor([True, False, True, False, False])
+    # Use float masks (0.5 instead of True)
+    driver_mask = torch.tensor([0.5, 1.0, 0.0])
+    recipient_mask = torch.tensor([1.0, 0.5, 0.0])
     
-    with pytest.raises(NotImplementedError):
-        mapping.update_hypotheses(driver_mask, recipient_mask)
+    mapping.update_hypothesis(driver_mask, recipient_mask)
+    
+    # The outer product of masks creates a 2D mask that scales the hypothesis
+    # mask_2d[i,j] = recipient_mask[i] * driver_mask[j]
+    hypothesis = mapping[MappingFields.HYPOTHESIS]
+    
+    # Position (0, 0): 1.0 * 0.5 = 0.5
+    assert hypothesis[0, 0].item() == pytest.approx(0.5, abs=1e-6)
+    # Position (0, 1): 1.0 * 1.0 = 1.0
+    assert hypothesis[0, 1].item() == pytest.approx(1.0, abs=1e-6)
+    # Position (1, 0): 0.5 * 0.5 = 0.25
+    assert hypothesis[1, 0].item() == pytest.approx(0.25, abs=1e-6)
+    # Position (2, 0): 0.0 * 0.5 = 0.0
+    assert hypothesis[2, 0].item() == 0.0
 
 
-def test_update_hypothesis_signature(mapping):
-    """Test that update_hypothesis has correct signature (requires two arguments)."""
-    from unittest.mock import Mock
+# =====================[ update_hypotheses Tests ]======================
+
+def test_update_hypotheses_calls_update_hypothesis_for_each_type():
+    """Test that update_hypotheses calls update_hypothesis for each node type combination."""
+    from unittest.mock import Mock, patch, call
+    from nodes.enums import TF, Type, Mode, B
     
+    # Create mapping tensor (5 recipients x 4 drivers)
+    num_recipient = 5
+    num_driver = 4
+    num_fields = len(MappingFields)
+    tensor = torch.zeros((num_recipient, num_driver, num_fields))
+    mapping = Mapping(tensor)
+    
+    # Create mock driver with tensor_op and lcl
     mock_driver = Mock()
+    mock_driver.tensor_op = Mock()
+    mock_driver.tensor_op.get_mask = Mock(side_effect=lambda t: 
+        torch.tensor([True, False, False, False]) if t == Type.P else 
+        torch.tensor([False, True, True, False]))
+    mock_driver.lcl = torch.zeros((num_driver, len(TF)))
+    mock_driver.lcl[:, TF.ACT] = torch.tensor([0.5, 0.6, 0.7, 0.8])
+    mock_driver.lcl[:, TF.MODE] = Mode.CHILD
+    mock_driver.lcl[:, TF.PRED] = B.FALSE
+    
+    # Create mock recipient with tensor_op and lcl
     mock_recipient = Mock()
+    mock_recipient.tensor_op = Mock()
+    mock_recipient.tensor_op.get_mask = Mock(side_effect=lambda t: 
+        torch.tensor([True, False, False, False, False]) if t == Type.P else 
+        torch.tensor([False, True, True, False, False]))
+    mock_recipient.lcl = torch.zeros((num_recipient, len(TF)))
+    mock_recipient.lcl[:, TF.ACT] = torch.tensor([0.2, 0.3, 0.4, 0.5, 0.6])
+    mock_recipient.lcl[:, TF.MODE] = Mode.CHILD
+    mock_recipient.lcl[:, TF.PRED] = B.FALSE
+    
     mapping.set_driver(mock_driver)
     mapping.set_recipient(mock_recipient)
     
-    # Should require two arguments
-    with pytest.raises(TypeError):
-        mapping.update_hypothesis()
-    
-    with pytest.raises(TypeError):
-        mapping.update_hypothesis(torch.tensor([True, False]))
-
-
-def test_update_hypotheses_signature(mapping):
-    """Test that update_hypotheses has correct signature (requires two arguments)."""
-    from unittest.mock import Mock
-    
-    mock_driver = Mock()
-    mock_recipient = Mock()
-    mapping.set_driver(mock_driver)
-    mapping.set_recipient(mock_recipient)
-    
-    # Should require two arguments
-    with pytest.raises(TypeError):
+    # Patch update_hypothesis to track calls
+    with patch.object(mapping, 'update_hypothesis') as mock_update:
         mapping.update_hypotheses()
+        
+        # Should be called 6 times:
+        # 1. child P
+        # 2. parent P
+        # 3. neutral P
+        # 4. Pred (PO with PRED=True)
+        # 5. Obj (PO with PRED=False)
+        # 6. other
+        assert mock_update.call_count == 6
+
+
+def test_update_hypotheses_gets_masks_for_p_and_po():
+    """Test that update_hypotheses gets masks for P and PO types."""
+    from unittest.mock import Mock, call
+    from nodes.enums import TF, Type, Mode, B
     
-    with pytest.raises(TypeError):
-        mapping.update_hypotheses(torch.tensor([True, False]))
+    # Create mapping
+    num_recipient = 5
+    num_driver = 4
+    tensor = torch.zeros((num_recipient, num_driver, len(MappingFields)))
+    mapping = Mapping(tensor)
+    
+    # Create mock driver
+    mock_driver = Mock()
+    mock_driver.tensor_op = Mock()
+    mock_driver.tensor_op.get_mask = Mock(return_value=torch.zeros(num_driver, dtype=torch.bool))
+    mock_driver.lcl = torch.zeros((num_driver, len(TF)))
+    mock_driver.lcl[:, TF.ACT] = torch.tensor([0.5, 0.6, 0.7, 0.8])
+    
+    # Create mock recipient
+    mock_recipient = Mock()
+    mock_recipient.tensor_op = Mock()
+    mock_recipient.tensor_op.get_mask = Mock(return_value=torch.zeros(num_recipient, dtype=torch.bool))
+    mock_recipient.lcl = torch.zeros((num_recipient, len(TF)))
+    mock_recipient.lcl[:, TF.ACT] = torch.tensor([0.2, 0.3, 0.4, 0.5, 0.6])
+    
+    mapping.set_driver(mock_driver)
+    mapping.set_recipient(mock_recipient)
+    
+    mapping.update_hypotheses()
+    
+    # Verify get_mask was called for P and PO on both driver and recipient
+    driver_calls = mock_driver.tensor_op.get_mask.call_args_list
+    recipient_calls = mock_recipient.tensor_op.get_mask.call_args_list
+    
+    # Driver should have been called with Type.P and Type.PO
+    assert call(Type.P) in driver_calls
+    assert call(Type.PO) in driver_calls
+    
+    # Recipient should have been called with Type.P and Type.PO
+    assert call(Type.P) in recipient_calls
+    assert call(Type.PO) in recipient_calls
+
+
+def test_update_hypotheses_no_parameters():
+    """Test that update_hypotheses takes no parameters (unlike update_hypothesis)."""
+    from unittest.mock import Mock
+    from nodes.enums import TF
+    import inspect
+    
+    # Check signature
+    sig = inspect.signature(Mapping.update_hypotheses)
+    params = list(sig.parameters.keys())
+    
+    # Should only have 'self' parameter
+    assert params == ['self'], f"update_hypotheses should only have 'self' parameter, but has: {params}"
