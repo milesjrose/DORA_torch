@@ -30,14 +30,14 @@ class Driver(Base_Set):
         """
         Check if any PO.inhibitor_act == 1.0 in the driver set.
         """
-        po = self.get_mask(Type.PO)
+        po = self.lcl[:, TF.TYPE] == Type.PO
         return torch.any(self.lcl[po, TF.INHIBITOR_ACT] == 1.0)
     
     def check_global_inhibitor(self):
         """
         Check if any RB.inhibitor_act == 1.0 in the driver set.
         """
-        rb = self.get_mask(Type.RB)
+        rb = self.lcl[:, TF.TYPE] == Type.RB
         return torch.any(self.lcl[rb, TF.INHIBITOR_ACT] == 1.0)
     
     # ====================[ UPDATE INPUT FUNCTIONS ]===================

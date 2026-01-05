@@ -1599,3 +1599,308 @@ def test_update_input_po_no_pos_no_error(driver_po):
     except Exception as e:
         pytest.fail(f"update_input_po raised an exception when no PO nodes exist: {e}")
 
+
+# =====================[ check_local_inhibitor tests ]======================
+
+@pytest.fixture
+def mock_tensor_with_inhibitors():
+    """
+    Create a mock tensor with PO and RB nodes for testing inhibitor checks.
+    Structure:
+    - Tokens 0-1: PO nodes in DRIVER
+    - Tokens 2-3: RB nodes in DRIVER
+    - Token 4: PO node in RECIPIENT (should not be checked)
+    - Token 5: RB node in RECIPIENT (should not be checked)
+    """
+    num_tokens = 20
+    num_features = len(TF)
+    
+    # Create tensor with all features
+    tensor = torch.full((num_tokens, num_features), null, dtype=tensor_type)
+    
+    # Set DELETED to False for all active tokens
+    tensor[:, TF.DELETED] = B.FALSE
+    
+    # DRIVER set: tokens 0-9
+    tensor[0:10, TF.SET] = Set.DRIVER
+    tensor[0:10, TF.ID] = torch.arange(0, 10)
+    tensor[0:10, TF.ANALOG] = 0
+    
+    # PO nodes in DRIVER
+    tensor[0:2, TF.TYPE] = Type.PO
+    tensor[0, TF.PRED] = B.TRUE   # Predicate
+    tensor[1, TF.PRED] = B.FALSE  # Object
+    tensor[0:2, TF.ACT] = torch.tensor([0.5, 0.6])
+    tensor[0:2, TF.INHIBITOR_ACT] = torch.tensor([0.0, 0.0])  # Initial: no inhibitor firing
+    
+    # RB nodes in DRIVER
+    tensor[2:4, TF.TYPE] = Type.RB
+    tensor[2:4, TF.ACT] = torch.tensor([0.7, 0.8])
+    tensor[2:4, TF.INHIBITOR_ACT] = torch.tensor([0.0, 0.0])  # Initial: no inhibitor firing
+    
+    # P nodes in DRIVER (for completeness)
+    tensor[4:6, TF.TYPE] = Type.P
+    tensor[4, TF.MODE] = Mode.PARENT
+    tensor[5, TF.MODE] = Mode.CHILD
+    tensor[4:6, TF.ACT] = torch.tensor([0.3, 0.4])
+    
+    # RECIPIENT set: tokens 10-14
+    tensor[10:15, TF.SET] = Set.RECIPIENT
+    tensor[10:15, TF.ID] = torch.arange(10, 15)
+    tensor[10:15, TF.ANALOG] = 1
+    
+    # PO node in RECIPIENT
+    tensor[10, TF.TYPE] = Type.PO
+    tensor[10, TF.PRED] = B.TRUE
+    tensor[10, TF.ACT] = 0.5
+    tensor[10, TF.INHIBITOR_ACT] = 1.0  # Inhibitor firing in RECIPIENT (should not affect DRIVER check)
+    
+    # RB node in RECIPIENT
+    tensor[11, TF.TYPE] = Type.RB
+    tensor[11, TF.ACT] = 0.6
+    tensor[11, TF.INHIBITOR_ACT] = 1.0  # Inhibitor firing in RECIPIENT (should not affect DRIVER check)
+    
+    # Initialize input values to 0 for clean testing
+    tensor[:, TF.TD_INPUT] = 0.0
+    tensor[:, TF.BU_INPUT] = 0.0
+    tensor[:, TF.LATERAL_INPUT] = 0.0
+    tensor[:, TF.MAP_INPUT] = 0.0
+    tensor[:, TF.NET_INPUT] = 0.0
+    
+    return tensor
+
+
+@pytest.fixture
+def mock_connections_for_inhibitors():
+    """Create minimal connections for inhibitor tests."""
+    num_tokens = 20
+    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
+    
+    # RB -> PO connections
+    connections[2, 0] = True  # RB[2] -> PO[0]
+    connections[2, 1] = True  # RB[2] -> PO[1]
+    connections[3, 0] = True  # RB[3] -> PO[0]
+    
+    return connections
+
+
+@pytest.fixture
+def token_tensor_inhibitors(mock_tensor_with_inhibitors, mock_connections_for_inhibitors, mock_names):
+    """Create a Token_Tensor instance with mock data for inhibitor tests."""
+    from nodes.network.tokens.connections.connections import Connections_Tensor
+    connections_tensor = Connections_Tensor(mock_connections_for_inhibitors)
+    return Token_Tensor(mock_tensor_with_inhibitors, connections_tensor, mock_names)
+
+
+@pytest.fixture
+def driver_inhibitors(token_tensor_inhibitors, mock_params):
+    """Create a Driver instance for inhibitor tests."""
+    return Driver(token_tensor_inhibitors, mock_params, mappings=None)
+
+
+def test_check_local_inhibitor_returns_false_when_no_po_inhibitor_fires(driver_inhibitors):
+    """
+    Test that check_local_inhibitor returns False when no PO has inhibitor_act == 1.0.
+    """
+    # Ensure no PO has inhibitor_act == 1.0
+    po_mask = driver_inhibitors.tnop.get_mask(Type.PO)
+    driver_inhibitors.lcl[po_mask, TF.INHIBITOR_ACT] = 0.0
+    
+    result = driver_inhibitors.check_local_inhibitor()
+    
+    assert result == False, "check_local_inhibitor should return False when no PO has inhibitor_act == 1.0"
+
+
+def test_check_local_inhibitor_returns_true_when_one_po_inhibitor_fires(driver_inhibitors):
+    """
+    Test that check_local_inhibitor returns True when at least one PO has inhibitor_act == 1.0.
+    """
+    # Set one PO to have inhibitor_act == 1.0
+    po_mask = driver_inhibitors.tnop.get_mask(Type.PO)
+    po_indices = torch.where(po_mask)[0]
+    driver_inhibitors.lcl[po_indices[0], TF.INHIBITOR_ACT] = 1.0
+    
+    result = driver_inhibitors.check_local_inhibitor()
+    
+    assert result == True, "check_local_inhibitor should return True when at least one PO has inhibitor_act == 1.0"
+
+
+def test_check_local_inhibitor_returns_true_when_all_po_inhibitors_fire(driver_inhibitors):
+    """
+    Test that check_local_inhibitor returns True when all POs have inhibitor_act == 1.0.
+    """
+    # Set all POs to have inhibitor_act == 1.0
+    po_mask = driver_inhibitors.tnop.get_mask(Type.PO)
+    driver_inhibitors.lcl[po_mask, TF.INHIBITOR_ACT] = 1.0
+    
+    result = driver_inhibitors.check_local_inhibitor()
+    
+    assert result == True, "check_local_inhibitor should return True when all POs have inhibitor_act == 1.0"
+
+
+def test_check_local_inhibitor_ignores_partial_inhibitor_values(driver_inhibitors):
+    """
+    Test that check_local_inhibitor only triggers on exactly 1.0, not on partial values.
+    """
+    # Set PO inhibitor_act to 0.9 (close but not 1.0)
+    po_mask = driver_inhibitors.tnop.get_mask(Type.PO)
+    driver_inhibitors.lcl[po_mask, TF.INHIBITOR_ACT] = 0.9
+    
+    result = driver_inhibitors.check_local_inhibitor()
+    
+    assert result == False, "check_local_inhibitor should return False when PO inhibitor_act is 0.9"
+
+
+def test_check_local_inhibitor_ignores_rb_inhibitors(driver_inhibitors):
+    """
+    Test that check_local_inhibitor only checks PO nodes, not RB nodes.
+    """
+    # Ensure no PO has inhibitor_act == 1.0
+    po_mask = driver_inhibitors.tnop.get_mask(Type.PO)
+    driver_inhibitors.lcl[po_mask, TF.INHIBITOR_ACT] = 0.0
+    
+    # Set RB inhibitor_act to 1.0
+    rb_mask = driver_inhibitors.tnop.get_mask(Type.RB)
+    driver_inhibitors.lcl[rb_mask, TF.INHIBITOR_ACT] = 1.0
+    
+    result = driver_inhibitors.check_local_inhibitor()
+    
+    assert result == False, "check_local_inhibitor should only check PO nodes, not RB nodes"
+
+
+def test_check_local_inhibitor_only_checks_driver_set(driver_inhibitors):
+    """
+    Test that check_local_inhibitor only checks the driver set, not other sets.
+    Inhibitor firing in RECIPIENT PO should not affect the result.
+    """
+    # Ensure no PO in DRIVER has inhibitor_act == 1.0
+    po_mask = driver_inhibitors.tnop.get_mask(Type.PO)
+    driver_inhibitors.lcl[po_mask, TF.INHIBITOR_ACT] = 0.0
+    
+    # PO in RECIPIENT already has inhibitor_act == 1.0 (from fixture)
+    # This should NOT affect the driver check
+    
+    result = driver_inhibitors.check_local_inhibitor()
+    
+    assert result == False, "check_local_inhibitor should only check driver set PO nodes"
+
+
+def test_check_local_inhibitor_no_pos_returns_false(driver_inhibitors):
+    """
+    Test that check_local_inhibitor returns False when there are no PO nodes in driver.
+    """
+    # Change all PO nodes to a different type
+    po_mask = driver_inhibitors.tnop.get_mask(Type.PO)
+    po_indices = torch.where(po_mask)[0]
+    for idx in po_indices:
+        global_idx = driver_inhibitors.lcl.to_global(idx)[0].item()
+        driver_inhibitors.glbl.tensor[global_idx, TF.TYPE] = Type.P
+    
+    result = driver_inhibitors.check_local_inhibitor()
+    
+    assert result == False, "check_local_inhibitor should return False when no PO nodes exist"
+
+
+# =====================[ check_global_inhibitor tests ]======================
+
+def test_check_global_inhibitor_returns_false_when_no_rb_inhibitor_fires(driver_inhibitors):
+    """
+    Test that check_global_inhibitor returns False when no RB has inhibitor_act == 1.0.
+    """
+    # Ensure no RB has inhibitor_act == 1.0
+    rb_mask = driver_inhibitors.tnop.get_mask(Type.RB)
+    driver_inhibitors.lcl[rb_mask, TF.INHIBITOR_ACT] = 0.0
+    
+    result = driver_inhibitors.check_global_inhibitor()
+    
+    assert result == False, "check_global_inhibitor should return False when no RB has inhibitor_act == 1.0"
+
+
+def test_check_global_inhibitor_returns_true_when_one_rb_inhibitor_fires(driver_inhibitors):
+    """
+    Test that check_global_inhibitor returns True when at least one RB has inhibitor_act == 1.0.
+    """
+    # Set one RB to have inhibitor_act == 1.0
+    rb_mask = driver_inhibitors.tnop.get_mask(Type.RB)
+    rb_indices = torch.where(rb_mask)[0]
+    driver_inhibitors.lcl[rb_indices[0], TF.INHIBITOR_ACT] = 1.0
+    
+    result = driver_inhibitors.check_global_inhibitor()
+    
+    assert result == True, "check_global_inhibitor should return True when at least one RB has inhibitor_act == 1.0"
+
+
+def test_check_global_inhibitor_returns_true_when_all_rb_inhibitors_fire(driver_inhibitors):
+    """
+    Test that check_global_inhibitor returns True when all RBs have inhibitor_act == 1.0.
+    """
+    # Set all RBs to have inhibitor_act == 1.0
+    rb_mask = driver_inhibitors.tnop.get_mask(Type.RB)
+    driver_inhibitors.lcl[rb_mask, TF.INHIBITOR_ACT] = 1.0
+    
+    result = driver_inhibitors.check_global_inhibitor()
+    
+    assert result == True, "check_global_inhibitor should return True when all RBs have inhibitor_act == 1.0"
+
+
+def test_check_global_inhibitor_ignores_partial_inhibitor_values(driver_inhibitors):
+    """
+    Test that check_global_inhibitor only triggers on exactly 1.0, not on partial values.
+    """
+    # Set RB inhibitor_act to 0.9 (close but not 1.0)
+    rb_mask = driver_inhibitors.tnop.get_mask(Type.RB)
+    driver_inhibitors.lcl[rb_mask, TF.INHIBITOR_ACT] = 0.9
+    
+    result = driver_inhibitors.check_global_inhibitor()
+    
+    assert result == False, "check_global_inhibitor should return False when RB inhibitor_act is 0.9"
+
+
+def test_check_global_inhibitor_ignores_po_inhibitors(driver_inhibitors):
+    """
+    Test that check_global_inhibitor only checks RB nodes, not PO nodes.
+    """
+    # Ensure no RB has inhibitor_act == 1.0
+    rb_mask = driver_inhibitors.tnop.get_mask(Type.RB)
+    driver_inhibitors.lcl[rb_mask, TF.INHIBITOR_ACT] = 0.0
+    
+    # Set PO inhibitor_act to 1.0
+    po_mask = driver_inhibitors.tnop.get_mask(Type.PO)
+    driver_inhibitors.lcl[po_mask, TF.INHIBITOR_ACT] = 1.0
+    
+    result = driver_inhibitors.check_global_inhibitor()
+    
+    assert result == False, "check_global_inhibitor should only check RB nodes, not PO nodes"
+
+
+def test_check_global_inhibitor_only_checks_driver_set(driver_inhibitors):
+    """
+    Test that check_global_inhibitor only checks the driver set, not other sets.
+    Inhibitor firing in RECIPIENT RB should not affect the result.
+    """
+    # Ensure no RB in DRIVER has inhibitor_act == 1.0
+    rb_mask = driver_inhibitors.tnop.get_mask(Type.RB)
+    driver_inhibitors.lcl[rb_mask, TF.INHIBITOR_ACT] = 0.0
+    
+    # RB in RECIPIENT already has inhibitor_act == 1.0 (from fixture)
+    # This should NOT affect the driver check
+    
+    result = driver_inhibitors.check_global_inhibitor()
+    
+    assert result == False, "check_global_inhibitor should only check driver set RB nodes"
+
+
+def test_check_global_inhibitor_no_rbs_returns_false(driver_inhibitors):
+    """
+    Test that check_global_inhibitor returns False when there are no RB nodes in driver.
+    """
+    # Change all RB nodes to a different type
+    rb_mask = driver_inhibitors.tnop.get_mask(Type.RB)
+    rb_indices = torch.where(rb_mask)[0]
+    for idx in rb_indices:
+        global_idx = driver_inhibitors.lcl.to_global(idx)[0].item()
+        driver_inhibitors.glbl.tensor[global_idx, TF.TYPE] = Type.P
+    
+    result = driver_inhibitors.check_global_inhibitor()
+    
+    assert result == False, "check_global_inhibitor should return False when no RB nodes exist"
