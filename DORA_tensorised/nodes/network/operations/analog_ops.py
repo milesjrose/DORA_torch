@@ -28,106 +28,113 @@ class AnalogOperations:
         """
         self.network: 'Network' = network
     
-    def copy(self, analog: Ref_Analog, to_set: Set):
+    def copy(self, analog: int, to_set: Set) -> int:
         """
         Copy an analog from one set to another.
 
         Args:
-            analog (Ref_Analog): The analog to copy.
+            analog (int): The number of the analog to copy.
             to_set (Set): The set to copy the analog to.
 
         Returns:
-            Ref_Analog: Reference to the new analog.
+            int: The number of the new analog.
         """
-        analog_obj: Analog = self.get_analog(analog)       # get copy of analog
-        analog_obj.set = to_set                            # set the set of the analog
-        if analog.set == Set.MEMORY:
-            # set copied_dr_index to the index of the memory tokens
-            indicies = self.get_analog_indices(analog)
-            logger.debug(f"indicies:{indicies}, analog_tks:{analog_obj.tokens}")
-            analog_obj.tokens[:, TF.COPIED_DR_INDEX] = torch.tensor(indicies, dtype=tensor_type)
-            analog_obj.tokens[:, TF.COPY_FOR_DR] = B.TRUE
-        return self.add_analog(analog_obj)                 # add to new set, return the new analog reference
+        return self.network.tokens.analog_ops.copy_analog(analog, to_set)
 
-    def delete(self, analog: Ref_Analog):
+    def delete(self, analog: int):
         """
         Delete an analog from a set.
 
         Args:
-            analog (Ref_Analog): The analog to delete.
+            analog (int): The number of the analog to delete.
         """
-        indices = self.get_analog_indices(analog)                               # Get indices of tokens in the analog
-        self.network.sets[analog.set].tensor_op.del_token_indicies(indices)     # Delete the tokens - this will also delete the links to semantics/connections
+        self.network.tokens.analog_ops.delete_analog(analog)
 
-    def move(self, analog: Ref_Analog, to_set: Set):
+    def move(self, analog: int, to_set: Set):
         """
-        Move an analog from one set to another, deleting the old analog.
+        Move an analog from one set to another
 
         Args:
-            analog (Ref_Analog): The analog to move.
+            analog (int): The number of the analog to move.
             to_set (Set): The set to move the analog to.
-        
-        Returns: 
-            Ref_Analog: Reference to the new analog.
         """
-        new_analog = self.copy(analog, to_set)
-        self.delete(analog)
-        return new_analog
-
-    def check_set_match(self, sets: list[Set] = [Set.MEMORY, Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]):
-        """
-        Check that the tokens in an analog are from the correct set
-
-        Returns:
-            Lists of analog references that do not match the set.
-        """
-        results = {}
-        for set in Set:
-            analogs = self.network.sets[set].token_op.get_analogs_where_not(TF.SET, set)
-            results[set] = analogs
-        return results
+        self.network.tokens.analog_ops.move_analog(analog, to_set)
     
-    def check_for_copy(self):
+    def check_for_copy(self) -> torch.Tensor:
         """
         Check for analogs in memory that have set != memory.
 
         Returns:
-            List[Ref_Analog]: References to the analogs that have set != memory.
+            Torch.tensor: The analogs that have set != memory.
         """
-        analogs = self.network.sets[Set.MEMORY].token_op.get_analogs_where_not(TF.SET, Set.MEMORY)
+        analogs = self.network.sets[Set.MEMORY].analog_ops.get_analogs_where_not(TF.SET, Set.MEMORY)
         return analogs
     
-    def clear_set(self, analog: Ref_Analog):
+    def clear_set(self, analog: int):
         """
         Clear the set feature to "memory" for tokens in an analog.
-        NOTE: Doesn't move the analog to memory set.
 
         Args:
-            analog (Ref_Analog): The analog to clear the set feature for.
+            analog (int): The number of the analog to clear the set feature for.
         """
         self.set_analog_features(analog, TF.SET, Set.MEMORY)
 
+
+    #Checking subtokens not done fully I dont think. At least for moving into recipient.
     def make_AM_copy(self):
         """
         Copy any analogs with set != memory to AM.
 
         Returns:
-            List[Ref_Analog]: References to the analogs that were copied to AM.
+            List[int]: The new analog numbers of the copied analogs.
         """
+        tokens = self.network.tokens
         # NOTE: Don't delete from memory after copy.
         analogs = self.check_for_copy()
-        copied_analogs = []
+        new_analogs = []
         for analog in analogs:
-            analog_obj = self.get_analog(analog)                  # Get the analog object
-            analog_obj.retrieve_lower_tokens()                    # Set lower tokens to same set as analog
-            analog_obj.remove_memory_tokens()                     # Remove memory tokens
-            new_ref = self.add_analog(analog_obj)                 # Add the analog to the new set
-            copied_analogs.append(new_ref)
-        return copied_analogs
+            # first get list of all analog indicies
+            all_analog_indices = tokens.analog_ops.get_analog_indices(analog)
+            # then find all tokens in the analog that have set != memory, and what that value is
+            non_memory_tokens = tokens.token_tensor.get_tokens_where_not(TF.SET, Set.MEMORY, all_analog_indices)
+            if len(non_memory_tokens) == 0:
+                continue  # skip if no non-memory tokens - shouldn't happen but just in case
+            to_set = Set(int(tokens.token_tensor.get_feature(non_memory_tokens, TF.SET)[0].item()))
+            # get their lower tokens
+            lower_tokens = tokens.connections.get_children_recursive(non_memory_tokens)
+            # combine to get all indices to copy
+            indices = torch.cat([non_memory_tokens, lower_tokens])
+            # remove duplicates - shouldn't be any but just in case
+            indices = torch.unique(indices)
+            # copy to AM
+            new_indices = tokens.copy_tokens(indices, to_set, connect_to_copies=True)
+            # update with new analog number
+            new_analog_number = tokens.analog_ops.new_analog_id()
+            tokens.token_tensor.set_feature(new_indices, TF.ANALOG, new_analog_number)
+            new_analogs.append(new_analog_number)
+        self.network.cache_sets()
+        self.network.cache_analogs()
+        return new_analogs
+    
+    def make_AM_move(self):
+        """
+        Move any analogs with set != memory to AM.
+        """
+        analogs = self.check_for_copy()
+        # Find all tokens not in memory, set their sub-tokens to the same set.
+        for check_set in [Set.DRIVER, Set.RECIPIENT]:
+            set_tokens = self.network.tokens.token_tensor.get_tokens_where(TF.SET, check_set)
+            if not torch.any(set_tokens):
+                continue  # skip if no tokens in set
+            lower_tokens = self.network.tokens.connections.get_children_recursive(set_tokens)
+            self.network.tokens.token_tensor.set_features(lower_tokens, TF.SET, check_set)
+        self.network.cache_sets()
+        self.network.cache_analogs()
 
     def get_analog(self, analog: Ref_Analog):
         """ Get an analog from the network. """
-        return self.network.sets[analog.set].get_analog(analog)
+        # Don't think this is needed anymore
+        raise NotImplementedError("get_analog is not implemented for AnalogOperations")
     
     def add_analog(self, analog: Analog):
         """
@@ -139,50 +146,43 @@ class AnalogOperations:
         Returns:
             Ref_Analog: Reference to the new analog.
         """
-        return self.network.sets[analog.set].add_analog(analog)
+        # Don't think this is needed anymore
+        raise NotImplementedError("add_analog is not implemented for AnalogOperations")
     
-    def get_analog_indices(self, analog: Ref_Analog):
+    def get_analog_indices(self, analog: int) -> torch.Tensor:
         """ Get the indices of the tokens in an analog. """
-        return self.network.sets[analog.set].token_op.get_analog_indices(analog)
+        return self.network.tokens.analog_ops.get_analog_indices(analog)
     
-    def set_analog_features(self, analog: Ref_Analog, feature: TF, value):
+    def set_analog_features(self, analog: int, feature: TF, value):
         """ Set a feature of the tokens in an analog. """
         indices = self.get_analog_indices(analog)
-        self.network.sets[analog.set].token_op.set_features(indices, feature, value)
+        self.network.tokens.token_tensor.set_features(indices, feature, value)
     
-    def find_mapped_analog(self, set:Set):
+    def find_mapped_analog(self, set:Set) -> int:
         """
         Find the analog in a set that is mapped to - used in rel_gen.
         """
+        self.network.mapping_ops.get_max_maps(set=[set]) # update max_map for set tokens
         # Find the a po that has max_map > 0.0, then return its analog.
-        self.network.mapping_ops.get_max_maps()
-        po_mask = self.network.sets[set].get_mask(Type.PO)
-        map_pos = self.network.sets[set].nodes[po_mask, TF.MAX_MAP] > 0.0
-        full_map_pos = tOps.sub_union(po_mask, map_pos)
-        indices = torch.nonzero(full_map_pos)
-        if indices.shape[0] == 0:
-            logger.error("No POs with max_map > 0.0 in recipient.")
-            return None
-        else:
-            ref_po = self.network.sets[set].token_op.get_reference(index=indices[0])
-            logger.debug(f"Recip_analog_token:{self.network.get_ref_string(ref_po)}")
-            analog_number = self.network.node_ops.get_value(ref_po, TF.ANALOG)
-            return Ref_Analog(analog_number, set)
+        mapped_pos = self.network.sets[set].token_op.get_mapped_pos()
+        if not torch.any(mapped_pos):
+            raise ValueError(f"No mapped POs in set {set.name}")
+        analog = int(self.network.tokens.token_tensor.get_feature(mapped_pos[0], TF.ANALOG).item())
+        return analog
     
-    def find_mapping_analog(self) -> list[Ref_Analog]:
+    def find_mapping_analog(self) -> torch.Tensor:
         """
         Find analogs that have a mapping connection in the recipient
         """
         self.network.mapping_ops.get_max_maps(set=[Set.RECIPIENT]) # update max_map for recipient tokens
-        all_tks = self.network.recipient().tensor_op.get_all_nodes_mask()
-        max_map_values = self.network.recipient().nodes[:, TF.MAX_MAP]
-        map_tokens = (max_map_values > 0) & all_tks
-        if map_tokens.sum() == 0:
-            logger.debug("RECIPIENT: No tokens with mapping connections")
-        else:
-            return self.network.recipient().tensor_op.get_analog_ref_list(map_tokens)
-    
-    def move_mapping_analogs_to_new(self) -> Ref_Analog:
+        map_tokens = self.network.driver().lcl[:, TF.MAX_MAP] > 0.0
+        analogs = self.network.driver().lcl[map_tokens, TF.ANALOG]
+        if not torch.any(analogs):
+            logger.debug(f"RECIPIENT: No tokens with mapping connections")
+            return None
+        return torch.unique(analogs)
+
+    def move_mapping_analogs_to_new(self) -> int:
         """
         Move any analogs in the recipient that have a mapping connection to a new analog
 
@@ -190,22 +190,21 @@ class AnalogOperations:
         - Ref_Analog: the new analog
         """
         map_analogs = self.find_mapping_analog()
-        if not map_analogs:
-            return None
-        new_id = float(self.network.recipient().tensor_op.get_new_analog_id())
-        for analog in map_analogs:
-            self.set_analog_features(analog, TF.ANALOG, new_id)
-        self.network.recipient().tensor_op.analog_node_count() # Update analog counts
+        if map_analogs is None:
+            return None # No mapping analogs found
+        indices = self.network.tokens.analog_ops.get_analog_indices_multiple(map_analogs)
+        new_id = self.network.tokens.analog_ops.new_analog_id()
+        self.network.tokens.token_tensor.set_feature(indices, TF.ANALOG, new_id)
+        self.network.cache_sets()
+        self.network.cache_analogs()
+        return new_id
 
-    def new_set_to_analog(self):
+    def new_set_to_analog(self) -> int:
         """
         Put the tokens in the new set into their own analog.
+        Returns:
+            int: The new analog number.
         """
-        # Putting all newSet tokens into analog, so just set all analog to 1
-        self.network.new_set().token_ops.set_features_all(TF.ANALOG, 1.0)
-
-    def print_analog(self, analog: Ref_Analog):
-        """
-        print the names of the tokens in an analog
-        """
-        self.network.sets[analog.set].print_analog(analog)
+        new_id = self.network.tokens.analog_ops.new_analog_id()
+        self.network.sets[Set.NEW_SET].token_op.set_features_all(TF.ANALOG, new_id)
+        return new_id
