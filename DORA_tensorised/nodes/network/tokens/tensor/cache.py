@@ -101,6 +101,14 @@ class Cache:
         """
         return (self.tensor[:, TF.DELETED] == B.FALSE)
     
+    def get_all_nodes_indices(self) -> torch.Tensor:
+        """
+        Get the indices for all nodes in the tensor.
+        Returns:
+            torch.Tensor - The indices for all nodes in the tensor.
+        """
+        return torch.where(self.get_all_nodes_mask())[0]
+    
     def get_set_count(self, set: Set) -> int:
         """
         Get the count of the given set.
