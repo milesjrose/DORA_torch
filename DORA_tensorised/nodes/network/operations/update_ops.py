@@ -31,7 +31,7 @@ class UpdateOperations:
         """
         sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
         for set in sets:
-            self.network.sets[set].init_act([Type.GROUP, Type.P, Type.RB, Type.PO])
+            self.network.sets[set].update_op.init_act([Type.GROUP, Type.P, Type.RB, Type.PO])
 
         self.network.semantics.init_sem()
     
@@ -40,7 +40,7 @@ class UpdateOperations:
         Initialise the acts and inputs in the memory.
         (memory)
         """
-        self.network.memory.init_act()
+        self.network.sets[Set.MEMORY].update_op.init_act([Type.GROUP, Type.P, Type.RB, Type.PO])
 
     def acts(self, set: Set): 
         """
@@ -49,7 +49,7 @@ class UpdateOperations:
         Args:
             set (Set): The set to update acts in.
         """
-        self.network.sets[set].update_act()
+        self.network.sets[set].update_op.update_act()
     
     def acts_sem(self):
         """
@@ -77,7 +77,7 @@ class UpdateOperations:
         """
         sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
         for set in sets:
-            self.network.sets[set].init_input([Type.GROUP, Type.P, Type.RB, Type.PO], 0.0)
+            self.network.sets[set].update_op.init_input([Type.GROUP, Type.P, Type.RB, Type.PO], 0.0)
         
         self.network.semantics.init_input(0.0)
 
@@ -86,7 +86,7 @@ class UpdateOperations:
         Initialise the inputs in the memory.
         (memory)
         """
-        self.network.memory.init_input(0.0)
+        self.network.sets[Set.MEMORY].update_op.init_input([Type.GROUP, Type.P, Type.RB, Type.PO], 0.0)
     
     def inputs(self, set: Set):
         """
@@ -95,7 +95,10 @@ class UpdateOperations:
         Args:
             set (Set): The set to update inputs in.
         """
-        self.network.sets[set].update_input()
+        if set == Set.DRIVER or set == Set.NEW_SET:
+            self.network.sets[set].update_input()
+        elif set == Set.RECIPIENT or set == Set.MEMORY:
+            self.network.sets[set].update_input(self.network.semantics, self.network.links)
     
     def inputs_sem(self):               
         """
