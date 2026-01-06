@@ -669,3 +669,386 @@ class TestFullIntegration:
         
         # SDM semantics should be initialized
         assert network.semantics.check_sdm_init()
+
+
+# =====================[ Exact hierarchy/structure tests ]======================
+
+class TestExactHierarchy:
+    """Tests verifying exact parent-child connections match symProps structure."""
+
+    def test_p_connected_to_its_rbs(self):
+        """Test that each P token is connected to exactly its own RBs."""
+        symProps = [
+            {
+                'name': 'prop1',
+                'RBs': [
+                    {'pred_name': 'pred1', 'pred_sem': ['s1'], 'higher_order': False, 
+                     'object_name': 'obj1', 'object_sem': ['s2'], 'P': 'non_exist'},
+                    {'pred_name': 'pred2', 'pred_sem': ['s3'], 'higher_order': False, 
+                     'object_name': 'obj2', 'object_sem': ['s4'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 0
+            },
+            {
+                'name': 'prop2',
+                'RBs': [
+                    {'pred_name': 'pred3', 'pred_sem': ['s5'], 'higher_order': False, 
+                     'object_name': 'obj3', 'object_sem': ['s6'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 1
+            }
+        ]
+        
+        network = build_network(props=symProps)
+        connections = network.tokens.connections.connections
+        names = network.token_tensor.names
+        
+        # Find prop1's P token index
+        prop1_idx = None
+        prop2_idx = None
+        for idx, name in names.items():
+            if name == 'prop1':
+                prop1_idx = idx
+            elif name == 'prop2':
+                prop2_idx = idx
+        
+        assert prop1_idx is not None, "prop1 P token not found"
+        assert prop2_idx is not None, "prop2 P token not found"
+        
+        # prop1 should have exactly 2 children (its 2 RBs)
+        prop1_children = connections[prop1_idx, :].sum().item()
+        assert prop1_children == 2, f"prop1 should have 2 RB children, got {prop1_children}"
+        
+        # prop2 should have exactly 1 child (its 1 RB)
+        prop2_children = connections[prop2_idx, :].sum().item()
+        assert prop2_children == 1, f"prop2 should have 1 RB child, got {prop2_children}"
+
+    def test_rb_connected_to_its_pos(self):
+        """Test that each RB token is connected to exactly its pred and obj PO."""
+        symProps = [
+            {
+                'name': 'prop1',
+                'RBs': [
+                    {'pred_name': 'predA', 'pred_sem': ['s1'], 'higher_order': False, 
+                     'object_name': 'objA', 'object_sem': ['s2'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 0
+            }
+        ]
+        
+        network = build_network(props=symProps)
+        connections = network.tokens.connections.connections
+        names = network.token_tensor.names
+        tensor = network.token_tensor.tensor
+        
+        # Find RB token (named predA_objA)
+        rb_idx = None
+        pred_idx = None
+        obj_idx = None
+        for idx, name in names.items():
+            if name == 'predA_objA':
+                rb_idx = idx
+            elif name == 'predA' and tensor[idx, TF.TYPE].item() == Type.PO:
+                pred_idx = idx
+            elif name == 'objA' and tensor[idx, TF.TYPE].item() == Type.PO:
+                obj_idx = idx
+        
+        assert rb_idx is not None, "RB token not found"
+        assert pred_idx is not None, "Predicate PO token not found"
+        assert obj_idx is not None, "Object PO token not found"
+        
+        # RB should have exactly 2 children
+        rb_children = connections[rb_idx, :].sum().item()
+        assert rb_children == 2, f"RB should have 2 PO children, got {rb_children}"
+        
+        # RB should be connected to both predA and objA
+        assert connections[rb_idx, pred_idx], "RB not connected to predicate PO"
+        assert connections[rb_idx, obj_idx], "RB not connected to object PO"
+
+    def test_hierarchy_chain_p_rb_po(self):
+        """Test complete hierarchy: P -> RB -> POs."""
+        symProps = [
+            {
+                'name': 'testProp',
+                'RBs': [
+                    {'pred_name': 'testPred', 'pred_sem': ['sem1'], 'higher_order': False, 
+                     'object_name': 'testObj', 'object_sem': ['sem2'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 0
+            }
+        ]
+        
+        network = build_network(props=symProps)
+        connections = network.tokens.connections.connections
+        names = network.token_tensor.names
+        tensor = network.token_tensor.tensor
+        
+        # Find all tokens
+        p_idx = rb_idx = pred_idx = obj_idx = None
+        for idx, name in names.items():
+            token_type = tensor[idx, TF.TYPE].item()
+            if name == 'testProp' and token_type == Type.P:
+                p_idx = idx
+            elif name == 'testPred_testObj' and token_type == Type.RB:
+                rb_idx = idx
+            elif name == 'testPred' and token_type == Type.PO:
+                pred_idx = idx
+            elif name == 'testObj' and token_type == Type.PO:
+                obj_idx = idx
+        
+        # Verify all tokens found
+        assert p_idx is not None, "P token not found"
+        assert rb_idx is not None, "RB token not found"
+        assert pred_idx is not None, "Predicate PO not found"
+        assert obj_idx is not None, "Object PO not found"
+        
+        # Verify P -> RB connection
+        assert connections[p_idx, rb_idx], "P not connected to RB"
+        
+        # Verify RB -> Pred and RB -> Obj connections
+        assert connections[rb_idx, pred_idx], "RB not connected to Predicate"
+        assert connections[rb_idx, obj_idx], "RB not connected to Object"
+        
+        # Verify P is NOT directly connected to POs
+        assert not connections[p_idx, pred_idx], "P should not be directly connected to Predicate"
+        assert not connections[p_idx, obj_idx], "P should not be directly connected to Object"
+
+    def test_no_cross_proposition_connections(self):
+        """Test that tokens from different propositions are not connected."""
+        symProps = [
+            {
+                'name': 'prop1',
+                'RBs': [
+                    {'pred_name': 'p1pred', 'pred_sem': ['s1'], 'higher_order': False, 
+                     'object_name': 'p1obj', 'object_sem': ['s2'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 0
+            },
+            {
+                'name': 'prop2',
+                'RBs': [
+                    {'pred_name': 'p2pred', 'pred_sem': ['s3'], 'higher_order': False, 
+                     'object_name': 'p2obj', 'object_sem': ['s4'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 1
+            }
+        ]
+        
+        network = build_network(props=symProps)
+        connections = network.tokens.connections.connections
+        names = network.token_tensor.names
+        tensor = network.token_tensor.tensor
+        
+        # Find prop1's tokens
+        prop1_tokens = []
+        prop2_tokens = []
+        for idx, name in names.items():
+            if name in ['prop1', 'p1pred_p1obj', 'p1pred', 'p1obj']:
+                prop1_tokens.append(idx)
+            elif name in ['prop2', 'p2pred_p2obj', 'p2pred', 'p2obj']:
+                prop2_tokens.append(idx)
+        
+        # No token from prop1 should be connected to any token from prop2
+        for p1_idx in prop1_tokens:
+            for p2_idx in prop2_tokens:
+                assert not connections[p1_idx, p2_idx], \
+                    f"Cross-prop connection found: {names[p1_idx]} -> {names[p2_idx]}"
+                assert not connections[p2_idx, p1_idx], \
+                    f"Cross-prop connection found: {names[p2_idx]} -> {names[p1_idx]}"
+
+
+class TestExactSemanticLinks:
+    """Tests verifying exact PO-semantic links match symProps structure."""
+
+    def test_predicate_linked_to_its_semantics(self):
+        """Test that predicate PO is linked to exactly its specified semantics."""
+        symProps = [
+            {
+                'name': 'prop1',
+                'RBs': [
+                    {'pred_name': 'myPred', 'pred_sem': ['predSem1', 'predSem2', 'predSem3'], 
+                     'higher_order': False, 
+                     'object_name': 'myObj', 'object_sem': ['objSem1'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 0
+            }
+        ]
+        
+        network = build_network(props=symProps)
+        links = network.links.adj_matrix
+        names = network.token_tensor.names
+        tensor = network.token_tensor.tensor
+        sem_names = network.semantics.names
+        
+        # Find predicate PO token
+        pred_idx = None
+        for idx, name in names.items():
+            if name == 'myPred' and tensor[idx, TF.TYPE].item() == Type.PO:
+                pred_idx = idx
+                break
+        
+        assert pred_idx is not None, "Predicate PO not found"
+        
+        # Find semantic indices
+        pred_sem_indices = []
+        for sem_id, sem_name in sem_names.items():
+            if sem_name in ['predSem1', 'predSem2', 'predSem3']:
+                sem_idx = network.semantics.IDs[sem_id]
+                pred_sem_indices.append(sem_idx)
+        
+        assert len(pred_sem_indices) == 3, "Not all predicate semantics found"
+        
+        # Verify predicate is linked to all its semantics
+        for sem_idx in pred_sem_indices:
+            assert links[pred_idx, sem_idx] > 0, \
+                f"Predicate not linked to semantic at index {sem_idx}"
+        
+        # Count total links from predicate
+        pred_link_count = (links[pred_idx, :] > 0).sum().item()
+        assert pred_link_count == 3, f"Predicate should have 3 links, got {pred_link_count}"
+
+    def test_object_linked_to_its_semantics(self):
+        """Test that object PO is linked to exactly its specified semantics."""
+        symProps = [
+            {
+                'name': 'prop1',
+                'RBs': [
+                    {'pred_name': 'pred', 'pred_sem': ['ps1'], 'higher_order': False, 
+                     'object_name': 'myObject', 'object_sem': ['objS1', 'objS2'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 0
+            }
+        ]
+        
+        network = build_network(props=symProps)
+        links = network.links.adj_matrix
+        names = network.token_tensor.names
+        tensor = network.token_tensor.tensor
+        sem_names = network.semantics.names
+        
+        # Find object PO token
+        obj_idx = None
+        for idx, name in names.items():
+            if name == 'myObject' and tensor[idx, TF.TYPE].item() == Type.PO:
+                obj_idx = idx
+                break
+        
+        assert obj_idx is not None, "Object PO not found"
+        
+        # Find semantic indices
+        obj_sem_indices = []
+        for sem_id, sem_name in sem_names.items():
+            if sem_name in ['objS1', 'objS2']:
+                sem_idx = network.semantics.IDs[sem_id]
+                obj_sem_indices.append(sem_idx)
+        
+        assert len(obj_sem_indices) == 2, "Not all object semantics found"
+        
+        # Verify object is linked to all its semantics
+        for sem_idx in obj_sem_indices:
+            assert links[obj_idx, sem_idx] > 0, \
+                f"Object not linked to semantic at index {sem_idx}"
+        
+        # Count total links from object
+        obj_link_count = (links[obj_idx, :] > 0).sum().item()
+        assert obj_link_count == 2, f"Object should have 2 links, got {obj_link_count}"
+
+    def test_shared_semantics_linked_correctly(self):
+        """Test that shared semantics are linked to all POs that reference them."""
+        symProps = [
+            {
+                'name': 'prop1',
+                'RBs': [
+                    {'pred_name': 'pred1', 'pred_sem': ['sharedSem', 'uniqueSem1'], 
+                     'higher_order': False, 
+                     'object_name': 'obj1', 'object_sem': ['sharedSem', 'uniqueSem2'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 0
+            }
+        ]
+        
+        network = build_network(props=symProps)
+        links = network.links.adj_matrix
+        names = network.token_tensor.names
+        tensor = network.token_tensor.tensor
+        sem_names = network.semantics.names
+        
+        # Find PO tokens
+        pred_idx = obj_idx = None
+        for idx, name in names.items():
+            if name == 'pred1' and tensor[idx, TF.TYPE].item() == Type.PO:
+                pred_idx = idx
+            elif name == 'obj1' and tensor[idx, TF.TYPE].item() == Type.PO:
+                obj_idx = idx
+        
+        assert pred_idx is not None, "Predicate not found"
+        assert obj_idx is not None, "Object not found"
+        
+        # Find shared semantic index
+        shared_sem_idx = None
+        for sem_id, sem_name in sem_names.items():
+            if sem_name == 'sharedSem':
+                shared_sem_idx = network.semantics.IDs[sem_id]
+                break
+        
+        assert shared_sem_idx is not None, "Shared semantic not found"
+        
+        # Both pred and obj should be linked to the shared semantic
+        assert links[pred_idx, shared_sem_idx] > 0, "Predicate not linked to shared semantic"
+        assert links[obj_idx, shared_sem_idx] > 0, "Object not linked to shared semantic"
+
+    def test_non_po_tokens_have_no_semantic_links(self):
+        """Test that P and RB tokens do not have semantic links."""
+        symProps = [
+            {
+                'name': 'prop1',
+                'RBs': [
+                    {'pred_name': 'pred1', 'pred_sem': ['sem1'], 'higher_order': False, 
+                     'object_name': 'obj1', 'object_sem': ['sem2'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 0
+            }
+        ]
+        
+        network = build_network(props=symProps)
+        links = network.links.adj_matrix
+        tensor = network.token_tensor.tensor
+        
+        # Check all P and RB tokens have no links
+        for i in range(network.token_tensor.get_count()):
+            token_type = tensor[i, TF.TYPE].item()
+            if token_type in [Type.P, Type.RB]:
+                link_count = (links[i, :] > 0).sum().item()
+                assert link_count == 0, \
+                    f"Token type {token_type} at index {i} should have no semantic links, got {link_count}"
+
+    def test_link_weights_are_one(self):
+        """Test that all semantic link weights are 1.0."""
+        symProps = [
+            {
+                'name': 'prop1',
+                'RBs': [
+                    {'pred_name': 'pred1', 'pred_sem': ['sem1', 'sem2'], 'higher_order': False, 
+                     'object_name': 'obj1', 'object_sem': ['sem3'], 'P': 'non_exist'}
+                ],
+                'set': 'driver',
+                'analog': 0
+            }
+        ]
+        
+        network = build_network(props=symProps)
+        links = network.links.adj_matrix
+        
+        # All non-zero links should have weight 1.0
+        non_zero_links = links[links > 0]
+        assert (non_zero_links == 1.0).all(), "All link weights should be 1.0"
