@@ -1,15 +1,25 @@
 # nodes/network/network_params.py
 # Holds parameters used by network.
-from .default_parameters import parameters
+from .default_parameters import parameters as default_parameters
 import json
 class Params(object):
     """
     Holds parameters used by network.
     """
-    def __init__(self, parameters: dict, run_on_iphone: bool = False):
+    def __init__(self, parameters: dict = None, run_on_iphone: bool = False):
         """
         Holds parameters used by network, to streamline passing parameters to sets.
+        
+        Args:
+            parameters: dict of parameters. Missing keys will use default values.
+            run_on_iphone: bool, whether running on iPhone (disables GUI).
         """
+        # Merge provided parameters with defaults (provided values override defaults)
+        merged_params = default_parameters.copy()
+        if parameters is not None:
+            merged_params.update(parameters)
+        parameters = merged_params
+        
         # TODO: Document and organise parameters, move parameters not pertaining to nodes to seperate class.
         # ===================[ PARAMETERS ]======================
         self.firing_order_rule = parameters["firingOrderRule"]
@@ -155,7 +165,7 @@ def default_params():
     """
     Returns an object of Params with the default parameters.
     """
-    return Params(parameters)
+    return Params(default_parameters)
 
 def load_from_json(file_path: str):
     """
