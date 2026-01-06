@@ -5,7 +5,7 @@ import pytest
 import os
 from pathlib import Path
 
-from nodes.builder_new import build_network
+from nodes.builder import build_network
 from nodes.enums import Set, Type, TF, B
 
 

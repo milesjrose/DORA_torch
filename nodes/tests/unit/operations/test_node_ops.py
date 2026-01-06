@@ -10,7 +10,7 @@ from nodes.network.tokens.tensor.token_tensor import Token_Tensor
 from nodes.network.tokens.connections.connections import Connections_Tensor
 from nodes.network.tokens.connections.mapping import Mapping
 from nodes.network.tokens.connections.links import Links
-from nodes.network.sets_new.semantics import Semantics
+from nodes.network.sets.semantics import Semantics
 from nodes.network.network_params import default_params
 from nodes.network.single_nodes import Token, Semantic
 from nodes.enums import Set, TF, SF, MappingFields, Type, null

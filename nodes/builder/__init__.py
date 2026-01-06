@@ -1,6 +1,6 @@
-# nodes/builder_new/__init__.py
+# nodes/builder/__init__.py
 """
-Package: builder_new
+Package: builder
 
 Provides classes for building the network from sym files.
 

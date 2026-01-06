@@ -8,8 +8,8 @@ logger = getLogger(__name__)
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from ...sets_new.driver import Driver
-    from ...sets_new.recipient import Recipient
+    from ...sets.driver import Driver
+    from ...sets.recipient import Recipient
 
 class MD(IntEnum):
     """

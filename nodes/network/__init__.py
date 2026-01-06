@@ -14,7 +14,7 @@ Provides classes for representing the network.
 """
 
 from .network import Network
-from .sets_new import Driver, Recipient, Memory, New_Set, Semantics
+from .sets import Driver, Recipient, Memory, New_Set, Semantics
 from .tokens import Links, Mapping, Tokens, Token_Tensor
 from .connections import Mappings  # Old Mappings class for backward compatibility
 from .network_params import Params

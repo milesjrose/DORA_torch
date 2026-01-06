@@ -8,7 +8,7 @@ from pathlib import Path
 from io import StringIO
 import sys
 
-from nodes.utils.new_printer import Printer
+from nodes.utils.printer import Printer
 from nodes.network.tokens.tensor.token_tensor import Token_Tensor
 from nodes.enums import Set, Type, TF, B, Mode, null, tensor_type, MappingFields
 

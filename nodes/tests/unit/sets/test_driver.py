@@ -3,7 +3,7 @@
 
 import pytest
 import torch
-from nodes.network.sets_new.driver import Driver
+from nodes.network.sets.driver import Driver
 from nodes.network.tokens.tensor.token_tensor import Token_Tensor
 from nodes.network.network_params import Params
 from nodes.enums import Set, TF, Type, B, Mode, null, tensor_type

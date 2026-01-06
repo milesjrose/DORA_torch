@@ -12,7 +12,7 @@ from nodes.network.tokens.tensor.token_tensor import Token_Tensor
 from nodes.network.tokens.connections.connections import Connections_Tensor
 from nodes.network.tokens.connections.mapping import Mapping
 from nodes.network.tokens.connections.links import Links
-from nodes.network.sets_new.semantics import Semantics
+from nodes.network.sets.semantics import Semantics
 from nodes.network.network_params import Params, default_params, load_from_json
 from nodes.enums import Set, TF, SF, MappingFields
 
@@ -148,7 +148,7 @@ def test_network_init_inhibitors_initialized(network):
 
 def test_network_init_sets_have_correct_types(network):
     """Test that sets are created with correct types."""
-    from nodes.network.sets_new import Driver, Recipient, Memory, New_Set
+    from nodes.network.sets import Driver, Recipient, Memory, New_Set
     assert isinstance(network.sets[Set.DRIVER], Driver)
     assert isinstance(network.sets[Set.RECIPIENT], Recipient)
     assert isinstance(network.sets[Set.MEMORY], Memory)

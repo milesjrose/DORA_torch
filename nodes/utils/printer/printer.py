@@ -1,4 +1,4 @@
-# nodes/utils/new_printer/printer.py
+# nodes/utils/printer/printer.py
 # Provides a Printer class for printing token tensors.
 
 import os

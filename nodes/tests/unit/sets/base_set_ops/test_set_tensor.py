@@ -3,7 +3,7 @@
 
 import pytest
 import torch
-from nodes.network.sets_new.base_set import Base_Set
+from nodes.network.sets.base_set import Base_Set
 from nodes.network.tokens.tensor.token_tensor import Token_Tensor
 from nodes.network.network_params import Params
 from nodes.enums import Set, TF, Type, B, null, tensor_type

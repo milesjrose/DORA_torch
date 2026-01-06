@@ -1,6 +1,6 @@
-# nodes/network/sets_new/__init__.py
+# nodes/network/sets/__init__.py
 """
-Package: sets_new
+Package: sets
 
 Provides classes for representing sets of tokens in the network.
 

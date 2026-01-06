@@ -12,7 +12,7 @@ import torch
 
 # new imports
 from .tokens import Tokens, Mapping, Links, Token_Tensor
-from .sets_new import Driver, Recipient, Memory, New_Set, Semantics, Base_Set
+from .sets import Driver, Recipient, Memory, New_Set, Semantics, Base_Set
 
 class Network(object):
     """

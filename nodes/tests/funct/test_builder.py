@@ -6,7 +6,7 @@ import torch
 import os
 import tempfile
 
-from nodes.builder_new import NetworkBuilder, build_network
+from nodes.builder import NetworkBuilder, build_network
 from nodes.network import Network
 from nodes.enums import Set, Type, TF, SF, B, Mode, MappingFields, null
 

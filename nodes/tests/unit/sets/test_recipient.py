@@ -3,7 +3,7 @@
 
 import pytest
 import torch
-from nodes.network.sets_new.recipient import Recipient
+from nodes.network.sets.recipient import Recipient
 from nodes.network.tokens.tensor.token_tensor import Token_Tensor
 from nodes.network.network_params import Params
 from nodes.enums import Set, TF, Type, B, Mode, null, tensor_type, SF
@@ -1412,7 +1412,7 @@ def mock_semantics():
     """
     Create a mock Semantics object for testing.
     """
-    from nodes.network.sets_new.semantics import Semantics
+    from nodes.network.sets.semantics import Semantics
     num_semantics = 5
     num_features = len(SF)
     
