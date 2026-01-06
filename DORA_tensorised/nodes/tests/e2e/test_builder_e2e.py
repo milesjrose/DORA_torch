@@ -492,3 +492,523 @@ class TestTestsim15:
         assert mapping.shape[1] == 21, \
             f"Mapping driver dimension should be 21, got {mapping.shape[1]}"
 
+
+# =====================[ sim_file and sym_file Format Tests ]======================
+
+class TestSimFileFormat:
+    """
+    Tests for the 'sim_file' format (testsim.py).
+    
+    testsim.py structure:
+    - 2 propositions total (1 driver, 1 recipient)
+    - Each proposition has 2 RBs
+    - Each RB has 1 predicate PO and 1 object PO
+    
+    Propositions:
+    1. lovesMaryTom (driver): lover->Mary, beloved->Tom
+    2. lovesTomMary (recipient): lover->Tom, beloved->Mary
+    """
+    
+    @pytest.fixture
+    def testsim_path(self):
+        """Get the path to testsim.py (sim_file format)."""
+        current_dir = Path(__file__).parent
+        test_sims_dir = current_dir.parent / 'test_sims'
+        return str(test_sims_dir / 'testsim.py')
+    
+    @pytest.fixture
+    def network(self, testsim_path):
+        """Build network from testsim.py."""
+        return build_network(file=testsim_path)
+    
+    # ==================[ Token Count Tests ]==================
+    
+    def test_total_token_count(self, network):
+        """
+        Test total number of tokens.
+        - 2 P tokens
+        - 4 RB tokens (2 per proposition)
+        - 8 PO tokens (4 predicates + 4 objects)
+        Total: 14 tokens
+        """
+        token_count = network.token_tensor.tensor.shape[0]
+        assert token_count == 14, f"Expected 14 tokens, got {token_count}"
+    
+    def test_p_token_count(self, network):
+        """Test number of P tokens."""
+        p_mask = network.token_tensor.tensor[:, TF.TYPE] == Type.P.value
+        p_count = p_mask.sum().item()
+        assert p_count == 2, f"Expected 2 P tokens, got {p_count}"
+    
+    def test_rb_token_count(self, network):
+        """Test number of RB tokens."""
+        rb_mask = network.token_tensor.tensor[:, TF.TYPE] == Type.RB.value
+        rb_count = rb_mask.sum().item()
+        assert rb_count == 4, f"Expected 4 RB tokens, got {rb_count}"
+    
+    def test_po_token_count(self, network):
+        """Test number of PO tokens."""
+        po_mask = network.token_tensor.tensor[:, TF.TYPE] == Type.PO.value
+        po_count = po_mask.sum().item()
+        assert po_count == 8, f"Expected 8 PO tokens, got {po_count}"
+    
+    # ==================[ Set Assignment Tests ]==================
+    
+    def test_driver_token_count(self, network):
+        """Test number of tokens in driver set."""
+        driver_mask = network.token_tensor.tensor[:, TF.SET] == Set.DRIVER.value
+        driver_count = driver_mask.sum().item()
+        # 1 P + 2 RB + 4 PO = 7 driver tokens
+        assert driver_count == 7, f"Expected 7 driver tokens, got {driver_count}"
+    
+    def test_recipient_token_count(self, network):
+        """Test number of tokens in recipient set."""
+        recipient_mask = network.token_tensor.tensor[:, TF.SET] == Set.RECIPIENT.value
+        recipient_count = recipient_mask.sum().item()
+        # 1 P + 2 RB + 4 PO = 7 recipient tokens
+        assert recipient_count == 7, f"Expected 7 recipient tokens, got {recipient_count}"
+    
+    # ==================[ Connection Tests ]==================
+    
+    def test_connections_exist(self, network):
+        """Test that connections are created."""
+        total_connections = network.tokens.connections.connections.sum().item()
+        # 2 P->RB connections per P (4 total) + 2 RB->PO connections per RB (8 total) = 12
+        assert total_connections == 12, f"Expected 12 connections, got {total_connections}"
+    
+    # ==================[ Semantic Tests ]==================
+    
+    def test_semantics_created(self, network):
+        """Test that semantics are created."""
+        semantic_count = len(network.semantics.names)
+        # Unique semantics from testsim.py
+        # lover: lover1, lover2, lover3 (3)
+        # beloved: beloved1, beloved2, beloved3 (3)
+        # Mary: mary1, mary2 (from driver) + mary3 (from recipient) = mary1, mary2, mary3 (3)
+        # Tom: tom1, tom2, tom3 (3)
+        # Base: 12 unique semantics + 4 comparative semantics (MORE, LESS, SAME, DIFF)
+        # Total: 16 semantics
+        assert semantic_count == 16, f"Expected 16 semantics, got {semantic_count}"
+    
+    # ==================[ Link Tests ]==================
+    
+    def test_links_created(self, network):
+        """Test that PO-semantic links are created."""
+        # Links uses adj_matrix tensor
+        total_links = (network.links.adj_matrix > 0).sum().item()
+        # 8 PO tokens, each has either 2 or 3 semantics
+        # Driver lover: 3, Mary: 2, beloved: 3, Tom: 3
+        # Recipient lover: 3, Tom: 3, beloved: 3, Mary: 3
+        # Total links: 23
+        assert total_links == 23, f"Expected 23 links, got {total_links}"
+
+
+class TestSymFileFormat:
+    """
+    Tests for the 'sym_file' format (testsym.py).
+    
+    testsym.py structure:
+    - 5 propositions total (3 driver, 2 recipient)
+    - Each proposition has 2 RBs
+    - Each RB has 1 predicate PO and 1 object PO
+    
+    Propositions:
+    1. lovesMaryTom (driver): lover->Mary, beloved->Tom
+    2. lovesTomJane (driver): lover->Tom, beloved->Jane
+    3. jealousMaryJane (driver): jealous_act->Mary, jealous_pat->Jane
+    4. lovesJohnKathy (recipient): lover->John, beloved->Kathy
+    5. lovesKathySam (recipient): lover->Kathy, beloved->Sam
+    """
+    
+    @pytest.fixture
+    def testsym_path(self):
+        """Get the path to testsym.py (sym_file format)."""
+        current_dir = Path(__file__).parent
+        test_sims_dir = current_dir.parent / 'test_sims'
+        return str(test_sims_dir / 'testsym.py')
+    
+    @pytest.fixture
+    def network(self, testsym_path):
+        """Build network from testsym.py."""
+        return build_network(file=testsym_path)
+    
+    # ==================[ Token Count Tests ]==================
+    
+    def test_total_token_count(self, network):
+        """
+        Test total number of tokens.
+        - 5 P tokens
+        - 10 RB tokens (2 per proposition)
+        - 20 PO tokens (10 predicates + 10 objects)
+        Total: 35 tokens
+        """
+        token_count = network.token_tensor.tensor.shape[0]
+        assert token_count == 35, f"Expected 35 tokens, got {token_count}"
+    
+    def test_p_token_count(self, network):
+        """Test number of P tokens."""
+        p_mask = network.token_tensor.tensor[:, TF.TYPE] == Type.P.value
+        p_count = p_mask.sum().item()
+        assert p_count == 5, f"Expected 5 P tokens, got {p_count}"
+    
+    def test_rb_token_count(self, network):
+        """Test number of RB tokens."""
+        rb_mask = network.token_tensor.tensor[:, TF.TYPE] == Type.RB.value
+        rb_count = rb_mask.sum().item()
+        assert rb_count == 10, f"Expected 10 RB tokens, got {rb_count}"
+    
+    def test_po_token_count(self, network):
+        """Test number of PO tokens."""
+        po_mask = network.token_tensor.tensor[:, TF.TYPE] == Type.PO.value
+        po_count = po_mask.sum().item()
+        assert po_count == 20, f"Expected 20 PO tokens, got {po_count}"
+    
+    # ==================[ Set Assignment Tests ]==================
+    
+    def test_driver_token_count(self, network):
+        """Test number of tokens in driver set."""
+        driver_mask = network.token_tensor.tensor[:, TF.SET] == Set.DRIVER.value
+        driver_count = driver_mask.sum().item()
+        # 3 P + 6 RB + 12 PO = 21 driver tokens
+        assert driver_count == 21, f"Expected 21 driver tokens, got {driver_count}"
+    
+    def test_recipient_token_count(self, network):
+        """Test number of tokens in recipient set."""
+        recipient_mask = network.token_tensor.tensor[:, TF.SET] == Set.RECIPIENT.value
+        recipient_count = recipient_mask.sum().item()
+        # 2 P + 4 RB + 8 PO = 14 recipient tokens
+        assert recipient_count == 14, f"Expected 14 recipient tokens, got {recipient_count}"
+    
+    # ==================[ Connection Tests ]==================
+    
+    def test_connections_exist(self, network):
+        """Test that connections are created."""
+        total_connections = network.tokens.connections.connections.sum().item()
+        # 5 P tokens with 2 RBs each = 10 P->RB connections
+        # 10 RB tokens with 2 POs each = 20 RB->PO connections
+        # Total: 30 connections
+        assert total_connections == 30, f"Expected 30 connections, got {total_connections}"
+    
+    # ==================[ Semantic Tests ]==================
+    
+    def test_semantics_created(self, network):
+        """Test that semantics are created."""
+        semantic_count = len(network.semantics.names)
+        # Unique semantics from testsym.py + 4 comparative semantics (MORE, LESS, SAME, DIFF)
+        # Note: some typos in the file (tome3, tome3) - these count as unique
+        assert semantic_count > 4, "Should have semantics (at least 4 comparative)"
+    
+    # ==================[ Link Tests ]==================
+    
+    def test_links_created(self, network):
+        """Test that PO-semantic links are created."""
+        # Links uses adj_matrix tensor
+        total_links = (network.links.adj_matrix > 0).sum().item()
+        # 20 PO tokens, each with 3 semantics = 60 links
+        assert total_links == 60, f"Expected 60 links, got {total_links}"
+
+
+class TestBothFormatsProduceValidNetworks:
+    """
+    Tests that verify both file formats produce structurally valid networks.
+    """
+    
+    @pytest.fixture
+    def sim_file_path(self):
+        """Get the path to testsim.py (sim_file format)."""
+        current_dir = Path(__file__).parent
+        test_sims_dir = current_dir.parent / 'test_sims'
+        return str(test_sims_dir / 'testsim.py')
+    
+    @pytest.fixture
+    def sym_file_path(self):
+        """Get the path to testsym.py (sym_file format)."""
+        current_dir = Path(__file__).parent
+        test_sims_dir = current_dir.parent / 'test_sims'
+        return str(test_sims_dir / 'testsym.py')
+    
+    @pytest.fixture
+    def sim_network(self, sim_file_path):
+        """Build network from sim_file format."""
+        return build_network(file=sim_file_path)
+    
+    @pytest.fixture
+    def sym_network(self, sym_file_path):
+        """Build network from sym_file format."""
+        return build_network(file=sym_file_path)
+    
+    # ==================[ Structure Validity Tests ]==================
+    
+    def test_sim_file_has_valid_structure(self, sim_network):
+        """Test that sim_file produces a valid network structure."""
+        # Has tokens
+        assert sim_network.token_tensor is not None
+        assert sim_network.token_tensor.tensor.shape[0] > 0
+        
+        # Has connections
+        assert sim_network.tokens.connections is not None
+        assert sim_network.tokens.connections.connections.sum() > 0
+        
+        # Has semantics
+        assert sim_network.semantics is not None
+        assert len(sim_network.semantics.names) > 0
+        
+        # Has links
+        assert sim_network.links is not None
+        total_links = (sim_network.links.adj_matrix > 0).sum().item()
+        assert total_links > 0
+        
+        # Has mappings
+        assert sim_network.mappings is not None
+    
+    def test_sym_file_has_valid_structure(self, sym_network):
+        """Test that sym_file produces a valid network structure."""
+        # Has tokens
+        assert sym_network.token_tensor is not None
+        assert sym_network.token_tensor.tensor.shape[0] > 0
+        
+        # Has connections
+        assert sym_network.tokens.connections is not None
+        assert sym_network.tokens.connections.connections.sum() > 0
+        
+        # Has semantics
+        assert sym_network.semantics is not None
+        assert len(sym_network.semantics.names) > 0
+        
+        # Has links
+        assert sym_network.links is not None
+        total_links = (sym_network.links.adj_matrix > 0).sum().item()
+        assert total_links > 0
+        
+        # Has mappings
+        assert sym_network.mappings is not None
+    
+    def test_both_formats_produce_consistent_token_features(self, sim_network, sym_network):
+        """Test that both formats produce tokens with the same feature dimensions."""
+        sim_features = sim_network.token_tensor.tensor.shape[1]
+        sym_features = sym_network.token_tensor.tensor.shape[1]
+        assert sim_features == sym_features, \
+            f"Both formats should produce tokens with same features: sim={sim_features}, sym={sym_features}"
+    
+    def test_both_formats_set_token_ids_correctly(self, sim_network, sym_network):
+        """Test that both formats assign sequential token IDs starting from 1."""
+        for network, name in [(sim_network, 'sim'), (sym_network, 'sym')]:
+            ids = [int(x) for x in network.token_tensor.tensor[:, TF.ID].tolist()]
+            expected_ids = list(range(1, len(ids) + 1))  # IDs start from 1
+            assert ids == expected_ids, \
+                f"{name} file should have sequential IDs starting from 1: got {ids[:5]}..."
+    
+    def test_both_formats_produce_square_connection_matrices(self, sim_network, sym_network):
+        """Test that connection matrices are square (n_tokens x n_tokens)."""
+        for network, name in [(sim_network, 'sim'), (sym_network, 'sym')]:
+            n_tokens = network.token_tensor.tensor.shape[0]
+            conn_shape = network.tokens.connections.connections.shape
+            assert conn_shape == (n_tokens, n_tokens), \
+                f"{name} file connections should be ({n_tokens}, {n_tokens}), got {conn_shape}"
+    
+    def test_both_formats_produce_correct_link_dimensions(self, sim_network, sym_network):
+        """Test that link matrices have correct dimensions (n_tokens x n_semantics)."""
+        for network, name in [(sim_network, 'sim'), (sym_network, 'sym')]:
+            n_tokens = network.token_tensor.tensor.shape[0]
+            n_semantics = len(network.semantics.names)
+            link_shape = network.links.adj_matrix.shape
+            # Token dimension should match exactly
+            assert link_shape[0] == n_tokens, \
+                f"{name} file links token dimension should be {n_tokens}, got {link_shape[0]}"
+            # Semantics dimension should be at least as large as number of named semantics
+            # (may be larger due to pre-allocation during tensor expansion)
+            assert link_shape[1] >= n_semantics, \
+                f"{name} file links semantics dimension should be >= {n_semantics}, got {link_shape[1]}"
+
+
+# =====================[ Reference Equality Tests ]======================
+
+class TestObjectReferences:
+    """
+    Tests that verify objects that should share references actually do.
+    This is critical for ensuring changes to one view affect all related objects.
+    """
+
+    @pytest.fixture
+    def testsim15_path(self):
+        """Get the path to testsim15.py."""
+        current_dir = Path(__file__).parent
+        sims_dir = current_dir.parent.parent.parent / 'sims'
+        return str(sims_dir / 'testsim15.py')
+
+    @pytest.fixture
+    def network(self, testsim15_path):
+        """Build network from testsim15.py."""
+        return build_network(file=testsim15_path)
+
+    # ==================[ Token Tensor References ]==================
+
+    def test_network_token_tensor_is_tokens_token_tensor(self, network):
+        """
+        Test that network.token_tensor is the same object as network.tokens.token_tensor.
+        """
+        assert network.token_tensor is network.tokens.token_tensor, \
+            "network.token_tensor should be the same object as network.tokens.token_tensor"
+
+    def test_connections_shared_between_tokens_and_token_tensor(self, network):
+        """
+        Test that the connections object is shared between Tokens and Token_Tensor.
+        """
+        assert network.tokens.connections is network.tokens.token_tensor.connections, \
+            "network.tokens.connections should be the same object as network.tokens.token_tensor.connections"
+
+    def test_network_links_is_tokens_links(self, network):
+        """
+        Test that network.links is the same object as network.tokens.links.
+        """
+        assert network.links is network.tokens.links, \
+            "network.links should be the same object as network.tokens.links"
+
+    def test_network_mappings_is_tokens_mapping(self, network):
+        """
+        Test that network.mappings is the same object as network.tokens.mapping.
+        """
+        assert network.mappings is network.tokens.mapping, \
+            "network.mappings should be the same object as network.tokens.mapping"
+
+    # ==================[ Set Token Tensor References ]==================
+
+    def test_driver_set_shares_token_tensor(self, network):
+        """
+        Test that driver set uses the same token_tensor as the network.
+        Sets use 'glbl' attribute to reference the global Token_Tensor.
+        """
+        assert network.sets[Set.DRIVER].glbl is network.token_tensor, \
+            "Driver set should share token_tensor with network"
+
+    def test_recipient_set_shares_token_tensor(self, network):
+        """
+        Test that recipient set uses the same token_tensor as the network.
+        """
+        assert network.sets[Set.RECIPIENT].glbl is network.token_tensor, \
+            "Recipient set should share token_tensor with network"
+
+    def test_memory_set_shares_token_tensor(self, network):
+        """
+        Test that memory set uses the same token_tensor as the network.
+        """
+        assert network.sets[Set.MEMORY].glbl is network.token_tensor, \
+            "Memory set should share token_tensor with network"
+
+    def test_new_set_shares_token_tensor(self, network):
+        """
+        Test that new_set uses the same token_tensor as the network.
+        """
+        assert network.sets[Set.NEW_SET].glbl is network.token_tensor, \
+            "New_Set should share token_tensor with network"
+
+    def test_all_sets_share_same_token_tensor(self, network):
+        """
+        Test that all sets share the exact same token_tensor object.
+        """
+        token_tensors = [network.sets[s].glbl for s in Set]
+        first = token_tensors[0]
+        for i, tt in enumerate(token_tensors[1:], 1):
+            assert tt is first, \
+                f"Set {list(Set)[i]} has different token_tensor than Set {list(Set)[0]}"
+
+    # ==================[ Underlying Tensor References ]==================
+
+    def test_token_tensor_data_shared(self, network):
+        """
+        Test that the underlying torch tensor is the same object.
+        """
+        assert network.token_tensor.tensor is network.tokens.token_tensor.tensor, \
+            "The underlying tensor data should be the same object"
+
+    def test_connections_tensor_data_shared(self, network):
+        """
+        Test that the underlying connections torch tensor is the same object.
+        """
+        assert network.tokens.connections.connections is network.tokens.token_tensor.connections.connections, \
+            "The underlying connections tensor should be the same object"
+
+    def test_links_tensor_data_shared(self, network):
+        """
+        Test that the underlying links torch tensor is the same object.
+        """
+        assert network.links.adj_matrix is network.tokens.links.adj_matrix, \
+            "The underlying links tensor should be the same object"
+
+    def test_mapping_tensor_data_shared(self, network):
+        """
+        Test that the underlying mapping torch tensor is the same object.
+        """
+        assert network.mappings.adj_matrix is network.tokens.mapping.adj_matrix, \
+            "The underlying mapping tensor should be the same object"
+
+    # ==================[ Mutation Tests ]==================
+
+    def test_mutation_through_tokens_affects_network(self, network):
+        """
+        Test that modifying data through tokens affects network's view.
+        """
+        # Get an activation value
+        original_act = network.token_tensor.tensor[0, TF.ACT].item()
+        
+        # Modify through tokens
+        network.tokens.token_tensor.tensor[0, TF.ACT] = 999.0
+        
+        # Check it's visible through network (use pytest.approx for float32 precision)
+        assert network.token_tensor.tensor[0, TF.ACT].item() == pytest.approx(999.0, rel=1e-5), \
+            "Changes through tokens should be visible through network"
+        
+        # Restore original value
+        network.token_tensor.tensor[0, TF.ACT] = original_act
+
+    def test_mutation_through_network_affects_tokens(self, network):
+        """
+        Test that modifying data through network affects tokens' view.
+        """
+        # Get an activation value
+        original_act = network.tokens.token_tensor.tensor[0, TF.ACT].item()
+        
+        # Modify through network
+        network.token_tensor.tensor[0, TF.ACT] = 888.0
+        
+        # Check it's visible through tokens (use pytest.approx for float32 precision)
+        assert network.tokens.token_tensor.tensor[0, TF.ACT].item() == pytest.approx(888.0, rel=1e-5), \
+            "Changes through network should be visible through tokens"
+        
+        # Restore original value
+        network.tokens.token_tensor.tensor[0, TF.ACT] = original_act
+
+    def test_connection_mutation_affects_both_views(self, network):
+        """
+        Test that modifying connections through one reference affects both.
+        """
+        # Store original state
+        original_val = network.tokens.connections.connections[0, 1].item()
+        
+        # Modify through tokens.connections
+        network.tokens.connections.connections[0, 1] = not original_val
+        
+        # Check it's visible through token_tensor.connections
+        assert network.tokens.token_tensor.connections.connections[0, 1].item() == (not original_val), \
+            "Connection changes should be visible through token_tensor.connections"
+        
+        # Restore
+        network.tokens.connections.connections[0, 1] = original_val
+
+    # ==================[ Cache Reference Tests ]==================
+
+    def test_cache_references_correct_tensor(self, network):
+        """
+        Test that the cache references the correct tensor.
+        """
+        assert network.token_tensor.cache.tensor is network.token_tensor.tensor, \
+            "Cache should reference the token_tensor's tensor"
+
+    # ==================[ Semantics Links Reference ]==================
+
+    def test_semantics_links_reference(self, network):
+        """
+        Test that semantics.links is the same as network.links.
+        """
+        assert network.semantics.links is network.links, \
+            "Semantics should share the same links object as network"

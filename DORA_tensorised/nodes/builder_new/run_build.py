@@ -3,7 +3,6 @@
 
 from ..network.network_params import Params
 from .network_builder import NetworkBuilder
-from ..network.network_params import default_params
 
 def build_network(file=None, props=None, params=None):
     """

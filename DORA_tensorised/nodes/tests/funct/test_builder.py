@@ -1052,3 +1052,121 @@ class TestExactSemanticLinks:
         # All non-zero links should have weight 1.0
         non_zero_links = links[links > 0]
         assert (non_zero_links == 1.0).all(), "All link weights should be 1.0"
+
+
+# =====================[ Object Reference Tests ]======================
+
+class TestObjectReferences:
+    """
+    Tests that verify objects that should share references actually do.
+    This ensures that modifications through one view are visible through all related views.
+    """
+
+    @pytest.fixture
+    def simple_network(self, simple_sym_props):
+        """Build a simple network for reference testing."""
+        return build_network(props=simple_sym_props)
+
+    # ==================[ Core Object References ]==================
+
+    def test_token_tensor_reference_shared(self, simple_network):
+        """network.token_tensor should be the same object as network.tokens.token_tensor."""
+        assert simple_network.token_tensor is simple_network.tokens.token_tensor
+
+    def test_connections_reference_shared(self, simple_network):
+        """tokens.connections should be the same object as token_tensor.connections."""
+        assert simple_network.tokens.connections is simple_network.tokens.token_tensor.connections
+
+    def test_links_reference_shared(self, simple_network):
+        """network.links should be the same object as tokens.links."""
+        assert simple_network.links is simple_network.tokens.links
+
+    def test_mappings_reference_shared(self, simple_network):
+        """network.mappings should be the same object as tokens.mapping."""
+        assert simple_network.mappings is simple_network.tokens.mapping
+
+    # ==================[ Set References ]==================
+
+    def test_all_sets_share_token_tensor(self, simple_network):
+        """All sets should reference the same token_tensor (via glbl attribute)."""
+        token_tensor = simple_network.token_tensor
+        
+        # Sets use 'glbl' to reference the global Token_Tensor
+        assert simple_network.sets[Set.DRIVER].glbl is token_tensor
+        assert simple_network.sets[Set.RECIPIENT].glbl is token_tensor
+        assert simple_network.sets[Set.MEMORY].glbl is token_tensor
+        assert simple_network.sets[Set.NEW_SET].glbl is token_tensor
+
+    # ==================[ Underlying Tensor References ]==================
+
+    def test_underlying_token_tensor_shared(self, simple_network):
+        """The underlying torch tensor should be the same object."""
+        assert simple_network.token_tensor.tensor is simple_network.tokens.token_tensor.tensor
+
+    def test_underlying_connections_tensor_shared(self, simple_network):
+        """The underlying connections tensor should be the same object."""
+        assert simple_network.tokens.connections.connections is \
+               simple_network.tokens.token_tensor.connections.connections
+
+    def test_underlying_links_tensor_shared(self, simple_network):
+        """The underlying links tensor should be the same object."""
+        assert simple_network.links.adj_matrix is simple_network.tokens.links.adj_matrix
+
+    def test_underlying_mapping_tensor_shared(self, simple_network):
+        """The underlying mapping tensor should be the same object."""
+        assert simple_network.mappings.adj_matrix is simple_network.tokens.mapping.adj_matrix
+
+    # ==================[ Semantics References ]==================
+
+    def test_semantics_links_shared(self, simple_network):
+        """Semantics should share the same links object as network."""
+        assert simple_network.semantics.links is simple_network.links
+
+    # ==================[ Cache References ]==================
+
+    def test_cache_tensor_reference(self, simple_network):
+        """Cache should reference the same tensor as token_tensor."""
+        assert simple_network.token_tensor.cache.tensor is simple_network.token_tensor.tensor
+
+    # ==================[ Mutation Visibility Tests ]==================
+
+    def test_token_mutation_visible_everywhere(self, simple_network):
+        """Changes to tokens should be visible through all references."""
+        original = simple_network.token_tensor.tensor[0, TF.ACT].item()
+        
+        # Modify through one reference
+        simple_network.tokens.token_tensor.tensor[0, TF.ACT] = 123.456
+        
+        # Verify visible through other reference (use approx for float32 precision)
+        assert simple_network.token_tensor.tensor[0, TF.ACT].item() == pytest.approx(123.456, rel=1e-5)
+        
+        # Restore
+        simple_network.token_tensor.tensor[0, TF.ACT] = original
+
+    def test_connection_mutation_visible_everywhere(self, simple_network):
+        """Changes to connections should be visible through all references."""
+        # Find a connection that exists
+        connections = simple_network.tokens.connections.connections
+        
+        # Toggle a connection through one reference
+        original = connections[0, 1].item()
+        simple_network.tokens.connections.connections[0, 1] = not original
+        
+        # Verify visible through other reference
+        assert simple_network.tokens.token_tensor.connections.connections[0, 1].item() == (not original)
+        
+        # Restore
+        simple_network.tokens.connections.connections[0, 1] = original
+
+    def test_link_mutation_visible_everywhere(self, simple_network):
+        """Changes to links should be visible through all references."""
+        original = simple_network.links.adj_matrix[0, 0].item()
+        
+        # Modify through one reference
+        simple_network.tokens.links.adj_matrix[0, 0] = 0.999
+        
+        # Verify visible through other reference (use approx for float32 precision)
+        assert simple_network.links.adj_matrix[0, 0].item() == pytest.approx(0.999, rel=1e-5)
+        
+        # Restore
+        simple_network.links.adj_matrix[0, 0] = original

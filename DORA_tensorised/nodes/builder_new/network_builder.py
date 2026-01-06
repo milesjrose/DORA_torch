@@ -74,8 +74,9 @@ class NetworkBuilder(object):
             self._parse_symProps()
             
             # 2. Create tensors from the collected data
-            token_tensor = self._build_token_tensor()
+            # Build connections first so it can be shared with token_tensor
             connections = self._build_connections_tensor()
+            token_tensor = self._build_token_tensor(connections)
             links = self._build_links_tensor()
             mapping = self._build_mapping_tensor()
             semantics = self._build_semantics_object()
@@ -210,7 +211,7 @@ class NetworkBuilder(object):
         
         return idx
     
-    def _build_token_tensor(self) -> Token_Tensor:
+    def _build_token_tensor(self, connections: Connections_Tensor) -> Token_Tensor:
         """Build the Token_Tensor from collected tokens."""
         num_tokens = len(self._token_list)
         
@@ -221,9 +222,6 @@ class NetworkBuilder(object):
         
         # Create names dict
         names = {i: name for i, name in enumerate(self._token_names)}
-        
-        # Create connections (will be populated separately)
-        connections = Connections_Tensor(torch.zeros(num_tokens, num_tokens, dtype=torch.bool))
         
         return Token_Tensor(tokens_data, connections, names)
     
@@ -304,7 +302,8 @@ class NetworkBuilder(object):
             di = {"simType": simType}
             file.seek(0)
             exec(file.readline(), di)
-            if di["simType"] == "sym_file":
+            if di["simType"] in ["sym_file", "sim_file"]:
+                # Both sym_file and sim_file use the same Python exec format
                 symstring = ""
                 for line in file:
                     symstring += line
@@ -318,6 +317,7 @@ class NetworkBuilder(object):
             else:
                 print(
                     "\nThe sym file you have loaded is formatted incorrectly. "
+                    f"\nExpected simType: 'sym_file', 'sim_file', or 'json_sym', got: '{di['simType']}'"
                     "\nPlease check your sym file and try again."
                 )
             file.close()
