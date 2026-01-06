@@ -1,14 +1,6 @@
 # nodes/unit_test/operations/test_inhibitor_ops.py
 # Tests for InhibitorOperations class
 
-import sys
-from pathlib import Path
-
-# Add DORA_tensorised to Python path so 'nodes' module can be imported
-dora_tensorised_dir = Path(__file__).parent.parent.parent.parent
-if str(dora_tensorised_dir) not in sys.path:
-    sys.path.insert(0, str(dora_tensorised_dir))
-
 import pytest
 import torch
 from unittest.mock import Mock, patch, MagicMock
