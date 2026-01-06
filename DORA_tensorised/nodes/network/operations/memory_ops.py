@@ -38,10 +38,11 @@ class TensorOperations:
     def del_mem_tokens(self, sets: list[Set] = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]):
         """ delete any memory tokens from the am.
         TODO: Check usage -> there shouldn't be any memory tokens in am after make_am, """
-        for set in sets:
-            if set not in [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]:
-                raise ValueError(f"Set {set} is not a valid set for del_mem_tokens")
-            self.network.sets[set].tensor_op.del_mem_tokens()
+        raise NotImplementedError("Function is not used anymore")
+        #for set in sets:
+        #       if set not in [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]:
+        #        raise ValueError(f"Set {set} is not a valid set for del_mem_tokens")
+        #    self.network.sets[set].tensor_op.del_mem_tokens()
 
     def clear_all_sets(self):
         """Clear the set field of every token in memory (i.e. to clear WM)."""
