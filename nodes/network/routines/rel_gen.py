@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ...network import Network
-    from ..connections import Mappings
+    from ..tokens.connections import Mapping
 
 logger = logging.getLogger(__name__)
 

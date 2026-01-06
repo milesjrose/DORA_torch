@@ -4,11 +4,13 @@ Package: utils
 Provides utilities for the nodes package.
 
 - tensorOps: Provides tensor operations.
-- nodePrinter: Object to print nodes/connections to console or a file.
+- Printer: Object to print nodes/connections to console or a file.
+- tablePrinter: Object to print tables to console or a file.
 """
 
-from .printer.nodePrinter import nodePrinter
+from .printer import Printer, tablePrinter
 
 __all__ = [
-    "nodePrinter"
+    "Printer",
+    "tablePrinter"
 ]

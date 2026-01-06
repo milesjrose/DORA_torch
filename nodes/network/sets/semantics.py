@@ -9,7 +9,7 @@ from ...enums import *
 from ...utils import tensor_ops as tOps
 
 from ..single_nodes import Ref_Semantic
-from ..connections import Links, LD
+from ..tokens.connections import Links, LD
 from ..network_params import Params
 from ..single_nodes import Semantic
 

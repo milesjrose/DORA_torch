@@ -11,7 +11,7 @@ from ..single_nodes.token import Token
 if TYPE_CHECKING:
     from ...network import Network
     from ..sets import Recipient, Driver
-    from ..connections import Mappings
+    from ..tokens.connections import Mapping
     from ..single_nodes.token import Ref_Token
 
 class PredicationOperations:

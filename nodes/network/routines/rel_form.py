@@ -11,7 +11,7 @@ import torch
 if TYPE_CHECKING:
     from ...network import Network
     from ..sets import Recipient
-    from ..connections import Mappings
+    from ..tokens.connections import Mapping
 
 class RelFormOperations:
     """

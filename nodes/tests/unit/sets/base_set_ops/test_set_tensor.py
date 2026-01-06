@@ -3,6 +3,7 @@
 
 import pytest
 import torch
+import logging
 from nodes.network.sets.base_set import Base_Set
 from nodes.network.tokens.tensor.token_tensor import Token_Tensor
 from nodes.network.network_params import Params
@@ -344,22 +345,6 @@ def test_get_count_different_sets(driver_set, recipient_set, memory_set):
     assert memory_set.tensor_op.get_count() == 5
 
 
-# =====================[ print tests ]======================
-
-def test_print_not_implemented(driver_set, caplog):
-    """Test that print method logs not implemented message."""
-    driver_set.tensor_op.print()
-    
-    # Check that the log message was recorded
-    assert "Printing set not implemmented yet" in caplog.text or "Printing set not implemented yet" in caplog.text
-
-
-def test_print_tokens_not_implemented(driver_set, caplog):
-    """Test that print_tokens method logs not implemented message."""
-    driver_set.tensor_op.print_tokens()
-    
-    # Check that the log message was recorded
-    assert "Printing tokens not implemmented yet" in caplog.text or "Printing tokens not implemented yet" in caplog.text
 
 
 # =====================[ Integration tests ]======================

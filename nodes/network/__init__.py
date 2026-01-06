@@ -16,8 +16,10 @@ Provides classes for representing the network.
 from .network import Network
 from .sets import Driver, Recipient, Memory, New_Set, Semantics
 from .tokens import Links, Mapping, Tokens, Token_Tensor
-from .connections import Mappings  # Old Mappings class for backward compatibility
 from .network_params import Params
+
+# Backward compatibility alias
+Mappings = Mapping
 from .single_nodes import Token, Semantic, Ref_Token, Ref_Semantic
 from .network_params import default_params
 

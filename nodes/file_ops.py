@@ -13,8 +13,10 @@ from .network.sets.driver import Driver
 from .network.sets.recipient import Recipient
 from .network.sets.memory import Memory
 from .network.sets.new_set import New_Set
-from .network.connections.mappings import Mappings
-from .network.connections.links import Links
+from .network.tokens.connections import Mapping, Links
+
+# Backward compatibility alias
+Mappings = Mapping
 from .enums import MappingFields
 
 def load_network_old(file_path: str):
