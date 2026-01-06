@@ -61,8 +61,8 @@ class DORA:
         #      Need to ask about this.
         # Copy any analogs with set != memory into AM (driver/recipient)
         self.network.analog_ops.make_AM_copy()
-        # remove any memory tokens from the am TODO: check if this should be here?
-        self.network.tensor_ops.del_mem_tokens()
+        # remove any memory tokens from the am TODO: check if this should be here? > Don't think so.
+        #self.network.tensor_ops.del_mem_tokens()
         # Get PO SemNormalizations.
         self.network.node_ops.get_weight_lengths()
 

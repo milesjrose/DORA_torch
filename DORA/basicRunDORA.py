@@ -59,15 +59,7 @@ class runDORA(object):
         self.screen_width = parameters["screen_width"]
         self.screen_height = parameters["screen_height"]
         self.GUI_update_rate = parameters["GUI_update_rate"]
-        self.starting_iteration = parameters["starting_iteration"]
-        self.num_phase_sets_to_run = None
-        self.count_by_RBs = None  # initialize to None.
-        self.local_inhibitor_fired = False  # initialize to False.
-
-    ######################################
-    ###### DORA OPERATION FUNCTIONS ######
-    ######################################
-    # 1) Bring a prop or props into WM (driver). This step is completed by passing the variable memory as an argument to the function (memory contains the driver proposition(s)).
+        self.starting_initinto WM (driver). This step is completed by passing the variable memory as an argument to the function (memory contains the driver proposition(s)).
     # function to prepare runDORA object for a run.
     def initialize_run(self, mapping):
         # index memory.
@@ -2137,7 +2129,8 @@ def replace_copied_semantics(myPO, semantics):
     return myPO, semantics
 
 
-# function to find token in memory whose set is driver or recipient in order to construct the driver and recipient sets for the run. Returns driver and recipient sets.
+# function to find token in memory whose set is driver or recipient in order 
+# to construct the driver and recipient sets for the run. Returns driver and recipient sets.
 def findDriverRecipient(memory):
     # first clear out the memory.driver and memory.recipient fields.
     (
