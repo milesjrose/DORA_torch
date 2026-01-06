@@ -38,7 +38,7 @@ from .builder_new import build_network, NetworkBuilder
 from .enums import SF as semFields, TF as tokenFields, MappingFields, Type, Set, Mode, OntStatus
 from .network.network_params import default_params
 from .file_ops import load_network_old, load_network_new, save_network
-
+from .utils.new_printer.printer import Printer
 __all__ = [
     "Network",
     "Params",
@@ -54,6 +54,7 @@ __all__ = [
     "default_params",
     "load_network_old",
     "load_network_new",
-    "save_network"
+    "save_network",
+    "Printer"
 ]
 
