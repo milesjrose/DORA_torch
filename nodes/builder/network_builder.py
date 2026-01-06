@@ -1,34 +1,25 @@
-# nodes/builder/network_builder.py
-# Builds the network object.
-
-import torch
-from time import monotonic
-
 from ..enums import *
-from ..network import Network, Params, Links, Mappings
-from ..network.sets import *
-
-from .build_set import Build_set
-from .build_sems import Build_sems
-from .build_children import Build_children
-from .build_connections import build_con_tensors, build_links_tensors
-from ..network.network_params import default_params
+from ..network import Network, Params, Tokens, Semantics, Mapping, Links, Token_Tensor, default_params
+from ..network.tokens.connections.connections import Connections_Tensor
+from ..network.tokens.connections.links import LD
+from ..network.single_nodes import Token, Semantic
+from time import monotonic
+import torch
 
 
-class NetworkBuilder(object):                              # Builds tensors for each set, memory, and semantic objects. Finally build the nodes object.
+class NetworkBuilder(object):
     """
-    A class for building the network object.
+    A class for building the network object from sym files.
 
     Attributes:
         symProps (list): A list of symProps.
         file_path (str): The path to the sym file.
-        token_sets (dict): A dictionary of token sets, mapping set to token set object.
-        mappings (dict): A dictionary of mapping object, mappings sets to mapping object.
-        set_map (dict): A dictionary of set mappings, mapping set name to set. Used for reading set from symProps file.
+        params (Params): The parameters for the network.
+        do_timing (bool): Whether to record timing of the build process.
     """
     def __init__(self, symProps: list[dict] = None, file_path: str = None, params: Params = None, do_timing: bool = False):
         """
-        Initialise the nodeBuilder with symProps and file_path.
+        Initialise the NetworkBuilder with symProps and file_path.
 
         Args:
             symProps (list): A list of symProps.
@@ -40,8 +31,6 @@ class NetworkBuilder(object):                              # Builds tensors for 
         self.last_time = {0: monotonic()}
         self.symProps = symProps
         self.file_path = file_path
-        self.token_sets = {}
-        self.mappings = {}
         self.params = params if params is not None else default_params()
         self.set_map = {
             "driver": Set.DRIVER,
@@ -49,13 +38,22 @@ class NetworkBuilder(object):                              # Builds tensors for 
             "memory": Set.MEMORY,
             "new_set": Set.NEW_SET
         }
+        
+        # Build state tracking
+        self._next_token_id = 1
+        self._next_sem_id = 1
+        self._token_list: list[Token] = []
+        self._token_names: list[str] = []
+        self._semantic_dict: dict[str, int] = {}  # name -> index in sem list
+        self._semantic_list: list[Semantic] = []
+        self._semantic_names: dict[int, str] = {}  # id -> name
+        self._semantic_ids: dict[int, int] = {}  # id -> index in tensor
+        
+        # Connection tracking
+        self._parent_child_pairs: list[tuple[int, int]] = []  # (parent_idx, child_idx)
+        self._token_sem_links: list[tuple[int, int, float]] = []  # (token_idx, sem_idx, weight)
 
-        # Built objects
-        self.built_sets = {}
-        self.built_mappings = None
-        self.built_links = None
-
-    def build_network(self):          # Build the network object
+    def build_network(self) -> Network:
         """
         Build the network object.
 
@@ -65,194 +63,266 @@ class NetworkBuilder(object):                              # Builds tensors for 
         Raises:
             ValueError: If no symProps or file_path set.
         """
-        
         if self.file_path is not None:
             read_time = []
-            self.timer(read_time, start = True)
+            self.timer(read_time, start=True)
             self.get_symProps_from_file()
             self.timer(read_time)
-
-        if self.symProps is not None:
-            set_times = self.build_set_tensors()
-            node_times = self.build_set_objects()
-            con_times = self.build_inter_set_connections()
-            self.network = Network(
-                dict_sets=self.built_sets, 
-                semantics=self.built_semantics, 
-                mappings=self.built_mappings, 
-                links=self.built_links, 
-                params=self.params)
-            self.network.set_params(self.params)
-            return self.network
         
+        if self.symProps is not None:
+            # 1. Parse symProps and build tokens/semantics
+            self._parse_symProps()
+            
+            # 2. Create tensors from the collected data
+            # Build connections first so it can be shared with token_tensor
+            connections = self._build_connections_tensor()
+            token_tensor = self._build_token_tensor(connections)
+            links = self._build_links_tensor()
+            mapping = self._build_mapping_tensor()
+            semantics = self._build_semantics_object()
+            
+            # 3. Create the Tokens container
+            tokens = Tokens(token_tensor, connections, links, mapping)
+            
+            # 4. Create and return Network
+            network = Network(tokens, semantics, mapping, links, self.params)
+            return network
         else:
             raise ValueError("No symProps or file_path provided")
-
-    def build_set_tensors(self):    # Build sem_set, token_sets
-        """
-        Build the sem_set and token_sets.
-        """
-        props = {}
-        times = []
-        self.timer(times, start = True)
-
-        # 1). Build the sems
-        build_sems = Build_sems(self.symProps)
-        self.sems = build_sems.build_sems()
-        self.timer(times)
-
-        # 2). Initiliase empty lists for each set
-        for set in Set:                                 
-            props[set] = []
-        self.timer(times)
-
-        # 3). Add the prop to the correct set
-        for prop in self.symProps:
-            props[self.set_map[prop["set"]]].append(prop)    
-        self.timer(times)
-        
-        # 4). Build the basic token sets
-        for set in Set:                                
-            build_set = Build_set(props[set], set)
-            self.token_sets[set] = build_set.build_set()
-        self.timer(times)
-
-        # 5). Build the children lists of IDs
-        for set in Set:
-            build_children = Build_children(set, self.token_sets[set], self.sems, props[set])
-            build_children.get_children()
-        self.timer(times)
-
-        # 7). Tensorise the sets 
-        for set in Set:
-            self.token_sets[set].tensorise()
-        self.sems.tensorise()
-
-        self.timer(times)
-        return times
-
-    def build_set_objects(self):   # Build the set objects
-        """
-        Build the set objects.
-        """
-        # Function to build a given set
-        def build_set(token_set, Set_Class):
-            if not isinstance(token_set.connections, torch.Tensor):
-                raise TypeError(f"connections must be torch.Tensor, not {type(token_set.connections)}.")
-            
-            # Convert id_dict from dict[int, Inter_Token] to dict[int, int] (ID -> tensor index)
-            # Convert name_dict from dict[str, Inter_Token] to dict[int, str] (ID -> name)
-            IDs = {}
-            names = {}
-            for token_id, token_obj in token_set.id_dict.items():
-                IDs[token_id] = token_obj.ID  # token_obj.ID is the tensor index
-                names[token_id] = token_obj.name
-            
-            return Set_Class(
-                token_set.token_tensor, 
-                token_set.connections, 
-                IDs, 
-                names
-                )
-        set_classes = {
-            Set.DRIVER: Driver,
-            Set.RECIPIENT: Recipient,
-            Set.MEMORY: Memory,
-            Set.NEW_SET: New_Set
-        }
-        # Set timer
-        times = []
-        self.timer(times, start = True)
-        # Build the connections tensors
-        build_con_tensors(self.token_sets, self.sems)
-        self.timer(times)
-
-        # Build Semantics
-        self.built_semantics: Semantics = Semantics(self.sems.node_tensor, self.sems.connections_tensor, self.sems.id_dict, self.sems.name_dict)
-        self.timer(times)
-
-        # Build the sets
-        for set in Set:
-            self.built_sets[set] = build_set(self.token_sets[set], set_classes[set])
-            self.timer(times)
-
-        return times
     
-    def build_inter_set_connections(self):
-        """Build the inter set connections."""
-        times = []
-        self.timer(times, start = True)
-        # =============== Build tensors ================
-        build_links_tensors(self.token_sets, self.sems)
-        self.timer(times)
-
-        # ============ Build the links object ============
-        links = {}
-        for set in Set:
-            links[set] = self.token_sets[set].links
-        self.built_links = Links(links, self.built_semantics)
-        self.timer(times)
-
-        # ============ Build the mapping dictionary ============
-        for set in [Set.RECIPIENT]:
-            # Get sizes of tensors
-            map_size = torch.zeros(self.built_sets[set].nodes.shape[0], self.built_sets[Set.DRIVER].nodes.shape[0], dtype=tensor_type)
-
-            # Make tensor for each mapping field
-            mapping_tensors = {}
-            for field in MappingFields:
-                mapping_tensors[field] = torch.zeros_like(map_size, dtype=tensor_type)
-
-            # Create mappings object
-            self.built_mappings = Mappings(self.built_sets[Set.DRIVER], mapping_tensors)
-        self.timer(times)
+    def _parse_symProps(self):
+        """Parse symProps list and build tokens and semantics."""
+        analog_counter = {}  # set -> current analog number
         
-        return times
+        for prop in self.symProps:
+            prop_name = prop['name']
+            prop_set = self.set_map[prop['set']]
+            prop_analog = prop.get('analog', 0)
+            
+            # Track analog numbers per set
+            if prop_set not in analog_counter:
+                analog_counter[prop_set] = 0
+            
+            # Create P token for the proposition
+            p_idx = self._add_token(
+                name=prop_name,
+                token_type=Type.P,
+                token_set=prop_set,
+                analog=prop_analog,
+                mode=Mode.NEUTRAL
+            )
+            
+            # Process each RB (role binding) in the proposition
+            for rb in prop['RBs']:
+                rb_idx = self._process_rb(rb, prop_set, prop_analog, p_idx)
+    
+    def _process_rb(self, rb: dict, token_set: Set, analog: int, parent_p_idx: int) -> int:
+        """Process a role binding and create RB and PO tokens."""
+        pred_name = rb['pred_name']
+        pred_sems = rb['pred_sem']
+        obj_name = rb['object_name']
+        obj_sems = rb['object_sem']
+        is_higher_order = rb.get('higher_order', False)
+        
+        # Create RB token
+        rb_name = f"{pred_name}_{obj_name}"
+        rb_idx = self._add_token(
+            name=rb_name,
+            token_type=Type.RB,
+            token_set=token_set,
+            analog=analog
+        )
+        
+        # Connect P -> RB
+        self._parent_child_pairs.append((parent_p_idx, rb_idx))
+        
+        # Create predicate PO token
+        pred_idx = self._add_token(
+            name=pred_name,
+            token_type=Type.PO,
+            token_set=token_set,
+            analog=analog,
+            is_pred=True
+        )
+        
+        # Connect RB -> Pred PO
+        self._parent_child_pairs.append((rb_idx, pred_idx))
+        
+        # Add semantics for predicate
+        for sem_name in pred_sems:
+            sem_idx = self._get_or_create_semantic(sem_name)
+            self._token_sem_links.append((pred_idx, sem_idx, 1.0))
+        
+        # Create object PO token
+        obj_idx = self._add_token(
+            name=obj_name,
+            token_type=Type.PO,
+            token_set=token_set,
+            analog=analog,
+            is_pred=False
+        )
+        
+        # Connect RB -> Object PO
+        self._parent_child_pairs.append((rb_idx, obj_idx))
+        
+        # Add semantics for object
+        for sem_name in obj_sems:
+            sem_idx = self._get_or_create_semantic(sem_name)
+            self._token_sem_links.append((obj_idx, sem_idx, 1.0))
+        
+        return rb_idx
+    
+    def _add_token(self, name: str, token_type: Type, token_set: Set, 
+                   analog: int = 0, mode: Mode = None, is_pred: bool = None) -> int:
+        """Add a token and return its index."""
+        features = {
+            TF.ID: self._next_token_id,
+            TF.TYPE: token_type,
+            TF.SET: token_set,
+            TF.ANALOG: analog,
+        }
+        
+        if mode is not None:
+            features[TF.MODE] = mode
+        
+        if is_pred is not None:
+            features[TF.PRED] = B.TRUE if is_pred else B.FALSE
+        
+        token = Token(type=token_type, set=token_set, features=features, name=name)
+        idx = len(self._token_list)
+        self._token_list.append(token)
+        self._token_names.append(name)
+        self._next_token_id += 1
+        
+        return idx
+    
+    def _get_or_create_semantic(self, name: str) -> int:
+        """Get existing semantic index or create a new one."""
+        if name in self._semantic_dict:
+            return self._semantic_dict[name]
+        
+        sem = Semantic(name=name, features={SF.TYPE: Type.SEMANTIC})
+        idx = len(self._semantic_list)
+        self._semantic_list.append(sem)
+        self._semantic_dict[name] = idx
+        self._semantic_ids[self._next_sem_id] = idx
+        self._semantic_names[self._next_sem_id] = name
+        self._next_sem_id += 1
+        
+        return idx
+    
+    def _build_token_tensor(self, connections: Connections_Tensor) -> Token_Tensor:
+        """Build the Token_Tensor from collected tokens."""
+        num_tokens = len(self._token_list)
+        
+        # Create token tensor
+        tokens_data = torch.zeros(num_tokens, len(TF), dtype=tensor_type)
+        for i, token in enumerate(self._token_list):
+            tokens_data[i, :] = token.tensor
+        
+        # Create names dict
+        names = {i: name for i, name in enumerate(self._token_names)}
+        
+        return Token_Tensor(tokens_data, connections, names)
+    
+    def _build_connections_tensor(self) -> Connections_Tensor:
+        """Build the Connections_Tensor from parent-child pairs."""
+        num_tokens = len(self._token_list)
+        connections = torch.zeros(num_tokens, num_tokens, dtype=torch.bool)
+        
+        for parent_idx, child_idx in self._parent_child_pairs:
+            connections[parent_idx, child_idx] = True
+        
+        return Connections_Tensor(connections)
+    
+    def _build_links_tensor(self) -> Links:
+        """Build the Links tensor connecting tokens to semantics."""
+        num_tokens = len(self._token_list)
+        num_sems = len(self._semantic_list)
+        
+        # Ensure minimum size
+        num_sems = max(num_sems, 1)
+        
+        links_data = torch.zeros(num_tokens, num_sems, dtype=tensor_type)
+        
+        for token_idx, sem_idx, weight in self._token_sem_links:
+            links_data[token_idx, sem_idx] = weight
+        
+        return Links(links_data)
+    
+    def _build_mapping_tensor(self) -> Mapping:
+        """Build the Mapping tensor for driver-recipient mappings."""
+        # Count tokens per set
+        driver_count = sum(1 for t in self._token_list if t.tensor[TF.SET] == Set.DRIVER)
+        recipient_count = sum(1 for t in self._token_list if t.tensor[TF.SET] == Set.RECIPIENT)
+        
+        # Ensure minimum size
+        driver_count = max(driver_count, 1)
+        recipient_count = max(recipient_count, 1)
+        
+        # Create mapping tensor: [recipient, driver, fields]
+        mapping_data = torch.zeros(recipient_count, driver_count, len(MappingFields), dtype=tensor_type)
+        
+        return Mapping(mapping_data)
+    
+    def _build_semantics_object(self) -> Semantics:
+        """Build the Semantics object."""
+        num_sems = len(self._semantic_list)
+        
+        # Ensure minimum size
+        if num_sems == 0:
+            # Create empty semantics with one placeholder
+            nodes = torch.zeros(1, len(SF), dtype=tensor_type)
+            nodes[0, SF.DELETED] = B.TRUE
+            connections = torch.zeros(1, 1, dtype=tensor_type)
+            ids = {}
+            names = {}
+        else:
+            # Create semantic nodes tensor
+            nodes = torch.zeros(num_sems, len(SF), dtype=tensor_type)
+            for i, sem in enumerate(self._semantic_list):
+                nodes[i, :] = sem.tensor
+                nodes[i, SF.ID] = i + 1  # 1-indexed IDs
+            
+            # Create semantic connections (no internal semantic connections for now)
+            connections = torch.zeros(num_sems, num_sems, dtype=tensor_type)
+            
+            # Build ID and name mappings
+            ids = {i + 1: i for i in range(num_sems)}  # id -> index
+            names = {i + 1: self._semantic_list[i].name for i in range(num_sems)}  # id -> name
+        
+        return Semantics(nodes, connections, ids, names)
 
     def get_symProps_from_file(self):
-        """
-        Read the symProps from the file into a list of dicts.
-        """
+        """Read the symProps from the file into a list of dicts."""
         import json
         file = open(self.file_path, "r")    
         if file:
             simType = ""
-            di = {"simType": simType}  # porting from Python2 to Python3
-            file.seek(0)  # to get to the beginning of the file.
-            exec(file.readline(), di)  # porting from Python2 to Python3
-            if di["simType"] == "sym_file":  # porting from Python2 to Python3
+            di = {"simType": simType}
+            file.seek(0)
+            exec(file.readline(), di)
+            if di["simType"] in ["sym_file", "sim_file"]:
+                # Both sym_file and sim_file use the same Python exec format
                 symstring = ""
                 for line in file:
                     symstring += line
-                do_run = True
-                symProps = []  # porting from Python2 to Python3
-                di = {"symProps": symProps}  # porting from Python2 to Python3
-                exec(symstring, di)  # porting from Python2 to Python3
-                self.symProps = di["symProps"]  # porting from Python2 to Python3
-            # now load the parameter file, if there is one.
-            # if self.parameterFile:
-            #     parameter_string = ''
-            #     for line in self.parameterFile:
-            #         parameter_string += line
-            #     try:
-            #         exec (parameter_string)
-            #     except:
-            #         print ('\nYour loaded paramter file is wonky. \nI am going to run anyway, but with preset parameters.')
-            #         keep_running = input('Would you like to continue? (Y) or any key to exit>')
-            #         if keep_running.upper() != 'Y':
-            #             do_run = False
-            elif di["simType"] == "json_sym":  # porting from Python2 to Python3
-                # you've loaded a json generated sym file, which means that it's in json format, and thus must be loaded via the json.load() routine.
-                # load the second line of the sym file via json.load().
+                symProps = []
+                di = {"symProps": symProps}
+                exec(symstring, di)
+                self.symProps = di["symProps"]
+            elif di["simType"] == "json_sym":
                 symProps = json.loads(file.readline())
                 self.symProps = symProps
             else:
                 print(
-                    "\nThe sym file you have loaded is formatted incorrectly. \nPlease check your sym file and try again."
+                    "\nThe sym file you have loaded is formatted incorrectly. "
+                    f"\nExpected simType: 'sym_file', 'sim_file', or 'json_sym', got: '{di['simType']}'"
+                    "\nPlease check your sym file and try again."
                 )
-                input("Enter any key to return to the MainMenu>")
+            file.close()
 
-    def timer(self, times, timer_index = 0, start = False, ):
+    def timer(self, times, timer_index=0, start=False):
         """Get time since last timer call."""
         if self.do_timing:  
             if not start:

@@ -1,176 +1,42 @@
-# nodes/network/sets/base_set.py
-# Base class for all set classes.
-
 import torch
-import logging
-
-from ...enums import *
-from ...utils import tensor_ops as tOps
-
-from ..connections import Links, Mappings
 from ..network_params import Params
-from ..single_nodes import Token, Ref_Token, Analog, Ref_Analog
+from ...enums import *
+from ..tokens.tensor.token_tensor import Token_Tensor
+from ..tokens.tensor_view import TensorView
+from .base_set_ops import TensorOperations, UpdateOperations, AnalogOperations, KludgeyOperations, TokenOperations
 
-from .base_set_ops.set_token import TokenOperations
-from .base_set_ops.set_tensor import TensorOperations
-from .base_set_ops.set_update import UpdateOperations
-
-logger = logging.getLogger(__name__)
-
-class Base_Set(object):
+class Base_Set:
     """
-    A class for holding a tensor of tokens, and interfacing with low-level tensor operations.
-
-    Using set.function() is deprecated, use set.op.function() instead.
-
-    Op Attributes:
-        - token_op: TokenOperations object for the set.
-        - tensor_op: TensorOperations object for the set.
-        - update_op: UpdateOperations object for the set.
-    
-    Attributes:
-        - names (dict, optional): A dictionary mapping token IDs to token names. Defaults to None.
-        - nodes (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
-        - analogs (torch.Tensor): An Ax1 tensor listing all analogs in the tensor.
-        - analog_counts (torch.Tensor): An Ax1 tensor listing the number of tokens per analog
-        - links (Links): A shared Links object containing interset links from tokens to semantics.
-        - connections (torch.Tensor): An NxN tensor of connections from parent to child for tokens in this set.
-        - masks (torch.Tensor): A Tensor of masks for the tokens in this set.
-        - IDs (dict): A dictionary mapping token IDs to index in the tensor.
-        - params (Params): An object containing shared parameters.
-        - token_set (Set): This set's enum, used to access links and mappings for this set in shared mem objects.
+    Base class for token sets.
     """
-    def __init__(self, nodes, connections, IDs: dict[int, int], names: dict[int, str] = {}):
-        """
-        Initialize the TokenTensor object.
-
-        Args:
-            floatTensor (torch.Tensor): An NxTokenFeatures tensor of floats representing the tokens.
-            connections (torch.Tensor): An NxN tensor of connections between the tokens.
-            IDs (dict): A dictionary mapping token IDs to index in the tensor.
-            names (dict, optional): A dictionary mapping token IDs to token names. Defaults to empty dict.
-        Raises:
-            TypeError: If connections, or floatTensor are not torch.Tensor.
-            ValueError: If the number of tokens in floatTensor, connections do not match.
-            ValueError: If the number of features in floatTensor does not match the number of features in TF enum.
-        """
-        # Initialize operations objects
-        self.token_op = TokenOperations(self)
-        self.tensor_op = TensorOperations(self)
-        self.update_op = UpdateOperations(self)
-
-        # For __get_attr__ (deprecated)
-        self._promoted_components = [
-            self.token_op, 
-            self.tensor_op, 
-            self.update_op
-        ]
-
-        # check types
-        c_type = type(connections)
-        if c_type != torch.Tensor:
-            raise TypeError(f"Connections must be torch.Tensor, not {c_type}.")
-        f_type = type(nodes)
-        if f_type != torch.Tensor:
-            raise TypeError(f"floatTensor must be torch.Tensor, not {f_type}.")
-        # check sizes
-        f_size = nodes.size(dim=0)
-        c_size = connections.size(dim=0)
-        if f_size != c_size:
-            raise ValueError(f"floatTensor and connections must have same number of tokens. {f_size} != {c_size}")
-        f_features = nodes.size(dim=1)
-        if f_features != len(TF):
-            raise ValueError(f"floatTensor must have number of features listed in TF enum. {f_features} != {len(TF)}")
-        if nodes.dtype != torch.float:
-            raise TypeError(f"floatTensor must be torch.float, not {nodes.dtype}.")
-        if connections.dtype != torch.float:
-            raise TypeError(f"connections must be torch.float, not {connections.dtype}.")
-        
-        # intialise attributes
-        self.names = names
-        "Dict ID -> Name"
-        self.nodes: torch.Tensor = nodes
-        "NxTF Tensor: Tokens"
-        self.cache_masks()
-        self.analogs = None
-        "Ax1 Tensor: Analogs in the set"
-        self.analog_counts = None
-        "Ax1 Tensor: Node count for each analog in self.analogs"
-        self.analog_activations = None
-        "Ax1 Tensor: Total activation for each analog in self.analogs"
-        self.tensor_op.get_analog_activation_counts_scatter() # Get the analogs, counts, and activations
-        self.links = None
-        """Links object for the set.
-            - Links[set] gives set's links to semantics
-        """
-        self.connections = connections.float()
-        "NxN tensor: Connections from parent to child"
-        self.IDs = IDs
-        "Dict ID -> index"
-        self.params = None
-        "Params object, holding parameters for tensor functions"
-        self.expansion_factor = 1.1
-        """Factor used in expanding tensor. 
-            E.g: expansion_factor = 1.1 -> 10 percent increase in size on expansion
-        """
-        self.token_set = None
-        """Set: This sets set type"""
-    
-    def __getattr__(self, name):
-        for component in self._promoted_components:
-            if hasattr(component, name):
-                logger.warning(f"Deprecated: Use set.op.{name} instead of set.{name}")
-                return getattr(component, name)
-        raise AttributeError(f"Base_Set object has no attribute '{name}'")
-
-    @property
-    def token_ops(self) -> 'TokenOperations':
-        """Token operations object for the set.
+    def __init__(self, tokens: Token_Tensor, token_set: Set, params: Params):
+        self.glbl: Token_Tensor = tokens
+        """Token_Tensor: Global view of the tensor"""
+        self.tk_set: Set = token_set
+        """Set: Token set"""
+        self.lcl: TensorView = self.glbl.get_set_view(self.tk_set)
+        """TensorView: Local view of the tensor"""
+        self.params: Params = params
+        """Params: Parameters for the set"""
+        self.tensor_op: TensorOperations = TensorOperations(self)
+        """TensorOperations: Operations for the tensor.
             Functions:
-            - get_feature(ref_token, feature) -> float
-            - set_feature(ref_token, feature, value)
-            - get_name(ref_token) -> str
-            - set_name(ref_token, name)
-            - get_index(ref_token) -> int
-            - get_reference(id=None, index=None, name=None) -> Ref_Token
-            - get_single_token(ref_token, copy=True) -> Token
-            - get_reference_multiple(mask=None, types: list[Type] = None) -> list[Ref_Token]
-            - get_analog_indices(analog_id) -> list[int]
-        """
-        return self.token_op
-    
-    @property
-    def tensor_ops(self) -> 'TensorOperations':
-        """Tensor operations object for the set.
-            Functions:
-            - cache_masks(types_to_recompute: list[Type] = None)
-            - compute_mask(token_type: Type) -> torch.Tensor
             - get_mask(token_type: Type) -> torch.Tensor
-            - get_combined_mask(n_types: list[Type]) -> torch.Tensor
-            - get_all_nodes_mask() -> torch.Tensor
-            - add_token(token: Token) -> Ref_Token
-            - expand_tensor()
-            - expand_tensor_by_count(count: int)
-            - del_token(ref_tokens: Ref_Token)
-            - del_connections(ref_token: Ref_Token)
-            - get_analog(analog: int) -> Analog
-            - add_analog(analog: Analog) -> int
-            - analog_node_count()
+            - get_combined_mask(token_types: list[Type]) -> torch.Tensor
+            - get_count(token_type: Type=None, mask: torch.Tensor = None) -> int
             - print(f_types=None)
-            - get_count() -> int
+            - print_tokens(f_types=None)
         """
-        return self.tensor_op
-    
-    @property
-    def update_ops(self) -> 'UpdateOperations':
-        """Update operations object for the set.
+        self.tnop = self.tensor_op
+        self.update_op: UpdateOperations = UpdateOperations(self)
+        """UpdateOperations: Operations for the update.
             Functions:
-            - initialise_float(n_type: list[Type], features: list[TF])
-            - initialise_input(n_type: list[Type], refresh: float)
-            - initialise_act(n_type: list[Type])
-            - initialise_state(n_type: list[Type])
+            - init_float(n_type: list[Type], features: list[TF], value: float = 0.0)
+            - init_input(n_type: list[Type], refresh: float)
+            - init_act(n_type: list[Type])
+            - init_state(n_type: list[Type])
             - update_act()
-            - zero_lateral_input(n_type: list[Type])
+            - zero_laternal_input(n_type: list[Type])
             - update_inhibitor_input(n_type: list[Type])
             - reset_inhibitor(n_type: list[Type])
             - update_inhibitor_act(n_type: list[Type])
@@ -179,5 +45,62 @@ class Base_Set(object):
             - po_get_weight_length()
             - po_get_max_semantic_weight()
         """
-        return self.update_op
+        self.upop = self.update_op
+        self.analog_op: AnalogOperations = AnalogOperations(self)
+        """AnalogOperations: Operations for the analogs.
+            Functions:
+            - get_analog_indices(analog: int) -> torch.Tensor
+            - get_analogs_where(feature: TF, value: float) -> torch.Tensor
+            - get_analogs_where_not(feature: TF, value: float) -> torch.Tensor
+            - get_analogs_active() -> torch.Tensor
+            - get_analog_ref_list(mask) -> torch.Tensor
+        """
+        self.anop = self.analog_op
+        self.kludgey_op: KludgeyOperations = KludgeyOperations(self)
+        """KludgeyOperations: Operations for the kludgey.
+            Functions:
+            - get_pred_rb_no_ps(pairs: Pairs) -> Pairs
+            - get_pred_rb_shared_p(pairs: Pairs) -> Pairs
+        """
+        self.klud = self.kludgey_op
+        self.token_op: TokenOperations = TokenOperations(self)
+        """TokenOperations: Operations for the tokens.
+            Functions:
+            - get_features(idxs: torch.Tensor, features: torch.Tensor) -> torch.Tensor
+            - set_features(idxs: torch.Tensor, features: torch.Tensor, values: torch.Tensor)
+            - set_features_all(feature: TF, value: float)
+            - get_name(idx: int) -> str
+            - set_name(idx: int, name: str)
+            - get_index(idxs: torch.Tensor) -> torch.Tensor
+            - get_single_token(idx: int) -> Token
+            - get_max_acts()
+            - get_highest_token_type() -> Type
+            - get_child_idxs(idx: int) -> torch.Tensor
+            - get_most_active_token() -> int
+            - connect(parent_idx: int, child_idx: int, value=B.TRUE)
+            - connect_multiple(parent_idxs: torch.Tensor, child_idxs: torch.Tensor, value=B.TRUE)
+            - get_ref_string(idx: int) -> str
+            - reset_inferences()
+            - reset_maker_made_units()
+            - get_mapped_pos() -> list[Ref_Token]
+        """
+        self.tkop = self.token_op
+    
+    def get_tensor(self) -> torch.Tensor:
+        return self.lcl
+    
+    def get_token_set(self) -> Set:
+        return self.tk_set
+    
+    def update_view(self) -> TensorView:
+        self.lcl = self.glbl.get_set_view(self.tk_set)
+        return self.lcl
+    
+    def get_count(self) -> int:
+        """
+        Get the count of tokens in the set.
+        """
+        return self.lcl.get_count()
 
+    
+    

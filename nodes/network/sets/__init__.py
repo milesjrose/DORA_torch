@@ -1,18 +1,15 @@
+# nodes/network/sets_new/__init__.py
 """
-Package: sets
+Package: sets_new
 
-Provides classes for representing sets of tokens.
+Provides classes for representing sets of tokens in the network.
 
 - Driver: Represents the driver set of tokens.
 - Recipient: Represents the recipient set of tokens.
 - Memory: Represents the memory set of tokens.
 - New_Set: Represents a new set of tokens.
 - Semantics: Represents the semantics set of tokens.
-- Connections: Represents the connections between sets.
-- Mappings: Represents the mappings between sets.
-
 """
-
 from .driver import Driver
 from .recipient import Recipient
 from .memory import Memory
@@ -26,4 +23,5 @@ __all__ = [
     "Memory",
     "New_Set",
     "Semantics",
+    "Base_Set"
 ]

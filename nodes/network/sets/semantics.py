@@ -180,7 +180,7 @@ class Semantics(object):
         self.connections = new_cons                                 # update connections
 
         if self.links is not None:
-            self.links.expand_links_tensor(new_size, None, LD.SEM)
+            self.links.expand_to(new_size, LD.SEM)
         else:
             logger.debug("Links not initialised. Not expanding links tensor.")
 
