@@ -152,7 +152,7 @@ class UpdateOperations:
             self.base_set.lcl[p, TF.MODE] = Mode.NEUTRAL
 
     def p_get_mode(self) -> None:
-        """Set mode for all P units"""
+        """Determine the mode of the P tokens based on the input from their RBs, and set their feature accordingly."""
         tk_tensor = self.base_set.glbl.tensor
         con_tensor = self.base_set.glbl.connections.connections
         # Pmode = Parent: child RB act> parent RB act / Child: parent RB act > child RB act / Neutral: o.w
@@ -203,6 +203,7 @@ class UpdateOperations:
     # =======================[ PO FUNCTIONS ]======================== # TODO: Can move out of tensor to save memory, as shared values.
     def po_get_weight_length(self) -> None:                           # Sum value of links with weight > 0.1 for all PO nodes
         """Sum value of links with weight > 0.1 for all PO nodes - Used for semNormalisation"""
+        # TODO: Implement this
         raise NotImplementedError("Need to implement links first")
         if self.base_set.links is None:
             raise ValueError("Links is not initialised, po_get_weight_length.")
@@ -215,6 +216,7 @@ class UpdateOperations:
             
     def po_get_max_semantic_weight(self) -> None:                     # Get max link weight for all PO nodes
         """Get max link weight for all PO nodes - Used for semNormalisation"""
+        # TODO: Implement this
         raise NotImplementedError("Need to implement links first")
         if self.base_set.links is None:
             raise ValueError("Links is not initialised, po_get_max_semantic_weight.")
