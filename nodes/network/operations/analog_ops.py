@@ -21,7 +21,7 @@ class AnalogOperations:
     
     def __init__(self, network):
         """
-        Initialize AnalogOperations with reference to Network.
+        Initialise AnalogOperations with reference to Network.
         
         Args:
             network: Reference to the Network object
@@ -150,17 +150,38 @@ class AnalogOperations:
         raise NotImplementedError("add_analog is not implemented for AnalogOperations")
     
     def get_analog_indices(self, analog: int) -> torch.Tensor:
-        """ Get the indices of the tokens in an analog. """
+        """ 
+        Get the indices of the tokens in an analog. 
+
+        Args:
+            analog (int): The number of the analog to get the indices of.
+
+        Returns:
+            torch.Tensor: The indices of the tokens in the analog.
+        """
         return self.network.tokens.analog_ops.get_analog_indices(analog)
     
     def set_analog_features(self, analog: int, feature: TF, value):
-        """ Set a feature of the tokens in an analog. """
+        """ 
+        Set a feature of the tokens in an analog. 
+        
+        Args:
+            analog (int): The number of the analog to set the features of.
+            feature (TF): The feature to set.
+            value (float): The value to set the feature to.
+        """
         indices = self.get_analog_indices(analog)
         self.network.tokens.token_tensor.set_feature(indices, feature, float(value))
     
     def find_mapped_analog(self, set:Set) -> int:
         """
         Find the analog in a set that is mapped to - used in rel_gen.
+
+        Args:
+            set (Set): The set to find the mapped analog in.
+
+        Returns:
+            int: The number of the mapped analog.
         """
         self.network.mapping_ops.get_max_maps(set=[set]) # update max_map for set tokens
         # Find the a po that has max_map > 0.0, then return its analog.
@@ -173,6 +194,9 @@ class AnalogOperations:
     def find_mapping_analog(self) -> torch.Tensor:
         """
         Find analogs that have a mapping connection in the recipient
+
+        Returns:
+            torch.Tensor: The analogs that have a mapping connection in the recipient.
         """
         self.network.mapping_ops.get_max_maps(set=[Set.RECIPIENT]) # update max_map for recipient tokens
         map_tokens = self.network.driver().lcl[:, TF.MAX_MAP] > 0.0
@@ -187,7 +211,7 @@ class AnalogOperations:
         Move any analogs in the recipient that have a mapping connection to a new analog
 
         Returns:
-        - Ref_Analog: the new analog
+            int: The number of the new analog.
         """
         map_analogs = self.find_mapping_analog()
         if map_analogs is None:
