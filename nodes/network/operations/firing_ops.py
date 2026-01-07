@@ -1,9 +1,13 @@
 # nodes/network/operations/firing_ops.py
 # Firing operations for Network class
 from typing import TYPE_CHECKING
+
 from ...enums import *
-import random
+from random import shuffle
 import torch
+from logging import getLogger
+from ..tokens.tensor_view import TensorView
+logger = getLogger(__name__)
 
 if TYPE_CHECKING: # For autocomplete/hover-over docs
     from ..network import Network
@@ -18,7 +22,7 @@ class FiringOperations:
     
     def __init__(self, network):
         """
-        Initialize FiringOperations with reference to Network.
+        Initialise FiringOperations with reference to Network.
         
         Args:
             network: Reference to the Network object
@@ -28,106 +32,72 @@ class FiringOperations:
 
     def make_firing_order(self, rule: str = None) -> list[int]:
         """
-        Create firing order of nodes, based on params.firing_order_rule.
+        Create firing order of driver tokens, using specified rule (uses rule in network params if not specified).
             - "by_top_random": Randomise order of highest token nodes in driver. 
             - "totally_random": Randomise order of all nodes in driver.
 
         Args:
-            rule (str): The rule to use to create the firing order
+            rule (str, optional): Rule used to create order. If not specified in arg or params, defaults to "by_top_random".
 
         Returns:
-            A list of indices representing the firing order
+            list[int]: A list of global indices representing the firing order // NOTE: Could change to local, depending on usage.
         """
         if rule is None:
             rule = self.network.params.firing_order_rule
         if rule is None:
             rule = "by_top_random"
+        logger.debug(f"Creating firing order with rule: {rule}")
         match rule:
             case "by_top_random":
-                self.firing_order = self.by_top_random()
-                return self.firing_order
+                return self.by_top_random()
             case "totally_random":
-                self.firing_order = self.totally_random()
-                return self.firing_order
+                return self.totally_random()
             case _:
+                logger.error(f"Invalid firing order rule: {rule}, if rule not specified in call, check network params.")
                 raise ValueError(f"Invalid firing order rule: {rule}")
 
     def by_top_random(self) -> list[int]:
         """
         Create a firing order of nodes in the driver.
-        Randomise order of highest token nodes in driver. 
+        Randomise order of highest token nodes in driver.
         Then, add children of these nodes to the firing order.
         If there are no nodes of a given type, return an empty list.
         
         Returns:
-            A list of indices representing the firing order
+            list[int]: A list of global indices representing the firing order
         """
-        highest_token_type = self.network.driver().token_ops.get_highest_token_type()
-        self.firing_order = [] # List of indices
+        driver = self.network.driver()
+        cons = self.network.tokens.get_view(TensorTypes.CON, Set.DRIVER) # get local view of connections in driver
+        highest_token_type = driver.token_op.get_highest_token_type()
+        self.firing_order = []
+        # Get the indices of the tokens at each level
         match highest_token_type:
             case Type.GROUP:
-                groups = self.get_random_order_of_type(Type.GROUP)  # Order the groups randomly
-                pos = self.get_all_children_firing_order(groups)    # Get Ps of Groups
-                rbs = self.get_all_children_firing_order(pos)       # Get RBs of the Ps 
+                 # randomly order groups
+                groups = self.get_random_order_of_type(Type.GROUP)
+                # get ordered list of children
+                pos = self.get_lcl_child_idxs(groups, cons, Type.PO)
+                rbs = self.get_lcl_child_idxs(pos, cons, Type.RB)
                 self.firing_order = groups + pos + rbs
             case Type.P:
-                pos = self.get_random_order_of_type(Type.P)         # Order the Ps randomly
-                rbs = self.get_all_children_firing_order(pos)       # Get RBs of the Ps 
+                # randomly order Ps
+                pos = self.get_random_order_of_type(Type.PO)
+                # get ordered list of children
+                rbs = self.get_lcl_child_idxs(pos, cons, Type.RB)       # Get RBs of the Ps 
                 self.firing_order = pos + rbs
             case Type.RB:
-                rbs = self.get_random_order_of_type(Type.RB)        # Order the RBs randomly
+                # randomly order RBs
+                rbs = self.get_random_order_of_type(Type.RB)
                 self.firing_order = rbs
             case Type.PO:
-                pos = self.get_random_order_of_type(Type.PO)        # Order the POs randomly
+                # randomly order POs
+                pos = self.get_random_order_of_type(Type.PO)
                 self.firing_order = pos
             case _:
-                pass # (No tokens in driver)
-        return self.firing_order
-
-    def get_children_firing_order(self, index: int) -> list[int]:
-        """
-        Get the firing order of the children of a given token.
-
-        Args:
-            index (int): The index of the token to get the children of
-
-        Returns:
-            A list of indices representing the firing order of the children of the given token
-        """
-        # Get children using the token operations
-        return self.network.driver().token_ops.get_child_indices(index)
-
-    def get_all_children_firing_order(self, indices: list[int]):
-        """
-        Get the firing order of the children of a given list of tokens.
-
-        Args:
-            indices (list[int]): A list of indices of tokens to get the children of
-
-        Returns:
-            A list of indices representing the firing order of the children of the given tokens
-        """
-        children = []
-        for index in indices:
-            children.extend(self.get_children_firing_order(index))
-        return children
+                logger.error(f"Tried to make firing order, but no tokens in driver.")
+        return self.network.to_global(self.firing_order).tolist()
     
-    def get_random_order_of_type(self, type: Type):
-        """
-        Get a random order of the given type.
-
-        Args:
-            type (Type): The type of token to get a random order of
-
-        Returns:
-            A list of indices representing the random order of the given type
-        """
-        mask = self.network.driver().tensor_op.get_mask(type)   # Get mask of type
-        indices = torch.where(mask)[0].tolist()                 # convert to list of indices
-        random.shuffle(indices)                                 # randomise indices
-        return indices
-
-    def totally_random(self):
+    def totally_random(self) -> list[int]:
         """
         Create a firing order by randomly shuffling either RB nodes or PO nodes.
         If RB nodes exist, they are shuffled and added to the firing order.
@@ -135,11 +105,46 @@ class FiringOperations:
         If there are no nodes of a given type, return an empty list.
 
         Returns:
-            A list of indices representing the firing order
+            list[int]: A list of global indices representing the firing order
         """
-        self.firing_order = []
-        if self.network.driver().tensor_op.get_count(Type.RB) > 0:
+        driver = self.network.driver()
+        if driver.tensor_op.get_count(Type.RB) > 0:
             self.firing_order = self.get_random_order_of_type(Type.RB)
-        elif self.network.driver().tensor_op.get_count(Type.PO) > 0:
+        elif driver.tensor_op.get_count(Type.PO) > 0:
             self.firing_order = self.get_random_order_of_type(Type.PO)
-        return self.firing_order
+        else:
+            logger.error(f"Tried to make firing order, but no tokens in driver.")
+            self.firing_order = []
+        return self.network.to_global(self.firing_order).tolist()
+    
+    def get_random_order_of_type(self, type: Type) -> list[int]:
+        """
+        Get randomly shuffled list of local indices of tokens of the given type.
+        Args:
+            type: Type - The type of the tokens to get the order of.
+        Returns:
+            list[int]: A list of local indices representing the order of the tokens.
+        """
+        mask = self.network.driver().tensor_op.get_mask(type)
+        indices = torch.where(mask)[0].tolist()
+        shuffle(indices)
+        return indices
+
+    def get_lcl_child_idxs(self, indices: torch.Tensor, local_cons: TensorView, child_type: Type, set=Set.DRIVER) -> list[int]:
+        """
+        Get the local indices of the children of the given indices. Filters out higher token children (i.e RB with child P.).
+        Returns the chilren in the order of the input indices. (i.e first index of output is the child of the first index of input.)
+        Args:
+            indices: torch.Tensor - The indices of the tokens to get the children of.
+            local_cons: TensorView - The local connections tensor.
+            child_type: Type - The type of the children to get.
+            set: Set - The set to get the children from.
+        Returns:
+            torch.Tensor - The local indices of the children of the given indices.
+        """
+        type_mask = self.network.sets[set].tensor_op.get_mask(child_type)
+        output = []
+        for index in indices:
+            cons_mask = local_cons[index, :] == True # mask of connections to children of index
+            output.extend(torch.where(cons_mask & type_mask)[0].tolist())
+        return output
