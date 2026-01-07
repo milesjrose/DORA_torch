@@ -336,7 +336,7 @@ class Network(object):
         if isinstance(idxs, int):
             tk_set = self.token_tensor.get_feature(idxs, TF.SET)
         else:
-            tk_sets: torch.Tensor = (self.token_tensor.get_features(idxs, TF.SET)).unique()
+            tk_sets: torch.Tensor = (self.token_tensor.get_feature(idxs, TF.SET)).unique()
             if tk_sets.size(0) == 1:
                 tk_set = tk_sets[0]
             else:
