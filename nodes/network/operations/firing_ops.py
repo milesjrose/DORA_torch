@@ -142,6 +142,7 @@ class FiringOperations:
         Returns:
             torch.Tensor - The local indices of the children of the given indices.
         """
+        # NOTE: Loop seems a bit inefficient, but not sure how to maintain order otherwise.
         type_mask = self.network.sets[set].tensor_op.get_mask(child_type)
         output = []
         for index in indices:
