@@ -313,6 +313,18 @@ class SD(IntEnum):
     NODES = 0
     FEATS = 1
 
+class TensorTypes(IntEnum):
+    """
+    Used for TensorViews to specify which kind of view to get.
+    """
+    SET = 0
+    """ Get tokens for a specific set """
+    CON = 1
+    """ Get connections for a specific set """
+    LINK = 2
+    """ Get links for a specific set """
+    MAP = 3
+    """ Get mappings"""
 
 null = -99.0
 """Null value for float tensors: -99.0"""

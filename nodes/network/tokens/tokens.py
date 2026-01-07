@@ -7,20 +7,6 @@ from .tensor_view import TensorView
 import torch
 from ...enums import *
 
-class TensorTypes():
-    """
-    Enum to access the type of view to get.
-    """
-    SET = 0
-    """ Get tokens for a specific set """
-    CON = 1
-    """ Get connections for a specific set """
-    LINK = 2
-    """ Get links for a specific set """
-    MAP = 3
-    """ Get mappings"""
-    
-
 class Tokens:
     """
     Class to hold all the tokens in the network.
