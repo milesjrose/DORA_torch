@@ -95,7 +95,7 @@ class FiringOperations:
                 self.firing_order = pos
             case _:
                 logger.error(f"Tried to make firing order, but no tokens in driver.")
-        return self.network.to_global(self.firing_order).tolist()
+        return self.network.to_global(self.firing_order, Set.DRIVER).tolist()
     
     def totally_random(self) -> list[int]:
         """
@@ -115,7 +115,7 @@ class FiringOperations:
         else:
             logger.error(f"Tried to make firing order, but no tokens in driver.")
             self.firing_order = []
-        return self.network.to_global(self.firing_order).tolist()
+        return self.network.to_global(self.firing_order, Set.DRIVER).tolist()
     
     def get_random_order_of_type(self, type: Type) -> list[int]:
         """

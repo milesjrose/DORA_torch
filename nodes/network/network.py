@@ -315,9 +315,14 @@ class Network(object):
         """
         return self.token_tensor.get_ref_string(idx)
     
-    def to_local(self, idxs):
+    def to_local(self, idxs) -> torch.Tensor:
         """
         Convert global idx(s) to local idx(s)
+
+        Args:
+            idxs: int, list[int], torch.Tensor - The global indices to convert to local indices.
+        Returns:
+            torch.Tensor - The local indices.
         """
         if isinstance(idxs, int):
             tk_set = self.token_tensor.get_feature(idxs, TF.SET)
@@ -329,18 +334,16 @@ class Network(object):
                 raise ValueError(f"Multiple sets found for indices: {idxs}")
         return self.sets[tk_set].lcl.to_global(idxs)
     
-    def to_global(self, idxs):
+    def to_global(self, idxs, tk_set: Set = None) -> torch.Tensor:
         """
         Convert local idx(s) to global idx(s)
+        
+        Args:
+            idxs: int, list[int], torch.Tensor - The local indices to convert to global indices.
+            tk_set: Set - The local set to convert from.
+        Returns:
+            torch.Tensor - The global indices.
         """
-        if isinstance(idxs, int):
-            tk_set = self.token_tensor.get_feature(idxs, TF.SET)
-        else:
-            tk_sets: torch.Tensor = (self.token_tensor.get_feature(idxs, TF.SET)).unique()
-            if tk_sets.size(0) == 1:
-                tk_set = tk_sets[0]
-            else:
-                raise ValueError(f"Multiple sets found for indices: {idxs}")
         return self.sets[tk_set].lcl.to_global(idxs)
     
     def to_type(self, value, feature: TF):
