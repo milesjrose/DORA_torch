@@ -58,7 +58,7 @@ class Semantics(object):
         self.connections: torch.Tensor = connections
         """Same-set connections for semantics"""
         self.links: Links = None
-        """Semantic links to each token set (Shape: [Token, Semantics])"""
+        """Links between tokens and semantics (Shape: [Tokens, Semantics])"""
         self.IDs = IDs
         """Map ID to index in tensor"""
         self.dimensions = {}
@@ -205,6 +205,24 @@ class Semantics(object):
         """Get the number of semantics in the semantics tensor."""
         return self.nodes.shape[0]
     
+    # TODO: Maybe move this somewhere else? It's more of a links function,
+    #       but I don't want to add a semantics reference to links for only this function
+    #       as this breaks the encapsulation of links. For now this seems the most sensible place.
+    def connect_comparitive(self, idx_tk: int, comp_type: SDM):
+        """
+        Connect token to the comparative semantic, with weight of 1.
+
+        Args:
+            idx_tk: int - The global index of the token to connect.
+            comp_type: SDM - The type of comparative semantic to connect.
+        """
+        ref_comp = self.sdms[comp_type]
+        if ref_comp is None:
+            raise ValueError("Comps not initialised")
+        idx_comp = self.get_index(ref_comp)
+        self.links[idx_tk, idx_comp] = 1.0
+
+
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
     def get(self, ref_semantic: Ref_Semantic, feature):
         """
@@ -391,14 +409,14 @@ class Semantics(object):
         
         # Get mask of POs
         if ignore_obj:
-            po_mask = tOps.refine_mask(po_mask, tensor.get_mask(Type.PO), TF.PRED, B.TRUE) # Get mask of POs non object POs
+            po_mask = tensor.tensor_op.get_arb_mask({TF.TYPE: Type.PO, TF.PRED: B.FALSE})
         else:
-            po_mask = tensor.get_mask(Type.PO)
+            po_mask = tensor.tensor_op.get_arb_mask({TF.TYPE: Type.PO})
         #group_mask = tensor.get_mask(Type.GROUP)
         #token_mask = torch.bitwise_or(po_mask, group_mask)             # In case groups used in future
 
         # Update based on linked tokens
-        links: torch.Tensor = self.links[set]
+        links: torch.Tensor = self.links[tensor.lcl._indices]           # only looking at links to the given set
         connected_nodes_sub = (links[po_mask, :] != 0).any(dim=1)       # Mask all PO that have a link to a sem
         connected_nodes = tOps.sub_union(po_mask, connected_nodes_sub)  # Resize mask to full tensor size
         connected_sem = (links[po_mask, :] != 0).any(dim=0)             # Mask all sems that have a link to a PO
@@ -407,7 +425,7 @@ class Semantics(object):
 
         sem_input = torch.matmul(                                       # Get sum of act * link_weight for all connected nodes and sems
             links_cons,                                                 # connected_sem x connected_nodes matrix of link weights
-            tensor.nodes[connected_nodes, TF.ACT]                       # connected_nodes x 1 matrix of node acts
+            tensor.lcl[connected_nodes, TF.ACT]                         # connected_nodes x 1 matrix of node acts
         )
         self.nodes[connected_sem, SF.INPUT] += sem_input                # Update input of connected sems
     # --------------------------------------------------------------
