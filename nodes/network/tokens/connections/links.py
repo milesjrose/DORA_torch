@@ -70,8 +70,39 @@ class Links:
         """
         return TensorView(self.adj_matrix, indices)
     
-    def size(self, dim):
+    def size(self, dim: int) -> int:
+        """
+        Get the size of the links tensor along a specified dimension.
+
+        Args:
+            dim: The dimension to get the size for (0 for tokens, 1 for semantics).
+
+        Returns:
+            int: The size of the tensor along the specified dimension.
+        """
         return self.adj_matrix.size(dim=dim)
+    
+    def __getitem__(self, key):
+        """
+        Allow direct tensor-style indexing into the adjacency matrix.
+
+        Args:
+            key: Index, slice, or tuple of indices/slices.
+
+        Returns:
+            torch.Tensor: The indexed portion of the adjacency matrix.
+        """
+        return self.adj_matrix[key]
+    
+    def __setitem__(self, key, value):
+        """
+        Allow direct tensor-style assignment into the adjacency matrix.
+
+        Args:
+            key: Index, slice, or tuple of indices/slices.
+            value: The value to assign.
+        """
+        self.adj_matrix[key] = value
     
     def round_big_link(self, threshold: float):
         """
