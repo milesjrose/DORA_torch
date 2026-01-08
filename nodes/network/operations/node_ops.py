@@ -295,36 +295,42 @@ class NodeOperations:
         If they encode the same dimension, attach the comparative semantics to these POs.
         
         Args:
-            tk_set (Set): The set containing the PO tokens.
-            po1 (int): Local index of first PO token.
-            po2 (int): Local index of second PO token.
+            po1 (int): Global index of first PO token.
+            po2 (int): Global index of second PO token.
         """
-        logger.debug(f"Kludgey comparitor for {tk_set.name}[{po1}] and {tk_set.name}[{po2}]")
+        # TODO: Add tests for this.
+        logger.debug(f"Kludgey comparitor for [{po1}] and [{po2}]")
+        semantics = self.network.semantics
+        links = self.network.links
         # Make sure the comparative semantics exist
-        self.network.semantics.init_sdm()
+        semantics.init_sdm()
         # Get the highest weight semantics for each PO
-        po1_sem = self.network.links.get_max_linked_sem_idx(tk_set, po1)
-        po2_sem = self.network.links.get_max_linked_sem_idx(tk_set, po2)
+        po1_sem = links.get_max_linked_sem(po1).item()
+        po2_sem = links.get_max_linked_sem(po2).item()
+        # NOTE: Sems still using ref semantics atm, so need to convert to ref object
+        # TODO: Remove this once sems updated to use indices.
+        po1_sem = semantics.get_reference(index=po1_sem)
+        po2_sem = semantics.get_reference(index=po2_sem)
         # Check for common dimension
-        sem1_dim = self.network.semantics.get_dim(po1_sem)
-        sem2_dim = self.network.semantics.get_dim(po2_sem)
+        sem1_dim = semantics.get_dim(po1_sem)
+        sem2_dim = semantics.get_dim(po2_sem)
         if sem1_dim == sem2_dim:
             logger.debug(f"Common dimension found: {sem1_dim}")
             # Compare literal values
-            sem1_value = self.network.semantics.get(po1_sem, SF.AMOUNT)
-            sem2_value = self.network.semantics.get(po2_sem, SF.AMOUNT)
+            sem1_value = semantics.get(po1_sem, SF.AMOUNT)
+            sem2_value = semantics.get(po2_sem, SF.AMOUNT)
             if sem1_value > sem2_value:
                 logger.debug(f"More value found: {sem1_value} > {sem2_value}")
-                self.network.links.connect_comparitive(tk_set, po1, SDM.MORE)
-                self.network.links.connect_comparitive(tk_set, po2, SDM.LESS)
+                semantics.connect_comparitive(tk_set, po1, SDM.MORE)
+                semantics.connect_comparitive(tk_set, po2, SDM.LESS)
             elif sem1_value < sem2_value:
                 logger.debug(f"Less value found: {sem1_value} < {sem2_value}")
-                self.network.links.connect_comparitive(tk_set, po1, SDM.LESS)
-                self.network.links.connect_comparitive(tk_set, po2, SDM.MORE)
+                semantics.connect_comparitive(tk_set, po1, SDM.LESS)
+                semantics.connect_comparitive(tk_set, po2, SDM.MORE)
             else:
                 logger.debug(f"Same value found: {sem1_value} == {sem2_value}")
-                self.network.links.connect_comparitive(tk_set, po1, SDM.SAME)
-                self.network.links.connect_comparitive(tk_set, po2, SDM.SAME)
+                semantics.connect_comparitive(tk_set, po1, SDM.SAME)
+                semantics.connect_comparitive(tk_set, po2, SDM.SAME)
         else:
             logger.debug(f"No common dimension found: {sem1_dim} != {sem2_dim}")
 
