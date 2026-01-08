@@ -12,6 +12,7 @@ from random import sample
 from ...entropy_net.entropy_net import EntropyNet, Ext
 if TYPE_CHECKING:
     from ..network import Network
+    from ..sets import Base_Set
 
 logger = getLogger(__name__)
 
@@ -23,46 +24,45 @@ class EntropyOperations:
     
     def __init__(self, network):
         """
-        Initialize EntropyOperations with reference to Network.
+        Initialise EntropyOperations with reference to Network.
         
         Args:
             network: Reference to the Network object
         """
         self.network: 'Network' = network
     
-    def en_based_mag_checks(self, po1: Ref_Token, po2: Ref_Token):
+    def en_based_mag_checks(self, po1: int, po2: int) -> tuple[list[int], int, int]:
         """
         Check if POs code the same dimension, or connected to SDM semantics - 
         for deciding whether to include in magnitude comparison.
 
+        Args:
+            po1: int - The global index of the first PO.
+            po2: int - The global index of the second PO.
+
         Returns:
-            high_dim: highest intersecting dimension
-            num_sdm_above: Num pos with con to SDM sems above threshold
-            num_sdm_below: Num pos with con to SDM sems below threshold
+            tuple[list[int], int, int]:
+                (high_dim: highest intersecting dimension,
+                num_sdm_above: Num pos with con to SDM sems above threshold,
+                num_sdm_below: Num pos with con to SDM sems below threshold)
         """
-        logger.debug(f"EN BASED MAG CHECKS: {po1.set.name}[{self.network.get_index(po1)}] and {po2.set.name}[{self.network.get_index(po2)}]")
+        logger.debug(f"EN BASED MAG CHECKS: [{po1}] and [{po2}]")
         # 1). do they code for intersecting dimentsions
         # -> get instersecting dimension, by getting set of dimensions encoded by each pos semantics
-        idxs = {
-            po1: self.network.get_index(po1),
-            po2: self.network.get_index(po2),
-        }
         dims = {}
-        for ref_po in [po1, po2]:
+        for po in [po1, po2]:
             # get semantics that have weight>0.9
-            po_set = ref_po.set
             # NOTE: idk if this is inefficient, but it should work for now
-            
-            po_links_mask = self.network.links[po_set][idxs[ref_po], :] > 0.9
+            po_links_mask = self.network.links[po, :] > 0.9
             all_sems = self.network.semantics.nodes
             dim_mask = all_sems[:, SF.DIM] != null
             ont_mask = all_sems[:, SF.ONT] == OntStatus.VALUE
             po_sems = po_links_mask & dim_mask & ont_mask
             logger.debug(f"-> {po_sems.sum().item()} po_sems found")
             if po_sems.any():
-                dims[ref_po] = set(self.network.semantics.nodes[po_sems, SF.DIM].unique().tolist())
+                dims[po] = set(self.network.semantics.nodes[po_sems, SF.DIM].unique().tolist())
             else:
-                dims[ref_po] = set()
+                dims[po] = set()
         # then take the intersection of the two sets
         intersecting_dims = dims.get(po1).intersection(dims.get(po2))
         logger.debug(f"-> {len(intersecting_dims)} intersecting dims found")
@@ -75,8 +75,7 @@ class EntropyOperations:
         # Get slice of connections to SDM tensors, with T/F if they above threshold
         sdms = {po1 : {},po2 : {}} # map PO to dict of SDM above/below threshold
         for po in [po1, po2]:
-            po_set = po.set
-            con_sdm = self.network.links[po_set][idxs[po], sdm_indicies]
+            con_sdm = self.network.links[po, sdm_indicies]
             sdms[po]["above"]= (con_sdm > 0.9).any().item()
             sdms[po]["below"] = ((0.0 < con_sdm) & (con_sdm < 0.9)).any().item()
 
@@ -99,7 +98,7 @@ class EntropyOperations:
                            (all_sems[:, SF.ONT] == OntStatus.VALUE)
                 
                 # Get links from `po` to these semantics
-                link_weights = self.network.links[po.set][idxs[po], sem_mask]
+                link_weights = self.network.links[po, sem_mask]
 
                 # if there are links, then get the the max weight
                 if link_weights.any():
@@ -133,8 +132,8 @@ class EntropyOperations:
 
     def check_and_run_ent_ops_within(
         self,
-        po1: Ref_Token,
-        po2: Ref_Token,
+        po1: int,
+        po2: int,
         intersect_dim: list[int],
         num_sdm_above: int,
         num_sdm_below: int,
@@ -145,10 +144,22 @@ class EntropyOperations:
     ):
         """
         Check whether to run entropy based magnitude comparision (within), 
-        and run if appropriate
+        and run if appropriate.
+
+        Args:
+            po1: int - The global index of the first PO.
+            po2: int - The global index of the second PO.
+            intersect_dim: list[int] - The intersecting dimensions.
+            num_sdm_above: Num pos with con to SDM sems above threshold
+            num_sdm_below: Num pos with con to SDM sems below threshold
+            extend_SDML: bool - Can't remember what the significance of this is. Used in deciding to run mag refinement.
+            pred_only: bool - I think if only considering preds?
+            pred_present: bool - Whether preds are present.
+            mag_decimal_precision: int - The decimal precision to use for the magnitude comparison.
         """
-        logger.debug(f"CHECK AND RUN ENT OPS WITHIN: {po1.set}[{self.network.get_index(po1)}] and {po2.set}[{self.network.get_index(po2)}]")
-        is_pred = self.network.node_ops.get_value(po1, TF.PRED) == B.TRUE
+        #TODO: Check the argument docs for extend_SDML and pred_only.
+        logger.debug(f"CHECK AND RUN ENT OPS WITHIN: [{po1}] and [{po2}]")
+        is_pred = self.network.node_ops.get_tk_value(po1, TF.PRED) == B.TRUE
         if (is_pred):
             if (
                 num_sdm_above == 0
@@ -174,55 +185,56 @@ class EntropyOperations:
 
     def basic_en_based_mag_comparison(
         self,
-        po1: Ref_Token,
-        po2: Ref_Token,
+        po1: int,
+        po2: int,
         intersect_dim: list[int],
         mag_decimal_precision:int = 0
     ):
         """
         Basic magnitude comparison.
+        Args:
+            po1: int - The global index of the first PO.
+            po2: int - The global index of the second PO.
+            intersect_dim: list[int] - The intersecting dimensions.
+            mag_decimal_precision: int - The decimal precision to use for the magnitude comparison.
         """
-        logger.debug(f"BASIC EN BASED MAG COMPARISON: {po1.set.name}[{self.network.get_index(po1)}] and {po2.set.name}[{self.network.get_index(po2)}]")
+        logger.debug(f"BASIC EN BASED MAG COMPARISON: [{po1}] and [{po2}]")
         sems: torch.Tensor = self.network.semantics.nodes
         sem_link = {}
         other_sem_link = {}
         extent = {}
-        idxs = {
-            po1: self.network.get_index(po1),
-            po2: self.network.get_index(po2),
-        }
         dim = intersect_dim[0]
         for po in [po1, po2]:
             # 1). find the semantic links connecting to the absolute dimensional value.
-            sem_link[po] = self.find_links_to_abs_dim(po.set, idxs[po], dim, OntStatus.VALUE)
+            sem_link[po] = self.find_links_to_abs_dim(po, dim, OntStatus.VALUE)
             # 2). if the dimension is numeric, then get the average value of all 
             # dimensionnal values in the sem_links and assign these to 
             # extent1 and extend2 respectively
             if not sem_link[po].any():
-                logger.critical(f"-> No links to absolute dimensional value found for {po.set.name}[{idxs[po]}], dim: {dim}, ont_status: {OntStatus.VALUE}")
+                logger.critical(f"-> No links to absolute dimensional value found for [{po}], dim: {dim}, ont_status: {OntStatus.VALUE}")
             idx = sem_link[po].nonzero()[0]
             is_numeric = bool((sems[idx, SF.AMOUNT] != null).item())
-            assert is_numeric, f"-> Dimension {dim} is non-numeric for {po.set.name}[{idxs[po]}]" # NOTE: This should always be true, but gonna leave in for now.
+            assert is_numeric, f"-> Dimension {dim} is non-numeric for [{po}]" # NOTE: This should always be true, but gonna leave in for now.
             extent[po] = sems[sem_link[po], SF.AMOUNT].mean().item()
         # 3). compute ent_magnitudeMoreLessSame() NOTE: What if the extent is non-numeric?
         more, less, same_flag, iterations = self.ent_magnitude_more_less_same(float(extent.get(po1)), float(extent.get(po2)), mag_decimal_precision)
         for po in [po1, po2]:
             # 4). Find any other dimensional semantics with high weights can be reduced by the entropy process.
-            po_links_mask = self.network.links[po.set][idxs[po], :] > 0.0
+            po_links_mask = self.network.links[po, :] > 0.0
             other_dim_sems = ~torch.isin(sems[po_links_mask, SF.DIM], torch.tensor([dim, null], dtype=torch.float))
             other_sem_link[po] = tOps.sub_union(sem_link[po], other_dim_sems)
             sem_link[po] = sem_link[po] | other_sem_link[po]
         # 5). Connect the two POs to the appropriate relative magnitude semantics 
         # (based on the invariant patterns detected just above).
         if same_flag:
-            self.attach_mag_semantics(same_flag, po1, po2, sem_link, idxs)
+            self.attach_mag_semantics(same_flag, po1, po2, sem_link)
         elif more == extent[po1]:
-            self.attach_mag_semantics(same_flag, po1, po2, sem_link, idxs)
+            self.attach_mag_semantics(same_flag, po1, po2, sem_link)
         else: # more == extent[po2]
-            self.attach_mag_semantics(same_flag, po2, po1, sem_link, idxs)
+            self.attach_mag_semantics(same_flag, po2, po1, sem_link)
 
 
-    def basic_en_based_mag_refinement(self, po1: Ref_Token, po2: Ref_Token):
+    def basic_en_based_mag_refinement(self, po1: int, po2: int):
         """
         Basic magnitude refinement:
 
@@ -230,30 +242,28 @@ class EntropyOperations:
         then activate the appropriate magnitude semantics and matching dimensions, and adjust
         weights as appropriate (i.e., turn on the appropriate magnitude semantics for each PO, 
         and adjust weight accordingly).
+        Args:
+            po1: int - The global index of the first PO.
+            po2: int - The global index of the second PO.
         """
-        logger.debug(f"BASIC EN BASED MAG REFINEMENT: {po1.set.name}[{self.network.get_index(po1)}] and {po2.set.name}[{self.network.get_index(po2)}]")
+        logger.debug(f"BASIC EN BASED MAG REFINEMENT: [{po1}] and [{po2}]")
         mag_decimal_precision = 1
         # 1). do they code for intersecting dimentsions
         # -> get instersecting dimension, by getting set of dimensions encoded by each pos semantics
-        idxs = {
-            po1: self.network.get_index(po1),
-            po2: self.network.get_index(po2),
-        }
         dims = {}
         po_sems = {}
-        for ref_po in [po1, po2]:
+        for po in [po1, po2]:
             # get semantics that have weight>0.9
-            po_set = ref_po.set
             # NOTE: idk if this is inefficient, but it should work for now
-            po_sems_mask = self.network.links[po_set][idxs[ref_po], :] > 0.9
+            po_sems_mask = self.network.links[po, :] > 0.9
             dim_mask = self.network.semantics.nodes[:, SF.DIM] != null
             state_mask = self.network.semantics.nodes[:, SF.ONT] == OntStatus.STATE
             final_mask = po_sems_mask & dim_mask & state_mask
             
             if final_mask.any():
-                dims[ref_po] = set(self.network.semantics.nodes[final_mask, SF.DIM].unique().tolist())
+                dims[po] = set(self.network.semantics.nodes[final_mask, SF.DIM].unique().tolist())
             else:
-                dims[ref_po] = set()
+                dims[po] = set()
 
         # then take the intersection of the two sets
         intersecting_dims = dims.get(po1, set()).intersection(dims.get(po2, set()))
@@ -262,34 +272,48 @@ class EntropyOperations:
         # find the matching dimension that each PO is most strongly connected to, and update magnitude
         # semantic weights.
         if len(intersecting_dims) == 1:
-            self.single_dim_refinement(idxs, po1, po2, list(intersecting_dims)[0], mag_decimal_precision)
+            self.single_dim_refinement(po1, po2, list(intersecting_dims)[0], mag_decimal_precision)
         elif len(intersecting_dims) > 1:
-            self.multi_dim_refinement(idxs, po1, po2, mag_decimal_precision)
+            self.multi_dim_refinement(po1, po2, mag_decimal_precision)
 
 
-    def single_dim_refinement(self, idxs, po1: Ref_Token, po2: Ref_Token, dim: int, mag_decimal_precision:int = 1):
+    def single_dim_refinement(self, po1: int, po2: int, dim: int, mag_decimal_precision:int = 1):
         """
         there is a single matching dimension, then find value on that dimension for each
         object and update magnitude semantic weights
+        Args:
+            po1: int - The global index of the first PO.
+            po2: int - The global index of the second PO.
+            dim: int - The matching dimension.
+            mag_decimal_precision: int - The decimal precision to use for the magnitude comparison.
         """
-        logger.debug(f"SINGLE DIM REFINEMENT: {po1.set}[{self.network.get_index(po1)}] and {po2.set}[{self.network.get_index(po2)}]")
+        logger.debug(f"SINGLE DIM REFINEMENT: [{po1}] and [{po2}]")
         # 2a). single matching dimension
         # find the semantic links connecting to the absolute dimensional value.
         sem_link = {}
         po_dim_val = {}
         for po in [po1, po2]:
-            sem_link[po] = self.find_links_to_abs_dim(po.set, idxs[po], dim, OntStatus.STATE)
+            sem_link[po] = self.find_links_to_abs_dim(po, dim, OntStatus.STATE)
+            # get set object, and local index of po
+            net: 'Network' = self.network
+            po_set: 'Set' = net.node_ops.get_tk_set(po)
+            set_obj: 'Base_Set' = net.sets[po_set]
+            local_po = net.to_local(po)
             # find value on that dimension for each link, then update magnitude semantic weights
             # -> first get index of an object with the same rb
-            rbs = self.network.sets[po.set].get_mask(Type.RB)
-            parent_mask = self.network.sets[po.set].connections[:, idxs[po]].bool()
+            # get the local rb parents of the po
+            rbs = set_obj.tensor_op.get_mask(Type.RB)
+            local_cons = net.tokens.get_view(TensorTypes.CON, po_set)
+            parent_mask = local_cons[:, local_po].bool()
             idx_rb = ((parent_mask & rbs)).nonzero()[0].item()
-            objs = self.network.sets[po.set].tensor_op.get_mask(Type.PO)
-            objs = objs & (self.network.sets[po.set].nodes[:, TF.PRED] == B.FALSE)
-            child_mask = self.network.sets[po.set].connections[idx_rb, :].bool()
-            idx_obj = ((child_mask & objs)).nonzero()[0].item()
+            # get the local object connected to the rb
+            obj_mask = set_obj.tensor_op.get_arb_mask({TF.TYPE: Type.PO, TF.PRED: B.FALSE})
+            child_mask = local_cons[idx_rb, :].bool()
+            idx_obj = ((child_mask & obj_mask)).nonzero()[0].item()
+            # convert idx_obj to global index
+            glbl_idx_obj = net.to_global(idx_obj, po_set).item()
             # -> then find the value on the dimension for the object
-            dim_sems = self.find_links_to_abs_dim(po.set, idx_obj, dim, OntStatus.VALUE)
+            dim_sems = self.find_links_to_abs_dim(glbl_idx_obj, dim, OntStatus.VALUE)
             if dim_sems.any():
                 po_dim_val[po] = self.network.semantics.nodes[dim_sems, SF.AMOUNT][0].item()
             else:
@@ -299,32 +323,36 @@ class EntropyOperations:
         # 4a). connect the two POs to the appropriate relative magnitude semantics
         #     (based on the invariant patterns detected just above)
         if same_flag:
-            self.update_mag_semantics(True, po1, po2, sem_link, idxs)
+            self.update_mag_semantics(True, po1, po2, sem_link)
         elif more == po_dim_val[po1]:
-            self.update_mag_semantics(False, po1, po2, sem_link, idxs)
+            self.update_mag_semantics(False, po1, po2, sem_link)
         else:
-            self.update_mag_semantics(False, po2, po1, sem_link, idxs)
+            self.update_mag_semantics(False, po2, po1, sem_link)
 
 
-    def multi_dim_refinement(self, idxs, po1: Ref_Token, po2: Ref_Token, mag_decimal_precision:int = 1):
+    def multi_dim_refinement(self, po1: int, po2: int, mag_decimal_precision:int = 1):
         """
         there are multiple matching dimensions,
         find the matching dimension that each PO is most strongly connected to, and update magnitude
         semantic weights.
+        Args:
+            po1: int - The global index of the first PO.
+            po2: int - The global index of the second PO.
+            mag_decimal_precision: int - The decimal precision to use for the magnitude comparison.
         """
-        logger.debug(f"MULTI DIM REFINEMENT: {po1.set}[{self.network.get_index(po1)}] and {po2.set}[{self.network.get_index(po2)}]")
+        logger.debug(f"MULTI DIM REFINEMENT:[{po1}] and [{po2}]")
         # 2b). find the matching dimension that each PO is most strongly connected to, 
         # and update magnitude semantic weights.
         max_weight = {}
         # 2bi). find max dim for po1
         sems = self.network.semantics.nodes
-        links = self.network.links[po1.set][idxs[po1], :] > 0.9
+        links = self.network.links[po1, :] > 0.9
         numeric_sems = links & (sems[:, SF.AMOUNT] != null)
         # Get the numeric dimension sems with the highest weight
         if not numeric_sems.any():
             return # No numeric semantics to compare
 
-        max_weight_tensor, max_idx_tensor = torch.max(self.network.links[po1.set][idxs[po1], numeric_sems], dim=0)
+        max_weight_tensor, max_idx_tensor = torch.max(self.network.links[po1, numeric_sems], dim=0)
         if not max_weight_tensor.any():
             return  # po1 has no max
 
@@ -335,13 +363,13 @@ class EntropyOperations:
         max_dim = self.network.semantics.nodes[max_idx, SF.DIM].item()
         
         # 2bii). find max dim weight for po2
-        links = self.network.links[po2.set][idxs[po2], :] > 0.9
+        links = self.network.links[po2, :] > 0.9
         numeric_sems = links & (sems[:, SF.AMOUNT] != null)
         dim_sems = numeric_sems & (sems[:, SF.DIM] == max_dim)
         if not dim_sems.any():
             max_weight[po2] = 0.0
         else:
-            max_weight_tensor, _ = torch.max(self.network.links[po2.set][idxs[po2], dim_sems], dim=0)
+            max_weight_tensor, _ = torch.max(self.network.links[po2, dim_sems], dim=0)
             if not max_weight_tensor.any():
                 max_weight[po2] = 0.0
             else:
@@ -351,20 +379,33 @@ class EntropyOperations:
         # 4). find the semantic links connecting to the absolute dimensional value.
         sem_link = {}
         for po in [po1, po2]:
-            sem_link[po] = self.find_links_to_abs_dim(po.set, idxs[po], max_dim, OntStatus.STATE)
+            sem_link[po] = self.find_links_to_abs_dim(po, max_dim, OntStatus.STATE)
         # 5). connect the two POs to the appropriate relative magnitude semantics
         #     (based on the invariant patterns detected just above)
         if same_flag:
-            self.attach_mag_semantics(same_flag, po1, po2, sem_link, idxs)
+            self.attach_mag_semantics(same_flag, po1, po2, sem_link)
         elif more == max_weight[po1]:
-            self.attach_mag_semantics(False, po1, po2, sem_link, idxs)
+            self.attach_mag_semantics(False, po1, po2, sem_link)
         else:
-            self.attach_mag_semantics(False, po2, po1, sem_link, idxs)
+            self.attach_mag_semantics(False, po2, po1, sem_link)
 
     def ent_magnitude_more_less_same(self, extent1: float, extent2: float, mag_decimal_precision:int = 0):
         """
         Magnitude comparison logic.
-        alculates more/less/same from two codes of extent based on entropy and competion.
+        Calculates more/less/same from two codes of extent based on entropy and competition.
+
+        Args:
+            extent1: The first extent value to compare.
+            extent2: The second extent value to compare.
+            mag_decimal_precision: The decimal precision to use for rounding
+                the extent values before comparison. Defaults to 0.
+
+        Returns:
+            tuple[float | None, float | None, bool, int]: A tuple containing:
+                - more: The extent value that is greater, or None if same.
+                - less: The extent value that is smaller, or None if same.
+                - same_flag: True if the extents are considered the same.
+                - iterations: The number of iterations the entropy net took to settle.
         """
         logger.debug(f"ENT MAGNITUDE MORE LESS SAME: ext1: {extent1}, ext2: {extent2}")
         extent1_rounded = round(extent1 * (pow(100, mag_decimal_precision))) + 1
@@ -386,19 +427,31 @@ class EntropyOperations:
         return more, less, same_flag, entropyNet.settled_iters
 
     
-    def attach_mag_semantics(self, same_flag: bool, po1: Ref_Token, po2: Ref_Token, sem_links: dict[Ref_Token, torch.Tensor], idxs: dict[Ref_Token, int]):
+    def attach_mag_semantics(self, same_flag: bool, po1: int, po2: int, sem_links: dict[int, torch.Tensor]):
         """
-        Attach magnitude semantics.
+        Attach magnitude semantics to two POs based on comparison results.
+
+        Connects the POs to appropriate relative magnitude semantics (MORE, LESS, or SAME)
+        based on the comparison result, and reduces weights to absolute value semantics
+        by half as this process constitutes a comparison.
+
+        Args:
+            same_flag: If True, both POs are connected to SAME semantics.
+                If False, po1 is connected to MORE and po2 to LESS.
+            po1: The global index of the first PO (MORE if not same).
+            po2: The global index of the second PO (LESS if not same).
+            sem_links: Dictionary mapping PO indices to boolean tensors indicating
+                which semantic links should have their weights reduced.
         """
-        logger.debug(f"ATTACH MAG SEMANTICS: {po1.set.name}[{self.network.get_index(po1)}] and {po2.set.name}[{self.network.get_index(po2)}]")
+        logger.debug(f"ATTACH MAG SEMANTICS: [{po1}] and [{po2}]")
         # NOTE: I have left this bit in, but added a logger to see if it actually ever happens.
         #       If it doesn't, can just remove at some point. If it does, remove the logger.
         sdm_sems = self.network.semantics.get_sdm_indices()
         for po in [po1, po2]:
-            if (self.network.links[po.set][idxs[po], sdm_sems]>0.0).sum().item() > 0:
+            if (self.network.links[po, sdm_sems]>0.0).sum().item() > 0:
                 logger.debug(len(sdm_sems))
-                logger.debug(f"-> {self.network.links[po.set][idxs[po], sdm_sems]}")
-                logger.debug(f"!!!ATTACH MAG SEMANTICS!!!: SDM sems aleady found for {po.set.name}[{idxs[po]}] -> remove me :]")
+                logger.debug(f"-> {self.network.links[po, sdm_sems]}")
+                logger.debug(f"!!!ATTACH MAG SEMANTICS!!!: SDM sems aleady found for [{po}] -> remove me :]")
                 return
         # if not same, then po1 = more and po2 = less
         sdms = {
@@ -407,16 +460,29 @@ class EntropyOperations:
         }
         for po in [po1, po2]:
             # Connect the sems
-            self.network.links.connect_comparitive(po.set, idxs[po], sdms[po])
+            self.network.semantics.connect_comparitive(po, sdms[po])
             # reduce weights to absolute value semantics to 0.5 
             # (as this process constitutes a comparison).
-            self.network.links[po.set][idxs[po], sem_links[po]] /= 2
+            self.network.links[po, sem_links[po]] /= 2
 
-    def update_mag_semantics(self, same_flag: bool, po1: Ref_Token, po2: Ref_Token, sem_links: dict[Ref_Token, torch.Tensor], idxs: dict[Ref_Token, int]):
+
+    def update_mag_semantics(self, same_flag: bool, po1: int, po2: int, sem_links: dict[int, torch.Tensor]):
         """
-        Function to update the connections to magnitude semantics during the basic_en_based_mag_refinement() function.
+        Update connections to magnitude semantics during magnitude refinement.
+
+        Adjusts semantic weights for POs during the basic_en_based_mag_refinement process:
+        halves weights to non-matching semantics, sets SDM weights to 1.0, and
+        restores sem_links weights to 1.0.
+
+        Args:
+            same_flag: If True, both POs are connected to SAME semantics.
+                If False, po1 is connected to MORE and po2 to LESS.
+            po1: The global index of the first PO (MORE if not same).
+            po2: The global index of the second PO (LESS if not same).
+            sem_links: Dictionary mapping PO indices to boolean tensors indicating
+                which semantic links should have their weights preserved/restored.
         """
-        logger.debug(f"UPDATE MAG SEMANTICS: {po1.set}[{self.network.get_index(po1)}] and {po2.set}[{self.network.get_index(po2)}]")
+        logger.debug(f"UPDATE MAG SEMANTICS: [{po1}] and [{po2}]")
         sdms = {
             po1: SDM.SAME if same_flag else SDM.MORE,
             po2: SDM.SAME if same_flag else SDM.LESS,
@@ -424,16 +490,24 @@ class EntropyOperations:
         for po in [po1, po2]:
             # Connect the sems
             # half other sem weights
-            self.network.links[po.set][idxs[po], ~sem_links[po]] /= 2 
+            self.network.links[po, ~sem_links[po]] /= 2 
             # set sdm weight to 1.0
-            self.network.links.connect_comparitive(po.set, idxs[po], sdms[po]) 
+            self.network.semantics.connect_comparitive(po, sdms[po]) 
             # set the sem_links weights to 1.0
-            self.network.links[po.set][idxs[po], sem_links[po]] = 1.0
-    
+            self.network.links[po, sem_links[po]] = 1.0
+
 
     def ent_overall_same_diff(self):
         """
-        Function to calculate over-all same/diff from entropy across all semantics.
+        Calculate overall same/diff from entropy across all semantics.
+
+        Computes a similarity score as a ratio of unshared to total features
+        by comparing semantic activations against a threshold.
+
+        Returns:
+            float: The difference ratio representing dissimilarity. A value of 0.0
+                indicates identical activations, higher values indicate more difference.
+                Returns 0.0 if there are no active semantics (to avoid division by zero).
         """
         logger.debug(f"ENT OVERALL SAME DIFF")
         # check semantics and calulate a similarity score
@@ -459,14 +533,25 @@ class EntropyOperations:
 
 # ---------------------[ Helpers ]----------------------------
 
-    def find_links_to_abs_dim(self, set: Set, idx: int, dim: int, ont_status: OntStatus):
+    def find_links_to_abs_dim(self, idx: int, dim: int, ont_status: OntStatus):
         """
         Find the semantic links connecting to the absolute dimensional value.
+
+        Args:
+            idx: The global index of the token to find links for.
+            dim: The dimension to filter semantics by.
+            ont_status: The ontological status to filter semantics by
+                (e.g., OntStatus.VALUE or OntStatus.STATE).
+
+        Returns:
+            torch.Tensor: A boolean tensor mask indicating which semantics are
+                connected to the token and match the specified dimension and
+                ontological status.
         """
-        logger.debug(f"FIND LINKS TO ABS DIM: {set.name}[{idx}], dim: {dim}, ont_status: {ont_status.name}")
+        logger.debug(f"FIND LINKS TO ABS DIM: [{idx}], dim: {dim}, ont_status: {ont_status.name}")
         sems: torch.Tensor = self.network.semantics.nodes
         # 1). find the semantic links connecting to the absolute dimensional value.
-        links_mask = self.network.links[set][idx, :] > 0.0 # Get connected semantics
+        links_mask = self.network.links[idx, :] > 0.0 # Get connected semantics
         dim_sems = (sems[:, SF.DIM] == dim) & (sems[:, SF.ONT] == ont_status)
         sem_link= links_mask & dim_sems
         logger.debug(f"-> {sem_link.sum().item()}/{sems.shape[0]} sem_link")
@@ -476,7 +561,17 @@ class en_based_mag_checks_results:
     """
     Results of en_based_mag_checks.
     """
-    def __init__(self, po1: Ref_Token, po2: Ref_Token, high_dim: int, num_sdm_above: int, num_sdm_below: int):
+    def __init__(self, po1: int, po2: int, high_dim: int, num_sdm_above: int, num_sdm_below: int):
+        """
+        Initialise the object containing results for entropy-based magnitude checks.
+
+        Args:
+            po1: The global index of the first PO.
+            po2: The global index of the second PO.
+            high_dim: The highest intersecting dimension between the two POs.
+            num_sdm_above: Number of POs with connections to SDM semantics above threshold.
+            num_sdm_below: Number of POs with connections to SDM semantics below threshold.
+        """
         self.po1 = po1
         self.po2 = po2
         self.high_dim = high_dim
