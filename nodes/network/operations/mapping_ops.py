@@ -65,12 +65,12 @@ class MappingOperations:
         max_recipient, max_driver = self.network.mappings.get_max_map()
         # Set max map for driver
         if Set.DRIVER in set:
-            self.network.sets[Set.DRIVER].token_op.set_max_maps(max_driver.values)
-            self.network.sets[Set.DRIVER].token_op.set_max_map_units(max_driver.indices)
+            self.network.sets[Set.DRIVER].token_op.set_max_maps(max_driver.values.float())
+            self.network.sets[Set.DRIVER].token_op.set_max_map_units(max_driver.indices.float())
         # Set max map for recipient
         if Set.RECIPIENT in set:
-            self.network.sets[Set.RECIPIENT].token_op.set_max_maps(max_recipient.values)
-            self.network.sets[Set.RECIPIENT].token_op.set_max_map_units(max_recipient.indices)
+            self.network.sets[Set.RECIPIENT].token_op.set_max_maps(max_recipient.values.float())
+            self.network.sets[Set.RECIPIENT].token_op.set_max_map_units(max_recipient.indices.float())
     
     def get_max_map_unit(self, idx: int) -> Ref_Token:
         """ Get a reference to the unit that the token maps to most """
