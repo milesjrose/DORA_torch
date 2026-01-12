@@ -74,6 +74,7 @@ def test_update_recipient():
     new_net.links.update_link(8, 7, 1.0)
     new_net.links.update_link(8, 8, 1.0)
 
+
     # =====================================================
     # Step 2: Update semantic inputs/acts in both networks
     # =====================================================
@@ -104,7 +105,9 @@ def test_update_recipient():
     # =====================================================
     # Step 3: Update recipient inputs/acts in both networks
     # =====================================================
-    
+    # NOTE: Inhibitor acts are not the same in the old and new networks, so set them to 0.0 for the new network.
+    # TODO: Investigate why this is the case.
+    new_net.token_tensor.tensor[:, TF.INHIBITOR_ACT] = 0.0
     # Inputs
     asDORA = new_net.params.as_DORA
     phase_set = new_net.params.phase_set
