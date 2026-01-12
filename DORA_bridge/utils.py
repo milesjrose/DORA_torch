@@ -560,7 +560,17 @@ def compare_states(old_state: Dict, new_state: Dict, verbose: bool = True) -> Di
             new_t = new_tokens[name]
             
             for field in ['set', 'analog', 'act', 'inferred']:
-                if old_t.get(field) != new_t.get(field):
+                try:
+                    old_val = float(old_t.get(field))
+                    new_val = float(new_t.get(field))
+                    if abs(old_val - new_val) > 1e-6:
+                        matching = False
+                    else:
+                        matching = True
+                except:
+                    print(f"Error converting {field} to float: {old_t.get(field)} or {new_t.get(field)}")
+                    matching = (old_t.get(field) == new_t.get(field))
+                if not matching:
                     results['match'] = False
                     diff = f"{token_type} {name}.{field}: old={old_t.get(field)}, new={new_t.get(field)}"
                     results['differences'].append(diff)
