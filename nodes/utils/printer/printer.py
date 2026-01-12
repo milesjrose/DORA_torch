@@ -4,7 +4,7 @@
 import os
 import torch
 from .print_table import tablePrinter
-from ...enums import TF, TF_type, SF, Type, Set, Mode, OntStatus, B, null, MappingFields
+from nodes.enums import *
 
 
 class Printer:
@@ -98,7 +98,10 @@ class Printer:
             
             # Add feature values
             for tf in TF:
-                value = tensor[idx, tf].item()
+                if tf == TF.ID:
+                    value = idx.item()
+                else:
+                    value = tensor[idx, tf].item()
                 formatted = self._format_value(tf, value)
                 row.append(formatted)
             
@@ -132,6 +135,110 @@ class Printer:
                 # Determine header text
                 feature_range = f"Features {start_idx}-{end_idx - 1}"
                 header_text = f"Token Tensor - {feature_range}"
+                
+                self._print_table(chunk_columns, chunk_rows, header_text)
+                
+                # Add spacing between tables
+                if end_idx < num_features:
+                    self._output("")
+                
+                table_num += 1
+    
+    def print_semantics(self, semantics, cols_per_table: int = 8,
+                        show_deleted: bool = False, indices: torch.Tensor = None):
+        """
+        Print a Semantics object in table format.
+        
+        Args:
+            semantics: The Semantics object to print.
+            cols_per_table (int): Number of feature columns per table. 
+                                  If None or 0, shows all columns in one table.
+            show_deleted (bool): Whether to include deleted semantics. Default False.
+            indices (torch.Tensor): Optional specific indices to print. 
+                                    If None, prints all (non-deleted) semantics.
+        """
+        nodes = semantics.nodes
+        names = semantics.names if semantics.names else {}
+        
+        if nodes.size(0) == 0:
+            self._output("Empty semantics tensor")
+            return
+        
+        # Determine which indices to display
+        if indices is not None:
+            display_indices = indices
+        elif show_deleted:
+            display_indices = torch.arange(nodes.size(0))
+        else:
+            non_deleted_mask = nodes[:, SF.DELETED] == B.FALSE
+            display_indices = torch.where(non_deleted_mask)[0]
+        
+        if len(display_indices) == 0:
+            self._output("No semantics to display")
+            return
+        
+        # Get feature names as column headers
+        sf_headers = [sf.name for sf in SF]
+        
+        # Check if we have names to use - names dict maps ID to name
+        # We need to check if any of the displayed semantics have names
+        has_names = False
+        for idx in display_indices:
+            sem_id = int(nodes[idx, SF.ID].item())
+            if sem_id in names:
+                has_names = True
+                break
+        
+        id_header = "Name" if has_names else "Idx"
+        
+        # Build row data
+        rows = []
+        for idx in display_indices:
+            row = []
+            # Add identifier (name or index)
+            if has_names:
+                sem_id = int(nodes[idx, SF.ID].item())
+                name = names.get(sem_id, "")
+                row.append(name if name else str(idx.item()))
+            else:
+                row.append(str(idx.item()))
+            
+            # Add feature values
+            for sf in SF:
+                value = nodes[idx, sf].item()
+                formatted = self._format_semantic_value(sf, value)
+                row.append(formatted)
+            
+            rows.append(row)
+        
+        # All columns: [id_header] + sf_headers
+        all_columns = [id_header] + sf_headers
+        
+        # Print tables (split by cols_per_table if needed)
+        if cols_per_table is None or cols_per_table <= 0:
+            # Print all in one table
+            self._print_table(all_columns, rows, f"Semantics ({len(display_indices)} semantics)")
+        else:
+            # Split into multiple tables
+            num_features = len(sf_headers)
+            table_num = 1
+            
+            for start_idx in range(0, num_features, cols_per_table):
+                end_idx = min(start_idx + cols_per_table, num_features)
+                
+                # Columns for this chunk: id column + feature columns slice
+                chunk_columns = [id_header] + sf_headers[start_idx:end_idx]
+                
+                # Rows for this chunk: id value + feature values slice
+                chunk_rows = []
+                for row in rows:
+                    # row[0] is the id, row[1:] are the feature values
+                    chunk_row = [row[0]] + row[1 + start_idx:1 + end_idx]
+                    chunk_rows.append(chunk_row)
+                
+                # Determine header text
+                feature_range = f"Features {start_idx}-{end_idx - 1}"
+                header_text = f"Semantics - {feature_range}"
                 
                 self._print_table(chunk_columns, chunk_rows, header_text)
                 
@@ -731,6 +838,61 @@ class Printer:
         elif feature_type == Mode:
             try:
                 return Mode(int(value)).name
+            except (ValueError, KeyError):
+                return str(int(value))
+        
+        # Convert bool types
+        elif feature_type == bool:
+            if value == B.TRUE:
+                return "True"
+            elif value == B.FALSE:
+                return "False"
+            else:
+                return str(bool(value))
+        
+        # Format int types
+        elif feature_type == int:
+            return str(int(value))
+        
+        # Format float types
+        elif feature_type == float:
+            return f"{value:.4f}".rstrip('0').rstrip('.')
+        
+        # Fallback
+        return str(value)
+    
+    def _format_semantic_value(self, feature: SF, value: float) -> str:
+        """
+        Format a semantic tensor value based on the feature type.
+        
+        Args:
+            feature (SF): The feature enum indicating the value type.
+            value (float): The raw tensor value.
+        
+        Returns:
+            str: Formatted value - either raw float or converted label.
+        """
+        # Handle null values
+        if value == null:
+            return "null"
+        
+        # If not using labels, return raw float representation
+        if not self.use_labels:
+            return self._format_raw(value)
+        
+        # Get the type for this feature
+        feature_type = SF_type(feature)
+        
+        # Convert enum types to labels
+        if feature_type == Type:
+            try:
+                return Type(int(value)).name
+            except (ValueError, KeyError):
+                return str(int(value))
+        
+        elif feature_type == OntStatus:
+            try:
+                return OntStatus(int(value)).name
             except (ValueError, KeyError):
                 return str(int(value))
         
