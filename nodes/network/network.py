@@ -360,3 +360,18 @@ class Network(object):
         else:
             return TF_type(feature)(value)
         return TF_type(feature)(value)
+
+# ======================[ INFO FUNCTIONS ]======================
+
+    def print_summary(self):
+        """
+        Print a summary of the network.
+        """
+        print(f"Network summary:")
+        print(f"  Tokens: {self.token_tensor.get_count()}")
+        print(f"  Semantics: {self.semantics.get_count()}")
+        print(f"  Driver: {self.driver().get_count()}")
+        print(f"  Recipient: {self.recipient().get_count()}")
+        print(f"  Memory: {self.memory().get_count()}")
+        print(f"  New Set: {self.new_set().get_count()}")
+
