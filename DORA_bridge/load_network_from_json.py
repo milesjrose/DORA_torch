@@ -168,6 +168,7 @@ class NetworkLoader:
             tokens_data[i, TF.LATERAL_INPUT] = token_data.get('lateral_input', 0.0)
             tokens_data[i, TF.MAP_INPUT] = token_data.get('map_input', 0.0)
             tokens_data[i, TF.MAX_MAP] = token_data.get('max_map', 0.0)
+            tokens_data[i, TF.INHIBITOR_ACT] = token_data.get('inhibitor_act', 0.0)
             
             # Bool flags
             tokens_data[i, TF.INFERRED] = B.TRUE if token_data.get('inferred', False) else B.FALSE

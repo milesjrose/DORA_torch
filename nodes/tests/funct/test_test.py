@@ -3,7 +3,7 @@
 from DORA_bridge import Bridge, StatePrinter
 from nodes.enums import *
 from nodes.utils.printer import Printer as NodePrinter
-
+from nodes.network import Network
 bridge = Bridge()
 
 def test_match_new_networks():
@@ -30,7 +30,7 @@ def test_update_recipient():
     5. Compares the resulting states
     """
     old_net = bridge.load_sim_old("sims/testsim15.py")
-    new_net = bridge.load_sim_new("sims/testsim15.py")
+    new_net: Network = bridge.load_sim_new("sims/testsim15.py")
 
     memory = old_net.memory
 
@@ -105,9 +105,6 @@ def test_update_recipient():
     # =====================================================
     # Step 3: Update recipient inputs/acts in both networks
     # =====================================================
-    # NOTE: Inhibitor acts are not the same in the old and new networks, so set them to 0.0 for the new network.
-    # TODO: Investigate why this is the case.
-    new_net.token_tensor.tensor[:, TF.INHIBITOR_ACT] = 0.0
     # Inputs
     asDORA = new_net.params.as_DORA
     phase_set = new_net.params.phase_set
@@ -122,6 +119,8 @@ def test_update_recipient():
     )
 
     new_net.update_ops.inputs(Set.RECIPIENT)
+
+    np.print_token_tensor(new_net.token_tensor)
 
     print("\n UPDATED INPUTS")
     printer = StatePrinter()
