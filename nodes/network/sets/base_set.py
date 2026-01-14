@@ -86,6 +86,9 @@ class Base_Set:
         """
         self.tkop = self.token_op
     
+    def get_connections(self) -> TensorView:
+        return self.glbl.connections.get_view(self.lcl._indices)
+    
     def get_tensor(self) -> torch.Tensor:
         return self.lcl
     
