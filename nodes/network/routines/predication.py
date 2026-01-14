@@ -20,7 +20,7 @@ class PredicationOperations:
     Handles predication routines.
     """
     
-    def __init__(self, network):
+    def __init__(self, network: 'Network'):
         """
         Initialize PredicationOperations with reference to Network.
         
@@ -45,12 +45,13 @@ class PredicationOperations:
             Returns:
                 bool: True if passes check, False o.w.
             """
-            driver: 'Driver' = self.network.driver()
-            recipient: 'Recipient' = self.network.recipient()
-            mappings: 'Mappings' = self.network.mappings
+            net: 'Network' = self.network
+            driver: 'Driver' = net.driver()
+            recipient: 'Recipient' = net.recipient()
+            mappings: 'Mapping' = net.mappings
 
-            d_po = driver.get_mask(Type.PO)
-            r_po = recipient.get_mask(Type.PO)
+            d_po = driver.tensor_op.get_mask(Type.PO)
+            r_po = recipient.tensor_op.get_mask(Type.PO)
             
             # Get mask of recipient POs that are mapped to by driver POs
             map_cons = mappings[MappingFields.CONNECTIONS]
@@ -58,8 +59,8 @@ class PredicationOperations:
             mapped_r_po = tOps.sub_union(r_po, mapped_r_po)
 
             # Use mask to find RBs connected to mapped recipient POs
-            r_rb_mask = recipient.get_mask(Type.RB)
-            r_connected_rbs = (recipient.connections[mapped_r_po][:, r_rb_mask] == 1)
+            r_rb_mask = recipient.tensor_op.get_mask(Type.RB)
+            r_connected_rbs = (recipient.get_connections()[mapped_r_po][:, r_rb_mask] == 1)
             return not bool(r_connected_rbs.any())
     
         def check_weights(self):
@@ -69,13 +70,14 @@ class PredicationOperations:
                 bool: True if passes check, False o.w.
             """
             threshold = 0.8
-            mappings: 'Mappings' = self.network.mappings
-            recipient: 'Recipient' = self.network.recipient()
-            driver: 'Driver' = self.network.driver()
+            net: 'Network' = self.network
+            mappings: 'Mapping' = net.mappings
+            recipient: 'Recipient' = net.recipient()
+            driver: 'Driver' = net.driver()
 
             # Get masks
-            d_po = driver.get_mask(Type.PO)
-            r_po = recipient.get_mask(Type.PO)
+            d_po = driver.tensor_opget_mask(Type.PO)
+            r_po = recipient.tensor_op.get_mask(Type.PO)
 
             # Check that mapped recipient nodes are all POs
             map_cons = mappings[MappingFields.CONNECTIONS]
@@ -86,7 +88,7 @@ class PredicationOperations:
             
             # Check that all the mapped weights are above 0.8
             map_weights = mappings[MappingFields.WEIGHT]
-            driver_po_mask = driver.get_mask(Type.PO)
+            driver_po_mask = driver.tensor_op.get_mask(Type.PO)
             active_maps = map_cons[:, driver_po_mask] == 1
             active_weights = map_weights[:, driver_po_mask][active_maps]
 
@@ -100,7 +102,7 @@ class PredicationOperations:
                 print(e)
             return False
     
-    def check_po_requirements(self, po: 'Ref_Token'):
+    def check_po_requirements(self, po: int):
         """
         Check that a PO meets the requirements for predication:
         - PO is an object
@@ -108,20 +110,20 @@ class PredicationOperations:
         - mapping connection > 0.75
         - driver token act > 0.6
         """
-        po_index = self.network.recipient().token_op.get_index(po)
+        tokens = self.network.token_tensor.tensor
         
-        if self.network.recipient().nodes[po_index, TF.PRED] == B.TRUE:   # Check that PO is an object
+        if tokens[po, TF.PRED] == B.TRUE:   # Check that PO is an object
             return False 
-        if self.network.recipient().nodes[po_index, TF.ACT] <= 0.6: # Check act
+        if tokens[po, TF.ACT] <= 0.6: # Check act
             return False
 
         # Get max map for PO
-        max_map_unit_index = int(self.network.recipient().nodes[po_index, TF.MAX_MAP_UNIT])
-        max_map_value = self.network.recipient().nodes[po_index, TF.MAX_MAP]
+        max_map_unit_index = int(tokens[po, TF.MAX_MAP_UNIT])
+        max_map_value = tokens[po, TF.MAX_MAP]
         
         if max_map_value <= 0.75:
             return False
-        if self.network.driver().nodes[max_map_unit_index, TF.ACT] <= 0.6:
+        if tokens[max_map_unit_index, TF.ACT] <= 0.6:
             return False
         return True
 
@@ -138,45 +140,46 @@ class PredicationOperations:
         """
         Run the predication routine when a new pred has been made.
         """
-        pred_set = self.inferred_pred.set
-        inferred_pred_index = self.network.sets[pred_set].token_op.get_index(self.inferred_pred)
+        pred = self.inferred_pred
 
         # Update the links between new pred and active semantics (sem act>0)
         # Get active semantics, their acts, and weight of links to them
-        active_sem_mask = self.network.semantics.nodes[:, SF.ACT]>0
-        sem_acts = self.network.semantics.nodes[active_sem_mask, SF.ACT]
-        link_weights = self.network.links.sets[pred_set][inferred_pred_index, active_sem_mask]
+        sems = self.network.semantics.tensor
+        active_sem_mask = sems[:, SF.ACT]>0
+        sem_acts = sems[active_sem_mask, SF.ACT]
+        link_weights = self.network.links[pred, active_sem_mask]
         # Update weights
         new_weights = 1 * (sem_acts - link_weights) * self.network.params.gamma
-        self.network.links.sets[pred_set][inferred_pred_index, active_sem_mask] += new_weights
+        self.network.links[pred, active_sem_mask] += new_weights
 
     def predication_routine_no_new_pred(self):
         """
         Run the predication routine when no new pred has been made.
+
+        If most active PO meets requirements, copy PO to newSet, infer new pred and RB, and connect the new RB to the copied/inferred PO tokens.
         """
         # Get the most active recipient PO. If no active POs, return.
-        most_active_po = self.network.recipient().token_op.get_most_active_token()
+        # NOTE: switching between local and global indices here a bunch, probably should just add a method in the network for most active token.
+        most_active_po = self.network.recipient().token_op.get_most_active_token(Type.PO)
+        most_active_po = self.network.to_global(most_active_po, Set.RECIPIENT)
         if most_active_po is None:
             return
-        
-        self.check_po_requirements(most_active_po)
 
         # Check requirement for PO:
         if self.check_po_requirements(most_active_po): # If meets -> copy PO, infer new pred and RB.
+            tk_tensor = self.network.token_tensor
+            old_po_name = tk_tensor.get_name(most_active_po)
+            
             # 1). copy the recipient object token into newSet
-            rec_po_copy = self.network.node_ops.get_token(most_active_po)   # Get recipient PO
-            rec_po_copy.tensor[TF.SET] = Set.NEW_SET                        # Set set for new PO
-            
-            most_active_po_index = self.network.recipient().token_op.get_index(most_active_po)
-            rec_po_copy.tensor[TF.MAKER_UNIT] = most_active_po_index        # Set maker unit for new PO
-            
-            rec_po_copy.tensor[TF.INFERRED] = B.TRUE                        # Set inferred to True
-            new_po_ref = self.network.node_ops.add_token(rec_po_copy)       # Add new PO to newSet
-            old_po_name = self.network.recipient().token_op.get_name(most_active_po)
-            self.network.new_set().token_op.set_name(new_po_ref, old_po_name) # Set name to be same as copied object
-            self.network.node_ops.set_value(most_active_po, TF.MADE_UNIT, new_po_ref.ID) # Set made unit field for most active PO
-            self.network.node_ops.set_value(most_active_po, TF.MADE_SET, new_po_ref.set) # Set made set field for most active PO
-            
+            new_po = self.network.token_tensor.copy_tokens(most_active_po, Set.NEW_SET)
+            new_po = int(new_po[0].item())
+            # Set features for new PO, and copy over name.
+            tk_tensor.set_feature(new_po, TF.MAKER_UNIT, most_active_po)
+            tk_tensor.set_feature(new_po, TF.INFERRED, B.TRUE)
+            self.network.set_name(new_po, old_po_name)
+            # Set made unit for old PO
+            tk_tensor.set_feature(most_active_po, TF.MADE_UNIT, new_po)
+
             # 2). infer new predicate and RB tokens
             # - add tokens to newSet
             new_pred = Token(Type.PO, {TF.SET: Set.NEW_SET, TF.PRED: B.TRUE, TF.INFERRED: B.TRUE})
@@ -184,20 +187,18 @@ class PredicationOperations:
             new_pred_ref = self.network.node_ops.add_token(new_pred)
             new_rb_ref = self.network.node_ops.add_token(new_rb)
             # - give new PO name 'nil' + len(memory.POs)+1
-            self.network.new_set().token_op.set_name(new_pred_ref, "nil" + str(new_pred_ref.ID))
+            po_count = tk_tensor.cache.get_type_mask(Type.PO).sum()
+            tk_tensor.set_name(new_pred_ref, "nil" + str(po_count+1))
             # - give new RB name 'nil' + len(memory.POs)+1 + '+' + active_rec_PO.name
-            self.network.new_set().token_op.set_name(new_rb_ref, "nil" + str(new_rb_ref.ID) + "+" + old_po_name)
+            tk_tensor.set_name(new_rb_ref, "nil" + str(po_count+1) + "+" + old_po_name)
             # NOTE: Doesn't seem to set these in old code? Not sure if needed?
-            #self.network.node_ops.set_value(new_pred_ref, TF.MADE_UNIT, new_po_ref.ID)
-            #self.network.node_ops.set_value(new_rb_ref, TF.MADE_UNIT, new_po_ref.ID)
+            #tk_tensor.set_feature(new_pred_ref, TF.MADE_UNIT, new_po)
+            #tk_tensor.set_feature(new_rb_ref, TF.MADE_UNIT, new_po)
 
             # 3). connect POs to RB
-            new_pred_index = self.network.sets[new_pred_ref.set].token_op.get_index(new_pred_ref)
-            new_rb_index = self.network.sets[new_rb_ref.set].token_op.get_index(new_rb_ref)
-            new_po_index = self.network.sets[new_po_ref.set].token_op.get_index(new_po_ref)
+            tk_tensor.connections.connect(new_rb, new_pred)
+            tk_tensor.connections.connect(new_rb, new_po)
 
-            self.network.new_set().token_op.connect_idx(new_rb_index, new_pred_index)
-            self.network.new_set().token_op.connect_idx(new_rb_index, new_po_index)
-
+            # 4). Update state
             self.made_new_pred = True
-            self.inferred_pred = new_pred_ref
+            self.inferred_pred = new_pred
