@@ -41,7 +41,7 @@ class PredicationOperations:
         # Helper functions
         def check_rb_po_connections(self):
             """
-            Chceks that all driver POs map to units in the recipient that don't have RBs
+            Checks that all driver POs map to units in the recipient that don't have RBs
             Returns:
                 bool: True if passes check, False o.w.
             """
@@ -50,13 +50,18 @@ class PredicationOperations:
             recipient: 'Recipient' = net.recipient()
             mappings: 'Mapping' = net.mappings
 
+            # TODO: Check all the edge cases. Don't know if all driver POs have to be mapped or not.
+            # Get masks
             d_po = driver.tensor_op.get_mask(Type.PO)
+            if not torch.any(d_po): return True  # No driver POs so they can't map to anything -> True?
             r_po = recipient.tensor_op.get_mask(Type.PO)
+            if not torch.any(r_po): return False # No recipient POs, so driver POs can't map to them -> False
             
             # Get mask of recipient POs that are mapped to by driver POs
-            map_cons = mappings[MappingFields.CONNECTIONS]
-            mapped_r_po = (map_cons[r_po][:, d_po]== 1).any(dim=1)
+            map_cons = mappings[MappingFields.WEIGHT]
+            mapped_r_po = (map_cons[r_po][:, d_po]> 0.0).any(dim=1)
             mapped_r_po = tOps.sub_union(r_po, mapped_r_po)
+            if not torch.any(mapped_r_po): return False # No recipient POs mapped to, so false.
 
             # Use mask to find RBs connected to mapped recipient POs
             r_rb_mask = recipient.tensor_op.get_mask(Type.RB)
@@ -94,7 +99,8 @@ class PredicationOperations:
 
             min_weight = min(active_weights.tolist())
             return bool(min_weight >= threshold)
-    
+
+        # No idea why I did the checks using assertions, feels like this is a bad way to do it.
         try:
             return check_rb_po_connections(self) and check_weights(self)
         except ValueError as e:
@@ -144,7 +150,7 @@ class PredicationOperations:
 
         # Update the links between new pred and active semantics (sem act>0)
         # Get active semantics, their acts, and weight of links to them
-        sems = self.network.semantics.tensor
+        sems = self.network.semantics.nodes
         active_sem_mask = sems[:, SF.ACT]>0
         sem_acts = sems[active_sem_mask, SF.ACT]
         link_weights = self.network.links[pred, active_sem_mask]
@@ -161,9 +167,9 @@ class PredicationOperations:
         # Get the most active recipient PO. If no active POs, return.
         # NOTE: switching between local and global indices here a bunch, probably should just add a method in the network for most active token.
         most_active_po = self.network.recipient().token_op.get_most_active_token(Type.PO)
-        most_active_po = self.network.to_global(most_active_po, Set.RECIPIENT)
         if most_active_po is None:
             return
+        most_active_po = self.network.to_global(most_active_po, Set.RECIPIENT)
 
         # Check requirement for PO:
         if self.check_po_requirements(most_active_po): # If meets -> copy PO, infer new pred and RB.
