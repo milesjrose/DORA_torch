@@ -89,11 +89,15 @@ class TokenOperations:
         indicies = self.base_set.glbl.connections.get_children(global_idx)
         return self.base_set.lcl.to_local(indicies)
     
-    def get_most_active_token(self) -> int:
+    def get_most_active_token(self, token_type: Type = None) -> int:
         """
         Get the index of the most active token in the set (returns local index)
         """
-        local_idxs = self.base_set.glbl.cache.get_set_indices(self.base_set.tk_set)
+        if token_type is not None:
+            type_mask = self.base_set.tensor_op.get_mask(token_type)
+            local_idxs = self.base_set.lcl.to_global(torch.where(type_mask)[0])
+        else:
+            local_idxs = self.base_set.glbl.cache.get_set_indices(self.base_set.tk_set)
         if len(local_idxs) == 0:
             return None
         max_idx_in_list, max_val = self.base_set.glbl.get_max(TF.ACT, local_idxs)
