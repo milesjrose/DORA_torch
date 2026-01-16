@@ -6,6 +6,8 @@ from .tensor.analogs import Analog_ops
 from .tensor_view import TensorView
 import torch
 from ...enums import *
+from logging import getLogger
+logger = getLogger(__name__)
 
 class Tokens:
     """
@@ -24,7 +26,9 @@ class Tokens:
         """
         self.token_tensor: Token_Tensor = token_tensor
         """holds the token tensor"""
-        self.connections: Connections_Tensor = connections
+        if connections is not None:
+            logger.warning("Assigning connection in token initialisation is deprecated. Connections should be set in the token tensor.")
+        self.connections: Connections_Tensor = token_tensor.connections
         """holds the connections tensor"""
         self.analog_ops: Analog_ops = Analog_ops(self.token_tensor)
         """holds the analog operations"""
@@ -43,6 +47,7 @@ class Tokens:
         token_count = self.token_tensor.get_count()
         connections_count = self.connections.get_count()
         links_count = self.links.get_count(LD.TK)
+        logger.debug(f"Checking count: token_count={token_count}, connections_count={connections_count}, links_count={links_count}")
         if token_count > connections_count:
             resized.append(TensorTypes.CON)
             self.connections.expand_to(token_count)

@@ -8,10 +8,14 @@ from ...utils import tensor_ops as tOps
 from ..single_nodes import Token, Ref_Token
 import torch
 
+from logging import getLogger
+logger = getLogger(__name__)
+
 if TYPE_CHECKING:
     from ...network import Network
-    from ..sets import Recipient
+    from ..sets import Recipient, Driver
     from ..tokens.connections import Mapping
+    from ..tokens.tensor.token_tensor import Token_Tensor
 
 class RelFormOperations:
     """
@@ -32,49 +36,47 @@ class RelFormOperations:
         " Debug flag. "
         self.inferred_new_p: bool = False
         " Flag to indicate if a new P was inferred. "
-        self.inferred_p: Ref_Token = None
-        " Reference to the inferred P token. "
+        self.inferred_p: int|None = None
+        " Index of the inferred P token. "
     
-    def requirements(self):
+    def requirements(self) -> bool:
         """
-        Checks requirements for relation formation:
-        - There are at least 2 RBs in the recipient that both map to RBs in the driver with mapping connections above 0.8, and that are NOT already connected to a P unit.
+        Checks requirements for relation formation, there must be at least 2 RBs in the recipient that both:
+        - Do not have connections to a P token (where P is the parent).
+        - Map to RBs in the driver with mapping connections above threshold (0.8).
+
+        Returns:
+            bool: True if requirements are met, False o.w.
         """
-        def check_rbs(self):
-            threshold = 0.8
-            recipient: 'Recipient' = self.network.recipient()
-            mappings: 'Mappings' = self.network.mappings
-            # Get mask of recipient RBs that don't connect to a P unit (Parent P).
-            r_rb = recipient.get_mask(Type.RB)
-            if r_rb.sum() < 2:
-                raise ValueError(f"Only {r_rb.sum()} RBs in recipient (required at least 2)")
-            r_p = recipient.get_mask(Type.P)
-            t_cons = torch.t(recipient.connections)                 # Transpose to get child->parent connections.
-            r_noP_rb = (t_cons[r_rb][:, r_p] == 0).all(dim=1)       # Mask of RBs that don't connect to a p unit
-            if r_noP_rb.sum() < 2:
-                raise ValueError(f"Only {r_noP_rb.sum()} RBs in recipient that don't connect to a P unit (required at least 2)")
-            r_noP_rb = tOps.sub_union(r_rb, r_noP_rb)               # Expand mask to be size of recipient node tensor
+        threshold = 0.8
+        net: 'Network' = self.network
+        mappings: 'Mapping' = net.mappings
+        tk_tensor: 'Token_Tensor' = net.token_tensor
+        cons = tk_tensor.connections.connections
 
-            # Find mapping connections to RBs in the driver that are above 0.8
-            map_cons = mappings[MappingFields.CONNECTIONS]
-            map_weights = mappings[MappingFields.WEIGHT]
-            d_rb = self.network.driver().get_mask(Type.RB)
-
-            map_cons = map_cons[r_noP_rb][:, d_rb]                  # Get just (valid recipient_RB) -> driver_RB mappings
-            map_weights = map_weights[r_noP_rb][:, d_rb]
-            active_weights = map_cons * map_weights                 # NOTE: Not sure if this is required. If mapping weights are only > 0 for active connections, then this can be removed
-            active_weights = active_weights[active_weights > threshold]   # Find number of connections that are above threshold
-        
-            if len(active_weights) < 2:
-                raise ValueError(f"Only {len(active_weights)} RBs in recipient that map to RBs in the driver with mapping connections above 0.8 (required at least 2)")
-        
-        try:
-            check_rbs(self)
-            return True
-        except ValueError as e:
-            if self.debug:
-                print(e)
+        # 1). Find RBs in the recipient that have no parent P.
+        r_rb = tk_tensor.cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT})
+        if r_rb.sum() < 2:
+            logger.debug(f"Only {torch.sum(r_rb)} RBs in recipient (required at least 2)")
             return False
+        r_p = tk_tensor.cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT})
+        if torch.any(r_p): # Only need to check if there are Ps in the recipient.
+            # P is parent, RB is child, so take dim=0? TODO: Check which dim I need
+            r_rb_no_p = (cons[r_p][:, r_rb] == True).all(dim=0) # Mask of RBs that don't connect to a P unit
+            if r_rb_no_p.sum() < 2:
+                logger.debug(f"Only {r_rb_no_p.sum()} RBs in recipient that don't connect to a P unit (required at least 2)")
+                return False
+            r_rb_no_p = tOps.sub_union(r_rb, r_rb_no_p) # Expand mask to size of token tensor.
+            r_rb_no_p = r_rb_no_p[net.recipient().lcl._indices] # Shrink mask to be the size of the recipient, to index into mappings.
+
+        # 2). Find at least 2 of these RBs that map to driver RBs above threshold.
+        map_weights = mappings[MappingFields.WEIGHT]
+        d_rb = self.network.driver().tensor_op.get_mask(Type.RB)
+        passing_maps = map_weights[r_rb_no_p][:, d_rb] > threshold
+        if len(passing_maps) < 2:
+            logger.debug(f"Only {len(passing_maps)} RBs in recipient that map to RBs in the driver with mapping connections above 0.8 (required at least 2)")
+            return False
+        return True
 
     def rel_form_routine(self):
         """
@@ -82,35 +84,37 @@ class RelFormOperations:
         - If new P has been inferred, connect it to RBs with act >= threshold (0.8).
         - Else, infer a new P in recipient
         """
-        if self.inferred_new_p:
-            # Connect new P to RBs with act >= threshold
+        if self.inferred_new_p: # Connect new P to RBs with act >= threshold
+            recipient: 'Recipient' = self.network.recipient()
+            tk_tensor: 'Token_Tensor' = self.network.token_tensor
             if self.inferred_p is None:
-                raise ValueError("Inferred P token is not set.")
+                raise ValueError("Inferred P is not set.")
             threshold = 0.8
-            rb_mask = self.network.recipient().get_mask(Type.RB)
-            active_mask = self.network.recipient().nodes[:, TF.ACT] >= threshold
+            rb_mask = recipient.tensor_op.get_mask(Type.RB)
+            active_mask = recipient.lcl[:, TF.ACT] >= threshold
             rb_to_connect = rb_mask & active_mask
-            infered_p_index = self.network.get_index(self.inferred_p)
-            self.network.recipient().token_op.connect_idx(infered_p_index, rb_to_connect)
-        else:
-            new_p_name = "" # Name should be RB1+RB2+...RBx. For now leave blank and name after phase set. NOTE: Why?
-            new_p = Token(Type.P, {TF.SET: Set.RECIPIENT, TF.INFERRED: B.TRUE})
-            ref_new_p = self.network.add_token(new_p)
-            if ref_new_p is None:
-                raise ValueError("Failed to add new P token to recipient.")
-            self.network.set_name(ref_new_p, new_p_name)
+            if rb_to_connect.sum() == 0:
+                logger.critical("No RBs to connect new P to.")
+                return
+            else:
+                rb_to_connect = self.network.to_global(torch.where(rb_to_connect)[0], Set.RECIPIENT) # convert to glbl indices.
+                tk_tensor.connections.connect_multiple(self.inferred_p, rb_to_connect)
+        else: # Infer a new P in recipient
+            new_p_name = "" # Name should be RB1+RB2+...RBx. For now leave blank and name after phase set. NOTE: Why? Connections change?
+            new_p_token = Token(Type.P, {TF.SET: Set.RECIPIENT, TF.INFERRED: B.TRUE}, name=new_p_name)
+            new_p = self.network.node_ops.add_token(new_p_token)
             self.inferred_new_p = True
-            self.inferred_p = ref_new_p
+            self.inferred_p = new_p
     
     def name_inferred_p(self):
         """Give the inferred p a name baseed on its RBs."""
         if self.inferred_p is None:
-            raise ValueError("Inferred P token is not set.")
-        rbs = self.network.recipient().get_connected_tokens(self.inferred_p)
+            raise ValueError("Inferred P is not set.")
+        rbs = self.network.token_tensor.connections.get_children(self.inferred_p).tolist()
         if len(rbs) == 0:
-            raise ValueError("Hey, you got a an error awhile ago that you were unable to reproduce. Basically, it seems you learned a P unit with no RBs (or something to that effect). You added a try/except to catch it in case it popped up again. It has. You will want to look very carefully at what happened with the latest P unit that has been made.") # Yoinked this debug message from runDORA.py
-        name_string = self.network.node_ops.get_name(rbs[0])
+            # Debug message from runDORA.py, kept in case still needed.
+            raise ValueError("Hey, you got a an error awhile ago that you were unable to reproduce. Basically, it seems you learned a P unit with no RBs (or something to that effect). You added a try/except to catch it in case it popped up again. It has. You will want to look very carefully at what happened with the latest P unit that has been made.")
+        name_string = self.network.get_name(int(rbs[0]))
         for rb in rbs[1:]:
-            name_string += "+" + self.network.node_ops.get_name(rb)
+            name_string += "+" + self.network.get_name(int(rb))
         self.network.set_name(self.inferred_p, name_string)
-        

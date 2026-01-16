@@ -120,6 +120,7 @@ class Network(object):
         """
         self.cache_sets()
         self.cache_analogs()
+        self.tokens.check_count()
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """
@@ -292,6 +293,16 @@ class Network(object):
             name (str): The name to set the token to.
         """
         self.tokens.set_name(idx, name)
+    
+    def get_name(self, idx: int) -> str:
+        """
+        Get the name for a token at the given index.
+        Args:
+            idx: int - The index of the token to get the name of.
+        Returns:
+            str - The name of the token.
+        """
+        return self.token_tensor.get_name(idx)
     
     def get_max_map_value(self, idx: int) -> float:
         """
