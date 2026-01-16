@@ -1,7 +1,6 @@
 venv/
 DORA/
 clear-cache.sh
-clear-cache.bat
 ctc.bat
 ctc.sh
 test_data/
