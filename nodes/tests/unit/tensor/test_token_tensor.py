@@ -49,28 +49,20 @@ def mock_tensor():
 
 
 @pytest.fixture
-def mock_connections():
-    """Create a mock connections tensor."""
-    num_tokens = 20
-    return torch.zeros((num_tokens, num_tokens), dtype=tensor_type)
-
-
-@pytest.fixture
 def mock_names():
     """Create a mock names dictionary."""
     return {i: f"token_{i}" for i in range(15)}  # Only active tokens have names
 
 
 @pytest.fixture
-def token_tensor(mock_tensor, mock_connections, mock_names):
+def token_tensor(mock_tensor, mock_names):
     """Create a Token_Tensor instance with mock data."""
-    return Token_Tensor(mock_tensor, mock_connections, mock_names)
+    return Token_Tensor(mock_tensor, mock_names)
 
 
-def test_token_tensor_init(token_tensor, mock_tensor, mock_connections, mock_names):
+def test_token_tensor_init(token_tensor, mock_tensor, mock_names):
     """Test Token_Tensor initialization."""
     assert torch.equal(token_tensor.tensor, mock_tensor)
-    assert torch.equal(token_tensor.connections, mock_connections)
     assert token_tensor.names == mock_names
     assert token_tensor.expansion_factor == 1.1
     assert token_tensor.cache is not None
@@ -332,32 +324,14 @@ def test_copy_tokens_to_deleted_slots(token_tensor):
     assert torch.all(replace_idxs >= 15)
     assert torch.all(replace_idxs < 20)
 
-
-def test_expand_tensor_preserves_connections(token_tensor):
-    """Test that expanding tensor doesn't affect connections structure."""
-    # Note: The current implementation doesn't expand connections,
-    # but we should verify the connections tensor still exists
-    original_connections = token_tensor.connections.clone()
-    
-    token_tensor.expand_tensor(min_expansion=10)
-    
-    # Connections should still exist (though not expanded in current implementation)
-    assert token_tensor.connections is not None
-    # Original connections should be preserved
-    assert torch.equal(token_tensor.connections[:original_connections.size(0), 
-                                                 :original_connections.size(1)], 
-                      original_connections)
-
-
 def test_add_tokens_with_empty_tensor():
     """Test adding tokens to an initially empty tensor."""
     # Create empty tensor (all deleted)
     empty_tensor = torch.full((5, len(TF)), null, dtype=tensor_type)
     empty_tensor[:, TF.DELETED] = B.TRUE
-    empty_connections = torch.zeros((5, 5), dtype=tensor_type)
     empty_names = {}
     
-    token_tensor = Token_Tensor(empty_tensor, empty_connections, empty_names)
+    token_tensor = Token_Tensor(empty_tensor, empty_names)
     
     # Add tokens
     new_tokens = torch.full((3, len(TF)), null, dtype=tensor_type)

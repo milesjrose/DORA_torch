@@ -14,7 +14,7 @@ class Token_Tensor:
     """
     A class for holding all the tokens in the network.
     """
-    def __init__(self, tokens: torch.Tensor, connections: Connections_Tensor, names: dict[int, str]):
+    def __init__(self, tokens: torch.Tensor, names: dict[int, str]):
         """
         Initialize the Tokens object.
         Args:
@@ -22,8 +22,9 @@ class Token_Tensor:
             connections: Connections_Tensor - The connections object.
             names: dict[int, str] - The dictionary of names.
         """
+        assert isinstance(tokens, torch.Tensor), f"tokens must be a torch.Tensor, not {type(tokens)}"
+        assert isinstance(names, dict), f"names must be a dictionary of int -> str, not {type(names)}"
         self.tensor: torch.Tensor = tokens
-        self.connections: Connections_Tensor = connections
         self.names: dict[int, str] = names # idx -> name
         self.expansion_factor = 1.1
         self.cache = Cache(tokens)
