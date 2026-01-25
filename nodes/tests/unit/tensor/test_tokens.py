@@ -11,9 +11,27 @@ from nodes.network.tokens.connections.mapping import Mapping, MD
 from nodes.enums import Set, TF, B, null, tensor_type, MappingFields
 
 
+
+
+@pytest.fixture
+def mock_connections():
+    """Create a mock connections tensor."""
+    num_tokens = 15
+    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
+    # Add some connections
+    connections[0, 1] = True
+    connections[1, 2] = True
+    connections[5, 6] = True
+    return connections
+
+@pytest.fixture
+def mock_names():
+    """Create mock token names."""
+    return {i: f"token_{i}" for i in range(15)}
+
 @pytest.fixture
 def mock_token_tensor():
-    """Create a mock token tensor."""
+    """Create a mock tensor of tokens."""
     num_tokens = 15
     num_features = len(TF)
     
@@ -37,21 +55,8 @@ def mock_token_tensor():
     tensor[10:15, TF.ANALOG] = 2
     tensor[10:15, TF.ACT] = torch.tensor([1.1, 1.2, 1.3, 1.4, 1.5])
     tensor[10:15, TF.ID] = torch.arange(10, 15)
-    
+
     return tensor
-
-
-@pytest.fixture
-def mock_connections():
-    """Create a mock connections tensor."""
-    num_tokens = 15
-    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
-    # Add some connections
-    connections[0, 1] = True
-    connections[1, 2] = True
-    connections[5, 6] = True
-    return connections
-
 
 @pytest.fixture
 def mock_links():
@@ -80,22 +85,14 @@ def mock_mapping():
 
 
 @pytest.fixture
-def mock_names():
-    """Create mock token names."""
-    return {i: f"token_{i}" for i in range(15)}
-
-
-@pytest.fixture
-def token_tensor(mock_token_tensor, mock_connections, mock_names):
-    """Create a Token_Tensor instance."""
-    return Token_Tensor(mock_token_tensor, mock_connections, mock_names)
-
-
-@pytest.fixture
 def connections_tensor(mock_connections):
     """Create a Connections_Tensor instance."""
     return Connections_Tensor(mock_connections)
 
+@pytest.fixture
+def token_tensor(mock_token_tensor, mock_names):
+    """Create a Token_Tensor instance."""
+    return Token_Tensor(mock_token_tensor, mock_names)
 
 @pytest.fixture
 def links(mock_links):

@@ -24,16 +24,19 @@ class Tokens:
             links: Links - The links object. Shape: [tokens, semantics]
             mapping: Mapping - The mapping object. Shape: [driver, recipient, mapping fields]
         """
+        assert isinstance(token_tensor, Token_Tensor), f"token_tensor must be a Token_Tensor, not {type(token_tensor)}"
         self.token_tensor: Token_Tensor = token_tensor
         """holds the token tensor"""
-        if connections is not None:
-            logger.warning("Assigning connection in token initialisation is deprecated. Connections should be set in the token tensor.")
-        self.connections: Connections_Tensor = token_tensor.connections
+        assert isinstance(connections, Connections_Tensor), f"connections must be a Connections_Tensor, not {type(connections)}"
+        self.connections: Connections_Tensor = connections
         """holds the connections tensor"""
+        assert isinstance(links, Links), f"links must be a Links, not {type(links)}"
         self.analog_ops: Analog_ops = Analog_ops(self.token_tensor)
         """holds the analog operations"""
+        assert isinstance(links, Links), f"links must be a Links, not {type(links)}"
         self.links: Links = links
         """holds the links tensor"""
+        assert isinstance(mapping, Mapping), f"mapping must be a Mapping, not {type(mapping)}"
         self.mapping: Mapping = mapping
         """holds the mapping tensor, None if not driver or recipient"""
     
