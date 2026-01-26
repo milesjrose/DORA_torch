@@ -71,9 +71,9 @@ def mock_names():
 
 
 @pytest.fixture
-def token_tensor(mock_tensor, mock_connections, mock_names):
+def token_tensor(mock_tensor, mock_names):
     """Create a Token_Tensor instance with mock data."""
-    return Token_Tensor(mock_tensor, mock_connections, mock_names)
+    return Token_Tensor(mock_tensor, mock_names)
 
 
 @pytest.fixture
