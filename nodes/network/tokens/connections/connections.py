@@ -7,9 +7,10 @@ logger = getLogger(__name__)
 class Connections_Tensor:
     """Class for holding the connections between tokens. Shape: [tokens, tokens]"""
     def __init__(self, connections: torch.Tensor):
+        assert isinstance(connections, torch.Tensor), f"connections must be a torch.Tensor, not {type(connections)}"
         self.connections: torch.Tensor = connections
         """Tensor of connections between tokens. Shape: [parent_tokens, child_tokens]"""
-        assert connections.dtype == torch.bool, "Connections tensor must be a boolean tensor"
+        assert connections.dtype == torch.bool, f"Connections tensor must be a boolean tensor, not {connections.dtype}"
     
     def get_count(self) -> int:
         """

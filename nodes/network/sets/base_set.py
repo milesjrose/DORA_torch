@@ -1,16 +1,21 @@
 import torch
 from ..network_params import Params
 from ...enums import *
-from ..tokens.tensor.token_tensor import Token_Tensor
-from ..tokens.tensor_view import TensorView
+from ..tokens import Tokens, TensorView
 from .base_set_ops import TensorOperations, UpdateOperations, AnalogOperations, KludgeyOperations, TokenOperations
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..tokens.tensor.token_tensor import Token_Tensor
 
 class Base_Set:
     """
     Base class for token sets.
     """
-    def __init__(self, tokens: Token_Tensor, token_set: Set, params: Params):
-        self.glbl: Token_Tensor = tokens
+    def __init__(self, tokens: Tokens, token_set: Set, params: Params):
+        self.tokens: Tokens = tokens
+        """Tokens: Tokens object"""
+        self.glbl: 'Token_Tensor' = tokens.token_tensor
         """Token_Tensor: Global view of the tensor"""
         self.tk_set: Set = token_set
         """Set: Token set"""
@@ -87,7 +92,7 @@ class Base_Set:
         self.tkop = self.token_op
     
     def get_connections(self) -> TensorView:
-        return self.glbl.connections.get_view(self.lcl._indices)
+        return self.tokens.connections.get_view(self.lcl._indices)
     
     def get_tensor(self) -> torch.Tensor:
         return self.lcl
