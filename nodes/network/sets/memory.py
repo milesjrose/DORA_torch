@@ -32,7 +32,7 @@ class Memory(Base_Set):
         # Exitatory: td (my Groups), bu (my RBs), mapping input.
         # Inhibitory: lateral (other P units in parent mode*lat_input_level), inhibitor.
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.glbl.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
         p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.PARENT})
@@ -77,7 +77,7 @@ class Memory(Base_Set):
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.glbl.connections.tensor
         nodes = self.glbl.tensor
         # Exitatory: td (RBs above me), mapping input, bu (my semantics [currently not implmented]).
         # Inhibitory: lateral (other Ps in child, and, if in DORA mode, other PO objects not connected to my RB, and 3*PO connected to my RB), inhibitor.
@@ -141,7 +141,7 @@ class Memory(Base_Set):
         Update input for RB units
         """
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.glbl.connections.tensor
         nodes = self.glbl.tensor
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
@@ -199,7 +199,7 @@ class Memory(Base_Set):
         # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
         # Inhibitory: td (if asDORA: not-connected RB nodes)
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.glbl.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
         all_po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT})

@@ -474,7 +474,7 @@ class NewNetworkStateGenerator:
             parent_name = token_tensor.names.get(idx_int, f"token_{idx_int}")
             
             # Get children
-            child_mask = connections_tensor.connections[idx_int, :] == True
+            child_mask = connections_tensor.tensor[idx_int, :] == True
             child_indices = torch.where(child_mask)[0]
             
             for child_idx in child_indices:
@@ -586,7 +586,7 @@ class NewNetworkStateGenerator:
         connections = self.network.tokens.connections
         token_tensor = self.network.token_tensor
         
-        child_mask = connections.connections[idx, :] == True
+        child_mask = connections.tensor[idx, :] == True
         child_indices = torch.where(child_mask)[0]
         
         names = []
@@ -604,7 +604,7 @@ class NewNetworkStateGenerator:
         connections = self.network.tokens.connections
         token_tensor = self.network.token_tensor
         
-        parent_mask = connections.connections[:, idx] == True
+        parent_mask = connections.tensor[:, idx] == True
         parent_indices = torch.where(parent_mask)[0]
         
         names = []
@@ -623,7 +623,7 @@ class NewNetworkStateGenerator:
         token_tensor = self.network.token_tensor
         
         # Find RBs that have this P as a child
-        parent_mask = connections.connections[:, p_idx] == True
+        parent_mask = connections.tensor[:, p_idx] == True
         parent_indices = torch.where(parent_mask)[0]
         
         names = []
@@ -641,7 +641,7 @@ class NewNetworkStateGenerator:
         connections = self.network.tokens.connections
         token_tensor = self.network.token_tensor
         
-        child_mask = connections.connections[rb_idx, :] == True
+        child_mask = connections.tensor[rb_idx, :] == True
         child_indices = torch.where(child_mask)[0]
         
         pred_name = None
@@ -666,7 +666,7 @@ class NewNetworkStateGenerator:
         connections = self.network.tokens.connections
         token_tensor = self.network.token_tensor
         
-        child_mask = connections.connections[rb_idx, :] == True
+        child_mask = connections.tensor[rb_idx, :] == True
         child_indices = torch.where(child_mask)[0]
         
         for child_idx in child_indices:

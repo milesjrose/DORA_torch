@@ -520,8 +520,8 @@ def test_rel_form_routine_below_threshold(network):
 
     network.recache()
     logger.debug(f"tk_con_obj: {network.tokens.connections}, tk_tens_con_obj: {network.token_tensor.connections}")
-    logger.debug(f"tk_cons: {network.tokens.connections.connections.size()}")
-    logger.debug(f"connections: {network.token_tensor.connections.connections.size()}")
+    logger.debug(f"tk_cons: {network.tokens.connections.tensor.size()}")
+    logger.debug(f"connections: {network.token_tensor.connections.tensor.size()}")
     
     # P should have no children (RB below threshold)
     p_idx = rel_form_ops.inferred_p

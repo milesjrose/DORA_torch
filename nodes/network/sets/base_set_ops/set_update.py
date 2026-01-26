@@ -154,7 +154,7 @@ class UpdateOperations:
     def p_get_mode(self) -> None:
         """Determine the mode of the P tokens based on the input from their RBs, and set their feature accordingly."""
         tk_tensor = self.base_set.glbl.tensor
-        con_tensor = self.base_set.glbl.connections.connections
+        con_tensor = self.base_set.glbl.connections.tensor
         # Pmode = Parent: child RB act> parent RB act / Child: parent RB act > child RB act / Neutral: o.w
         
         # Get local mask of p, and global indices

@@ -6,7 +6,8 @@ import torch
 from nodes.network.sets.driver import Driver
 from nodes.network.tokens.tensor.token_tensor import Token_Tensor
 from nodes.network.network_params import Params
-from nodes.enums import Set, TF, Type, B, Mode, null, tensor_type
+from nodes.network.tokens import Tokens, Links, Mapping, Connections_Tensor
+from nodes.enums import *
 
 
 @pytest.fixture
@@ -115,17 +116,35 @@ def mock_params():
 
 
 @pytest.fixture
-def token_tensor(mock_tensor_with_parent_p, mock_connections_with_parent_p, mock_names):
-    """Create a Token_Tensor instance with mock data."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections_with_parent_p)
-    return Token_Tensor(mock_tensor_with_parent_p, connections_tensor, mock_names)
-
-
-@pytest.fixture
-def driver(token_tensor, mock_params):
+def driver(mock_tensor_with_parent_p, mock_connections_with_parent_p, mock_names, mock_params):
     """Create a Driver instance."""
-    return Driver(token_tensor, mock_params, mappings=None)
+    return create_driver(tk_tensor=mock_tensor_with_parent_p, connections=mock_connections_with_parent_p, names=mock_names, params=mock_params)
+
+def create_driver(
+    tk_tensor: torch.Tensor, 
+    connections: torch.Tensor = None, 
+    names: dict[int, str] = None, 
+    links: Links = None,
+    params: Params = None, 
+    mappings: Mapping = None):
+    """  Create a driver instance """
+    tk_obj = Token_Tensor(tk_tensor, names)
+    tensor_size = tk_tensor.size(dim=0)
+    sem_size = 10
+    if connections is None:
+        connections = torch.zeros((tensor_size, tensor_size), dtype=torch.bool)
+    con_obj = Connections_Tensor(connections)
+    if mappings is None:
+        mappings = []
+        for field in MappingFields:
+            mappings.append( torch.zeros((tensor_size, tensor_size), dtype=torch.float))
+        mappings = torch.stack(mappings, dim=2)
+        mappings = Mapping(mappings)
+    if links is None:
+        links = Links(torch.zeros((tensor_size, sem_size), dtype=torch.bool))
+    tokens = Tokens(tk_obj, con_obj, links, mappings)
+    driver = Driver(tokens, params)
+    return driver
 
 
 # =====================[ update_input_p_parent tests ]======================
@@ -160,7 +179,7 @@ def test_update_input_p_parent_td_input_from_groups(driver):
     # Calculate expected values
     # P[0] (global index 0) is connected to GROUP[4] (act=0.3) and GROUP[5] (act=0.4)
     # P[1] (global index 1) is connected to GROUP[4] (act=0.3)
-    con_tensor = driver.glbl.connections.connections
+    con_tensor = driver.tokens.connections.tensor
     group_mask = cache.get_type_mask(Type.GROUP)
     group_indices = torch.where(group_mask)[0]
     
@@ -205,7 +224,7 @@ def test_update_input_p_parent_bu_input_from_rbs(driver):
     # Calculate expected values
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
-    con_tensor = driver.glbl.connections.connections
+    con_tensor = driver.tokens.connections.tensor
     
     # Calculate expected BU_INPUT for each P node
     expected_bu_input = torch.matmul(
@@ -487,17 +506,9 @@ def mock_connections_with_child_p():
 
 
 @pytest.fixture
-def token_tensor_child_p(mock_tensor_with_child_p, mock_connections_with_child_p, mock_names):
-    """Create a Token_Tensor instance with mock data for child P tests."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections_with_child_p)
-    return Token_Tensor(mock_tensor_with_child_p, connections_tensor, mock_names)
-
-
-@pytest.fixture
-def driver_child_p(token_tensor_child_p, mock_params):
+def driver_child_p(mock_tensor_with_child_p, mock_connections_with_child_p, mock_names, mock_params):
     """Create a Driver instance for child P tests."""
-    return Driver(token_tensor_child_p, mock_params, mappings=None)
+    return create_driver(tk_tensor=mock_tensor_with_child_p, connections=mock_connections_with_child_p, names=mock_names, params=mock_params)
 
 
 def test_update_input_p_child_td_input_from_groups(driver_child_p):
@@ -530,7 +541,7 @@ def test_update_input_p_child_td_input_from_groups(driver_child_p):
     updated_td_input = driver_child_p.glbl.tensor[p_indices, TF.TD_INPUT]
     
     # Calculate expected values from groups
-    con_tensor = driver_child_p.glbl.connections.connections
+    con_tensor = driver_child_p.tokens.connections.tensor
     group_mask = cache.get_type_mask(Type.GROUP)
     group_indices = torch.where(group_mask)[0]
     
@@ -586,7 +597,7 @@ def test_update_input_p_child_td_input_from_parent_rbs(driver_child_p):
     updated_td_input = driver_child_p.glbl.tensor[p_indices, TF.TD_INPUT]
     
     # Calculate expected values from parent RBs (using transpose connections)
-    con_tensor = driver_child_p.glbl.connections.connections
+    con_tensor = driver_child_p.tokens.connections.tensor
     t_con = torch.transpose(con_tensor, 0, 1)  # Transpose for child -> parent connections
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -953,18 +964,11 @@ def mock_connections_with_rb():
     return connections
 
 
-@pytest.fixture
-def token_tensor_rb(mock_tensor_with_rb, mock_connections_with_rb, mock_names):
-    """Create a Token_Tensor instance with mock data for RB tests."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections_with_rb)
-    return Token_Tensor(mock_tensor_with_rb, connections_tensor, mock_names)
-
 
 @pytest.fixture
-def driver_rb(token_tensor_rb, mock_params):
+def driver_rb(mock_tensor_with_rb, mock_connections_with_rb, mock_names, mock_params):
     """Create a Driver instance for RB tests."""
-    return Driver(token_tensor_rb, mock_params, mappings=None)
+    return create_driver(tk_tensor=mock_tensor_with_rb, connections=mock_connections_with_rb, names=mock_names, params=mock_params)
 
 
 def test_update_input_rb_td_input_from_parent_ps(driver_rb):
@@ -994,7 +998,7 @@ def test_update_input_rb_td_input_from_parent_ps(driver_rb):
     updated_td_input = driver_rb.glbl.tensor[rb_indices, TF.TD_INPUT]
     
     # Calculate expected values (using transpose connections for parent P nodes)
-    con_tensor = driver_rb.glbl.connections.connections
+    con_tensor = driver_rb.tokens.connections.tensor
     t_con = torch.transpose(con_tensor, 0, 1)
     p_mask = cache.get_type_mask(Type.P)
     p_indices = torch.where(p_mask)[0]
@@ -1037,7 +1041,7 @@ def test_update_input_rb_bu_input_from_po_and_child_p(driver_rb):
     updated_bu_input = driver_rb.glbl.tensor[rb_indices, TF.BU_INPUT]
     
     # Calculate expected values
-    con_tensor = driver_rb.glbl.connections.connections
+    con_tensor = driver_rb.tokens.connections.tensor
     po_mask = cache.get_type_mask(Type.PO)
     p_mask = cache.get_type_mask(Type.P)
     po_p_mask = torch.bitwise_or(po_mask, p_mask)
@@ -1291,17 +1295,9 @@ def mock_connections_with_po():
 
 
 @pytest.fixture
-def token_tensor_po(mock_tensor_with_po, mock_connections_with_po, mock_names):
-    """Create a Token_Tensor instance with mock data for PO tests."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections_with_po)
-    return Token_Tensor(mock_tensor_with_po, connections_tensor, mock_names)
-
-
-@pytest.fixture
-def driver_po(token_tensor_po, mock_params):
+def driver_po(mock_tensor_with_po, mock_connections_with_po, mock_names, mock_params):
     """Create a Driver instance for PO tests."""
-    return Driver(token_tensor_po, mock_params, mappings=None)
+    return create_driver(tk_tensor=mock_tensor_with_po, connections=mock_connections_with_po, names=mock_names, params=mock_params)
 
 
 def test_update_input_po_td_input_from_rbs_with_gain(driver_po):
@@ -1331,7 +1327,7 @@ def test_update_input_po_td_input_from_rbs_with_gain(driver_po):
     updated_td_input = driver_po.glbl.tensor[po_indices, TF.TD_INPUT]
     
     # Calculate expected values
-    con_tensor = driver_po.glbl.connections.connections
+    con_tensor = driver_po.tokens.connections.tensor
     parent_cons = torch.transpose(con_tensor, 0, 1)
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -1384,7 +1380,7 @@ def test_update_input_po_lateral_input_from_shared_pos_dora_mode(driver_po):
     updated_lateral_input = driver_po.glbl.tensor[po_indices, TF.LATERAL_INPUT]
     
     # Calculate expected lateral input change
-    con_tensor = driver_po.glbl.connections.connections
+    con_tensor = driver_po.tokens.connections.tensor
     parent_cons = torch.transpose(con_tensor, 0, 1)
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -1443,7 +1439,7 @@ def test_update_input_po_lateral_input_from_non_shared_pos_non_dora_mode(driver_
     updated_lateral_input = driver_po.glbl.tensor[po_indices, TF.LATERAL_INPUT]
     
     # Calculate expected lateral input change
-    con_tensor = driver_po.glbl.connections.connections
+    con_tensor = driver_po.tokens.connections.tensor
     parent_cons = torch.transpose(con_tensor, 0, 1)
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -1498,7 +1494,7 @@ def test_update_input_po_lateral_input_from_inhibitor(driver_po):
     expected_inhibitor_decrement = 10 * driver_po.glbl.tensor[po_indices, TF.INHIBITOR_ACT]
     
     # Also account for other PO contributions (3 * other POs)
-    con_tensor = driver_po.glbl.connections.connections
+    con_tensor = driver_po.tokens.connections.tensor
     parent_cons = torch.transpose(con_tensor, 0, 1)
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -1685,17 +1681,9 @@ def mock_connections_for_inhibitors():
 
 
 @pytest.fixture
-def token_tensor_inhibitors(mock_tensor_with_inhibitors, mock_connections_for_inhibitors, mock_names):
-    """Create a Token_Tensor instance with mock data for inhibitor tests."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections_for_inhibitors)
-    return Token_Tensor(mock_tensor_with_inhibitors, connections_tensor, mock_names)
-
-
-@pytest.fixture
-def driver_inhibitors(token_tensor_inhibitors, mock_params):
+def driver_inhibitors(mock_tensor_with_inhibitors, mock_connections_for_inhibitors, mock_names, mock_params):
     """Create a Driver instance for inhibitor tests."""
-    return Driver(token_tensor_inhibitors, mock_params, mappings=None)
+    return create_driver(tk_tensor=mock_tensor_with_inhibitors, connections=mock_connections_for_inhibitors, names=mock_names, params=mock_params)
 
 
 def test_check_local_inhibitor_returns_false_when_no_po_inhibitor_fires(driver_inhibitors):

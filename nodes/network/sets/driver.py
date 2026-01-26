@@ -3,9 +3,10 @@ from ...enums import *
 import torch 
 from logging import getLogger
 logger = getLogger(__name__)
-from ..tokens.tensor.token_tensor import Token_Tensor
+from ..tokens import Tokens
 from ..network_params import Params
 from ...utils import tensor_ops as tOps
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..tokens.connections.mapping import Mapping
@@ -14,7 +15,7 @@ class Driver(Base_Set):
     """
     A class for representing the driver set of tokens.
     """
-    def __init__(self, tokens: Token_Tensor, params: Params, mappings: 'Mapping'):
+    def __init__(self, tokens: Tokens, params: Params):
         """
         Initialize the Driver object.
         Args:
@@ -23,7 +24,7 @@ class Driver(Base_Set):
             mappings: Mapping - The mappings object for the driver set.
         """
         super().__init__(tokens, Set.DRIVER, params)
-        self.mappings: 'Mapping' = mappings
+        self.mappings: 'Mapping' = self.tokens.mapping
 
     
     def check_local_inhibitor(self):
@@ -50,7 +51,7 @@ class Driver(Base_Set):
 
     def update_input_p_parent(self):
         """Update input in driver for P units in parent mode"""
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.tokens.connections.tensor
         cache = self.glbl.cache
         nodes = self.glbl.tensor
         # Exitatory: td (my Groups) / bu (my RBs)
@@ -96,7 +97,7 @@ class Driver(Base_Set):
         """Update input in driver for P units in child mode"""
         cache = self.glbl.cache
         nodes = self.glbl.tensor
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.tokens.connections.tensor
         as_DORA = self.params.as_DORA
         # Exitatory: td (my parent RBs), (if phase_set>1: my groups)
         # Inhibitory: lateral (Other p in child mode), (if DORA_mode: PO acts / Else: POs not connected to same RBs)
@@ -180,7 +181,7 @@ class Driver(Base_Set):
         # Exitatory: td (my parent P), bu (my PO and child P).
         # Inhibitory: lateral (other RBs*3), inhibitor.
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
         rb = cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.DRIVER})
@@ -223,7 +224,7 @@ class Driver(Base_Set):
         # Exitatory: td (my RB) * gain (2 for preds, 1 for objects).
         # Inhibitory: lateral (other POs not connected to my RB and Ps in child mode, if in DORA mode, then other PO connected to my RB), inhibitor.
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
         po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.DRIVER})

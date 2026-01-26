@@ -8,7 +8,7 @@ class Connections_Tensor:
     """Class for holding the connections between tokens. Shape: [tokens, tokens]"""
     def __init__(self, connections: torch.Tensor):
         assert isinstance(connections, torch.Tensor), f"connections must be a torch.Tensor, not {type(connections)}"
-        self.connections: torch.Tensor = connections
+        self.tensor: torch.Tensor = connections
         """Tensor of connections between tokens. Shape: [parent_tokens, child_tokens]"""
         assert connections.dtype == torch.bool, f"Connections tensor must be a boolean tensor, not {connections.dtype}"
     
@@ -18,7 +18,7 @@ class Connections_Tensor:
         Returns:
             int - The number of connections in the tensor.
         """
-        return self.connections.shape[0]
+        return self.tensor.shape[0]
     
     def connect(self, parent_idxs: torch.Tensor|list[int]|int, child_idxs: torch.Tensor|list[int]|int, value=True):
         """
@@ -40,7 +40,7 @@ class Connections_Tensor:
         
         logger.debug(f"Connecting {parent_idxs} to {child_idxs} pairwise")
         # Connect pairwise: parent_idxs[i] -> child_idxs[i]
-        self.connections[parent_idxs, child_idxs] = value
+        self.tensor[parent_idxs, child_idxs] = value
     
     def connect_multiple(self, parent_idxs: torch.Tensor|list[int]|int, child_idxs: torch.Tensor, value=True):
         """
@@ -59,7 +59,7 @@ class Connections_Tensor:
 
         for parent_idx in parent_idxs:
             logger.debug(f"Connecting parent {parent_idx} to {len(child_idxs)} children")
-            self.connections[parent_idx] = value
+            self.tensor[parent_idx] = value
     
     def connect_bi(self, from_idxs: torch.Tensor, to_idxs: torch.Tensor, value=True):
         """
@@ -72,8 +72,8 @@ class Connections_Tensor:
         # Create all combinations
         from_expanded = from_idxs.unsqueeze(1).expand(-1, len(to_idxs))
         to_expanded = to_idxs.unsqueeze(0).expand(len(from_idxs), -1)
-        self.connections[from_expanded, to_expanded] = value
-        self.connections[to_expanded, from_expanded] = value
+        self.tensor[from_expanded, to_expanded] = value
+        self.tensor[to_expanded, from_expanded] = value
 
     def get_parents(self, child_idxs: torch.Tensor) -> torch.Tensor:
         """
@@ -88,7 +88,7 @@ class Connections_Tensor:
         # connections[i, j] = True means i -> j (parent i connects to child j)
         # To get parents of child j, we need all i where connections[i, j] = True
         # This is the column j, so we check connections[:, child_idxs]
-        mask = self.connections[:, child_idxs] == True
+        mask = self.tensor[:, child_idxs] == True
         # Get row indices (parents) where any of the specified children have connections
         parent_indices = torch.where(mask.any(dim=1))[0]
         return parent_indices
@@ -152,11 +152,11 @@ class Connections_Tensor:
         """
         logger.debug(f"Getting children for {parent_idxs} ")
         logger.debug(f"Parent indices: {parent_idxs}")
-        logger.debug(f"Connections shape: {self.connections.shape}")
+        logger.debug(f"Connections shape: {self.tensor.shape}")
         # connections[i, j] = True means i -> j (parent i connects to child j)
         # To get children of parent i, we need all j where connections[i, j] = True
         # This is the row i, so we check connections[parent_idxs, :]
-        mask = self.connections[parent_idxs, :] == True
+        mask = self.tensor[parent_idxs, :] == True
         # Get column indices (children) where any of the specified parents have connections
         child_indices = torch.where(mask.any(dim=0))[0]
         return child_indices
@@ -290,8 +290,8 @@ class Connections_Tensor:
         Args:
             indices: torch.Tensor - The indices of the tokens to delete connections from.
         """
-        self.connections[indices, :] = B.FALSE
-        self.connections[:, indices] = B.FALSE
+        self.tensor[indices, :] = B.FALSE
+        self.tensor[:, indices] = B.FALSE
 
     def expand_to(self, new_size: int):
         """
@@ -299,16 +299,16 @@ class Connections_Tensor:
         Args:
             new_size: int - The new size of the connections tensor.
         """
-        old_size = self.connections.shape[0]
+        old_size = self.tensor.shape[0]
         new_connections = torch.zeros(new_size, new_size, dtype=torch.bool)
         # Only copy if new size is larger than current size
-        if new_size >= self.connections.shape[0] and new_size >= self.connections.shape[1]:
-            new_connections[:self.connections.shape[0], :self.connections.shape[1]] = self.connections
-        elif new_size < self.connections.shape[0] or new_size < self.connections.shape[1]:
+        if new_size >= self.tensor.shape[0] and new_size >= self.tensor.shape[1]:
+            new_connections[:self.tensor.shape[0], :self.tensor.shape[1]] = self.tensor
+        elif new_size < self.tensor.shape[0] or new_size < self.tensor.shape[1]:
             # If shrinking, only copy what fits
-            copy_size = min(new_size, self.connections.shape[0], self.connections.shape[1])
-            new_connections[:copy_size, :copy_size] = self.connections[:copy_size, :copy_size]
-        self.connections = new_connections
+            copy_size = min(new_size, self.tensor.shape[0], self.tensor.shape[1])
+            new_connections[:copy_size, :copy_size] = self.tensor[:copy_size, :copy_size]
+        self.tensor = new_connections
         logger.info(f"Expanded connections tensor: {old_size} -> {new_size}")
     
     def get_view(self, indices: torch.Tensor) -> TensorView:
@@ -319,4 +319,4 @@ class Connections_Tensor:
         Returns:
             TensorView - A view-like object that maps operations back to the original tensor.
         """
-        return TensorView(self.connections, indices)
+        return TensorView(self.tensor, indices)

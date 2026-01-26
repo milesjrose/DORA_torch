@@ -1,29 +1,29 @@
 from .base_set import Base_Set
 from ...enums import *
 import torch 
-from ..tokens.tensor.token_tensor import Token_Tensor
+from ..tokens import Tokens
 from ..tokens.connections.links import Links
 from .semantics import Semantics
 from ..network_params import Params
 from ...utils import tensor_ops as tOps
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from ..tokens.connections.mapping import Mapping
+    from ..tokens import Mapping
 
 class Recipient(Base_Set):
     """
     A class for representing the recipient set of tokens.
     """
-    def __init__(self, tokens: Token_Tensor, params: Params, mappings: 'Mapping'):
+    def __init__(self, tokens: Tokens, params: Params):
         """
         Initialise a Recipient object
         Args:
-            tokens: Token_Tensor - Global token tensor.
+            tokens: Tokens - Tokens object.
             params: Params - The parameters for the recipient set.
             mappings: Mapping - The mappings object for the recipient set.
         """
         super().__init__(tokens, Set.RECIPIENT, params)
-        self.mappings: 'Mapping' = mappings
+        self.mappings: 'Mapping' = self.tokens.mapping
     
     def update_input(self, semantics: Semantics, links: Links):
         """
@@ -43,7 +43,7 @@ class Recipient(Base_Set):
         # Exitatory: td (my Groups), bu (my RBs), mapping input.
         # Inhibitory: lateral (other P units in parent mode*lat_input_level), inhibitor.
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
         p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.PARENT})
@@ -88,7 +88,7 @@ class Recipient(Base_Set):
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # Exitatory: td (RBs above me), mapping input, bu (my semantics [currently not implmented]).
         # Inhibitory: lateral (other Ps in child, and, if in DORA mode, other PO objects not connected to my RB, and 3*PO connected to my RB), inhibitor.
@@ -152,7 +152,7 @@ class Recipient(Base_Set):
         Update input for RB units
         """
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
@@ -210,7 +210,7 @@ class Recipient(Base_Set):
         # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
         # Inhibitory: td (if asDORA: not-connected RB nodes)
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.connections
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
         all_po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT})

@@ -5,9 +5,10 @@ import pytest
 import torch
 from nodes.network.sets.base_set import Base_Set
 from nodes.network.tokens.tensor.token_tensor import Token_Tensor
+from nodes.network.tokens import Tokens
 from nodes.network.network_params import Params
-from nodes.enums import Set, TF, B, null, tensor_type
-
+from nodes.network.tokens.connections import Links, Mapping, Connections_Tensor
+from nodes.enums import *
 
 @pytest.fixture
 def mock_tensor():
@@ -61,10 +62,38 @@ def mock_names():
 
 
 @pytest.fixture
-def token_tensor(mock_tensor, mock_connections, mock_names):
+def token_tensor(mock_tensor, mock_names):
     """Create a Token_Tensor instance with mock data."""
-    return Token_Tensor(mock_tensor, mock_connections, mock_names)
+    return Token_Tensor(mock_tensor,  mock_names)
 
+@pytest.fixture
+def mock_links():
+    """Create a mock links tensor."""
+    num_tokens = 20
+    num_semantics = 5
+    return Links(torch.zeros((num_tokens, num_semantics), dtype=torch.bool))
+
+@pytest.fixture
+def mock_mapping():
+    """Create a mock mapping tensor."""
+    num_driver = 5
+    num_recipient = 5
+    tensors = []
+    for field in MappingFields:
+        tensors.append(torch.zeros((num_recipient, num_driver), dtype=tensor_type))
+    tensor = torch.stack(tensors, dim=2)
+    return Mapping(tensor)
+
+@pytest.fixture
+def mock_connections():
+    """Create a mock connections tensor."""
+    num_tokens = 20
+    return Connections_Tensor(torch.zeros((num_tokens, num_tokens), dtype=torch.bool))
+
+@pytest.fixture
+def tokens(token_tensor, mock_connections, mock_mapping, mock_links):
+    """Create a Tokens instance with mock data."""
+    return Tokens(token_tensor, mock_connections, mock_links, mock_mapping)
 
 @pytest.fixture
 def mock_params():
@@ -75,38 +104,38 @@ def mock_params():
 
 # =====================[ __init__ tests ]======================
 
-def test_base_set_init_driver(token_tensor, mock_params):
+def test_base_set_init_driver(tokens, mock_params):
     """Test Base_Set initialization with DRIVER set."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     
-    assert base_set.glbl is token_tensor
+    assert base_set.glbl is tokens.token_tensor
     assert base_set.tk_set == Set.DRIVER
     assert base_set.lcl is not None
 
 
-def test_base_set_init_recipient(token_tensor, mock_params):
+def test_base_set_init_recipient(tokens, mock_params):
     """Test Base_Set initialization with RECIPIENT set."""
-    base_set = Base_Set(token_tensor, Set.RECIPIENT, mock_params)
+    base_set = Base_Set(tokens, Set.RECIPIENT, mock_params)
     
-    assert base_set.glbl is token_tensor
+    assert base_set.glbl is tokens.token_tensor
     assert base_set.tk_set == Set.RECIPIENT
     assert base_set.lcl is not None
 
 
-def test_base_set_init_memory(token_tensor, mock_params):
+def test_base_set_init_memory(tokens, mock_params):
     """Test Base_Set initialization with MEMORY set."""
-    base_set = Base_Set(token_tensor, Set.MEMORY, mock_params)
+    base_set = Base_Set(tokens, Set.MEMORY, mock_params)
     
-    assert base_set.glbl is token_tensor
+    assert base_set.glbl is tokens.token_tensor
     assert base_set.tk_set == Set.MEMORY
     assert base_set.lcl is not None
 
 
 # =====================[ get_tensor tests ]======================
 
-def test_get_tensor_driver(token_tensor, mock_params):
+def test_get_tensor_driver(tokens, mock_params):
     """Test get_tensor returns the view for DRIVER set."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     tensor = base_set.get_tensor()
     
     # Should return a TensorView
@@ -115,9 +144,9 @@ def test_get_tensor_driver(token_tensor, mock_params):
     assert len(tensor) == 5
 
 
-def test_get_tensor_recipient(token_tensor, mock_params):
+def test_get_tensor_recipient(tokens, mock_params):
     """Test get_tensor returns the view for RECIPIENT set."""
-    base_set = Base_Set(token_tensor, Set.RECIPIENT, mock_params)
+    base_set = Base_Set(tokens, Set.RECIPIENT, mock_params)
     tensor = base_set.get_tensor()
     
     # Should return a TensorView
@@ -126,9 +155,9 @@ def test_get_tensor_recipient(token_tensor, mock_params):
     assert len(tensor) == 5
 
 
-def test_get_tensor_memory(token_tensor, mock_params):
+def test_get_tensor_memory(tokens, mock_params):
     """Test get_tensor returns the view for MEMORY set."""
-    base_set = Base_Set(token_tensor, Set.MEMORY, mock_params)
+    base_set = Base_Set(tokens, Set.MEMORY, mock_params)
     tensor = base_set.get_tensor()
     
     # Should return a TensorView
@@ -137,9 +166,9 @@ def test_get_tensor_memory(token_tensor, mock_params):
     assert len(tensor) == 5
 
 
-def test_get_tensor_returns_same_view(token_tensor, mock_params):
+def test_get_tensor_returns_same_view(tokens, mock_params):
     """Test that get_tensor returns the same view object."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     tensor1 = base_set.get_tensor()
     tensor2 = base_set.get_tensor()
     
@@ -149,29 +178,29 @@ def test_get_tensor_returns_same_view(token_tensor, mock_params):
 
 # =====================[ get_token_set tests ]======================
 
-def test_get_token_set_driver(token_tensor, mock_params):
+def test_get_token_set_driver(tokens, mock_params):
     """Test get_token_set returns DRIVER."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     assert base_set.get_token_set() == Set.DRIVER
 
 
-def test_get_token_set_recipient(token_tensor, mock_params):
+def test_get_token_set_recipient(tokens, mock_params):
     """Test get_token_set returns RECIPIENT."""
-    base_set = Base_Set(token_tensor, Set.RECIPIENT, mock_params)
+    base_set = Base_Set(tokens, Set.RECIPIENT, mock_params)
     assert base_set.get_token_set() == Set.RECIPIENT
 
 
-def test_get_token_set_memory(token_tensor, mock_params):
+def test_get_token_set_memory(tokens, mock_params):
     """Test get_token_set returns MEMORY."""
-    base_set = Base_Set(token_tensor, Set.MEMORY, mock_params)
+    base_set = Base_Set(tokens, Set.MEMORY, mock_params)
     assert base_set.get_token_set() == Set.MEMORY
 
 
 # =====================[ update_view tests ]======================
 
-def test_update_view_basic(token_tensor, mock_params):
+def test_update_view_basic(tokens, mock_params):
     """Test basic update_view functionality."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     original_tensor = base_set.get_tensor()
     
     # Update the view
@@ -183,9 +212,9 @@ def test_update_view_basic(token_tensor, mock_params):
     assert base_set.lcl is updated_tensor
 
 
-def test_update_view_after_token_addition(token_tensor, mock_params):
+def test_update_view_after_token_addition(tokens, mock_params):
     """Test update_view after adding tokens to the set."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     original_count = len(base_set.get_tensor())
     
     # Add a new DRIVER token
@@ -194,7 +223,7 @@ def test_update_view_after_token_addition(token_tensor, mock_params):
     new_tokens[0, TF.SET] = Set.DRIVER
     new_tokens[0, TF.ACT] = 0.6
     new_names = ["new_driver_token"]
-    token_tensor.add_tokens(new_tokens, new_names)
+    tokens.token_tensor.add_tokens(new_tokens, new_names)
     
     # Update the view
     base_set.update_view()
@@ -204,13 +233,13 @@ def test_update_view_after_token_addition(token_tensor, mock_params):
     assert len(updated_tensor) == original_count + 1
 
 
-def test_update_view_after_token_deletion(token_tensor, mock_params):
+def test_update_view_after_token_deletion(tokens, mock_params):
     """Test update_view after deleting tokens from the set."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     original_count = len(base_set.get_tensor())
     
     # Delete a DRIVER token (token 0)
-    token_tensor.del_tokens(torch.tensor([0]))
+    tokens.token_tensor.del_tokens(torch.tensor([0]))
     
     # Update the view
     base_set.update_view()
@@ -220,9 +249,9 @@ def test_update_view_after_token_deletion(token_tensor, mock_params):
     assert len(updated_tensor) == original_count - 1
 
 
-def test_update_view_preserves_modifications(token_tensor, mock_params):
+def test_update_view_preserves_modifications(tokens, mock_params):
     """Test that modifications through the view are preserved after update_view."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     view = base_set.get_tensor()
     
     # Modify through the view
@@ -233,12 +262,12 @@ def test_update_view_preserves_modifications(token_tensor, mock_params):
     
     # The modification should still be in the original tensor
     # (view[0] corresponds to original token 0)
-    assert token_tensor.tensor[0, TF.ACT].item() == pytest.approx(0.99, abs=1e-6)
+    assert tokens.token_tensor.tensor[0, TF.ACT].item() == pytest.approx(0.99, abs=1e-6)
 
 
-def test_update_view_returns_tensor_view(token_tensor, mock_params):
+def test_update_view_returns_tensor_view(tokens, mock_params):
     """Test that update_view returns a TensorView."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     updated_tensor = base_set.update_view()
     
     # Should return a TensorView (or tensor-like object)
@@ -246,9 +275,9 @@ def test_update_view_returns_tensor_view(token_tensor, mock_params):
     assert hasattr(updated_tensor, '__getitem__')  # Should support indexing
 
 
-def test_update_view_multiple_calls(token_tensor, mock_params):
+def test_update_view_multiple_calls(tokens, mock_params):
     """Test calling update_view multiple times."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     
     # Call update_view multiple times
     view1 = base_set.update_view()
@@ -266,11 +295,11 @@ def test_update_view_multiple_calls(token_tensor, mock_params):
     assert base_set.lcl is view3
 
 
-def test_update_view_different_sets(token_tensor, mock_params):
+def test_update_view_different_sets(tokens, mock_params):
     """Test update_view works for different sets."""
-    driver_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
-    recipient_set = Base_Set(token_tensor, Set.RECIPIENT, mock_params)
-    memory_set = Base_Set(token_tensor, Set.MEMORY, mock_params)
+    driver_set = Base_Set(tokens, Set.DRIVER, mock_params)
+    recipient_set = Base_Set(tokens, Set.RECIPIENT, mock_params)
+    memory_set = Base_Set(tokens, Set.MEMORY, mock_params)
     
     # Update all views
     driver_view = driver_set.update_view()
@@ -283,15 +312,15 @@ def test_update_view_different_sets(token_tensor, mock_params):
     assert len(memory_view) == 5
 
 
-def test_update_view_after_set_change(token_tensor, mock_params):
+def test_update_view_after_set_change(tokens, mock_params):
     """Test update_view after changing a token's set."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     original_count = len(base_set.get_tensor())
     assert original_count == 5  # Should have 5 DRIVER tokens initially
     
     # Move token 0 from DRIVER to RECIPIENT
     # Note: move_tokens should invalidate cache for both old and new sets
-    token_tensor.move_tokens(torch.tensor([0]), Set.RECIPIENT)
+    tokens.token_tensor.move_tokens(torch.tensor([0]), Set.RECIPIENT)
     
     # Update the view to refresh it
     base_set.update_view()
@@ -304,10 +333,10 @@ def test_update_view_after_set_change(token_tensor, mock_params):
 
 # =====================[ Integration tests ]======================
 
-def test_base_set_full_workflow(token_tensor, mock_params):
+def test_base_set_full_workflow(tokens, mock_params):
     """Test a full workflow with Base_Set."""
     # Create base set
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     
     # Get initial tensor
     tensor1 = base_set.get_tensor()
@@ -321,7 +350,7 @@ def test_base_set_full_workflow(token_tensor, mock_params):
     new_tokens[0, TF.DELETED] = B.FALSE
     new_tokens[0, TF.SET] = Set.DRIVER
     new_names = ["new_token"]
-    token_tensor.add_tokens(new_tokens, new_names)
+    tokens.token_tensor.add_tokens(new_tokens, new_names)
     
     base_set.update_view()
     tensor2 = base_set.get_tensor()
@@ -332,25 +361,25 @@ def test_base_set_full_workflow(token_tensor, mock_params):
     assert tensor3 is tensor2
 
 
-def test_base_set_modifications_propagate(token_tensor, mock_params):
+def test_base_set_modifications_propagate(tokens, mock_params):
     """Test that modifications through Base_Set view propagate to original tensor."""
-    base_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
+    base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     view = base_set.get_tensor()
     
     # Modify through view
-    original_act = token_tensor.tensor[0, TF.ACT].item()
+    original_act = tokens.token_tensor.tensor[0, TF.ACT].item()
     view[0, TF.ACT] = 0.88
     
     # Should propagate to original
-    assert token_tensor.tensor[0, TF.ACT].item() == pytest.approx(0.88, abs=1e-6)
+    assert tokens.token_tensor.tensor[0, TF.ACT].item() == pytest.approx(0.88, abs=1e-6)
     assert view[0, TF.ACT].item() == pytest.approx(0.88, abs=1e-6)
 
 
-def test_base_set_multiple_instances(token_tensor, mock_params):
+def test_base_set_multiple_instances(tokens, mock_params):
     """Test creating multiple Base_Set instances for different sets."""
-    driver_set = Base_Set(token_tensor, Set.DRIVER, mock_params)
-    recipient_set = Base_Set(token_tensor, Set.RECIPIENT, mock_params)
-    memory_set = Base_Set(token_tensor, Set.MEMORY, mock_params)
+    driver_set = Base_Set(tokens, Set.DRIVER, mock_params)
+    recipient_set = Base_Set(tokens, Set.RECIPIENT, mock_params)
+    memory_set = Base_Set(tokens, Set.MEMORY, mock_params)
     
     # All should work independently
     assert len(driver_set.get_tensor()) == 5

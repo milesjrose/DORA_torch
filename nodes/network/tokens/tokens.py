@@ -26,19 +26,19 @@ class Tokens:
         """
         assert isinstance(token_tensor, Token_Tensor), f"token_tensor must be a Token_Tensor, not {type(token_tensor)}"
         self.token_tensor: Token_Tensor = token_tensor
-        """holds the token tensor"""
+        """holds the token tensor, token_tensor[token, feature] = value"""
         assert isinstance(connections, Connections_Tensor), f"connections must be a Connections_Tensor, not {type(connections)}"
         self.connections: Connections_Tensor = connections
-        """holds the connections tensor"""
+        """holds the connections tensor, connections.connections[parent, child] = True if connected"""
         assert isinstance(links, Links), f"links must be a Links, not {type(links)}"
         self.analog_ops: Analog_ops = Analog_ops(self.token_tensor)
         """holds the analog operations"""
         assert isinstance(links, Links), f"links must be a Links, not {type(links)}"
         self.links: Links = links
-        """holds the links tensor"""
+        """holds the links tensor, tokens -> semantics"""
         assert isinstance(mapping, Mapping), f"mapping must be a Mapping, not {type(mapping)}"
         self.mapping: Mapping = mapping
-        """holds the mapping tensor, None if not driver or recipient"""
+        """holds the mapping tensor, driver tokens -> recipient tokens"""
     
     def check_count(self) -> int:
         """
@@ -111,8 +111,8 @@ class Tokens:
         copy_indicies =  self.token_tensor.copy_tokens(indices, to_set)
         self.check_count()
         if connect_to_copies:
-            internal_connections = self.connections.connections[indices, indices].clone()
-            self.connections.connections[copy_indicies, copy_indicies] = internal_connections
+            internal_connections = self.connections.tensor[indices, indices].clone()
+            self.connections.tensor[copy_indicies, copy_indicies] = internal_connections
         return copy_indicies
     
     def get_view(self, view_type: TensorTypes, set: Set = None) -> TensorView | torch.Tensor:

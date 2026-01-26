@@ -52,7 +52,7 @@ class RelFormOperations:
         net: 'Network' = self.network
         mappings: 'Mapping' = net.mappings
         tk_tensor: 'Token_Tensor' = net.token_tensor
-        cons = tk_tensor.connections.connections
+        cons = tk_tensor.connections.tensor
 
         # 1). Find RBs in the recipient that have no parent P.
         r_rb = tk_tensor.cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT})

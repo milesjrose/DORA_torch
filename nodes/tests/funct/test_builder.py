@@ -399,7 +399,7 @@ class TestConnections:
         builder = NetworkBuilder(symProps=simple_sym_props)
         network = builder.build_network()
         
-        connections = network.tokens.connections.connections
+        connections = network.tokens.connections.tensor
         
         # Find P and RB tokens
         p_indices = []
@@ -425,7 +425,7 @@ class TestConnections:
         builder = NetworkBuilder(symProps=simple_sym_props)
         network = builder.build_network()
         
-        connections = network.tokens.connections.connections
+        connections = network.tokens.connections.tensor
         
         # Find RB and PO tokens
         rb_indices = []
@@ -451,7 +451,7 @@ class TestConnections:
         builder = NetworkBuilder(symProps=multi_rb_sym_props)
         network = builder.build_network()
         
-        connections = network.tokens.connections.connections
+        connections = network.tokens.connections.tensor
         
         # Verify P has children (RBs)
         p_idx = None
@@ -702,7 +702,7 @@ class TestExactHierarchy:
         ]
         
         network = build_network(props=symProps)
-        connections = network.tokens.connections.connections
+        connections = network.tokens.connections.tensor
         names = network.token_tensor.names
         
         # Find prop1's P token index
@@ -740,7 +740,7 @@ class TestExactHierarchy:
         ]
         
         network = build_network(props=symProps)
-        connections = network.tokens.connections.connections
+        connections = network.tokens.connections.tensor
         names = network.token_tensor.names
         tensor = network.token_tensor.tensor
         
@@ -783,7 +783,7 @@ class TestExactHierarchy:
         ]
         
         network = build_network(props=symProps)
-        connections = network.tokens.connections.connections
+        connections = network.tokens.connections.tensor
         names = network.token_tensor.names
         tensor = network.token_tensor.tensor
         
@@ -841,7 +841,7 @@ class TestExactHierarchy:
         ]
         
         network = build_network(props=symProps)
-        connections = network.tokens.connections.connections
+        connections = network.tokens.connections.tensor
         names = network.token_tensor.names
         tensor = network.token_tensor.tensor
         

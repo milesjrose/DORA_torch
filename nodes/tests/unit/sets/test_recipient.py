@@ -4,9 +4,9 @@
 import pytest
 import torch
 from nodes.network.sets.recipient import Recipient
-from nodes.network.tokens.tensor.token_tensor import Token_Tensor
+from nodes.network.tokens import Tokens, Connections_Tensor, Mapping, Links, Token_Tensor
 from nodes.network.network_params import Params
-from nodes.enums import Set, TF, Type, B, Mode, null, tensor_type, SF
+from nodes.enums import *
 
 
 @pytest.fixture
@@ -116,20 +116,37 @@ def mock_params():
 
 
 @pytest.fixture
-def token_tensor_recipient(mock_tensor_with_parent_p_recipient, mock_connections_with_parent_p_recipient, mock_names):
-    """Create a Token_Tensor instance with mock data for recipient tests."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections_with_parent_p_recipient)
-    return Token_Tensor(mock_tensor_with_parent_p_recipient, connections_tensor, mock_names)
-
-
-@pytest.fixture
-def recipient(token_tensor_recipient, mock_params):
+def recipient(mock_tensor_with_parent_p_recipient, mock_connections_with_parent_p_recipient, mock_names, mock_params):
     """Create a Recipient instance."""
-    recipient_obj = Recipient(token_tensor_recipient, mock_params, mappings=None)
-    # Mock map_input to return zeros for now (since it requires mappings)
+    recipient_obj = create_recipient(tk_tensor=mock_tensor_with_parent_p_recipient, connections=mock_connections_with_parent_p_recipient, names=mock_names, params=mock_params)
     recipient_obj.map_input = lambda p: torch.zeros(torch.sum(p).item() if torch.any(p) else 0)
     return recipient_obj
+
+def create_recipient(
+    tk_tensor: torch.Tensor, 
+    connections: torch.Tensor = None, 
+    names: dict[int, str] = None, 
+    links: Links = None,
+    params: Params = None, 
+    mappings: Mapping = None):
+    """  Create a driver instance """
+    tk_obj = Token_Tensor(tk_tensor, names)
+    tensor_size = tk_tensor.size(dim=0)
+    sem_size = 10
+    if connections is None:
+        connections = torch.zeros((tensor_size, tensor_size), dtype=torch.bool)
+    con_obj = Connections_Tensor(connections)
+    if mappings is None:
+        mappings = []
+        for field in MappingFields:
+            mappings.append( torch.zeros((tensor_size, tensor_size), dtype=torch.float))
+        mappings = torch.stack(mappings, dim=2)
+        mappings = Mapping(mappings)
+    if links is None:
+        links = Links(torch.zeros((tensor_size, sem_size), dtype=torch.bool))
+    tokens = Tokens(tk_obj, con_obj, links, mappings)
+    recipient = Recipient(tokens, params)
+    return recipient
 
 
 # =====================[ update_input_p_parent tests ]======================
@@ -165,7 +182,7 @@ def test_update_input_p_parent_td_input_from_groups_phase_set_1(recipient):
     updated_td_input = recipient.glbl.tensor[p_indices, TF.TD_INPUT]
     
     # Calculate expected values
-    con_tensor = recipient.glbl.connections.connections
+    con_tensor = recipient.tokens.connections.tensor
     group_mask = cache.get_type_mask(Type.GROUP)
     group_indices = torch.where(group_mask)[0]
     
@@ -210,7 +227,7 @@ def test_update_input_p_parent_td_input_from_groups_phase_set_0(recipient):
     group_contribution = updated_td_input - initial_td_input
     # The only contributions should be from BU_INPUT and MAP_INPUT, not from groups
     # We can't easily separate them, so let's just verify it's less than what it would be with groups
-    con_tensor = recipient.glbl.connections.connections
+    con_tensor = recipient.tokens.connections.tensor
     group_mask = cache.get_type_mask(Type.GROUP)
     group_indices = torch.where(group_mask)[0]
     expected_group_contribution = torch.matmul(
@@ -254,7 +271,7 @@ def test_update_input_p_parent_bu_input_from_rbs(recipient):
     # Calculate expected values
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
-    con_tensor = recipient.glbl.connections.connections
+    con_tensor = recipient.tokens.connections.tensor
     
     # Calculate expected BU_INPUT for each P node
     expected_bu_input = torch.matmul(
@@ -597,19 +614,10 @@ def mock_connections_with_child_p_recipient():
     
     return connections
 
-
 @pytest.fixture
-def token_tensor_child_p_recipient(mock_tensor_with_child_p_recipient, mock_connections_with_child_p_recipient, mock_names):
-    """Create a Token_Tensor instance with mock data for child P recipient tests."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections_with_child_p_recipient)
-    return Token_Tensor(mock_tensor_with_child_p_recipient, connections_tensor, mock_names)
-
-
-@pytest.fixture
-def recipient_child_p(token_tensor_child_p_recipient, mock_params):
+def recipient_child_p(mock_tensor_with_child_p_recipient, mock_connections_with_child_p_recipient, mock_names, mock_params):
     """Create a Recipient instance for child P tests."""
-    recipient_obj = Recipient(token_tensor_child_p_recipient, mock_params, mappings=None)
+    recipient_obj = create_recipient(tk_tensor=mock_tensor_with_child_p_recipient, connections=mock_connections_with_child_p_recipient, names=mock_names, params=mock_params)
     # Mock map_input to return zeros for now (since it requires mappings)
     recipient_obj.map_input = lambda p: torch.zeros(torch.sum(p).item() if torch.any(p) else 0)
     return recipient_obj
@@ -646,7 +654,7 @@ def test_update_input_p_child_td_input_from_parent_rbs_phase_set_1(recipient_chi
     updated_td_input = recipient_child_p.glbl.tensor[p_indices, TF.TD_INPUT]
     
     # Calculate expected values from parent RBs (using transpose connections)
-    con_tensor = recipient_child_p.glbl.connections.connections
+    con_tensor = recipient_child_p.tokens.connections.tensor
     t_con = torch.transpose(con_tensor, 0, 1)  # Transpose for child -> parent connections
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -1019,17 +1027,9 @@ def mock_connections_with_rb_recipient():
 
 
 @pytest.fixture
-def token_tensor_rb_recipient(mock_tensor_with_rb_recipient, mock_connections_with_rb_recipient, mock_names):
-    """Create a Token_Tensor instance with mock data for RB recipient tests."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections_with_rb_recipient)
-    return Token_Tensor(mock_tensor_with_rb_recipient, connections_tensor, mock_names)
-
-
-@pytest.fixture
-def recipient_rb(token_tensor_rb_recipient, mock_params):
+def recipient_rb(mock_tensor_with_rb_recipient, mock_connections_with_rb_recipient, mock_names, mock_params):
     """Create a Recipient instance for RB tests."""
-    recipient_obj = Recipient(token_tensor_rb_recipient, mock_params, mappings=None)
+    recipient_obj = create_recipient(tk_tensor=mock_tensor_with_rb_recipient, connections=mock_connections_with_rb_recipient, names=mock_names, params=mock_params)
     # Mock map_input to return zeros for now (since it requires mappings)
     recipient_obj.map_input = lambda rb: torch.zeros(torch.sum(rb).item() if torch.any(rb) else 0)
     return recipient_obj
@@ -1067,7 +1067,7 @@ def test_update_input_rb_td_input_from_parent_ps_phase_set_2(recipient_rb):
     updated_td_input = recipient_rb.glbl.tensor[rb_indices, TF.TD_INPUT]
     
     # Calculate expected values (using transpose connections for parent P nodes)
-    con_tensor = recipient_rb.glbl.connections.connections
+    con_tensor = recipient_rb.tokens.connections.tensor
     t_con = torch.transpose(con_tensor, 0, 1)
     p_mask = cache.get_type_mask(Type.P)
     p_indices = torch.where(p_mask)[0]
@@ -1139,7 +1139,7 @@ def test_update_input_rb_bu_input_from_po_and_p(recipient_rb):
     updated_bu_input = recipient_rb.glbl.tensor[rb_indices, TF.BU_INPUT]
     
     # Calculate expected values
-    con_tensor = recipient_rb.glbl.connections.connections
+    con_tensor = recipient_rb.tokens.connections.tensor
     po_mask = cache.get_type_mask(Type.PO)
     p_mask = cache.get_type_mask(Type.P)
     po_p_mask = torch.bitwise_or(po_mask, p_mask)
@@ -1456,17 +1456,9 @@ def mock_links():
 
 
 @pytest.fixture
-def token_tensor_po_recipient(mock_tensor_with_po_recipient, mock_connections_with_po_recipient, mock_names):
-    """Create a Token_Tensor instance with mock data for PO recipient tests."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections_with_po_recipient)
-    return Token_Tensor(mock_tensor_with_po_recipient, connections_tensor, mock_names)
-
-
-@pytest.fixture
-def recipient_po(token_tensor_po_recipient, mock_params):
+def recipient_po(mock_tensor_with_po_recipient, mock_connections_with_po_recipient, mock_names, mock_params):
     """Create a Recipient instance for PO tests."""
-    recipient_obj = Recipient(token_tensor_po_recipient, mock_params, mappings=None)
+    recipient_obj = create_recipient(tk_tensor=mock_tensor_with_po_recipient, connections=mock_connections_with_po_recipient, names=mock_names, params=mock_params)
     # Mock map_input to return zeros for now (since it requires mappings)
     recipient_obj.map_input = lambda po: torch.zeros(torch.sum(po).item() if torch.any(po) else 0)
     return recipient_obj
@@ -1507,7 +1499,7 @@ def test_update_input_po_td_input_from_rbs_phase_set_2(recipient_po, mock_semant
     updated_td_input = recipient_po.glbl.tensor[po_indices, TF.TD_INPUT]
     
     # Calculate expected values (using transpose connections for parent RBs)
-    con_tensor = recipient_po.glbl.connections.connections
+    con_tensor = recipient_po.tokens.connections.tensor
     parent_cons = torch.transpose(con_tensor, 0, 1)
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -1652,7 +1644,7 @@ def test_update_input_po_lateral_input_from_shared_pos_dora_mode(recipient_po, m
     updated_lateral_input = recipient_po.glbl.tensor[po_indices, TF.LATERAL_INPUT]
     
     # Calculate expected lateral input change
-    con_tensor = recipient_po.glbl.connections.connections
+    con_tensor = recipient_po.tokens.connections.tensor
     parent_cons = torch.transpose(con_tensor, 0, 1)
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -1722,7 +1714,7 @@ def test_update_input_po_lateral_input_from_non_shared_pos_non_dora_mode(recipie
     updated_lateral_input = recipient_po.glbl.tensor[po_indices, TF.LATERAL_INPUT]
     
     # Calculate expected lateral input change
-    con_tensor = recipient_po.glbl.connections.connections
+    con_tensor = recipient_po.tokens.connections.tensor
     parent_cons = torch.transpose(con_tensor, 0, 1)
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -1787,7 +1779,7 @@ def test_update_input_po_lateral_input_from_child_p_dora_mode(recipient_po, mock
     updated_lateral_input = recipient_po.glbl.tensor[po_indices, TF.LATERAL_INPUT]
     
     # Calculate expected lateral input change from child P nodes
-    con_tensor = recipient_po.glbl.connections.connections
+    con_tensor = recipient_po.tokens.connections.tensor
     parent_cons = torch.transpose(con_tensor, 0, 1)
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
@@ -1902,7 +1894,7 @@ def test_update_input_po_td_input_from_non_connected_rbs_dora_mode(recipient_po,
     updated_td_input = recipient_po.glbl.tensor[po_indices, TF.TD_INPUT]
     
     # Calculate expected TD_INPUT change from non-connected RBs
-    con_tensor = recipient_po.glbl.connections.connections
+    con_tensor = recipient_po.tokens.connections.tensor
     parent_cons = torch.transpose(con_tensor, 0, 1)
     rb_mask = cache.get_type_mask(Type.RB)
     rb_indices = torch.where(rb_mask)[0]
