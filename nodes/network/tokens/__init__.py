@@ -12,10 +12,10 @@ Provides classes for representing tokens in the network.
 - Token_Tensor: Represents the token tensor in the network.
 """
 
-from .tokens import Tokens
+from .tokens import Tokens, TensorTypes
 from .connections.connections import Connections_Tensor
-from .connections.links import Links
-from .connections.mapping import Mapping
+from .connections.links import Links, LD
+from .connections.mapping import Mapping, MD
 from .tensor_view import TensorView
 from .tensor.analogs import Analog_ops
 from .tensor.cache import Cache
@@ -31,5 +31,8 @@ __all__ = [
     "TensorView",
     "Analog_ops",
     "Cache",
-    "UpdateOps"
+    "UpdateOps",
+    "TensorTypes",
+    "LD",
+    "MD"
 ]

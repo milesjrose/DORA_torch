@@ -22,8 +22,8 @@ def connections_tensor(mock_connections):
 
 def test_connections_tensor_init(connections_tensor, mock_connections):
     """Test Connections_Tensor initialization."""
-    assert torch.equal(connections_tensor.connections, mock_connections)
-    assert connections_tensor.connections.dtype == torch.bool
+    assert torch.equal(connections_tensor.tensor, mock_connections)
+    assert connections_tensor.tensor.dtype == torch.bool
 
 
 def test_connections_tensor_init_requires_bool():
@@ -39,28 +39,28 @@ def test_connect(connections_tensor):
     connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
     
     # Verify connection
-    assert connections_tensor.connections[0, 1] == True
-    assert connections_tensor.connections[1, 0] == False  # Not bidirectional
+    assert connections_tensor.tensor[0, 1] == True
+    assert connections_tensor.tensor[1, 0] == False  # Not bidirectional
     
     # Connect multiple parents to multiple children pairwise
     connections_tensor.connect(torch.tensor([2, 3]), torch.tensor([4, 5]))
     # Should connect pairwise: 2->4, 3->5
-    assert connections_tensor.connections[2, 4] == True
-    assert connections_tensor.connections[3, 5] == True
+    assert connections_tensor.tensor[2, 4] == True
+    assert connections_tensor.tensor[3, 5] == True
     # These should NOT be connected (not all combinations)
-    assert connections_tensor.connections[2, 5] == False
-    assert connections_tensor.connections[3, 4] == False
+    assert connections_tensor.tensor[2, 5] == False
+    assert connections_tensor.tensor[3, 4] == False
 
 
 def test_connect_with_value(connections_tensor):
     """Test connecting with specific value."""
     # Connect with True
     connections_tensor.connect(torch.tensor([0]), torch.tensor([1]), value=True)
-    assert connections_tensor.connections[0, 1] == True
+    assert connections_tensor.tensor[0, 1] == True
     
     # Disconnect with False
     connections_tensor.connect(torch.tensor([0]), torch.tensor([1]), value=False)
-    assert connections_tensor.connections[0, 1] == False
+    assert connections_tensor.tensor[0, 1] == False
 
 
 def test_connect_mismatched_lengths(connections_tensor):
@@ -78,33 +78,33 @@ def test_connect_bi(connections_tensor):
     connections_tensor.connect_bi(torch.tensor([0]), torch.tensor([1]))
     
     # Verify both directions
-    assert connections_tensor.connections[0, 1] == True
-    assert connections_tensor.connections[1, 0] == True
+    assert connections_tensor.tensor[0, 1] == True
+    assert connections_tensor.tensor[1, 0] == True
     
     # Connect multiple nodes bidirectionally
     connections_tensor.connect_bi(torch.tensor([2, 3]), torch.tensor([4, 5]))
     # Should create all combinations
-    assert connections_tensor.connections[2, 4] == True
-    assert connections_tensor.connections[4, 2] == True
-    assert connections_tensor.connections[2, 5] == True
-    assert connections_tensor.connections[5, 2] == True
-    assert connections_tensor.connections[3, 4] == True
-    assert connections_tensor.connections[4, 3] == True
-    assert connections_tensor.connections[3, 5] == True
-    assert connections_tensor.connections[5, 3] == True
+    assert connections_tensor.tensor[2, 4] == True
+    assert connections_tensor.tensor[4, 2] == True
+    assert connections_tensor.tensor[2, 5] == True
+    assert connections_tensor.tensor[5, 2] == True
+    assert connections_tensor.tensor[3, 4] == True
+    assert connections_tensor.tensor[4, 3] == True
+    assert connections_tensor.tensor[3, 5] == True
+    assert connections_tensor.tensor[5, 3] == True
 
 
 def test_connect_bi_with_value(connections_tensor):
     """Test bidirectional connection with specific value."""
     # Connect bidirectionally
     connections_tensor.connect_bi(torch.tensor([0]), torch.tensor([1]), value=True)
-    assert connections_tensor.connections[0, 1] == True
-    assert connections_tensor.connections[1, 0] == True
+    assert connections_tensor.tensor[0, 1] == True
+    assert connections_tensor.tensor[1, 0] == True
     
     # Disconnect bidirectionally
     connections_tensor.connect_bi(torch.tensor([0]), torch.tensor([1]), value=False)
-    assert connections_tensor.connections[0, 1] == False
-    assert connections_tensor.connections[1, 0] == False
+    assert connections_tensor.tensor[0, 1] == False
+    assert connections_tensor.tensor[1, 0] == False
 
 
 def test_get_parents(connections_tensor):
@@ -231,7 +231,7 @@ def test_get_all_connected_bidirectional(connections_tensor):
 
 def test_expand_to(connections_tensor):
     """Test expanding the connections tensor."""
-    original_size = connections_tensor.connections.shape[0]
+    original_size = connections_tensor.tensor.shape[0]
     
     # Set some connections
     connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
@@ -241,14 +241,14 @@ def test_expand_to(connections_tensor):
     connections_tensor.expand_to(new_size)
     
     # Verify new size
-    assert connections_tensor.connections.shape == (new_size, new_size)
-    assert connections_tensor.connections.dtype == torch.bool
+    assert connections_tensor.tensor.shape == (new_size, new_size)
+    assert connections_tensor.tensor.dtype == torch.bool
     
     # Verify original connections are preserved
-    assert connections_tensor.connections[0, 1] == True
+    assert connections_tensor.tensor[0, 1] == True
     
     # Verify new connections are False
-    assert connections_tensor.connections[original_size, original_size] == False
+    assert connections_tensor.tensor[original_size, original_size] == False
 
 
 def test_expand_to_smaller_size(connections_tensor):
@@ -262,9 +262,9 @@ def test_expand_to_smaller_size(connections_tensor):
     connections_tensor.expand_to(new_size)
     
     # Verify new size
-    assert connections_tensor.connections.shape == (new_size, new_size)
+    assert connections_tensor.tensor.shape == (new_size, new_size)
     # Connection at [0, 1] should still be there
-    assert connections_tensor.connections[0, 1] == True
+    assert connections_tensor.tensor[0, 1] == True
 
 
 def test_complex_connection_graph(connections_tensor):
@@ -856,7 +856,7 @@ def test_get_view_basic(connections_tensor):
     # Verify view properties
     assert view.shape == (3, 10)  # 3 rows (selected indices), 10 columns (all connections)
     assert len(view) == 3
-    assert view.dtype == connections_tensor.connections.dtype
+    assert view.dtype == connections_tensor.tensor.dtype
     
     # Verify we can read from the view
     assert view[0, 1] == True  # connection[0, 1] should be True
@@ -869,16 +869,16 @@ def test_get_view_updates_original(connections_tensor):
     view = connections_tensor.get_view(indices)
     
     # Store original values
-    original_0_1 = connections_tensor.connections[0, 1].item()
-    original_1_2 = connections_tensor.connections[1, 2].item()
+    original_0_1 = connections_tensor.tensor[0, 1].item()
+    original_1_2 = connections_tensor.tensor[1, 2].item()
     
     # Modify through view
     view[0, 1] = True
     view[1, 2] = True
     
     # Verify original tensor was updated
-    assert connections_tensor.connections[0, 1] == True
-    assert connections_tensor.connections[1, 2] == True
+    assert connections_tensor.tensor[0, 1] == True
+    assert connections_tensor.tensor[1, 2] == True
     
     # Restore original values
     view[0, 1] = original_0_1
@@ -912,7 +912,7 @@ def test_get_view_single_index(connections_tensor):
     
     # Modify through view
     view[0, 7] = True
-    assert connections_tensor.connections[5, 7] == True
+    assert connections_tensor.tensor[5, 7] == True
 
 
 def test_get_view_all_indices(connections_tensor):
@@ -987,9 +987,9 @@ def test_get_view_slice_indexing(connections_tensor):
     sub_view[2, 6] = True
     
     # Verify original tensor was updated
-    assert connections_tensor.connections[0, 4] == True
-    assert connections_tensor.connections[1, 5] == True
-    assert connections_tensor.connections[2, 6] == True
+    assert connections_tensor.tensor[0, 4] == True
+    assert connections_tensor.tensor[1, 5] == True
+    assert connections_tensor.tensor[2, 6] == True
 
 
 def test_get_view_boolean_mask(connections_tensor):
@@ -1013,9 +1013,9 @@ def test_get_view_boolean_mask(connections_tensor):
     view[mask, 7] = True
     
     # Verify original tensor was updated (indices 0, 2, 6)
-    assert connections_tensor.connections[0, 7] == True
-    assert connections_tensor.connections[2, 7] == True
-    assert connections_tensor.connections[6, 7] == True
+    assert connections_tensor.tensor[0, 7] == True
+    assert connections_tensor.tensor[2, 7] == True
+    assert connections_tensor.tensor[6, 7] == True
 
 
 def test_get_view_broadcast_assignment(connections_tensor):
@@ -1028,7 +1028,7 @@ def test_get_view_broadcast_assignment(connections_tensor):
     
     # Verify all were updated
     for idx in indices:
-        assert connections_tensor.connections[idx, 5] == True
+        assert connections_tensor.tensor[idx, 5] == True
 
 
 def test_get_view_column_access(connections_tensor):
@@ -1093,7 +1093,7 @@ def test_get_view_clone(connections_tensor):
     
     # Modify cloned - should not affect original
     cloned[0, 1] = False
-    assert connections_tensor.connections[0, 1] == True  # Original unchanged
+    assert connections_tensor.tensor[0, 1] == True  # Original unchanged
     
     # Modify original through view at a different location - clone should remain unchanged
     # This verifies that clone is independent
@@ -1102,4 +1102,4 @@ def test_get_view_clone(connections_tensor):
     
     # Verify modifying clone doesn't affect original
     cloned[0, 3] = True
-    assert connections_tensor.connections[0, 3] == False  # Original unchanged
+    assert connections_tensor.tensor[0, 3] == False  # Original unchanged

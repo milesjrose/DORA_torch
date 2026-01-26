@@ -3,11 +3,7 @@
 
 import pytest
 import torch
-from nodes.network.tokens.tokens import Tokens, TensorTypes
-from nodes.network.tokens.tensor.token_tensor import Token_Tensor
-from nodes.network.tokens.connections.connections import Connections_Tensor
-from nodes.network.tokens.connections.links import Links, LD
-from nodes.network.tokens.connections.mapping import Mapping, MD
+from nodes.network.tokens import Connections_Tensor, Token_Tensor, Tokens, Links, Mapping, Token_Tensor, LD, MD, TensorTypes
 from nodes.enums import Set, TF, B, null, tensor_type, MappingFields
 
 
@@ -237,7 +233,7 @@ def test_delete_tokens_basic(tokens):
     # But token 0 should be marked as deleted
     assert tokens.token_tensor.tensor[0, TF.DELETED].item() == B.TRUE
     # Connections should be deleted
-    assert not tokens.connections.connections[0, 1].item()
+    assert not tokens.connections.tensor[0, 1].item()
     # Links should be deleted
     assert torch.all(tokens.links.adj_matrix[0, :] == 0.0)
 
@@ -256,8 +252,8 @@ def test_delete_tokens_multiple(tokens):
     assert tokens.token_tensor.tensor[1, TF.DELETED].item() == B.TRUE
     assert tokens.token_tensor.tensor[2, TF.DELETED].item() == B.TRUE
     # Connections should be deleted
-    assert not tokens.connections.connections[0, 1].item()
-    assert not tokens.connections.connections[1, 2].item()
+    assert not tokens.connections.tensor[0, 1].item()
+    assert not tokens.connections.tensor[1, 2].item()
 
 
 def test_delete_tokens_driver_mapping(tokens):
