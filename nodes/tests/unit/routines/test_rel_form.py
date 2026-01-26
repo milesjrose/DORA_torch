@@ -5,11 +5,7 @@ import pytest
 import torch
 from unittest.mock import Mock, patch, MagicMock
 from nodes.network.network import Network
-from nodes.network.tokens.tokens import Tokens
-from nodes.network.tokens.tensor.token_tensor import Token_Tensor
-from nodes.network.tokens.connections.connections import Connections_Tensor
-from nodes.network.tokens.connections.mapping import Mapping
-from nodes.network.tokens.connections.links import Links
+from nodes.network.tokens import Tokens, Token_Tensor, Connections_Tensor, Links, Mapping
 from nodes.network.sets.semantics import Semantics
 from nodes.network.network_params import default_params
 from nodes.network.single_nodes import Token
@@ -34,9 +30,8 @@ def minimal_token_tensor():
     # Set unique IDs for each token
     for i in range(num_tokens):
         tokens[i, TF.ID] = i
-    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
     names = {i: f"token_{i}" for i in range(num_tokens)}
-    return Token_Tensor(tokens, Connections_Tensor(connections), names)
+    return Token_Tensor(tokens, names)
 
 
 @pytest.fixture
@@ -85,9 +80,9 @@ def minimal_tokens(minimal_token_tensor, minimal_connections, minimal_links, min
 
 
 @pytest.fixture
-def network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params):
+def network(minimal_tokens, minimal_semantics, minimal_params):
     """Create minimal Network object for testing."""
-    return Network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params)
+    return Network(minimal_tokens, minimal_semantics, minimal_params)
 
 
 # =====================[ Initialization Tests ]======================
@@ -149,9 +144,9 @@ def test_requirements_returns_false_when_rbs_have_parent_p(network):
     network.token_tensor.tensor[3, TF.ID] = 3
     
     # Connect P to all RBs (P is parent of RBs)
-    network.token_tensor.connections.connect(3, 0)
-    network.token_tensor.connections.connect(3, 1)
-    network.token_tensor.connections.connect(3, 2)
+    network.tokens.connections.connect(3, 0)
+    network.tokens.connections.connect(3, 1)
+    network.tokens.connections.connect(3, 2)
     
     network.recache()
     
@@ -244,7 +239,7 @@ def test_rel_form_routine_connects_p_to_active_rbs_when_inferred(network):
     rel_form_ops.rel_form_routine()
     
     # Check connections - P should be connected to RBs with act >= 0.8
-    children = network.token_tensor.connections.get_children(inferred_p_idx)
+    children = network.tokens.connections.get_children(inferred_p_idx)
     
     # Should have connected to RBs at indices 0 and 2 (act >= 0.8)
     assert len(children) >= 1  # At least one RB should be connected
@@ -325,7 +320,7 @@ def test_name_inferred_p_creates_name_from_single_rb(network):
     network.set_name(rb_idx, "RB_test")
     
     # Connect P to RB
-    network.token_tensor.connections.connect(p_idx, rb_idx)
+    network.tokens.connections.connect(p_idx, rb_idx)
     network.recache()
     
     rel_form_ops.inferred_p = p_idx
@@ -360,8 +355,8 @@ def test_name_inferred_p_creates_name_from_multiple_rbs(network):
     network.set_name(rb2_idx, "RB_second")
     
     # Connect P to both RBs
-    network.token_tensor.connections.connect(p_idx, rb1_idx)
-    network.token_tensor.connections.connect(p_idx, rb2_idx)
+    network.tokens.connections.connect(p_idx, rb1_idx)
+    network.tokens.connections.connect(p_idx, rb2_idx)
     network.recache()
     
     rel_form_ops.inferred_p = p_idx
@@ -437,7 +432,7 @@ def test_full_rel_form_cycle_creates_and_connects_p(network):
     rel_form_ops.rel_form_routine()
     
     # Check P is connected to RBs
-    children = network.token_tensor.connections.get_children(p_idx)
+    children = network.tokens.connections.get_children(p_idx)
     assert len(children) > 0
 
 
@@ -496,7 +491,7 @@ def test_rel_form_routine_threshold_boundary(network):
     
     # Should have connected (0.8 >= 0.8)
     p_idx = rel_form_ops.inferred_p
-    children = network.token_tensor.connections.get_children(p_idx)
+    children = network.tokens.connections.get_children(p_idx)
     assert len(children) > 0
 
 
@@ -519,12 +514,12 @@ def test_rel_form_routine_below_threshold(network):
     rel_form_ops.rel_form_routine()
 
     network.recache()
-    logger.debug(f"tk_con_obj: {network.tokens.connections}, tk_tens_con_obj: {network.token_tensor.connections}")
+    logger.debug(f"tk_con_obj: {network.tokens.connections}, tk_tens_con_obj: {network.tokens.connections}")
     logger.debug(f"tk_cons: {network.tokens.connections.tensor.size()}")
-    logger.debug(f"connections: {network.token_tensor.connections.tensor.size()}")
+    logger.debug(f"connections: {network.tokens.connections.tensor.size()}")
     
     # P should have no children (RB below threshold)
     p_idx = rel_form_ops.inferred_p
-    children = network.token_tensor.connections.get_children(p_idx)
+    children = network.tokens.connections.get_children(p_idx)
     assert len(children) == 0
 

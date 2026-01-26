@@ -14,8 +14,7 @@ logger = getLogger(__name__)
 if TYPE_CHECKING:
     from ...network import Network
     from ..sets import Recipient, Driver
-    from ..tokens.connections import Mapping
-    from ..tokens.tensor.token_tensor import Token_Tensor
+    from ..tokens import Mapping, Token_Tensor
 
 class RelFormOperations:
     """
@@ -52,7 +51,7 @@ class RelFormOperations:
         net: 'Network' = self.network
         mappings: 'Mapping' = net.mappings
         tk_tensor: 'Token_Tensor' = net.token_tensor
-        cons = tk_tensor.connections.tensor
+        cons = self.network.tokens.connections.tensor
 
         # 1). Find RBs in the recipient that have no parent P.
         r_rb = tk_tensor.cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT})
@@ -87,6 +86,7 @@ class RelFormOperations:
         if self.inferred_new_p: # Connect new P to RBs with act >= threshold
             recipient: 'Recipient' = self.network.recipient()
             tk_tensor: 'Token_Tensor' = self.network.token_tensor
+            cons = self.network.tokens.connections
             if self.inferred_p is None:
                 raise ValueError("Inferred P is not set.")
             threshold = 0.8
@@ -98,7 +98,7 @@ class RelFormOperations:
                 return
             else:
                 rb_to_connect = self.network.to_global(torch.where(rb_to_connect)[0], Set.RECIPIENT) # convert to glbl indices.
-                tk_tensor.connections.connect_multiple(self.inferred_p, rb_to_connect)
+                cons.connect_multiple(self.inferred_p, rb_to_connect)
         else: # Infer a new P in recipient
             new_p_name = "" # Name should be RB1+RB2+...RBx. For now leave blank and name after phase set. NOTE: Why? Connections change?
             new_p_token = Token(Type.P, {TF.SET: Set.RECIPIENT, TF.INFERRED: B.TRUE}, name=new_p_name)
@@ -110,7 +110,7 @@ class RelFormOperations:
         """Give the inferred p a name baseed on its RBs."""
         if self.inferred_p is None:
             raise ValueError("Inferred P is not set.")
-        rbs = self.network.token_tensor.connections.get_children(self.inferred_p).tolist()
+        rbs = self.network.tokens.connections.get_children(self.inferred_p).tolist()
         if len(rbs) == 0:
             # Debug message from runDORA.py, kept in case still needed.
             raise ValueError("Hey, you got a an error awhile ago that you were unable to reproduce. Basically, it seems you learned a P unit with no RBs (or something to that effect). You added a try/except to catch it in case it popped up again. It has. You will want to look very carefully at what happened with the latest P unit that has been made.")
