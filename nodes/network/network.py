@@ -18,7 +18,7 @@ class Network(object):
     """
     A class for holding set objects and operations.
     """
-    def __init__(self, tokens: Tokens, semantics: Semantics, mappings: Mapping, links: Links, params: Params = None):
+    def __init__(self, tokens: Tokens, semantics: Semantics, params: Params = None):
         """
         Initialize the Network object. Checks types; sets inter-set connections and params.
 
@@ -32,10 +32,6 @@ class Network(object):
         # Check types
         if not isinstance(semantics, Semantics):
             raise ValueError("semantics must be a Semantics object.")
-        if not isinstance(mappings, Mapping):
-            raise ValueError("mappings must be a Mapping object.")
-        if not isinstance(links, Links):
-            raise ValueError("links must be a Links object.")
         if not isinstance(params, Params):
             raise ValueError("params must be a Params object.")
         # set objects
@@ -47,18 +43,18 @@ class Network(object):
         """ Semantics object for the network. """
         self.params: Params = params
         """ Parameters object for the network. """
-        self.mappings: Mapping = mappings
+        self.mappings: Mapping = tokens.mapping
         """ Mappings object for the network. """
-        self.links: Links = links
+        self.links: Links = tokens.links
         """ Links object for the network. 
             - Links[set] gives set's links to semantics
             - Link tensor shape: [nodes, semantics]
         """
         self.sets: dict[Set, Base_Set] = {
-            Set.DRIVER: Driver(self.token_tensor, self.params, self.mappings),
-            Set.RECIPIENT: Recipient(self.token_tensor, self.params, self.mappings),
-            Set.MEMORY: Memory(self.token_tensor, self.params),
-            Set.NEW_SET: New_Set(self.token_tensor, self.params)
+            Set.DRIVER: Driver(self.tokens, self.params),
+            Set.RECIPIENT: Recipient(self.tokens, self.params),
+            Set.MEMORY: Memory(self.tokens, self.params),
+            Set.NEW_SET: New_Set(self.tokens, self.params)
         }
         """ Dictionary of set objects for the network. """
 
