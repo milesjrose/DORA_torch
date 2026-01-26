@@ -29,9 +29,8 @@ def minimal_token_tensor():
     num_tokens = 10
     num_features = len(TF)
     tokens = torch.zeros((num_tokens, num_features))
-    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
     names = {}
-    return Token_Tensor(tokens, Connections_Tensor(connections), names)
+    return Token_Tensor(tokens, names)
 
 
 @pytest.fixture
@@ -80,9 +79,9 @@ def minimal_tokens(minimal_token_tensor, minimal_connections, minimal_links, min
 
 
 @pytest.fixture
-def network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params):
+def network(minimal_tokens, minimal_semantics, minimal_params):
     """Create minimal Network object for testing."""
-    return Network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params)
+    return Network(minimal_tokens, minimal_semantics, minimal_params)
 
 
 # =====================[ Initialization Tests ]======================
@@ -103,28 +102,15 @@ def test_network_init_success(network):
     assert Set.NEW_SET in network.sets
 
 
-def test_network_init_type_checking_semantics(minimal_tokens, minimal_mapping, minimal_links, minimal_params):
+def test_network_init_type_checking_semantics(minimal_tokens, minimal_params):
     """Test Network initialization raises ValueError for invalid semantics type."""
     with pytest.raises(ValueError, match="semantics must be a Semantics object"):
-        Network(minimal_tokens, "invalid", minimal_mapping, minimal_links, minimal_params)
+        Network(minimal_tokens, "invalid", minimal_params)
 
-
-def test_network_init_type_checking_mappings(minimal_tokens, minimal_semantics, minimal_links, minimal_params):
-    """Test Network initialization raises ValueError for invalid mappings type."""
-    with pytest.raises(ValueError, match="mappings must be a Mapping object"):
-        Network(minimal_tokens, minimal_semantics, "invalid", minimal_links, minimal_params)
-
-
-def test_network_init_type_checking_links(minimal_tokens, minimal_semantics, minimal_mapping, minimal_params):
-    """Test Network initialization raises ValueError for invalid links type."""
-    with pytest.raises(ValueError, match="links must be a Links object"):
-        Network(minimal_tokens, minimal_semantics, minimal_mapping, "invalid", minimal_params)
-
-
-def test_network_init_type_checking_params(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links):
+def test_network_init_type_checking_params(minimal_tokens, minimal_semantics):
     """Test Network initialization raises ValueError for invalid params type."""
     with pytest.raises(ValueError, match="params must be a Params object"):
-        Network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, "invalid")
+        Network(minimal_tokens, minimal_semantics, "invalid")
 
 
 def test_network_init_operations_created(network):
