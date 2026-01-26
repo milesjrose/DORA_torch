@@ -86,7 +86,7 @@ class TokenOperations:
         Get the indicies of the children of the given token
         """
         global_idx = self.base_set.lcl.to_global(idx)
-        indicies = self.base_set.glbl.connections.get_children(global_idx)
+        indicies = self.base_set.tokens.connections.get_children(global_idx)
         return self.base_set.lcl.to_local(indicies)
     
     def get_most_active_token(self, token_type: Type = None) -> int:
@@ -116,7 +116,7 @@ class TokenOperations:
         """
         parent_global_idx = self.base_set.lcl.to_global(parent_idx)
         child_global_idx = self.base_set.lcl.to_global(child_idx)
-        self.base_set.glbl.connections.connect(parent_global_idx, child_global_idx, value)
+        self.base_set.tokens.connections.connect(parent_global_idx, child_global_idx, value)
     
     def connect_multiple(self, parent_idxs: torch.Tensor, child_idxs: torch.Tensor, value=B.TRUE):
         """
@@ -124,7 +124,7 @@ class TokenOperations:
         """
         parent_global_idxs = self.base_set.lcl.to_global(parent_idxs)
         child_global_idxs = self.base_set.lcl.to_global(child_idxs)
-        self.base_set.glbl.connections.connect(parent_global_idxs, child_global_idxs, value)
+        self.base_set.tokens.connections.connect(parent_global_idxs, child_global_idxs, value)
     
     def get_ref_string(self, idx: int) -> str:
         """

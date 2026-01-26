@@ -4,10 +4,10 @@
 import pytest
 import torch
 import logging
-from nodes.network.sets.base_set import Base_Set
-from nodes.network.tokens.tensor.token_tensor import Token_Tensor
+from nodes.network.sets import Base_Set
+from nodes.network.tokens import Tokens, Token_Tensor, Connections_Tensor, Links, Mapping
 from nodes.network.network_params import Params
-from nodes.enums import Set, TF, Type, B, null, tensor_type
+from nodes.enums import *
 
 
 @pytest.fixture
@@ -81,28 +81,49 @@ def mock_params():
 
 
 @pytest.fixture
-def token_tensor(mock_tensor, mock_connections, mock_names):
-    """Create a Token_Tensor instance with mock data."""
-    return Token_Tensor(mock_tensor, mock_connections, mock_names)
-
-
-@pytest.fixture
-def driver_set(token_tensor, mock_params):
+def driver_set(mock_tensor, mock_connections, mock_names, mock_params):
     """Create a Base_Set instance for DRIVER set."""
-    return Base_Set(token_tensor, Set.DRIVER, mock_params)
+    return create_base_set(Set.DRIVER, mock_tensor, mock_connections, names=mock_names, params=mock_params)
 
 
 @pytest.fixture
-def recipient_set(token_tensor, mock_params):
+def recipient_set(mock_tensor, mock_connections, mock_names, mock_params):
     """Create a Base_Set instance for RECIPIENT set."""
-    return Base_Set(token_tensor, Set.RECIPIENT, mock_params)
+    return create_base_set(Set.RECIPIENT, mock_tensor, mock_connections, names=mock_names, params=mock_params)
 
 
 @pytest.fixture
-def memory_set(token_tensor, mock_params):
+def memory_set(mock_tensor, mock_connections, mock_names, mock_params):
     """Create a Base_Set instance for MEMORY set."""
-    return Base_Set(token_tensor, Set.MEMORY, mock_params)
+    return create_base_set(Set.MEMORY, mock_tensor, mock_connections, names=mock_names, params=mock_params)
 
+
+def create_base_set(
+    set_type: Set,
+    tk_tensor: torch.Tensor, 
+    connections: torch.Tensor = None, 
+    names: dict[int, str] = None, 
+    links: Links = None,
+    params: Params = None, 
+    mappings: Mapping = None):
+    """  Create a set instance """
+    tk_obj = Token_Tensor(tk_tensor, names)
+    tensor_size = tk_tensor.size(dim=0)
+    sem_size = 10
+    if connections is None:
+        connections = torch.zeros((tensor_size, tensor_size), dtype=torch.bool)
+    con_obj = Connections_Tensor(connections)
+    if mappings is None:
+        mappings = []
+        for field in MappingFields:
+            mappings.append( torch.zeros((tensor_size, tensor_size), dtype=torch.float))
+        mappings = torch.stack(mappings, dim=2)
+        mappings = Mapping(mappings)
+    if links is None:
+        links = Links(torch.zeros((tensor_size, sem_size), dtype=torch.bool))
+    tokens = Tokens(tk_obj, con_obj, links, mappings)
+    base_set = Base_Set(tokens, set_type, params)
+    return base_set
 
 # =====================[ get_mask tests ]======================
 

@@ -3,10 +3,10 @@
 
 import pytest
 import torch
-from nodes.network.sets.base_set import Base_Set
-from nodes.network.tokens.tensor.token_tensor import Token_Tensor
+from nodes.network.sets import Base_Set
+from nodes.network.tokens import Tokens, Token_Tensor, Connections_Tensor, Links, Mapping
 from nodes.network.network_params import Params
-from nodes.enums import Set, TF, Type, B, null, tensor_type
+from nodes.enums import *
 from nodes.network.single_nodes import Pairs
 
 
@@ -67,26 +67,43 @@ def mock_params():
     from nodes.network.default_parameters import parameters
     return Params(parameters)
 
-
 @pytest.fixture
-def token_tensor(mock_tensor_with_preds, mock_connections, mock_names):
-    """Create a Token_Tensor instance with mock data."""
-    from nodes.network.tokens.connections.connections import Connections_Tensor
-    connections_tensor = Connections_Tensor(mock_connections)
-    return Token_Tensor(mock_tensor_with_preds, connections_tensor, mock_names)
-
-
-@pytest.fixture
-def driver_set(token_tensor, mock_params):
+def driver_set(mock_tensor_with_preds, mock_connections, mock_names, mock_params):
     """Create a Base_Set instance for DRIVER set."""
-    return Base_Set(token_tensor, Set.DRIVER, mock_params)
+    return create_base_set(Set.DRIVER, mock_tensor_with_preds, mock_connections, names=mock_names, params=mock_params)
 
 
 @pytest.fixture
-def recipient_set(token_tensor, mock_params):
+def recipient_set(mock_tensor_with_preds, mock_connections, mock_names, mock_params):
     """Create a Base_Set instance for RECIPIENT set."""
-    return Base_Set(token_tensor, Set.RECIPIENT, mock_params)
+    return create_base_set(Set.RECIPIENT, mock_tensor_with_preds, mock_connections, names=mock_names, params=mock_params)
 
+def create_base_set(
+    set_type: Set,
+    tk_tensor: torch.Tensor, 
+    connections: torch.Tensor = None, 
+    names: dict[int, str] = None, 
+    links: Links = None,
+    params: Params = None, 
+    mappings: Mapping = None):
+    """  Create a set instance """
+    tk_obj = Token_Tensor(tk_tensor, names)
+    tensor_size = tk_tensor.size(dim=0)
+    sem_size = 10
+    if connections is None:
+        connections = torch.zeros((tensor_size, tensor_size), dtype=torch.bool)
+    con_obj = Connections_Tensor(connections)
+    if mappings is None:
+        mappings = []
+        for field in MappingFields:
+            mappings.append( torch.zeros((tensor_size, tensor_size), dtype=torch.float))
+        mappings = torch.stack(mappings, dim=2)
+        mappings = Mapping(mappings)
+    if links is None:
+        links = Links(torch.zeros((tensor_size, sem_size), dtype=torch.bool))
+    tokens = Tokens(tk_obj, con_obj, links, mappings)
+    base_set = Base_Set(tokens, set_type, params)
+    return base_set
 
 # =====================[ get_pred_rb_no_ps tests ]======================
 
@@ -107,8 +124,8 @@ def test_get_pred_rb_no_ps_preds_connected_to_rb_no_p(driver_set):
     # Pred 0 -> RB 3 (RB 3 not connected to any P)
     # Pred 1 -> RB 4 (RB 4 not connected to any P)
     # RB 3 and RB 4 are not connected to any P
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_no_ps(pairs)
@@ -128,9 +145,9 @@ def test_get_pred_rb_no_ps_some_rbs_connected_to_p(driver_set):
     # Pred 1 -> RB 4 (RB 4 connected to P 6)
     # RB 3 not connected to P
     # RB 4 -> P 6
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
-    driver_set.glbl.connections.connections[4, 6] = True  # RB 4 -> P 6
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[4, 6] = True  # RB 4 -> P 6
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_no_ps(pairs)
@@ -148,9 +165,9 @@ def test_get_pred_rb_no_ps_multiple_preds(driver_set):
     # Pred 1 -> RB 4
     # Pred 2 -> RB 5
     # None of the RBs are connected to P
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
-    driver_set.glbl.connections.connections[2, 5] = True  # Pred 2 -> RB 5
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[2, 5] = True  # Pred 2 -> RB 5
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_no_ps(pairs)
@@ -167,9 +184,9 @@ def test_get_pred_rb_no_ps_rb_connected_to_multiple_ps(driver_set):
     # Set up connections:
     # Pred 0 -> RB 3
     # RB 3 -> P 6 and P 7
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[3, 6] = True  # RB 3 -> P 6
-    driver_set.glbl.connections.connections[3, 7] = True  # RB 3 -> P 7
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[3, 6] = True  # RB 3 -> P 6
+    driver_set.tokens.connections.tensor[3, 7] = True  # RB 3 -> P 7
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_no_ps(pairs)
@@ -183,7 +200,7 @@ def test_get_pred_rb_no_ps_only_one_pred(driver_set):
     """Test get_pred_rb_no_ps with only one pred connected to RB with no P."""
     # Set up connections:
     # Pred 0 -> RB 3 (RB 3 not connected to P)
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_no_ps(pairs)
@@ -196,10 +213,10 @@ def test_get_pred_rb_no_ps_only_one_pred(driver_set):
 def test_get_pred_rb_no_ps_different_sets(driver_set, recipient_set):
     """Test that get_pred_rb_no_ps only considers tokens in the same set."""
     # Set up connections in DRIVER set
-    driver_set.glbl.connections.connections[0, 3] = True  # DRIVER Pred 0 -> DRIVER RB 3
+    driver_set.tokens.connections.tensor[0, 3] = True  # DRIVER Pred 0 -> DRIVER RB 3
     
     # Set up connections in RECIPIENT set
-    recipient_set.glbl.connections.connections[10, 13] = True  # RECIPIENT Pred 10 -> RECIPIENT RB 13
+    recipient_set.tokens.connections.tensor[10, 13] = True  # RECIPIENT Pred 10 -> RECIPIENT RB 13
     
     # DRIVER set test
     pairs_driver = Pairs()
@@ -229,10 +246,10 @@ def test_get_pred_rb_shared_p_preds_share_p(driver_set):
     # Pred 0 -> RB 3 -> P 6
     # Pred 1 -> RB 4 -> P 6
     # Both RBs share the same P (P 6)
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
-    driver_set.glbl.connections.connections[3, 6] = True  # RB 3 -> P 6
-    driver_set.glbl.connections.connections[4, 6] = True  # RB 4 -> P 6
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[3, 6] = True  # RB 3 -> P 6
+    driver_set.tokens.connections.tensor[4, 6] = True  # RB 4 -> P 6
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_shared_p(pairs)
@@ -250,10 +267,10 @@ def test_get_pred_rb_shared_p_preds_dont_share_p(driver_set):
     # Pred 0 -> RB 3 -> P 6
     # Pred 1 -> RB 4 -> P 7
     # RBs don't share the same P
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
-    driver_set.glbl.connections.connections[3, 6] = True  # RB 3 -> P 6
-    driver_set.glbl.connections.connections[4, 7] = True  # RB 4 -> P 7
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[3, 6] = True  # RB 3 -> P 6
+    driver_set.tokens.connections.tensor[4, 7] = True  # RB 4 -> P 7
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_shared_p(pairs)
@@ -270,13 +287,13 @@ def test_get_pred_rb_shared_p_multiple_preds_multiple_ps(driver_set):
     # Pred 1 -> RB 4 -> P 6, P 7
     # Pred 2 -> RB 5 -> P 7
     # Preds 0 and 1 share P 6, Preds 1 and 2 share P 7
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
-    driver_set.glbl.connections.connections[2, 5] = True  # Pred 2 -> RB 5
-    driver_set.glbl.connections.connections[3, 6] = True  # RB 3 -> P 6
-    driver_set.glbl.connections.connections[4, 6] = True  # RB 4 -> P 6
-    driver_set.glbl.connections.connections[4, 7] = True  # RB 4 -> P 7
-    driver_set.glbl.connections.connections[5, 7] = True  # RB 5 -> P 7
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[2, 5] = True  # Pred 2 -> RB 5
+    driver_set.tokens.connections.tensor[3, 6] = True  # RB 3 -> P 6
+    driver_set.tokens.connections.tensor[4, 6] = True  # RB 4 -> P 6
+    driver_set.tokens.connections.tensor[4, 7] = True  # RB 4 -> P 7
+    driver_set.tokens.connections.tensor[5, 7] = True  # RB 5 -> P 7
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_shared_p(pairs)
@@ -293,9 +310,9 @@ def test_get_pred_rb_shared_p_rb_not_connected_to_p(driver_set):
     # Set up connections:
     # Pred 0 -> RB 3 (RB 3 not connected to P)
     # Pred 1 -> RB 4 -> P 6
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
-    driver_set.glbl.connections.connections[4, 6] = True  # RB 4 -> P 6
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[4, 6] = True  # RB 4 -> P 6
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_shared_p(pairs)
@@ -310,8 +327,8 @@ def test_get_pred_rb_shared_p_only_one_pred(driver_set):
     """Test get_pred_rb_shared_p with only one pred connected to RB with P."""
     # Set up connections:
     # Pred 0 -> RB 3 -> P 6
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[3, 6] = True  # RB 3 -> P 6
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[3, 6] = True  # RB 3 -> P 6
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_shared_p(pairs)
@@ -327,12 +344,12 @@ def test_get_pred_rb_shared_p_rb_connected_to_multiple_ps(driver_set):
     # Pred 0 -> RB 3 -> P 6, P 7
     # Pred 1 -> RB 4 -> P 6, P 7
     # Both RBs share both Ps
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
-    driver_set.glbl.connections.connections[3, 6] = True  # RB 3 -> P 6
-    driver_set.glbl.connections.connections[3, 7] = True  # RB 3 -> P 7
-    driver_set.glbl.connections.connections[4, 6] = True  # RB 4 -> P 6
-    driver_set.glbl.connections.connections[4, 7] = True  # RB 4 -> P 7
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[3, 6] = True  # RB 3 -> P 6
+    driver_set.tokens.connections.tensor[3, 7] = True  # RB 3 -> P 7
+    driver_set.tokens.connections.tensor[4, 6] = True  # RB 4 -> P 6
+    driver_set.tokens.connections.tensor[4, 7] = True  # RB 4 -> P 7
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_shared_p(pairs)
@@ -347,12 +364,12 @@ def test_get_pred_rb_shared_p_rb_connected_to_multiple_ps(driver_set):
 def test_get_pred_rb_shared_p_different_sets(driver_set, recipient_set):
     """Test that get_pred_rb_shared_p only considers tokens in the same set."""
     # Set up connections in DRIVER set
-    driver_set.glbl.connections.connections[0, 3] = True  # DRIVER Pred 0 -> DRIVER RB 3
-    driver_set.glbl.connections.connections[3, 6] = True  # DRIVER RB 3 -> DRIVER P 6
+    driver_set.tokens.connections.tensor[0, 3] = True  # DRIVER Pred 0 -> DRIVER RB 3
+    driver_set.tokens.connections.tensor[3, 6] = True  # DRIVER RB 3 -> DRIVER P 6
     
     # Set up connections in RECIPIENT set
-    recipient_set.glbl.connections.connections[10, 13] = True  # RECIPIENT Pred 10 -> RECIPIENT RB 13
-    recipient_set.glbl.connections.connections[13, 16] = True  # RECIPIENT RB 13 -> RECIPIENT P 16
+    recipient_set.tokens.connections.tensor[10, 13] = True  # RECIPIENT Pred 10 -> RECIPIENT RB 13
+    recipient_set.tokens.connections.tensor[13, 16] = True  # RECIPIENT RB 13 -> RECIPIENT P 16
     
     # DRIVER set test
     pairs_driver = Pairs()
@@ -372,14 +389,14 @@ def test_get_pred_rb_shared_p_complex_scenario(driver_set):
     # Pred 1 -> RB 4 -> P 6, P 7
     # Pred 2 -> RB 5 -> P 7, P 8
     # Expected pairs: (0,1) share P 6, (1,2) share P 7
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
-    driver_set.glbl.connections.connections[2, 5] = True  # Pred 2 -> RB 5
-    driver_set.glbl.connections.connections[3, 6] = True  # RB 3 -> P 6
-    driver_set.glbl.connections.connections[4, 6] = True  # RB 4 -> P 6
-    driver_set.glbl.connections.connections[4, 7] = True  # RB 4 -> P 7
-    driver_set.glbl.connections.connections[5, 7] = True  # RB 5 -> P 7
-    driver_set.glbl.connections.connections[5, 8] = True  # RB 5 -> P 8
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[2, 5] = True  # Pred 2 -> RB 5
+    driver_set.tokens.connections.tensor[3, 6] = True  # RB 3 -> P 6
+    driver_set.tokens.connections.tensor[4, 6] = True  # RB 4 -> P 6
+    driver_set.tokens.connections.tensor[4, 7] = True  # RB 4 -> P 7
+    driver_set.tokens.connections.tensor[5, 7] = True  # RB 5 -> P 7
+    driver_set.tokens.connections.tensor[5, 8] = True  # RB 5 -> P 8
     
     pairs = Pairs()
     result = driver_set.kludgey_op.get_pred_rb_shared_p(pairs)
@@ -397,10 +414,10 @@ def test_get_pred_rb_shared_p_empty_pairs_input(driver_set):
     assert len(pairs.get_list()) == 0
     
     # Set up connections
-    driver_set.glbl.connections.connections[0, 3] = True  # Pred 0 -> RB 3
-    driver_set.glbl.connections.connections[1, 4] = True  # Pred 1 -> RB 4
-    driver_set.glbl.connections.connections[3, 6] = True  # RB 3 -> P 6
-    driver_set.glbl.connections.connections[4, 6] = True  # RB 4 -> P 6
+    driver_set.tokens.connections.tensor[0, 3] = True  # Pred 0 -> RB 3
+    driver_set.tokens.connections.tensor[1, 4] = True  # Pred 1 -> RB 4
+    driver_set.tokens.connections.tensor[3, 6] = True  # RB 3 -> P 6
+    driver_set.tokens.connections.tensor[4, 6] = True  # RB 4 -> P 6
     
     result = driver_set.kludgey_op.get_pred_rb_shared_p(pairs)
     

@@ -20,7 +20,7 @@ class KludgeyOperations:
         - only neeed one non_p rb to be counted as valid for this.
         """
         cache = self.bs.glbl.cache
-        con_tensor = self.bs.glbl.connections.tensor
+        con_tensor = self.bs.tokens.connections.tensor
         # get masks # NOTE: only connections to tokens in the same set are considered.
         rb = cache.get_set_type_mask(self.bs.tk_set, Type.RB)
         p = cache.get_set_type_mask(self.bs.tk_set, Type.P)
@@ -69,7 +69,7 @@ class KludgeyOperations:
         (i.e preds connected to RBs that are connected to the same P)
         """
         cache = self.bs.glbl.cache
-        con_tensor = self.bs.glbl.connections.tensor
+        con_tensor = self.bs.tokens.connections.tensor
         # get masks for different token types NOTE: only connections to tokens in the same set are considered.
         rb = cache.get_set_type_mask(self.bs.tk_set, Type.RB)
         p = cache.get_set_type_mask(self.bs.tk_set, Type.P)
