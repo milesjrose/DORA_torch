@@ -29,8 +29,7 @@ def minimal_token_tensor():
     tokens = torch.zeros((num_tokens, num_features))
     connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
     names = {}
-    return Token_Tensor(tokens, Connections_Tensor(connections), names)
-
+    return Token_Tensor(tokens, names)
 
 @pytest.fixture
 def minimal_connections():
@@ -78,9 +77,9 @@ def minimal_tokens(minimal_token_tensor, minimal_connections, minimal_links, min
 
 
 @pytest.fixture
-def network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params):
+def network(minimal_tokens, minimal_semantics, minimal_params):
     """Create minimal Network object for testing."""
-    return Network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params)
+    return Network(minimal_tokens, minimal_semantics, minimal_params)
 
 
 # =====================[ Wrapper Function Tests ]======================
@@ -320,8 +319,8 @@ def test_make_AM_copy_includes_children(network):
     network.tokens.token_tensor.set_features(parent_indices, torch.tensor([TF.ANALOG]), torch.tensor([[1.0], [1.0]], dtype=torch.float32))
     
     # Set up connections: parents -> children
-    network.tokens.connections.connections[3, 5] = True
-    network.tokens.connections.connections[4, 6] = True
+    network.tokens.connections.tensor[3, 5] = True
+    network.tokens.connections.tensor[4, 6] = True
     
     # Mock check_for_copy
     with patch.object(network.analog_ops, 'check_for_copy', return_value=torch.tensor([1])):
@@ -360,8 +359,8 @@ def test_make_AM_move_updates_children_sets(network):
     network.tokens.token_tensor.set_features(child_indices, torch.tensor([TF.SET]), torch.tensor([[float(Set.MEMORY)], [float(Set.MEMORY)]], dtype=torch.float32))  # Children in different set
     
     # Set up connections
-    network.tokens.connections.connections[0, 2] = True
-    network.tokens.connections.connections[1, 3] = True
+    network.tokens.connections.tensor[0, 2] = True
+    network.tokens.connections.tensor[1, 3] = True
     
     # Refresh cache so get_set_indices returns correct tokens
     network.cache_sets()

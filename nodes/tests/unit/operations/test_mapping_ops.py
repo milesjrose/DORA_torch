@@ -5,11 +5,7 @@ import pytest
 import torch
 from unittest.mock import Mock, patch
 from nodes.network.network import Network
-from nodes.network.tokens.tokens import Tokens
-from nodes.network.tokens.tensor.token_tensor import Token_Tensor
-from nodes.network.tokens.connections.connections import Connections_Tensor
-from nodes.network.tokens.connections.mapping import Mapping
-from nodes.network.tokens.connections.links import Links
+from nodes.network.tokens import Tokens, Token_Tensor, Connections_Tensor, Links, Mapping
 from nodes.network.sets.semantics import Semantics
 from nodes.network.network_params import Params, default_params
 from nodes.enums import Set, TF, SF, MappingFields
@@ -27,9 +23,8 @@ def minimal_token_tensor():
     num_tokens = 10
     num_features = len(TF)
     tokens = torch.zeros((num_tokens, num_features))
-    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
     names = {}
-    return Token_Tensor(tokens, Connections_Tensor(connections), names)
+    return Token_Tensor(tokens, names)
 
 
 @pytest.fixture
@@ -78,9 +73,9 @@ def minimal_tokens(minimal_token_tensor, minimal_connections, minimal_links, min
 
 
 @pytest.fixture
-def network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params):
+def network(minimal_tokens, minimal_semantics, minimal_params):
     """Create minimal Network object for testing."""
-    return Network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params)
+    return Network(minimal_tokens, minimal_semantics, minimal_params)
 
 
 # =====================[ Wrapper Function Tests ]======================

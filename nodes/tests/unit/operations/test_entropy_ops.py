@@ -34,9 +34,8 @@ def minimal_token_tensor():
     for i in range(num_tokens):
         tokens[i, TF.ID] = i
         tokens[i, TF.SET] = Set.DRIVER.value
-    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
     names = {i: f"token_{i}" for i in range(num_tokens)}
-    return Token_Tensor(tokens, Connections_Tensor(connections), names)
+    return Token_Tensor(tokens, names)
 
 
 @pytest.fixture
@@ -87,9 +86,9 @@ def minimal_tokens(minimal_token_tensor, minimal_connections, minimal_links, min
 
 
 @pytest.fixture
-def network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params):
+def network(minimal_tokens, minimal_semantics, minimal_params):
     """Create minimal Network object for testing."""
-    net = Network(minimal_tokens, minimal_semantics, minimal_mapping, minimal_links, minimal_params)
+    net = Network(minimal_tokens, minimal_semantics, minimal_params)
     # Initialize SDM semantics
     net.semantics.init_sdm()
     return net
