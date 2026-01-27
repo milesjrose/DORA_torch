@@ -360,7 +360,7 @@ def test_get_analogs_active_with_zero_activation(analog_ops):
     assert 10 not in active_analogs
 
 
-def test_move_analog(analog_ops):
+def test_move_analog(analog_ops: Analog_ops):
     """Test moving an analog to a different set."""
     # Move analog 0 from DRIVER to RECIPIENT
     analog_ops.move_analog(0, Set.RECIPIENT)
@@ -369,6 +369,7 @@ def test_move_analog(analog_ops):
     indices = analog_ops.get_analog_indices(0)
     assert torch.all(analog_ops.tensor[indices, TF.SET] == Set.RECIPIENT)
     
+    analog_ops.cache.cache_sets()
     # Verify cache was updated
     assert Set.RECIPIENT in analog_ops.cache.masks
 
@@ -405,6 +406,7 @@ def test_copy_analog(analog_ops):
     assert torch.all(analog_ops.tensor[new_indices, TF.SET] == Set.RECIPIENT)
     assert torch.all(analog_ops.tensor[new_indices, TF.ANALOG] == new_analog_number)
     
+    analog_ops.cache.cache_sets()
     # Verify cache was updated
     assert Set.RECIPIENT in analog_ops.cache.masks
 

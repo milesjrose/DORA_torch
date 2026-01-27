@@ -6,6 +6,9 @@ import torch
 from nodes.network.tokens.connections.mapping import Mapping, MD
 from nodes.enums import MappingFields, Set
 
+from logging import getLogger
+logger = getLogger(__name__)
+
 
 @pytest.fixture
 def mock_mapping_tensor():
@@ -1456,6 +1459,86 @@ def test_swap_then_expand(mapping):
     # Original data should be preserved (transposed)
     assert torch.allclose(mapping.adj_matrix[:4, :5, MappingFields.WEIGHT], original_weight.t())
 
+# =====================[ shrink tests ]======================
+def test_shrink_basic_rec(mapping: Mapping):
+    """ Test basic shrink functionality."""
+    rec_count = mapping.size(MD.REC)
+    dri_count = mapping.size(MD.DRI)
+    # Get the weights for reference
+    weights = mapping[MappingFields.WEIGHT].clone()
+    # Shrink recipient dimension
+    idx_to_delete = torch.tensor([1])
+    mapping.shrink(idx_to_delete, dimension=MD.REC)
+    assert mapping.size(MD.REC) == rec_count - 1
+    assert mapping.size(MD.DRI) == dri_count
+    # Verify weights are preserved
+    logger.info(f" old_weights: \n{weights}")
+    logger.info(f"deleted index: {idx_to_delete} :\n {weights[idx_to_delete]}")
+    logger.info(f" new_weights: \n{mapping[MappingFields.WEIGHT]}")
+    logger.info(f" weights[0:1]: {weights[0:1]}")
+    assert torch.allclose(mapping[MappingFields.WEIGHT][0,:], weights[0,:])
+    assert torch.allclose(mapping[MappingFields.WEIGHT][1,:], weights[2,:])
+
+def test_shrink_basic_dri(mapping: Mapping):
+    """ Test basic shrink functionality."""
+    rec_count = mapping.size(MD.REC)
+    dri_count = mapping.size(MD.DRI)
+    # Get the weights for reference
+    weights = mapping[MappingFields.WEIGHT].clone()
+    # Shrink recipient dimension
+    idx_to_delete = torch.tensor([1])
+    mapping.shrink(idx_to_delete, dimension=MD.DRI)
+    assert mapping.size(MD.REC) == rec_count
+    assert mapping.size(MD.DRI) == dri_count - 1
+    # Verify weights are preserved
+    logger.info(f" old_weights: \n{weights}")
+    logger.info(f"deleted index: {idx_to_delete} :\n {weights[idx_to_delete]}")
+    logger.info(f" new_weights: \n{mapping[MappingFields.WEIGHT]}")
+    logger.info(f" weights[0:1]: {weights[0:1]}")
+    assert torch.allclose(mapping[MappingFields.WEIGHT][:,0], weights[:,0])
+    assert torch.allclose(mapping[MappingFields.WEIGHT][:,1], weights[:,2])
+
+def test_shrink_basic_both(mapping: Mapping):
+    """ Test basic shrink functionality."""
+    rec_count = mapping.size(MD.REC)
+    dri_count = mapping.size(MD.DRI)
+    # Get the weights for reference
+    weights = mapping[MappingFields.WEIGHT].clone()
+    # Shrink recipient dimension
+    idx_to_delete = torch.tensor([1])
+    mapping.shrink(idx_to_delete, dimension=MD.REC)
+    mapping.shrink(idx_to_delete, dimension=MD.DRI)
+    assert mapping.size(MD.REC) == rec_count - 1
+    assert mapping.size(MD.DRI) == dri_count - 1
+    # Verify weights are preserved
+    logger.info(f" old_weights: \n{weights}")
+    logger.info(f"deleted index: {idx_to_delete} for REC:\n {weights[idx_to_delete]}")
+    logger.info(f"deleted index: {idx_to_delete} for DRI:\n {weights[:,idx_to_delete]}")
+    logger.info(f" new_weights: \n{mapping[MappingFields.WEIGHT]}")
+    logger.info(f" weights[0:1]: {weights[0:1]}")
+    assert torch.allclose(mapping[MappingFields.WEIGHT][0,0], weights[0,0])
+    assert torch.allclose(mapping[MappingFields.WEIGHT][1,1], weights[2,2])
+
+def test_shrink_types(mapping: Mapping):
+    """ Test shrink functionality with different types of index."""
+    initial_tensor = mapping.adj_matrix.clone()
+    rec_count = mapping.size(MD.REC)
+    dri_count = mapping.size(MD.DRI)
+    # Get the weights for reference
+    weights = mapping[MappingFields.WEIGHT].clone()
+    # Shrink recipient dimension
+    for idx_to_delete in [1, [1], torch.tensor([1])]:
+        mapping.adj_matrix = initial_tensor.clone()
+        mapping.shrink(idx_to_delete, dimension=MD.DRI)
+        assert mapping.size(MD.REC) == rec_count
+        assert mapping.size(MD.DRI) == dri_count - 1
+        # Verify weights are preserved
+        logger.info(f" old_weights: \n{weights}")
+        logger.info(f"deleted index: {idx_to_delete} :\n {weights[idx_to_delete]}")
+        logger.info(f" new_weights: \n{mapping[MappingFields.WEIGHT]}")
+        logger.info(f" weights[0:1]: {weights[0:1]}")
+        assert torch.allclose(mapping[MappingFields.WEIGHT][:,0], weights[:,0])
+        assert torch.allclose(mapping[MappingFields.WEIGHT][:,1], weights[:,2])
 
 # =====================[ get_view tests ]======================
 

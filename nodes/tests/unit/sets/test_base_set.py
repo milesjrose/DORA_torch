@@ -212,7 +212,7 @@ def test_update_view_basic(tokens, mock_params):
     assert base_set.lcl is updated_tensor
 
 
-def test_update_view_after_token_addition(tokens, mock_params):
+def test_update_view_after_token_addition(tokens: Tokens, mock_params):
     """Test update_view after adding tokens to the set."""
     base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     original_count = len(base_set.get_tensor())
@@ -223,7 +223,7 @@ def test_update_view_after_token_addition(tokens, mock_params):
     new_tokens[0, TF.SET] = Set.DRIVER
     new_tokens[0, TF.ACT] = 0.6
     new_names = ["new_driver_token"]
-    tokens.token_tensor.add_tokens(new_tokens, new_names)
+    tokens.add_tokens(new_tokens, new_names)
     
     # Update the view
     base_set.update_view()
@@ -233,13 +233,13 @@ def test_update_view_after_token_addition(tokens, mock_params):
     assert len(updated_tensor) == original_count + 1
 
 
-def test_update_view_after_token_deletion(tokens, mock_params):
+def test_update_view_after_token_deletion(tokens: Tokens, mock_params):
     """Test update_view after deleting tokens from the set."""
     base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     original_count = len(base_set.get_tensor())
     
     # Delete a DRIVER token (token 0)
-    tokens.token_tensor.del_tokens(torch.tensor([0]))
+    tokens.delete_tokens(torch.tensor([0]))
     
     # Update the view
     base_set.update_view()
@@ -312,7 +312,7 @@ def test_update_view_different_sets(tokens, mock_params):
     assert len(memory_view) == 5
 
 
-def test_update_view_after_set_change(tokens, mock_params):
+def test_update_view_after_set_change(tokens: Tokens, mock_params):
     """Test update_view after changing a token's set."""
     base_set = Base_Set(tokens, Set.DRIVER, mock_params)
     original_count = len(base_set.get_tensor())
@@ -320,7 +320,7 @@ def test_update_view_after_set_change(tokens, mock_params):
     
     # Move token 0 from DRIVER to RECIPIENT
     # Note: move_tokens should invalidate cache for both old and new sets
-    tokens.token_tensor.move_tokens(torch.tensor([0]), Set.RECIPIENT)
+    tokens.move_tokens(torch.tensor([0]), Set.RECIPIENT)
     
     # Update the view to refresh it
     base_set.update_view()
@@ -350,7 +350,7 @@ def test_base_set_full_workflow(tokens, mock_params):
     new_tokens[0, TF.DELETED] = B.FALSE
     new_tokens[0, TF.SET] = Set.DRIVER
     new_names = ["new_token"]
-    tokens.token_tensor.add_tokens(new_tokens, new_names)
+    tokens.add_tokens(new_tokens, new_names)
     
     base_set.update_view()
     tensor2 = base_set.get_tensor()

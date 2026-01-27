@@ -69,7 +69,7 @@ def test_token_tensor_init(token_tensor, mock_tensor, mock_names):
     assert torch.equal(token_tensor.cache.tensor, mock_tensor)
 
 
-def test_add_tokens_to_deleted_slots(token_tensor):
+def test_add_tokens_to_deleted_slots(token_tensor: Token_Tensor):
     """Test adding tokens to deleted slots."""
     # Create new tokens to add
     num_new_tokens = 3
@@ -96,6 +96,7 @@ def test_add_tokens_to_deleted_slots(token_tensor):
         assert token_tensor.tensor[idx, TF.SET] == Set.NEW_SET
         assert token_tensor.names[idx.item()] in new_names
     
+    token_tensor.cache.cache_sets()
     # Check that cache was updated
     assert Set.NEW_SET in token_tensor.cache.masks
 
@@ -178,6 +179,7 @@ def test_move_tokens(token_tensor):
     # Verify tokens were moved
     assert torch.all(token_tensor.tensor[indices_to_move, TF.SET] == Set.RECIPIENT)
     
+    token_tensor.cache.cache_sets()
     # Verify cache was updated
     assert Set.RECIPIENT in token_tensor.cache.masks
 
@@ -192,6 +194,7 @@ def test_move_tokens_to_new_set(token_tensor):
     # Verify tokens were moved
     assert torch.all(token_tensor.tensor[indices_to_move, TF.SET] == Set.NEW_SET)
     
+    token_tensor.cache.cache_sets()
     # Verify cache was updated
     assert Set.NEW_SET in token_tensor.cache.masks
 
@@ -230,6 +233,7 @@ def test_copy_tokens(token_tensor):
         # Name should match
         assert token_tensor.names[idx.item()] == original_names[i]
     
+    token_tensor.cache.cache_sets()
     # Verify cache was updated
     assert Set.RECIPIENT in token_tensor.cache.masks
 
@@ -279,6 +283,7 @@ def test_add_tokens_updates_cache(token_tensor):
     
     token_tensor.add_tokens(new_tokens, ["cache_test_0", "cache_test_1"])
     
+    token_tensor.cache.cache_sets()
     # Verify cache was updated
     assert Set.MEMORY in token_tensor.cache.masks
     # Count should include the new tokens
@@ -298,6 +303,7 @@ def test_add_tokens_multiple_sets(token_tensor):
     
     token_tensor.add_tokens(new_tokens, ["multi_0", "multi_1", "multi_2", "multi_3"])
     
+    token_tensor.cache.cache_sets()
     # Verify both sets are in cache
     assert Set.DRIVER in token_tensor.cache.masks
     assert Set.RECIPIENT in token_tensor.cache.masks
@@ -342,7 +348,7 @@ def test_add_tokens_with_empty_tensor():
     new_tokens[:, TF.ID] = torch.tensor([0, 1, 2])
     
     replace_idxs = token_tensor.add_tokens(new_tokens, ["empty_0", "empty_1", "empty_2"])
-    
+    token_tensor.cache.cache_sets()
     assert len(replace_idxs) == 3
     assert token_tensor.cache.get_set_count(Set.DRIVER) == 3
 

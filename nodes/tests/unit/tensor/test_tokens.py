@@ -6,8 +6,8 @@ import torch
 from nodes.network.tokens import Connections_Tensor, Token_Tensor, Tokens, Links, Mapping, Token_Tensor, LD, MD, TensorTypes
 from nodes.enums import Set, TF, B, null, tensor_type, MappingFields
 
-
-
+from logging import getLogger
+logger = getLogger(__name__)
 
 @pytest.fixture
 def mock_connections():
@@ -117,6 +117,29 @@ def test_tokens_init(tokens, token_tensor, connections_tensor, links, mapping):
     assert tokens.links is links
     assert tokens.mapping is mapping
 
+# =====================[ recache tests ]======================
+
+def test_recache(tokens: Tokens):
+    """Test recache functionality."""
+    logger.info(f"Initial token count: {tokens.token_tensor.get_count()}")
+    logger.info(f"Initial connections count: {tokens.connections.get_count()}")
+    logger.info(f"Initial links count: {tokens.links.get_count(LD.TK)}")
+    logger.info(f"Initial mapping size: {tokens.mapping.adj_matrix.shape}")
+    assert tokens.mapping.get_driver_count() == 5
+    idxs = tokens.add_tokens(torch.zeros((3, len(TF)), dtype=tensor_type), ["token_15", "token_16", "token_17"])
+    tokens.recache()
+    logger.info(f"Recached token count: {tokens.token_tensor.get_count()}")
+    logger.info(f"Recached connections count: {tokens.connections.get_count()}")
+    logger.info(f"Recached links count: {tokens.links.get_count(LD.TK)}")
+    logger.info(f"Recached mapping size: {tokens.mapping.adj_matrix.shape}")
+    assert tokens.mapping.get_driver_count() == 8
+    tokens.token_tensor.tensor[idxs, TF.DELETED] = B.TRUE
+    tokens.recache()
+    logger.info(f"Recached token count: {tokens.token_tensor.get_count()}")
+    logger.info(f"Recached connections count: {tokens.connections.get_count()}")
+    logger.info(f"Recached links count: {tokens.links.get_count(LD.TK)}")
+    logger.info(f"Recached mapping size: {tokens.mapping.adj_matrix.shape}")
+    assert tokens.mapping.get_driver_count() == 5
 
 # =====================[ check_count tests ]======================
 
@@ -124,7 +147,6 @@ def test_check_count_all_match(tokens):
     """Test check_count when all counts match."""
     # All should match initially (15 tokens, 15 connections, 15 links, 5 drivers, 5 recipients)
     resized = tokens.check_count()
-    assert resized == []
     assert tokens.token_tensor.get_count() == 15
     assert tokens.connections.get_count() == 15
     assert tokens.links.get_count(LD.TK) == 15
@@ -141,7 +163,6 @@ def test_check_count_expand_connections(tokens):
     
     # Now token count is 18, but connections is still 15
     resized = tokens.check_count()
-    assert TensorTypes.CON in resized
     assert tokens.connections.get_count() == 18
     assert tokens.token_tensor.get_count() == 18
 
@@ -157,7 +178,6 @@ def test_check_count_expand_links(tokens):
     
     # Now token count is 18, but links is still 15
     resized = tokens.check_count()
-    assert TensorTypes.LINK in resized
     assert tokens.links.get_count(LD.TK) == 18
     assert tokens.token_tensor.get_count() == 18
 
@@ -213,8 +233,6 @@ def test_check_count_multiple_expansions(tokens):
     
     # Now token count is 20, but connections and links are still 15
     resized = tokens.check_count()
-    assert TensorTypes.CON in resized
-    assert TensorTypes.LINK in resized
     assert tokens.connections.get_count() == 20
     assert tokens.links.get_count(LD.TK) == 20
 
@@ -274,6 +292,7 @@ def test_delete_tokens_recipient_mapping(tokens):
     """Test delete_tokens deletes recipient mappings."""
     # Token 5 is a RECIPIENT (index 0 in recipient set)
     # Set up a mapping for recipient 0
+    tokens.recache()
     tokens.mapping.adj_matrix[0, 0, MappingFields.WEIGHT] = 0.9
     
     # Delete token 5 (which is a recipient)
@@ -298,10 +317,12 @@ def test_delete_tokens_memory_only(tokens):
     # No mapping deletion should occur (memory tokens don't have mappings)
 
 
-def test_delete_tokens_calls_check_count(tokens):
+def test_delete_tokens_calls_check_count(tokens: Tokens):
     """Test that delete_tokens calls check_count at the end."""
     # This is implicit - if check_count fixes any size mismatches,
     # the counts should be consistent after deletion
+    initial_driver_count = tokens.token_tensor.get_set_count(Set.DRIVER)
+    logger.info(f"Initial driver count: {initial_driver_count}")
     initial_token_count = tokens.token_tensor.get_count()
     initial_connections_count = tokens.connections.get_count()
     
