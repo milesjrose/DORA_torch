@@ -113,7 +113,9 @@ class Tokens:
         Check the number of tokens in the tensor is the same as connections, links, and mapping tensors, etc
         If token count is greater, expand the tensors to match the token count.
         If token count is less, delete the tokens from the tensors.
+        # NOTE: Deprecated, should remove later.
         """
+        logger.warning(f"check_count is deprecated, use recache instead.")
         self.recache()
     
     def delete_tokens(self, idxs: torch.Tensor):
