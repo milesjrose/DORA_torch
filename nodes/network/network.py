@@ -29,6 +29,7 @@ class Network(object):
             links (Links): The links object.
             params (Params): The parameters object.
         """
+        logger.info(f"> Initialising Network object")
         # Check types
         if not isinstance(semantics, Semantics):
             raise ValueError("semantics must be a Semantics object.")
@@ -61,6 +62,9 @@ class Network(object):
         # Setup sets and semantics
         self.setup_sets_and_semantics()
 
+        # Cache sets and analogs
+        self.recache()
+
         # Initialise inhibitors
         self.local_inhibitor = 0.0
         self.global_inhibitor = 0.0
@@ -85,6 +89,16 @@ class Network(object):
             self.node_ops, 
             self.inhibitor_ops
             ]
+        
+        logger.info(f"> Network initialised:")
+        logger.info(f"  Tokens: {self.token_tensor.tensor.shape}")
+        logger.info(f"  Connections: {self.tokens.connections.tensor.shape}")
+        logger.info(f"  Links: {self.links.adj_matrix.shape}")
+        logger.info(f"  Mapping: {self.mappings.adj_matrix.shape}")
+        logger.info(f"  Driver: {self.driver().lcl.shape}")
+        logger.info(f"  Recipient: {self.recipient().lcl.shape}")
+        logger.info(f"  Memory: {self.memory().lcl.shape}")
+        logger.info(f"  New Set: {self.new_set().lcl.shape}")
     
     def __getattr__(self, name):
         # Only search through the designated "promoted" components
@@ -102,21 +116,25 @@ class Network(object):
         """
         Recache the analogs in the network.
         """
-        self.tokens.token_tensor.cache.cache_analogs()
+        self.recache()
+        # NOTE: Maybe wasteful, but figure it out later. Just want it to work for now.
+        #self.tokens.token_tensor.cache.cache_analogs()
     
     def cache_sets(self):
         """
         Recache the tokens in the network.
         """
-        self.tokens.token_tensor.cache.cache_sets()
+        self.recache()
+        # NOTE: Maybe wasteful, but figure it out later. Just want it to work for now.
+        #self.tokens.token_tensor.cache.cache_sets()
     
     def recache(self):
         """
-        Recache the tokens and analogs in the network.
+        Recache the tokens, analogs, and set views for the network.
         """
-        self.cache_sets()
-        self.cache_analogs()
-        self.tokens.check_count()
+        self.tokens.recache()
+        for set in Set:
+            self.sets[set].update_view()
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """

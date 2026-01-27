@@ -38,7 +38,75 @@ class Tokens:
         """holds the links tensor, tokens -> semantics"""
         assert isinstance(mapping, Mapping), f"mapping must be a Mapping, not {type(mapping)}"
         self.mapping: Mapping = mapping
+        d_count = self.token_tensor.cache.get_set_count(Set.DRIVER)
+        r_count = self.token_tensor.cache.get_set_count(Set.RECIPIENT)
+        m_d_count = self.mapping.get_driver_count()
+        m_r_count = self.mapping.get_recipient_count()
+        if d_count < m_d_count or r_count < m_r_count:
+            logger.critical(f"Malformed token/map data at init: d_count: {d_count} < m_d_count: {m_d_count} or r_count: {r_count} < m_r_count: {m_r_count} -> clearing mappings")
+            self.mapping.init_tensor(r_count, d_count)
         """holds the mapping tensor, driver tokens -> recipient tokens"""
+        self.recache()
+    
+    def recache(self):
+        """
+        Recache the token information, and ensure the sizes of the connections (con, link, map) tensors are correct.
+        """
+        old_set_idxs = {}
+        for set in Set:
+            old_set_idxs[set] = self.token_tensor.cache.get_set_indices(set)
+        self.token_tensor.cache.cache_sets()
+        self.token_tensor.cache.cache_analogs()
+        # Check the connecting tensor sizes.
+        token_count = self.token_tensor.get_count()
+
+        # Check connections tensor size.
+        con_count = self.connections.get_count()
+        if token_count > con_count:
+            self.connections.expand_to(token_count)
+        if token_count < con_count:
+            logger.error(f"Connections tensor size is smaller than token count, no way to handle this atm.")
+
+        # Check links tensor size.
+        link_count = self.links.get_count(LD.TK)
+        if token_count > link_count: 
+            self.links.expand_to(token_count, LD.TK)
+        if token_count < link_count:
+            logger.error(f"Links tensor size is smaller than token count, no way to handle this atm.")
+
+        # Check mapping tensor size.
+        driver_count = self.token_tensor.get_set_count(Set.DRIVER)
+        recipient_count = self.token_tensor.get_set_count(Set.RECIPIENT)
+        if driver_count > self.mapping.get_driver_count():
+            self.mapping.expand(driver_count, MD.DRI)
+        elif driver_count < self.mapping.get_driver_count():
+            # Need to shrink the mapping tensor.
+            # First find the indices of the tokens that are no longer in the driver set.
+            mask = ~torch.isin(old_set_idxs[Set.DRIVER], self.token_tensor.cache.get_set_indices(Set.DRIVER))
+            idx_to_delete = torch.where(mask)[0]
+            self.mapping.shrink(idx_to_delete, MD.DRI)
+            # NOTE: this just a double check, should remove later:
+            if driver_count != self.mapping.get_driver_count():
+                logger.critical(f"Driver map count mismatch: {driver_count} != {self.mapping.get_driver_count()}")
+                logger.debug(f"old_set_idxs[Set.DRIVER]: {old_set_idxs[Set.DRIVER]}, new_set_idxs: {self.token_tensor.cache.get_set_indices(Set.DRIVER)}")
+                logger.debug(f"mask: {mask}")
+                raise ValueError(f"Driver map shrink unsuccessful.")
+        if recipient_count > self.mapping.get_recipient_count():
+            self.mapping.expand(recipient_count, MD.REC)
+        elif recipient_count < self.mapping.get_recipient_count():
+            # Need to shrink the mapping tensor.
+            # First find the indices of the tokens that are no longer in the recipient set.
+            mask = ~torch.isin(old_set_idxs[Set.RECIPIENT], self.token_tensor.cache.get_set_indices(Set.RECIPIENT))
+            idx_to_delete = torch.where(mask)[0]
+            self.mapping.shrink(idx_to_delete, MD.REC)
+            # NOTE: this just a double check, should remove later:
+            if recipient_count != self.mapping.get_recipient_count():
+                logger.critical(f"Recipient map count mismatch: {recipient_count} != {self.mapping.get_recipient_count()}")
+                logger.debug(f"old_set_idxs[Set.RECIPIENT]: {old_set_idxs[Set.RECIPIENT]}, new_set_idxs: {self.token_tensor.cache.get_set_indices(Set.RECIPIENT)}")
+                logger.debug(f"mask: {mask}")
+                raise ValueError(f"Recipient map shrink unsuccessful.")
+        
+        logger.debug(f"Recached: tk={token_count}, con={con_count}, link={link_count}, map={driver_count}x{recipient_count}")
     
     def check_count(self) -> int:
         """
@@ -46,27 +114,7 @@ class Tokens:
         If token count is greater, expand the tensors to match the token count.
         If token count is less, delete the tokens from the tensors.
         """
-        resized = []
-        token_count = self.token_tensor.get_count()
-        connections_count = self.connections.get_count()
-        links_count = self.links.get_count(LD.TK)
-        logger.debug(f"Checking count: token_count={token_count}, connections_count={connections_count}, links_count={links_count}")
-        if token_count > connections_count:
-            resized.append(TensorTypes.CON)
-            self.connections.expand_to(token_count)
-        if token_count > links_count:
-            resized.append(TensorTypes.LINK)
-            self.links.expand_to(token_count, LD.TK)
-        # Check mapping counts for driver and recipient
-        driver_count = self.token_tensor.get_set_count(Set.DRIVER)
-        recipient_count = self.token_tensor.get_set_count(Set.RECIPIENT)
-        if driver_count > self.mapping.get_driver_count():
-            resized.append(TensorTypes.MAP)
-            self.mapping.expand(driver_count, MD.DRI)
-        if recipient_count > self.mapping.get_recipient_count():
-            resized.append(TensorTypes.MAP)
-            self.mapping.expand(recipient_count, MD.REC)
-        return resized
+        self.recache()
     
     def delete_tokens(self, idxs: torch.Tensor):
         """
@@ -77,15 +125,7 @@ class Tokens:
         self.token_tensor.del_tokens(idxs)
         self.connections.del_connections(idxs)
         self.links.del_links(idxs)
-        # Delete mappings if required.
-        driver_mask = torch.where(self.token_tensor.tensor[idxs, TF.SET] == Set.DRIVER)[0]
-        if torch.any(driver_mask):
-            self.mapping.del_driver_mappings(idxs[driver_mask])
-        recipient_mask = torch.where(self.token_tensor.tensor[idxs, TF.SET] == Set.RECIPIENT)[0]
-        if torch.any(recipient_mask):
-            self.mapping.del_recipient_mappings(idxs[recipient_mask])
-        # Make sure the counts are correct (Shouldn't be needed, but just in case)
-        self.check_count()
+        self.recache()
     
     def add_tokens(self, tokens: torch.Tensor, names: list[str]):
         """
@@ -95,7 +135,7 @@ class Tokens:
             names: list[str] - The names of the tokens.
         """
         new_indicies = self.token_tensor.add_tokens(tokens, names)
-        self.check_count()
+        self.recache()
         return new_indicies
     
     def copy_tokens(self, indices: torch.Tensor, to_set: Set, connect_to_copies: bool = False) -> torch.Tensor:
@@ -109,11 +149,18 @@ class Tokens:
             torch.Tensor - The indices of the tokens that were replaced.
         """
         copy_indicies =  self.token_tensor.copy_tokens(indices, to_set)
-        self.check_count()
+        self.recache()
         if connect_to_copies:
             internal_connections = self.connections.tensor[indices, indices].clone()
             self.connections.tensor[copy_indicies, copy_indicies] = internal_connections
         return copy_indicies
+    
+    def move_tokens(self, indices: torch.Tensor, to_set: Set):
+        """
+        Move the tokens at the given indices to the given set.
+        """
+        self.token_tensor.move_tokens(indices, to_set)
+        self.recache()
     
     def get_view(self, view_type: TensorTypes, set: Set = None) -> TensorView | torch.Tensor:
         """

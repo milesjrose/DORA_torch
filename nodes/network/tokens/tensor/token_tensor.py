@@ -55,7 +55,7 @@ class Token_Tensor:
             tokens: torch.Tensor - The tensor of tokens to add.
             names: List[str] - The list of names to add.
         Returns:
-            tuple[list[Set], torch.Tensor] - The sets that were changed and the indices that were replaced.
+            torch.Tensor - The indices that were replaced.
         """
         num_to_add = tokens.size(dim=0)
         logger.info(f"Adding {num_to_add} tokens to the tensor.")
@@ -75,9 +75,6 @@ class Token_Tensor:
         # Add names to names dictionary
         for idx, name in zip(replace_idxs, names):
             self.names[idx.item()] = name
-        # Get sets that were changed to update masks
-        sets_changed = [Set(int(set)) for set in torch.unique(tokens[:, TF.SET])]
-        self.cache.cache_sets(sets_changed)
         return replace_idxs
     
     def del_tokens(self, indices: torch.Tensor):
@@ -101,9 +98,6 @@ class Token_Tensor:
         # Set all values to null, then set DELETED flag to TRUE
         self.tensor[indices, :] = null
         self.tensor[indices, TF.DELETED] = B.TRUE
-        self.cache.cache_analogs()
-        if sets_to_cache:
-            self.cache.cache_sets(sets_to_cache)
     
     def get_feature(self, indices: torch.Tensor, feature: TF) -> torch.Tensor:
         """
@@ -223,18 +217,12 @@ class Token_Tensor:
         """
         logger.info(f"Moving tokens to set: {to_set}")
         logger.debug(f"Indices: {indices}")
-        # Get old set values before moving (needed for cache update)
-        sets_to_cache = [to_set]
         if len(indices) > 0:
             old_set_values = self.tensor[indices, TF.SET]
             unique_old_sets = torch.unique(old_set_values)
             # Filter out null values before converting to Set enum
             valid_old_sets = unique_old_sets[unique_old_sets != null]
-            if len(valid_old_sets) > 0:
-                old_sets = [Set(int(set_val.item())) for set_val in valid_old_sets]
-                sets_to_cache.extend(old_sets)
         self.tensor[indices, TF.SET] = to_set
-        self.cache.cache_sets(sets_to_cache)
     
     def copy_tokens(self, indices: torch.Tensor, to_set: Set) -> torch.Tensor:
         """
