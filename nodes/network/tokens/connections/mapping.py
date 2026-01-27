@@ -36,6 +36,7 @@ class Mapping:
         assert len(adj_matrix.shape) == 3, "Mapping tensor must have 3 dimensions"
         assert adj_matrix.shape[2] == len(MappingFields), f"Mapping tensor must have {len(MappingFields)} fields in the third dimension"
         self.adj_matrix: torch.Tensor = adj_matrix
+        """ Holds the mapping tensor, shape: [recipient_nodes, driver_nodes, fields]"""
         self.driver = None
         self.recipient = None
     
@@ -125,6 +126,17 @@ class Mapping:
         self.driver.token_op.set_features_all(TF.MAX_MAP, 0.0)
         self.recipient.token_op.set_features_all(TF.MAX_MAP, 0.0)
         self[MappingFields.MAX_HYP] = 0.0
+    
+    def init_tensor(self, recipient_count: int, driver_count: int):
+        """
+        Initialise the mapping tensor to the given dimensions.
+        Used in Token object initialisation if the driver/recipient counts are not the same as the mapping tensor dimensions.
+        Args:
+            recipient_count: int - The number of recipient tokens.
+            driver_count: int - The number of driver tokens.
+        """
+        self.adj_matrix = torch.zeros(recipient_count, driver_count, len(MappingFields), dtype=torch.float)
+        logger.debug(f"-> Initialised mapping tensor: {recipient_count}x{driver_count}")
     
     # =====================[ Update functions ]======================
     def update_weight(self, eta: float):
@@ -261,6 +273,56 @@ class Mapping:
             logger.debug(f"-> Expanded mapping tensor: {old_recipient_count}x{old_driver_count} -> {new_recipient_count}x{new_driver_count}")
         except Exception as e:
             logger.error(f"-> Error expanding {self.recipient.token_set.name} mappings tensor {old_recipient_count}x{old_driver_count} -> {new_recipient_count}x{new_driver_count}")
+            raise e
+    
+    def shrink(self, idx_to_delete: torch.Tensor|list[int]|int, dimension: MD):
+        """
+        Shrink the mapping tensor, by deleting the row/columns at the given indices.
+        Args:
+            idx_to_delete: torch.Tensor - The indices of the tokens to delete.
+            dimension: MD - The dimension to shrink along.
+        """
+        if isinstance(idx_to_delete, int):
+            idx_to_delete = torch.tensor([idx_to_delete])
+        elif isinstance(idx_to_delete, list):
+            idx_to_delete = torch.tensor(idx_to_delete)
+        elif isinstance(idx_to_delete, torch.Tensor):
+            pass
+        else:
+            raise ValueError(f"Invalid type for idx_to_delete: {type(idx_to_delete)}")
+        # Get old tensor dimensions
+        old_driver_count = self.adj_matrix.size(dim=MD.DRI)
+        old_recipient_count = self.adj_matrix.size(dim=MD.REC)
+        # Get new tensor dimensions
+        new_driver_count = old_driver_count - idx_to_delete.shape[0] if dimension == MD.DRI else old_driver_count
+        new_recipient_count = old_recipient_count - idx_to_delete.shape[0] if dimension == MD.REC else old_recipient_count
+        # Create new tensor for each mapping field, and stack into new adj_matrix
+        stack = []
+        for field in MappingFields:          
+            stack.append(torch.zeros(
+                new_recipient_count, 
+                new_driver_count, 
+                dtype=torch.float)
+                )
+        new_adj_matrix: torch.Tensor = torch.stack(stack, dim=-1)
+        rows, cols, _ = self.adj_matrix.shape   
+        # Copy over old weights and update object
+        # Create mask for indices to delete
+        delete_mask_size = old_driver_count if dimension == MD.DRI else old_recipient_count
+        delete_mask = torch.zeros(delete_mask_size, dtype=torch.bool)
+        delete_mask[idx_to_delete] = True
+        keep_mask = ~delete_mask
+        try:
+            if dimension == MD.DRI:
+                new_adj_matrix[:, :, :] = self.adj_matrix [:, keep_mask, :]
+            elif dimension == MD.REC:
+                new_adj_matrix[:, :, :] = self.adj_matrix [keep_mask, :, :]
+            else:
+                raise ValueError(f"Invalid dimension: {dimension}")
+            self.adj_matrix = new_adj_matrix
+            logger.debug(f"-> Shrunk {dimension.name} mapping tensor: {old_recipient_count}x{old_driver_count} -> {new_recipient_count}x{new_driver_count}")
+        except Exception as e:
+            logger.error(f"-> Error shrinking {dimension.name} mappings tensor {old_recipient_count}x{old_driver_count} -> {new_recipient_count}x{new_driver_count}, removing indices: {idx_to_delete}. Tried to delete indices: {idx_to_delete.tolist()}, keep mask: {keep_mask}, adj_matrix: {self.adj_matrix.shape}, new_adj_matrix: {new_adj_matrix.shape}")
             raise e
     
     def swap_driver_recipient(self):
