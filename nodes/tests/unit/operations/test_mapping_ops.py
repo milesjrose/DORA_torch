@@ -4,11 +4,13 @@
 import pytest
 import torch
 from unittest.mock import Mock, patch
+from nodes.network import Driver
 from nodes.network.network import Network
 from nodes.network.tokens import Tokens, Token_Tensor, Connections_Tensor, Links, Mapping
 from nodes.network.sets.semantics import Semantics
 from nodes.network.network_params import Params, default_params
-from nodes.enums import Set, TF, SF, MappingFields
+from nodes.network.single_nodes import Token
+from nodes.enums import *
 
 
 @pytest.fixture
@@ -20,17 +22,48 @@ def minimal_params():
 @pytest.fixture
 def minimal_token_tensor():
     """Create minimal Token_Tensor for testing."""
-    num_tokens = 10
+    num_tokens = 14
     num_features = len(TF)
     tokens = torch.zeros((num_tokens, num_features))
+    idx = 0
+    # Driver: 2 PO tokens with pred = true
+    for i in range(2):
+        tokens[idx] = Token(Type.PO, set=Set.DRIVER, features = {TF.PRED:B.TRUE}).tensor
+        idx += 1
+    # Driver: 2 PO tokens with pred = false
+    for i in range(2):
+        tokens[idx] = Token(Type.PO, set=Set.DRIVER, features = {TF.PRED:B.FALSE}).tensor
+        idx += 1
+    # Driver: 2 RB tokens
+    for i in range(2):
+        tokens[idx] = Token(Type.RB, set=Set.DRIVER).tensor
+        idx += 1
+    # Driver: 1 P token
+    tokens[idx] = Token(Type.P, set=Set.DRIVER).tensor
+    idx += 1
+    # Recipient: 2 PO tokens with pred = true
+    for i in range(2):
+        tokens[idx] = Token(Type.PO, set=Set.RECIPIENT, features = {TF.PRED:B.TRUE}).tensor
+        idx += 1
+    # Recipient: 2 PO tokens with pred = false
+    for i in range(2):
+        tokens[idx] = Token(Type.PO, set=Set.RECIPIENT, features = {TF.PRED:B.FALSE}).tensor
+        idx += 1
+    # Recipient: 2 RB tokens
+    for i in range(2):
+        tokens[idx] = Token(Type.RB, set=Set.RECIPIENT).tensor
+        idx += 1
+    # Recipient: 1 P token
+    tokens[idx] = Token(Type.P, set=Set.RECIPIENT).tensor
+    idx+=1
+
     names = {}
     return Token_Tensor(tokens, names)
-
 
 @pytest.fixture
 def minimal_connections():
     """Create minimal Connections_Tensor for testing."""
-    num_tokens = 10
+    num_tokens = 9
     connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
     return Connections_Tensor(connections)
 
@@ -47,8 +80,8 @@ def minimal_links(minimal_token_tensor):
 @pytest.fixture
 def minimal_mapping():
     """Create minimal Mapping object for testing."""
-    num_recipient = 5
-    num_driver = 4
+    num_recipient = 7
+    num_driver = 7
     num_fields = len(MappingFields)
     adj_matrix = torch.zeros((num_recipient, num_driver, num_fields))
     return Mapping(adj_matrix)
