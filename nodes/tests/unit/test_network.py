@@ -7,14 +7,11 @@ import tempfile
 import os
 import json
 from nodes.network.network import Network
-from nodes.network.tokens.tokens import Tokens
-from nodes.network.tokens.tensor.token_tensor import Token_Tensor
-from nodes.network.tokens.connections.connections import Connections_Tensor
-from nodes.network.tokens.connections.mapping import Mapping
-from nodes.network.tokens.connections.links import Links
-from nodes.network.sets.semantics import Semantics
-from nodes.network.network_params import Params, default_params, load_from_json
-from nodes.enums import Set, TF, SF, MappingFields
+from nodes.network.tokens import Tokens, Token_Tensor, Connections_Tensor, Links, Mapping
+from nodes.network.single_nodes import Token
+from nodes.network.sets import Semantics
+from nodes.network.network_params import Params, default_params
+from nodes.enums import Set, TF, SF, MappingFields, Type, B, null
 
 
 @pytest.fixture
@@ -26,17 +23,48 @@ def minimal_params():
 @pytest.fixture
 def minimal_token_tensor():
     """Create minimal Token_Tensor for testing."""
-    num_tokens = 10
+    num_tokens = 14
     num_features = len(TF)
     tokens = torch.zeros((num_tokens, num_features))
+    idx = 0
+    # Driver: 2 PO tokens with pred = true
+    for i in range(2):
+        tokens[idx] = Token(Type.PO, set=Set.DRIVER, features = {TF.PRED:B.TRUE}).tensor
+        idx += 1
+    # Driver: 2 PO tokens with pred = false
+    for i in range(2):
+        tokens[idx] = Token(Type.PO, set=Set.DRIVER, features = {TF.PRED:B.FALSE}).tensor
+        idx += 1
+    # Driver: 2 RB tokens
+    for i in range(2):
+        tokens[idx] = Token(Type.RB, set=Set.DRIVER).tensor
+        idx += 1
+    # Driver: 1 P token
+    tokens[idx] = Token(Type.P, set=Set.DRIVER).tensor
+    idx += 1
+    # Recipient: 2 PO tokens with pred = true
+    for i in range(2):
+        tokens[idx] = Token(Type.PO, set=Set.RECIPIENT, features = {TF.PRED:B.TRUE}).tensor
+        idx += 1
+    # Recipient: 2 PO tokens with pred = false
+    for i in range(2):
+        tokens[idx] = Token(Type.PO, set=Set.RECIPIENT, features = {TF.PRED:B.FALSE}).tensor
+        idx += 1
+    # Recipient: 2 RB tokens
+    for i in range(2):
+        tokens[idx] = Token(Type.RB, set=Set.RECIPIENT).tensor
+        idx += 1
+    # Recipient: 1 P token
+    tokens[idx] = Token(Type.P, set=Set.RECIPIENT).tensor
+    idx+=1
+
     names = {}
     return Token_Tensor(tokens, names)
-
 
 @pytest.fixture
 def minimal_connections():
     """Create minimal Connections_Tensor for testing."""
-    num_tokens = 10
+    num_tokens = 9
     connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
     return Connections_Tensor(connections)
 
@@ -53,8 +81,8 @@ def minimal_links(minimal_token_tensor):
 @pytest.fixture
 def minimal_mapping():
     """Create minimal Mapping object for testing."""
-    num_recipient = 5
-    num_driver = 4
+    num_recipient = 7
+    num_driver = 7
     num_fields = len(MappingFields)
     adj_matrix = torch.zeros((num_recipient, num_driver, num_fields))
     return Mapping(adj_matrix)
@@ -86,7 +114,7 @@ def network(minimal_tokens, minimal_semantics, minimal_params):
 
 # =====================[ Initialization Tests ]======================
 
-def test_network_init_success(network):
+def test_network_init_success(network: Network):
     """Test successful Network initialization."""
     assert network.tokens is not None
     assert network.token_tensor is not None
@@ -113,7 +141,7 @@ def test_network_init_type_checking_params(minimal_tokens, minimal_semantics):
         Network(minimal_tokens, minimal_semantics, "invalid")
 
 
-def test_network_init_operations_created(network):
+def test_network_init_operations_created(network: Network):
     """Test that all operation objects are created during initialization."""
     assert network.routines is not None
     assert network.tensor_ops is not None
@@ -126,13 +154,13 @@ def test_network_init_operations_created(network):
     assert network.inhibitor_ops is not None
 
 
-def test_network_init_inhibitors_initialized(network):
+def test_network_init_inhibitors_initialized(network: Network):
     """Test that inhibitors are initialized to 0.0."""
     assert network.local_inhibitor == 0.0
     assert network.global_inhibitor == 0.0
 
 
-def test_network_init_sets_have_correct_types(network):
+def test_network_init_sets_have_correct_types(network: Network):
     """Test that sets are created with correct types."""
     from nodes.network.sets import Driver, Recipient, Memory, New_Set
     assert isinstance(network.sets[Set.DRIVER], Driver)
@@ -143,7 +171,7 @@ def test_network_init_sets_have_correct_types(network):
 
 # =====================[ set_params Tests ]======================
 
-def test_set_params_updates_network_params(network, minimal_params):
+def test_set_params_updates_network_params(network: Network, minimal_params):
     """Test that set_params updates network params."""
     # Create new params with different values
     new_params_dict = minimal_params.get_params_dict()
@@ -154,7 +182,7 @@ def test_set_params_updates_network_params(network, minimal_params):
     assert network.params.gamma == 999.0
 
 
-def test_set_params_updates_sets_params(network, minimal_params):
+def test_set_params_updates_sets_params(network: Network, minimal_params):
     """Test that set_params updates params for all sets."""
     new_params_dict = minimal_params.get_params_dict()
     new_params_dict["gamma"] = 888.0
@@ -165,7 +193,7 @@ def test_set_params_updates_sets_params(network, minimal_params):
         assert network.sets[set_enum].params.gamma == 888.0
 
 
-def test_set_params_updates_semantics_params(network, minimal_params):
+def test_set_params_updates_semantics_params(network: Network, minimal_params):
     """Test that set_params updates semantics params."""
     new_params_dict = minimal_params.get_params_dict()
     new_params_dict["gamma"] = 777.0
@@ -175,7 +203,7 @@ def test_set_params_updates_semantics_params(network, minimal_params):
     assert network.semantics.params.gamma == 777.0
 
 
-def test_set_params_updates_links_params(network, minimal_params):
+def test_set_params_updates_links_params(network: Network, minimal_params):
     """Test that set_params updates links params."""
     new_params_dict = minimal_params.get_params_dict()
     new_params_dict["gamma"] = 666.0
@@ -190,7 +218,7 @@ def test_set_params_updates_links_params(network, minimal_params):
 
 # =====================[ setup_sets_and_semantics Tests ]======================
 
-def test_setup_sets_and_semantics_sets_mappings(network):
+def test_setup_sets_and_semantics_sets_mappings(network: Network):
     """Test that setup_sets_and_semantics sets mappings correctly."""
     # Check that recipient has mappings
     assert network.sets[Set.RECIPIENT].mappings is not None
@@ -201,20 +229,20 @@ def test_setup_sets_and_semantics_sets_mappings(network):
     assert hasattr(network.sets[Set.DRIVER], 'mappings') or hasattr(network.sets[Set.DRIVER], '_mappings')
 
 
-def test_setup_sets_and_semantics_sets_links(network):
+def test_setup_sets_and_semantics_sets_links(network: Network):
     """Test that setup_sets_and_semantics sets links for all sets."""
     for set_enum in Set:
         assert network.sets[set_enum].links is not None
         assert network.sets[set_enum].links == network.links
 
 
-def test_setup_sets_and_semantics_sets_semantics_links(network):
+def test_setup_sets_and_semantics_sets_semantics_links(network: Network):
     """Test that setup_sets_and_semantics sets links for semantics."""
     assert network.semantics.links is not None
     assert network.semantics.links == network.links
 
 
-def test_setup_sets_and_semantics_calls_set_params(network):
+def test_setup_sets_and_semantics_calls_set_params(network: Network):
     """Test that setup_sets_and_semantics calls set_params."""
     # After setup, params should be set on all sets
     for set_enum in Set:
@@ -224,7 +252,7 @@ def test_setup_sets_and_semantics_calls_set_params(network):
 
 # =====================[ load_json_params Tests ]======================
 
-def test_load_json_params_success(network, minimal_params):
+def test_load_json_params_success(network: Network, minimal_params):
     """Test loading params from JSON file."""
     # Create temporary JSON file
     params_dict = minimal_params.get_params_dict()
@@ -243,7 +271,7 @@ def test_load_json_params_success(network, minimal_params):
         os.unlink(temp_path)
 
 
-def test_load_json_params_file_not_found(network):
+def test_load_json_params_file_not_found(network: Network):
     """Test loading params from non-existent file raises error."""
     with pytest.raises(FileNotFoundError):
         network.load_json_params("/nonexistent/path/to/file.json")
@@ -251,28 +279,28 @@ def test_load_json_params_file_not_found(network):
 
 # =====================[ __getitem__ Tests ]======================
 
-def test_network_getitem_driver(network):
+def test_network_getitem_driver(network: Network):
     """Test __getitem__ returns driver set."""
     driver = network[Set.DRIVER]
     assert driver is not None
     assert driver == network.sets[Set.DRIVER]
 
 
-def test_network_getitem_recipient(network):
+def test_network_getitem_recipient(network: Network):
     """Test __getitem__ returns recipient set."""
     recipient = network[Set.RECIPIENT]
     assert recipient is not None
     assert recipient == network.sets[Set.RECIPIENT]
 
 
-def test_network_getitem_memory(network):
+def test_network_getitem_memory(network: Network):
     """Test __getitem__ returns memory set."""
     memory = network[Set.MEMORY]
     assert memory is not None
     assert memory == network.sets[Set.MEMORY]
 
 
-def test_network_getitem_new_set(network):
+def test_network_getitem_new_set(network: Network):
     """Test __getitem__ returns new_set."""
     new_set = network[Set.NEW_SET]
     assert new_set is not None
@@ -281,7 +309,7 @@ def test_network_getitem_new_set(network):
 
 # =====================[ get_count Tests ]======================
 
-def test_get_count_calls_token_tensor(network):
+def test_get_count_calls_token_tensor(network: Network):
     """Test that get_count calls token_tensor.get_count()."""
     # This test verifies the method exists and can be called
     # The actual implementation may vary
@@ -291,7 +319,7 @@ def test_get_count_calls_token_tensor(network):
     assert result is None  # Based on the implementation
 
 
-def test_get_count_with_semantics(network):
+def test_get_count_with_semantics(network: Network):
     """Test get_count with semantics=True."""
     result = network.get_count(semantics=True)
     # Should not raise an error
@@ -300,7 +328,7 @@ def test_get_count_with_semantics(network):
 
 # =====================[ clear Tests ]======================
 
-def test_clear_limited(network):
+def test_clear_limited(network: Network):
     """Test clear with limited=True."""
     # Should not raise an error
     network.clear(limited=True)
@@ -308,7 +336,7 @@ def test_clear_limited(network):
     # (This depends on tensor_ops implementation)
 
 
-def test_clear_full(network):
+def test_clear_full(network: Network):
     """Test clear with limited=False (full clear)."""
     # Should not raise an error
     network.clear(limited=False)
@@ -318,77 +346,77 @@ def test_clear_full(network):
 
 # =====================[ Property Tests ]======================
 
-def test_tensor_property(network):
+def test_tensor_property(network: Network):
     """Test tensor property returns tensor_ops."""
     assert network.tensor == network.tensor_ops
 
 
-def test_update_property(network):
+def test_update_property(network: Network):
     """Test update property returns update_ops."""
     assert network.update == network.update_ops
 
 
-def test_mapping_property(network):
+def test_mapping_property(network: Network):
     """Test mapping property returns mapping_ops."""
     assert network.mapping == network.mapping_ops
 
 
-def test_firing_property(network):
+def test_firing_property(network: Network):
     """Test firing property returns firing_ops."""
     assert network.firing == network.firing_ops
 
 
-def test_analog_property(network):
+def test_analog_property(network: Network):
     """Test analog property returns analog_ops."""
     assert network.analog == network.analog_ops
 
 
-def test_entropy_property(network):
+def test_entropy_property(network: Network):
     """Test entropy property returns entropy_ops."""
     assert network.entropy == network.entropy_ops
 
 
-def test_node_property(network):
+def test_node_property(network: Network):
     """Test node property returns node_ops."""
     assert network.node == network.node_ops
 
 
-def test_inhibitor_property(network):
+def test_inhibitor_property(network: Network):
     """Test inhibitor property returns inhibitor_ops."""
     assert network.inhibitor == network.inhibitor_ops
 
 
 # =====================[ Set Access Function Tests ]======================
 
-def test_driver_function(network):
+def test_driver_function(network: Network):
     """Test driver() returns driver set."""
     driver = network.driver()
     assert driver is not None
     assert driver == network.sets[Set.DRIVER]
 
 
-def test_recipient_function(network):
+def test_recipient_function(network: Network):
     """Test recipient() returns recipient set."""
     recipient = network.recipient()
     assert recipient is not None
     assert recipient == network.sets[Set.RECIPIENT]
 
 
-def test_memory_function(network):
+def test_memory_function(network: Network):
     """Test memory() returns memory set."""
     memory = network.memory()
     assert memory is not None
     assert memory == network.sets[Set.MEMORY]
 
 
-def test_new_set_function(network):
+def test_new_set_function(network: Network):
     """Test new_set() returns new_set."""
     new_set = network.new_set()
     assert new_set is not None
     assert new_set == network.sets[Set.NEW_SET]
 
 
-def test_semantics_function(network):
+def test_semantics_function(network: Network):
     """Test semantics attribute returns semantics object."""
     # Note: network.semantics is an attribute, not a method
     # The semantics() method exists but conflicts with the attribute name
@@ -401,7 +429,7 @@ def test_semantics_function(network):
 
 # =====================[ set_name Tests ]======================
 
-def test_set_name_success(network):
+def test_set_name_success(network: Network):
     """Test set_name sets name for a token."""
     idx = 0
     name = "test_token"
@@ -412,11 +440,11 @@ def test_set_name_success(network):
 
 # =====================[ get_max_map_value Tests ]======================
 
-def test_get_max_map_value_driver_token(network):
+def test_get_max_map_value_driver_token(network: Network):
     """Test get_max_map_value for a driver token."""
     # Set up a driver token
     idx = 0
-    network.token_tensor.move_tokens(torch.tensor([idx]), Set.DRIVER)
+    network.node_ops.move_tokens(torch.tensor([idx]), Set.DRIVER)
     
     # Set some mapping weights
     network.mappings[MappingFields.WEIGHT][0, 0] = 0.5
@@ -432,7 +460,7 @@ def test_get_max_map_value_recipient_token(network: Network):
     """Test get_max_map_value for a recipient token."""
     # Set up a recipient token
     idx = 0
-    network.token_tensor.move_tokens(torch.tensor([idx]), Set.RECIPIENT)
+    network.node_ops.move_tokens(torch.tensor([idx]), Set.RECIPIENT)
     network[Set.RECIPIENT].update_view()
     
     # Set some mapping weights
@@ -447,7 +475,7 @@ def test_get_max_map_value_recipient_token(network: Network):
 
 # =====================[ get_ref_string Tests ]======================
 
-def test_get_ref_string_success(network):
+def test_get_ref_string_success(network: Network):
     """Test get_ref_string returns string representation."""
     idx = 0
     ref_string = network.get_ref_string(idx)
@@ -456,7 +484,7 @@ def test_get_ref_string_success(network):
 
 # =====================[ __getattr__ Tests ]======================
 
-def test_getattr_delegates_to_promoted_components(network):
+def test_getattr_delegates_to_promoted_components(network: Network):
     """Test that __getattr__ delegates to promoted components."""
     # Try to access a method that exists in tensor_ops
     # This depends on what methods are available in TensorOperations
@@ -466,7 +494,7 @@ def test_getattr_delegates_to_promoted_components(network):
         assert hasattr(network, 'clear_set') or callable(getattr(network, 'clear_set', None))
 
 
-def test_getattr_raises_attribute_error_for_missing(network):
+def test_getattr_raises_attribute_error_for_missing(network: Network):
     """Test that __getattr__ raises AttributeError for non-existent attributes."""
     with pytest.raises(AttributeError):
         _ = network.nonexistent_attribute_xyz
@@ -474,7 +502,7 @@ def test_getattr_raises_attribute_error_for_missing(network):
 
 # =====================[ Integration Tests ]======================
 
-def test_network_initialization_complete_setup(network):
+def test_network_initialization_complete_setup(network: Network):
     """Test that network initialization completes all setup steps."""
     # Verify all components are connected
     assert network.sets[Set.RECIPIENT].mappings == network.mappings

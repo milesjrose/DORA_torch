@@ -3,7 +3,7 @@ from ...utils import tensor_ops as tOps
 import torch
 from logging import getLogger
 
-logger = getLogger(__name__)
+logger = getLogger("tkn")
 
 class FieldView:
     """

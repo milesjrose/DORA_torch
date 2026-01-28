@@ -5,12 +5,8 @@ import pytest
 import torch
 from unittest.mock import Mock, patch, MagicMock
 from nodes.network.network import Network
-from nodes.network.tokens.tokens import Tokens
-from nodes.network.tokens.tensor.token_tensor import Token_Tensor
-from nodes.network.tokens.connections.connections import Connections_Tensor
-from nodes.network.tokens.connections.mapping import Mapping
-from nodes.network.tokens.connections.links import Links
-from nodes.network.sets.semantics import Semantics
+from nodes.network.tokens import Tokens, Token_Tensor, Connections_Tensor, Links, Mapping
+from nodes.network.sets import Semantics
 from nodes.network.network_params import default_params
 from nodes.network.single_nodes import Token, Semantic
 from nodes.network.operations.entropy_ops import EntropyOperations, en_based_mag_checks_results
@@ -409,7 +405,7 @@ class TestAttachMagSemantics:
         po2_idx = 1
         
         # Create sem_links dict
-        num_sems = network.semantics.get_count()
+        num_sems = network.semantics.nodes.shape[0]
         sem_links = {
             po1_idx: torch.zeros(num_sems, dtype=torch.bool),
             po2_idx: torch.zeros(num_sems, dtype=torch.bool),
@@ -431,7 +427,7 @@ class TestAttachMagSemantics:
         po1_idx = 0
         po2_idx = 1
         
-        num_sems = network.semantics.get_count()
+        num_sems = network.semantics.nodes.shape[0]
         sem_links = {
             po1_idx: torch.zeros(num_sems, dtype=torch.bool),
             po2_idx: torch.zeros(num_sems, dtype=torch.bool),
@@ -461,7 +457,7 @@ class TestAttachMagSemantics:
         # Set initial weight
         network.links[po1_idx, sem1_idx] = 1.0
         
-        num_sems = network.semantics.get_count()
+        num_sems = network.semantics.nodes.shape[0]
         sem_links = {
             po1_idx: torch.zeros(num_sems, dtype=torch.bool),
             po2_idx: torch.zeros(num_sems, dtype=torch.bool),
@@ -484,7 +480,7 @@ class TestUpdateMagSemantics:
         po1_idx = 0
         po2_idx = 1
         
-        num_sems = network.semantics.get_count()
+        num_sems = network.semantics.nodes.shape[0]
         sem_links = {
             po1_idx: torch.zeros(num_sems, dtype=torch.bool),
             po2_idx: torch.zeros(num_sems, dtype=torch.bool),
@@ -505,7 +501,7 @@ class TestUpdateMagSemantics:
         po1_idx = 0
         po2_idx = 1
         
-        num_sems = network.semantics.get_count()
+        num_sems = network.semantics.nodes.shape[0]
         sem_links = {
             po1_idx: torch.zeros(num_sems, dtype=torch.bool),
             po2_idx: torch.zeros(num_sems, dtype=torch.bool),
@@ -536,7 +532,7 @@ class TestUpdateMagSemantics:
         # Set initial weight
         network.links[po1_idx, sem1_idx] = 0.5
         
-        num_sems = network.semantics.get_count()
+        num_sems = network.semantics.nodes.shape[0]
         sem_links = {
             po1_idx: torch.zeros(num_sems, dtype=torch.bool),
             po2_idx: torch.zeros(num_sems, dtype=torch.bool),

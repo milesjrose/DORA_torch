@@ -7,7 +7,7 @@ from .tensor_view import TensorView
 import torch
 from ...enums import *
 from logging import getLogger
-logger = getLogger(__name__)
+logger = getLogger("tkn")
 
 class Tokens:
     """

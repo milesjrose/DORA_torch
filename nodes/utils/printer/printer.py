@@ -5,6 +5,10 @@ import os
 import torch
 from .print_table import tablePrinter
 from nodes.enums import *
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from nodes.network.tokens.tensor.token_tensor import Token_Tensor
+    from nodes.network.tokens.tokens import Tokens
 
 
 class Printer:
@@ -45,8 +49,8 @@ class Printer:
             with open(self.log_file, mode, encoding='utf-8') as f:
                 f.write(message + "\n")
     
-    def print_token_tensor(self, token_tensor, cols_per_table: int = 8, 
-                           show_deleted: bool = False, indices: torch.Tensor = None):
+    def print_token_tensor(self, token_tensor: 'Token_Tensor', cols_per_table: int = 8, 
+                           show_deleted: bool = False, indices: torch.Tensor = None, use_names: bool = False, features: list[TF] = None):
         """
         Print a Token_Tensor object in table format.
         
@@ -57,6 +61,7 @@ class Printer:
             show_deleted (bool): Whether to include deleted tokens. Default False.
             indices (torch.Tensor): Optional specific indices to print. 
                                     If None, prints all (non-deleted) tokens.
+            use_names: Whether to use token names instead of indices.
         """
         tensor = token_tensor.tensor
         names = token_tensor.names
@@ -79,25 +84,31 @@ class Printer:
             return
         
         # Get feature names as column headers
-        tf_headers = [tf.name for tf in TF]
+        if features is None:
+            features = [tf for tf in TF]
+        tf_headers = [tf.name for tf in features]
         
         # Check if we have names to use
-        has_names = any(idx.item() in names for idx in display_indices)
-        id_header = "Name" if has_names else "Idx"
+        if use_names:
+            has_names = any(idx.item() in names for idx in display_indices)
+            id_header = "Name" if has_names else "Idx"
+        else:
+            has_names = False
+            id_header = "Idx"
         
         # Build row data
         rows = []
         for idx in display_indices:
             row = []
             # Add identifier (name or index)
-            if has_names:
+            if use_names and has_names:
                 name = names.get(idx.item(), "")
                 row.append(name if name else str(idx.item()))
             else:
                 row.append(str(idx.item()))
             
             # Add feature values
-            for tf in TF:
+            for tf in features:
                 if tf == TF.ID:
                     value = idx.item()
                 else:
@@ -248,8 +259,8 @@ class Printer:
                 
                 table_num += 1
     
-    def print_connections(self, token_tensor, show_deleted: bool = False, 
-                          indices: torch.Tensor = None, use_names: bool = True,
+    def print_connections(self, tokens: 'Tokens', show_deleted: bool = False, 
+                          indices: torch.Tensor = None, use_names: bool = False,
                           connected_char: str = "●", empty_char: str = "·"):
         """
         Print the connections tensor as a matrix table.
@@ -265,13 +276,13 @@ class Printer:
             connected_char (str): Character to show for connections. Default "●".
             empty_char (str): Character to show for no connection. Default "·".
         """
-        tensor = token_tensor.tensor
-        names = token_tensor.names
-        connections = token_tensor.connections
+        tensor = tokens.token_tensor.tensor
+        names = tokens.token_tensor.names
+        connections = tokens.connections
         
         # Handle Connections_Tensor wrapper or raw tensor
-        if hasattr(connections, 'connections'):
-            conn_tensor = connections.connections
+        if hasattr(connections, 'tensor'):
+            conn_tensor = connections.tensor
         else:
             conn_tensor = connections
         
@@ -299,7 +310,7 @@ class Printer:
             return str(idx)
         
         # Build column headers (child tokens)
-        col_headers = ["Parent\\Child"] + [get_label(idx.item()) for idx in display_indices]
+        col_headers = ["P\\C"] + [get_label(idx.item()) for idx in display_indices]
         
         # Build row data
         rows = []
@@ -324,8 +335,9 @@ class Printer:
         header_text = f"Connections Matrix ({len(display_indices)} tokens, {int(total_connections)} connections)"
         self._print_table(col_headers, rows, header_text)
     
-    def print_connections_list(self, token_tensor, show_deleted: bool = False,
-                               indices: torch.Tensor = None, use_names: bool = True):
+    def print_connections_list(self, tokens: 'Tokens', show_deleted: bool = False,
+                               indices: torch.Tensor = None, use_names: bool = False, 
+                               list_only_connected: bool = True, child_indices: torch.Tensor = None):
         """
         Print connections as a list of parent -> child relationships.
         More readable for sparse connection matrices.
@@ -336,14 +348,17 @@ class Printer:
             indices (torch.Tensor): Optional specific indices to print.
                                     If None, prints all (non-deleted) tokens.
             use_names (bool): Whether to use token names instead of indices. Default True.
+            list_only_connected (bool): Whether to only list connected tokens. Default True.
+            child_indices (torch.Tensor): Optional specific child indices to print.
+                                          If None, prints all children.
         """
-        tensor = token_tensor.tensor
-        names = token_tensor.names
-        connections = token_tensor.connections
+        tensor = tokens.token_tensor.tensor
+        names = tokens.token_tensor.names
+        connections = tokens.connections
         
         # Handle Connections_Tensor wrapper or raw tensor
-        if hasattr(connections, 'connections'):
-            conn_tensor = connections.connections
+        if hasattr(connections, 'tensor'):
+            conn_tensor = connections.tensor
         else:
             conn_tensor = connections
         
@@ -359,6 +374,14 @@ class Printer:
         else:
             non_deleted_mask = tensor[:, TF.DELETED] == B.FALSE
             display_indices = torch.where(non_deleted_mask)[0]
+        
+        if list_only_connected:
+            active_parents = conn_tensor[display_indices][:].any(dim=1)
+            display_indices = display_indices[active_parents]
+        
+        if child_indices is None:
+            non_delete_mask = tensor[:, TF.DELETED] == B.FALSE
+            child_indices = torch.where(non_delete_mask)[0]
         
         if len(display_indices) == 0:
             self._output("No tokens to display")
@@ -379,7 +402,7 @@ class Printer:
             parent_label = get_label(parent_idx.item())
             children = []
             
-            for child_idx in display_indices:
+            for child_idx in child_indices:
                 if conn_tensor[parent_idx, child_idx].item():
                     children.append(get_label(child_idx.item()))
             

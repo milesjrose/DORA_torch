@@ -8,7 +8,7 @@ from .cache import Cache
 from ....utils import tensor_ops as tOps
 from logging import getLogger
 from ..tensor_view import TensorView
-logger = getLogger(__name__)
+logger = getLogger("tns")
 
 class Token_Tensor:
     """
@@ -19,7 +19,6 @@ class Token_Tensor:
         Initialize the Tokens object.
         Args:
             tokens: torch.Tensor - The tensor of tokens.
-            connections: Connections_Tensor - The connections object.
             names: dict[int, str] - The dictionary of names.
         """
         assert isinstance(tokens, torch.Tensor), f"tokens must be a torch.Tensor, not {type(tokens)}"

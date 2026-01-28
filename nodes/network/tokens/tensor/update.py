@@ -3,7 +3,7 @@ from ....enums import *
 from ...network_params import Params
 import torch
 from logging import getLogger
-logger = getLogger(__name__)
+logger = getLogger("tns")
 
 class UpdateOps:
     """ Class to perform update operations on the tensor."""

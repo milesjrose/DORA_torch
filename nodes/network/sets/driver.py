@@ -2,7 +2,7 @@ from .base_set import Base_Set
 from ...enums import *
 import torch 
 from logging import getLogger
-logger = getLogger(__name__)
+logger = getLogger("set")
 from ..tokens import Tokens
 from ..network_params import Params
 from ...utils import tensor_ops as tOps

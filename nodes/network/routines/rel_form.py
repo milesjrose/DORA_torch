@@ -9,7 +9,7 @@ from ..single_nodes import Token, Ref_Token
 import torch
 
 from logging import getLogger
-logger = getLogger(__name__)
+logger = getLogger("rtn")
 
 if TYPE_CHECKING:
     from ...network import Network
@@ -61,16 +61,17 @@ class RelFormOperations:
         r_p = tk_tensor.cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT})
         if torch.any(r_p): # Only need to check if there are Ps in the recipient.
             # P is parent, RB is child, so take dim=0? TODO: Check which dim I need
-            r_rb_no_p = (cons[r_p][:, r_rb] == True).all(dim=0) # Mask of RBs that don't connect to a P unit
+            r_rb_no_p = (cons[r_p][:, r_rb] == False).all(dim=0) # Mask of RBs that don't connect to a P unit
             if r_rb_no_p.sum() < 2:
                 logger.debug(f"Only {r_rb_no_p.sum()} RBs in recipient that don't connect to a P unit (required at least 2)")
                 return False
             r_rb_no_p = tOps.sub_union(r_rb, r_rb_no_p) # Expand mask to size of token tensor.
             r_rb_no_p = r_rb_no_p[net.recipient().lcl._indices] # Shrink mask to be the size of the recipient, to index into mappings.
-
+            logger.debug(f"r_rb_no_p: {r_rb_no_p.shape}")
         # 2). Find at least 2 of these RBs that map to driver RBs above threshold.
         map_weights = mappings[MappingFields.WEIGHT]
         d_rb = self.network.driver().tensor_op.get_mask(Type.RB)
+        logger.debug(f"map_weights: {map_weights.shape}, r_rb_no_p: {r_rb_no_p.shape}, d_rb: {d_rb.shape}")
         passing_maps = map_weights[r_rb_no_p][:, d_rb] > threshold
         if len(passing_maps) < 2:
             logger.debug(f"Only {len(passing_maps)} RBs in recipient that map to RBs in the driver with mapping connections above 0.8 (required at least 2)")
@@ -107,14 +108,16 @@ class RelFormOperations:
             self.inferred_p = new_p
     
     def name_inferred_p(self):
-        """Give the inferred p a name baseed on its RBs."""
+        """Give the inferred p a name based on its RBs."""
+        logger.debug(f"Naming inferred P: {self.inferred_p}")
         if self.inferred_p is None:
             raise ValueError("Inferred P is not set.")
         rbs = self.network.tokens.connections.get_children(self.inferred_p).tolist()
         if len(rbs) == 0:
             # Debug message from runDORA.py, kept in case still needed.
             raise ValueError("Hey, you got a an error awhile ago that you were unable to reproduce. Basically, it seems you learned a P unit with no RBs (or something to that effect). You added a try/except to catch it in case it popped up again. It has. You will want to look very carefully at what happened with the latest P unit that has been made.")
-        name_string = self.network.get_name(int(rbs[0]))
-        for rb in rbs[1:]:
-            name_string += "+" + self.network.get_name(int(rb))
+        rb_names = [self.network.get_name(int(rb)) for rb in rbs]
+        logger.debug(f"RBs: {rbs}, names: {rb_names}")
+        name_string = "+".join(rb_names)
+        logger.debug(f"Name string: {name_string}")
         self.network.set_name(self.inferred_p, name_string)

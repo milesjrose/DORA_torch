@@ -3,7 +3,7 @@ from enum import IntEnum
 import torch 
 from logging import getLogger
 from ..tensor_view import TensorView
-logger = getLogger(__name__)
+logger = getLogger("con")
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:

@@ -12,7 +12,7 @@ from nodes.network.single_nodes import Token
 from nodes.network.routines.rel_form import RelFormOperations
 from nodes.enums import Set, TF, SF, MappingFields, Type, B, null
 from logging import getLogger
-logger = getLogger(__name__)
+logger = getLogger("PYTEST")
 
 
 @pytest.fixture
@@ -87,14 +87,14 @@ def network(minimal_tokens, minimal_semantics, minimal_params):
 
 # =====================[ Initialization Tests ]======================
 
-def test_rel_form_ops_initialization(network):
+def test_rel_form_ops_initialization(network: Network):
     """Test that RelFormOperations is properly initialized."""
     rel_form_ops = network.routines.rel_form
     assert rel_form_ops is not None
     assert rel_form_ops.network is network
 
 
-def test_rel_form_ops_initial_state(network):
+def test_rel_form_ops_initial_state(network: Network):
     """Test initial state of RelFormOperations."""
     rel_form_ops = network.routines.rel_form
     assert rel_form_ops.debug is False
@@ -115,7 +115,7 @@ def test_rel_form_ops_standalone_initialization():
 
 # =====================[ requirements Tests ]======================
 
-def test_requirements_returns_false_with_less_than_2_rbs_in_recipient(network):
+def test_requirements_returns_false_with_less_than_2_rbs_in_recipient(network: Network):
     """Test that requirements returns False when there are less than 2 RBs in recipient."""
     rel_form_ops = network.routines.rel_form
     
@@ -128,7 +128,7 @@ def test_requirements_returns_false_with_less_than_2_rbs_in_recipient(network):
     assert result is False
 
 
-def test_requirements_returns_false_when_rbs_have_parent_p(network):
+def test_requirements_returns_false_when_rbs_have_parent_p(network: Network):
     """Test that requirements returns False when RBs already have parent P connections."""
     rel_form_ops = network.routines.rel_form
     
@@ -149,12 +149,14 @@ def test_requirements_returns_false_when_rbs_have_parent_p(network):
     network.tokens.connections.connect(3, 2)
     
     network.recache()
+    network.print_token_tensor(features=[TF.TYPE, TF.SET])
+    network.print_connections()
     
     result = rel_form_ops.requirements()
     assert result is False
 
 
-def test_requirements_returns_bool(network):
+def test_requirements_returns_bool(network: Network):
     """Test that requirements() always returns a boolean."""
     rel_form_ops = network.routines.rel_form
     result = rel_form_ops.requirements()
@@ -163,7 +165,7 @@ def test_requirements_returns_bool(network):
 
 # =====================[ rel_form_routine Tests - No New P Inferred ]======================
 
-def test_rel_form_routine_creates_new_p_when_not_inferred(network):
+def test_rel_form_routine_creates_new_p_when_not_inferred(network: Network):
     """Test that rel_form_routine creates a new P token when inferred_new_p is False."""
     rel_form_ops = network.routines.rel_form
     rel_form_ops.inferred_new_p = False
@@ -183,7 +185,7 @@ def test_rel_form_routine_creates_new_p_when_not_inferred(network):
     assert network.token_tensor.tensor[new_p_idx, TF.INFERRED] == B.TRUE
 
 
-def test_rel_form_routine_sets_inferred_p_flag(network):
+def test_rel_form_routine_sets_inferred_p_flag(network: Network):
     """Test that rel_form_routine sets the inferred_new_p flag to True after creating P."""
     rel_form_ops = network.routines.rel_form
     rel_form_ops.inferred_new_p = False
@@ -195,7 +197,7 @@ def test_rel_form_routine_sets_inferred_p_flag(network):
     assert rel_form_ops.inferred_new_p is True
 
 
-def test_rel_form_routine_stores_inferred_p_index(network):
+def test_rel_form_routine_stores_inferred_p_index(network: Network):
     """Test that rel_form_routine stores the index of the newly created P token."""
     rel_form_ops = network.routines.rel_form
     rel_form_ops.inferred_new_p = False
@@ -209,7 +211,7 @@ def test_rel_form_routine_stores_inferred_p_index(network):
 
 # =====================[ rel_form_routine Tests - New P Already Inferred ]======================
 
-def test_rel_form_routine_connects_p_to_active_rbs_when_inferred(network):
+def test_rel_form_routine_connects_p_to_active_rbs_when_inferred(network: Network):
     """Test that rel_form_routine connects existing P to active RBs when inferred_new_p is True."""
     rel_form_ops = network.routines.rel_form
     
@@ -245,7 +247,7 @@ def test_rel_form_routine_connects_p_to_active_rbs_when_inferred(network):
     assert len(children) >= 1  # At least one RB should be connected
 
 
-def test_rel_form_routine_raises_when_inferred_p_not_set(network):
+def test_rel_form_routine_raises_when_inferred_p_not_set(network: Network):
     """Test that rel_form_routine raises ValueError when inferred_new_p is True but inferred_p is None."""
     rel_form_ops = network.routines.rel_form
     rel_form_ops.inferred_new_p = True
@@ -255,7 +257,7 @@ def test_rel_form_routine_raises_when_inferred_p_not_set(network):
         rel_form_ops.rel_form_routine()
 
 
-def test_rel_form_routine_logs_critical_when_no_rbs_to_connect(network):
+def test_rel_form_routine_logs_critical_when_no_rbs_to_connect(network: Network):
     """Test that rel_form_routine logs critical when no RBs meet activation threshold."""
     rel_form_ops = network.routines.rel_form
     
@@ -277,7 +279,7 @@ def test_rel_form_routine_logs_critical_when_no_rbs_to_connect(network):
 
 # =====================[ name_inferred_p Tests ]======================
 
-def test_name_inferred_p_raises_when_inferred_p_not_set(network):
+def test_name_inferred_p_raises_when_inferred_p_not_set(network: Network):
     """Test that name_inferred_p raises ValueError when inferred_p is None."""
     rel_form_ops = network.routines.rel_form
     rel_form_ops.inferred_p = None
@@ -286,7 +288,7 @@ def test_name_inferred_p_raises_when_inferred_p_not_set(network):
         rel_form_ops.name_inferred_p()
 
 
-def test_name_inferred_p_raises_when_p_has_no_rbs(network):
+def test_name_inferred_p_raises_when_p_has_no_rbs(network: Network):
     """Test that name_inferred_p raises ValueError when P has no RB children."""
     rel_form_ops = network.routines.rel_form
     
@@ -302,7 +304,7 @@ def test_name_inferred_p_raises_when_p_has_no_rbs(network):
         rel_form_ops.name_inferred_p()
 
 
-def test_name_inferred_p_creates_name_from_single_rb(network):
+def test_name_inferred_p_creates_name_from_single_rb(network: Network):
     """Test that name_inferred_p creates name from a single connected RB."""
     rel_form_ops = network.routines.rel_form
     
@@ -318,10 +320,14 @@ def test_name_inferred_p_creates_name_from_single_rb(network):
     network.token_tensor.tensor[rb_idx, TF.SET] = Set.RECIPIENT
     network.token_tensor.tensor[rb_idx, TF.ID] = rb_idx
     network.set_name(rb_idx, "RB_test")
+
+    network.recache()
     
     # Connect P to RB
     network.tokens.connections.connect(p_idx, rb_idx)
-    network.recache()
+    network.print_connections_list()
+    logger.debug(f"p_idx: {p_idx}, rb_idx: {rb_idx}, p->rb: {network.tokens.connections.tensor[p_idx, rb_idx].item()}")
+    logger.debug(f"children: {network.tokens.connections.get_children(p_idx)}")
     
     rel_form_ops.inferred_p = p_idx
     rel_form_ops.name_inferred_p()
@@ -330,7 +336,7 @@ def test_name_inferred_p_creates_name_from_single_rb(network):
     assert network.get_name(p_idx) == "RB_test"
 
 
-def test_name_inferred_p_creates_name_from_multiple_rbs(network):
+def test_name_inferred_p_creates_name_from_multiple_rbs(network: Network):
     """Test that name_inferred_p creates name from multiple connected RBs with + separator."""
     rel_form_ops = network.routines.rel_form
     
@@ -371,7 +377,7 @@ def test_name_inferred_p_creates_name_from_multiple_rbs(network):
 
 # =====================[ State Management Tests ]======================
 
-def test_inferred_new_p_flag_persistence(network):
+def test_inferred_new_p_flag_persistence(network: Network):
     """Test that inferred_new_p flag persists correctly."""
     rel_form_ops = network.routines.rel_form
     
@@ -380,7 +386,7 @@ def test_inferred_new_p_flag_persistence(network):
     assert rel_form_ops.inferred_new_p is True
 
 
-def test_inferred_p_reference_persistence(network):
+def test_inferred_p_reference_persistence(network: Network):
     """Test that inferred_p reference persists correctly."""
     rel_form_ops = network.routines.rel_form
     
@@ -389,7 +395,7 @@ def test_inferred_p_reference_persistence(network):
     assert rel_form_ops.inferred_p == 42
 
 
-def test_debug_flag_persistence(network):
+def test_debug_flag_persistence(network: Network):
     """Test that debug flag can be toggled."""
     rel_form_ops = network.routines.rel_form
     
@@ -402,7 +408,7 @@ def test_debug_flag_persistence(network):
 
 # =====================[ Integration Tests ]======================
 
-def test_full_rel_form_cycle_creates_and_connects_p(network):
+def test_full_rel_form_cycle_creates_and_connects_p(network: Network):
     """Test a full relation formation cycle: create P, then connect to RBs."""
     rel_form_ops = network.routines.rel_form
     
@@ -436,7 +442,7 @@ def test_full_rel_form_cycle_creates_and_connects_p(network):
     assert len(children) > 0
 
 
-def test_rel_form_preserves_network_reference(network):
+def test_rel_form_preserves_network_reference(network: Network):
     """Test that RelFormOperations maintains correct network reference."""
     rel_form_ops = network.routines.rel_form
     
@@ -447,7 +453,7 @@ def test_rel_form_preserves_network_reference(network):
     assert rel_form_ops.network.token_tensor.tensor[0, TF.ACT] == 0.5
 
 
-def test_rel_form_operations_separate_instances(network):
+def test_rel_form_operations_separate_instances(network: Network):
     """Test that creating new RelFormOperations doesn't affect existing one."""
     rel_form_ops1 = network.routines.rel_form
     rel_form_ops1.inferred_new_p = True
@@ -462,7 +468,7 @@ def test_rel_form_operations_separate_instances(network):
 
 # =====================[ Edge Cases ]======================
 
-def test_requirements_with_empty_network(network):
+def test_requirements_with_empty_network(network: Network):
     """Test requirements() on a network with no tokens set up."""
     rel_form_ops = network.routines.rel_form
     # With no RBs in recipient, should return False
@@ -470,7 +476,7 @@ def test_requirements_with_empty_network(network):
     assert result is False
 
 
-def test_rel_form_routine_threshold_boundary(network):
+def test_rel_form_routine_threshold_boundary(network: Network):
     """Test rel_form_routine with RB activation exactly at threshold (0.8)."""
     rel_form_ops = network.routines.rel_form
     
@@ -495,10 +501,9 @@ def test_rel_form_routine_threshold_boundary(network):
     assert len(children) > 0
 
 
-def test_rel_form_routine_below_threshold(network):
+def test_rel_form_routine_below_threshold(network: Network):
     """Test rel_form_routine with RB activation just below threshold."""
     rel_form_ops = network.routines.rel_form
-    network: 'Network' = network
     # Set up RB with activation below threshold
     network.token_tensor.tensor[0, TF.TYPE] = Type.RB
     network.token_tensor.tensor[0, TF.SET] = Set.RECIPIENT

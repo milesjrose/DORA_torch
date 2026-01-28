@@ -3,7 +3,7 @@ from .cache import Cache
 from .token_tensor import Token_Tensor
 from ....enums import *
 from logging import getLogger
-logger = getLogger(__name__)
+logger = getLogger("tns")
 
 class Analog_ops:
     """ Class to perform operations on analogs."""
