@@ -3,7 +3,7 @@
 
 import torch
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("set")
 
 from ...enums import *
 from ...utils import tensor_ops as tOps
@@ -183,6 +183,16 @@ class Semantics(object):
             self.links.expand_to(new_size, LD.SEM)
         else:
             logger.debug("Links not initialised. Not expanding links tensor.")
+    
+    def check_links_size(self):
+        """ Check the size of the links tensor is the same as the number of semantics, and expand if not."""
+        if self.links is not None:
+            link_size = self.links.size(LD.SEM)
+            sem_size = self.nodes.size(dim=0)
+            if link_size < sem_size:
+                self.links.expand_to(self.nodes.size(dim=0), LD.SEM)
+            elif link_size > sem_size:
+                logger.critical(f"Links tensor size is greater than semantics tensor size, no way to handle this atm.")
 
     def del_semantic(self, ID):                                     # Delete a semantic from the semantics tensor.
         """

@@ -1,7 +1,7 @@
 # nodes/network/network.py
 # Class for holding network sets, and accessing operations on them.
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("net")
 
 from ..enums import *
 
@@ -91,7 +91,8 @@ class Network(object):
             ]
         
         logger.info(f"> Network initialised:\n Tensor shapes:\n    Tokens: {self.token_tensor.tensor.shape[0]}x{self.token_tensor.tensor.shape[1]}\n    Semantics: {self.semantics.nodes.shape[0]}x{self.semantics.nodes.shape[1]}\n    Connections: {self.tokens.connections.tensor.shape[0]}x{self.tokens.connections.tensor.shape[1]}\n    Links: {self.links.adj_matrix.shape[0]}x{self.links.adj_matrix.shape[1]}\n    Mapping: {self.mappings.adj_matrix.shape[0]}x{self.mappings.adj_matrix.shape[1]}x{self.mappings.adj_matrix.shape[2]}\n Set counts:\n    Driver: {self.driver().get_count()}\n    Recipient: {self.recipient().get_count()}\n    Memory: {self.memory().get_count()}\n    New Set: {self.new_set().get_count()}\n    Tokens: {self.token_tensor.get_count()}\n    Semantics: {self.semantics.get_count()}")
-    
+        #self.print_token_tensor()
+
     def __getattr__(self, name):
         # Only search through the designated "promoted" components
         # Check if _promoted_components exists to avoid recursion during initialization
@@ -120,13 +121,21 @@ class Network(object):
         # NOTE: Maybe wasteful, but figure it out later. Just want it to work for now.
         #self.tokens.token_tensor.cache.cache_sets()
     
+    def update_views(self):
+        """
+        Update the views for the network.
+        """
+        for set in Set:
+            self.sets[set].update_view()
+        logger.debug(f"Updated views: driver:{self.driver().lcl.shape[0]}, recipient:{self.recipient().lcl.shape[0]}, memory:{self.memory().lcl.shape[0]}, new_set:{self.new_set().lcl.shape[0]}")
+
     def recache(self):
         """
         Recache the tokens, analogs, and set views for the network.
         """
         self.tokens.recache()
-        for set in Set:
-            self.sets[set].update_view()
+        self.semantics.check_links_size()
+        self.update_views()
 
     def set_params(self, params: Params):                                   # Set the params for sets
         """
@@ -392,3 +401,133 @@ class Network(object):
         print(f"  Memory: {self.memory().get_count()}")
         print(f"  New Set: {self.new_set().get_count()}")
 
+    def print_token_tensor(self, cols_per_table: int = 8, show_deleted: bool = False, indices: torch.Tensor = None, use_names: bool = False, features: list[TF] = None):
+        """ 
+        Print token tensor to console.
+        
+        Args:
+            cols_per_table (int): Number of feature columns per table. Default 8.
+            show_deleted (bool): Whether to include deleted tokens. Default False.
+            indices (torch.Tensor): Optional specific indices to print. If None, prints all (non-deleted) tokens.
+            use_names (bool): Whether to use token names instead of indices. Default False.
+            features (list[TF]): Optional specific features to print. If None, prints all features.
+        """
+        from nodes.utils import Printer
+        p = Printer()
+        p.print_token_tensor(token_tensor=self.token_tensor, cols_per_table=cols_per_table, show_deleted=show_deleted, indices=indices, use_names=use_names, features=features)
+    
+    def print_connections(self, show_deleted: bool = False, indices: torch.Tensor = None, use_names: bool = False, connected_char: str = "●", empty_char: str = "·"):
+        """ 
+        Print connections to console as a matrix table.
+        
+        Args:
+            show_deleted (bool): Whether to include deleted tokens. Default False.
+            indices (torch.Tensor): Optional specific indices to print. If None, prints all (non-deleted) tokens.
+            use_names (bool): Whether to use token names instead of indices. Default False.
+            connected_char (str): Character to show for connections. Default "●".
+            empty_char (str): Character to show for no connection. Default "·".
+        """
+        from nodes.utils import Printer
+        p = Printer()
+        p.print_connections(self.tokens, show_deleted=show_deleted, indices=indices, use_names=use_names, connected_char=connected_char, empty_char=empty_char)
+    
+    def print_connections_list(self, show_deleted: bool = False, indices: torch.Tensor = None, use_names: bool = False, list_only_connected: bool = True):
+        """ 
+        Print connections as a list of parent -> child relationships.
+        More readable for sparse connection matrices.
+        
+        Args:
+            show_deleted (bool): Whether to include deleted tokens. Default False.
+            indices (torch.Tensor): Optional specific indices to print. If None, prints all (non-deleted) tokens.
+            use_names (bool): Whether to use token names instead of indices. Default False.
+            list_only_connected (bool): Whether to only list connected tokens. Default True.
+        """
+        from nodes.utils import Printer
+        p = Printer()
+        p.print_connections_list(self.tokens, show_deleted=show_deleted, indices=indices, use_names=use_names, list_only_connected=list_only_connected)
+    
+    def print_links(self, token_names: dict[int, str] = None, semantic_names: dict[int, str] = None, token_indices: torch.Tensor = None, semantic_indices: torch.Tensor = None, min_weight: float = 0.0, show_weights: bool = True):
+        """ 
+        Print links to console as a matrix showing token-to-semantic connections.
+        
+        Args:
+            token_names (dict[int, str]): Optional dict mapping token index to name. If None, uses network token names.
+            semantic_names (dict[int, str]): Optional dict mapping semantic index to name. If None, uses network semantic names.
+            token_indices (torch.Tensor): Optional specific token indices to show. If None, shows all tokens.
+            semantic_indices (torch.Tensor): Optional specific semantic indices to show. If None, shows all semantics with at least one link.
+            min_weight (float): Minimum weight to display. Links below this are shown as empty. Default 0.0.
+            show_weights (bool): If True, show weight values. If False, show "●" for linked. Default True.
+        """
+        from nodes.utils import Printer
+        p = Printer()
+        # Use network names if not provided
+        if token_names is None:
+            token_names = self.token_tensor.names
+        if semantic_names is None:
+            semantic_names = self.semantics.names if hasattr(self.semantics, 'names') else None
+        p.print_links(self.links, token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, semantic_indices=semantic_indices, min_weight=min_weight, show_weights=show_weights)
+    
+    def print_links_list(self, token_names: dict[int, str] = None, semantic_names: dict[int, str] = None, token_indices: torch.Tensor = None, min_weight: float = 0.0, show_weights: bool = True):
+        """ 
+        Print links as a list showing each token's linked semantics.
+        More readable for sparse matrices.
+        
+        Args:
+            token_names (dict[int, str]): Optional dict mapping token index to name. If None, uses network token names.
+            semantic_names (dict[int, str]): Optional dict mapping semantic index to name. If None, uses network semantic names.
+            token_indices (torch.Tensor): Optional specific token indices to show. If None, shows all tokens with at least one link.
+            min_weight (float): Minimum weight to display. Default 0.0.
+            show_weights (bool): If True, show weight values with semantics. Default True.
+        """
+        from nodes.utils import Printer
+        p = Printer()
+        # Use network names if not provided
+        if token_names is None:
+            token_names = self.token_tensor.names
+        if semantic_names is None:
+            semantic_names = self.semantics.names if hasattr(self.semantics, 'names') else None
+        p.print_links_list(self.links, token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, min_weight=min_weight, show_weights=show_weights)
+    
+    def print_mappings(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, driver_indices: torch.Tensor = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
+        """ 
+        Print mappings to console as a matrix showing recipient-to-driver mappings.
+        
+        Args:
+            driver_names (dict[int, str]): Optional dict mapping driver index to name. If None, uses network token names for driver set.
+            recipient_names (dict[int, str]): Optional dict mapping recipient index to name. If None, uses network token names for recipient set.
+            driver_indices (torch.Tensor): Optional specific driver indices to show. If None, shows all drivers with at least one mapping.
+            recipient_indices (torch.Tensor): Optional specific recipient indices to show. If None, shows all recipients with at least one mapping.
+            field (MappingFields): Which field to display. Default WEIGHT.
+            min_value (float): Minimum value to display. Values below this shown as empty. Default 0.0.
+            show_values (bool): If True, show values. If False, show "●" for non-zero. Default True.
+        """
+        from nodes.utils import Printer
+        p = Printer()
+        # Use network names if not provided
+        if driver_names is None:
+            driver_names = self.token_tensor.names
+        if recipient_names is None:
+            recipient_names = self.token_tensor.names
+        p.print_mappings(self.mappings, driver_names=driver_names, recipient_names=recipient_names, driver_indices=driver_indices, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
+    
+    def print_mappings_list(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
+        """ 
+        Print mappings as a list showing each recipient's mapped drivers.
+        More readable for sparse matrices.
+        
+        Args:
+            driver_names (dict[int, str]): Optional dict mapping driver index to name. If None, uses network token names for driver set.
+            recipient_names (dict[int, str]): Optional dict mapping recipient index to name. If None, uses network token names for recipient set.
+            recipient_indices (torch.Tensor): Optional specific recipient indices to show. If None, shows all recipients with at least one mapping.
+            field (MappingFields): Which field to display. Default WEIGHT.
+            min_value (float): Minimum value to display. Default 0.0.
+            show_values (bool): If True, show values with drivers. Default True.
+        """
+        from nodes.utils import Printer
+        p = Printer()
+        # Use network names if not provided
+        if driver_names is None:
+            driver_names = self.token_tensor.names
+        if recipient_names is None:
+            recipient_names = self.token_tensor.names
+        p.print_mappings_list(self.mappings, driver_names=driver_names, recipient_names=recipient_names, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
