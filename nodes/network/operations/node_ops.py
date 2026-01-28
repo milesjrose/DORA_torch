@@ -52,6 +52,28 @@ class NodeOperations:
         """
         for tk_set in [Set.DRIVER, Set.RECIPIENT, Set.MEMORY, Set.NEW_SET]:
             self.network.sets[tk_set].update_op.po_get_weight_length()
+    
+    def _to_int(self, idx: int|torch.Tensor|list[int]) -> int:
+        """
+        Convert an index to an integer.
+        """
+        if isinstance(idx, torch.Tensor):
+            idx = int(idx.item())
+        elif isinstance(idx, list):
+            idx = torch.tensor(idx)
+        return int(idx)
+    
+    def _to_int_tensor(self, idx: int|torch.Tensor|list[int]) -> torch.Tensor:
+        """
+        Convert an index to a tensor.
+        """
+        if isinstance(idx, torch.Tensor):
+            if idx.dtype != torch.int:
+                idx = idx.to(torch.int)
+            return idx
+        elif isinstance(idx, list):
+            return torch.tensor(idx)
+        return torch.tensor([idx])
 
     # =====================[ Token Operations ]======================
     
@@ -84,6 +106,7 @@ class NodeOperations:
         Args:
             idx (int): The global index of the token to delete.
         """
+        idx = self._to_int(idx)
         self.network.tokens.delete_tokens(torch.tensor([idx]))
         self.network.update_views()
     
@@ -95,10 +118,7 @@ class NodeOperations:
             idxs (int|list[int]|torch.Tensor): The global indices of the tokens to move.
             to_set (Set): The set to move the tokens to.
         """
-        if isinstance(idxs, int):
-            idxs = torch.tensor([idxs])
-        elif isinstance(idxs, list):
-            idxs = torch.tensor(idxs)
+        idxs = self._to_int_tensor(idxs)
         self.network.tokens.move_tokens(idxs, to_set)
         self.network.update_views()
     
@@ -112,6 +132,7 @@ class NodeOperations:
         Returns:
             Token: A Token object with the token's features.
         """
+        idx = self._to_int(idx)
         tensor = self.network.token_tensor.tensor[idx, :].clone()
         name = self.network.token_tensor.get_name(idx)
         return Token(tensor=tensor, name=name)
@@ -127,6 +148,7 @@ class NodeOperations:
         Returns:
             float: The value of the feature.
         """
+        idx = self._to_int(idx)
         return self.network.token_tensor.get_feature(idx, feature).item()
     
     def get_tk_values(self, idx: int, features: torch.Tensor) -> torch.Tensor:
@@ -137,6 +159,7 @@ class NodeOperations:
             idx (int): The global index of the token.
             features (torch.Tensor): The features to get.
         """
+        idx = self._to_int_tensor(idx)
         return self.network.token_tensor.get_features(idx, features)
     
     def set_tk_value(self, idx: int, feature: TF, value: float):
@@ -148,6 +171,7 @@ class NodeOperations:
             feature (TF): The feature to set.
             value (float): The value to set.
         """
+        idx = self._to_int(idx)
         self.network.token_tensor.set_feature(torch.tensor([idx]), feature, float(value))
     
     def get_tk_name(self, idx: int) -> str:
@@ -160,6 +184,7 @@ class NodeOperations:
         Returns:
             str: The name of the token.
         """
+        idx = self._to_int(idx)
         return self.network.token_tensor.get_name(idx)
     
     def set_tk_name(self, idx: int, name: str):
@@ -170,6 +195,7 @@ class NodeOperations:
             idx (int): The global index of the token.
             name (str): The name to set.
         """
+        idx = self._to_int(idx)
         self.network.token_tensor.set_name(idx, name)
 
     def get_tk_set(self, idx: int) -> Set:
@@ -182,6 +208,7 @@ class NodeOperations:
         Returns:
             Set: The set the token belongs to.
         """
+        idx = self._to_int(idx)
         return Set(int(self.network.token_tensor.get_feature(idx, TF.SET).item()))
 
     # =====================[ Semantic Operations ]======================
