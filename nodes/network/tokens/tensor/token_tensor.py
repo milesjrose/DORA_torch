@@ -261,7 +261,15 @@ class Token_Tensor:
         Returns:
             str - The string representation of the token.
         """
-        return f"{self.tensor[idx, TF.SET]}[{idx}]"
+        if isinstance(idx, torch.Tensor):
+            idx = int(idx.item())
+        if isinstance(idx, list):
+            idx = torch.tensor(idx)
+        try:
+            return f"{Set(self.tensor[idx, TF.SET].item()).name}[{idx}]"
+        except:
+            logger.critical(f"Error getting ref string for {idx}")
+            raise
     
     def get_name(self, idx: int) -> str:
         """

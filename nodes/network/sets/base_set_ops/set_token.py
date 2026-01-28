@@ -173,7 +173,7 @@ class TokenOperations:
         local_view = self.base_set.glbl.tensor[set_idxs]
         max_val, max_idx = local_view[local_mask, TF.ACT].max(dim=0)
         # Check the max value is greater than 0.0
-        if max_val.item() > 0.0:
+        if max_val.item() >= 0.01:
             return max_idx.item()
         else:
             return None

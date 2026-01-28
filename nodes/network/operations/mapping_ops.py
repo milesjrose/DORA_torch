@@ -72,7 +72,7 @@ class MappingOperations:
             self.network.sets[Set.RECIPIENT].token_op.set_max_maps(max_recipient.values.float())
             self.network.sets[Set.RECIPIENT].token_op.set_max_map_units(max_recipient.indices.float())
     
-    def get_max_map_unit(self, idx: int) -> Ref_Token:
+    def get_max_map_unit(self, idx: int) -> int:
         """ Get a reference to the unit that the token maps to most """
         mapped_idx = self.network.token_tensor.get_feature(idx, TF.MAX_MAP_UNIT)
         return int(mapped_idx.item())
