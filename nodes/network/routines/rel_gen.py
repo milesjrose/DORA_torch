@@ -10,10 +10,11 @@ from ..single_nodes import Token, Ref_Token, Ref_Analog
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ...network import Network
-    from ..tokens.connections import Mapping
+    from nodes.network import Network
+    from nodes.network.tokens import Mapping
+    from nodes.network.sets import Driver
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("rtn")
 
 class RelGenOperations:
     """
@@ -25,7 +26,6 @@ class RelGenOperations:
         Initialize RelGenOperations with reference to Network.
         """
         self.network: 'Network' = network
-        self.debug = False
 
     def requirements(self):
         """
@@ -33,132 +33,188 @@ class RelGenOperations:
         - At least one driver unit maps to a recipient unit.
         - All driver units that have mapping connections have weight > threshold (=.7)
         """
+        threshold = 0.7
+        mappings: 'Mapping' = self.network.mappings # Driver -> Recipient mappings 
 
-        def check_maps(self):
-            threshold = 0.7
-            mappings: 'Mappings' = self.network.mappings # Driver -> Recipient mappings 
-
-            # Check that at least one driver unit maps to a recipient unit
-            map_cons = mappings[MappingFields.CONNECTIONS]
-            if not (map_cons == 1).any():
-                raise ValueError("No driver units map to a recipient unit")
-
-            # Check that all map weights are above threshold
-            map_weights = mappings[MappingFields.WEIGHT]
-            masked_weights = map_weights[map_cons == 1] # Mask only active connections
-            if (masked_weights < threshold).any():
-                raise ValueError("Some driver units have mapping connections with weight below threshold")
-            
-        try:
-            check_maps(self)
-            return True
-        except ValueError as e:
-            if self.debug:
-                print(e)
+        # Check that at least one driver unit maps to a recipient unit
+        if not (mappings[MappingFields.WEIGHT] > 0.0).any():
+            logger.debug("RelGen req failed : No mapping connections")
             return False
 
-    def infer_token(self, ref_maker, recip_analog: Ref_Analog, set: Set):
+        # Check that all active mapping connections are above threshold
+        map_weights = mappings[MappingFields.WEIGHT]
+        below_thresh = map_weights < threshold
+        non_zero = map_weights > 0.0
+        if (below_thresh & non_zero).any():
+            logger.debug("RelGen req failed : found mapping weights between 0.0 and threshold")
+            return False
+        logger.debug("RelGen req passed :)")
+        return True
+
+    def infer_token(self, maker: int, recip_analog: int, set: Set) -> int:
         """
-        Infer a recepint token (act = 1.0)
-        NOTE: Currently only infers token in recipient set. 
-        Should also be in new_set, but with tensor structure this would mean duplicating tokens.
-        TODO: Check to see if duplicating tokens into new_set could cause an issue later.
+        Infer a token in the given set, with act = 1.0, inferred = True, and maker/made unit features set.
+        Copies type specific features (P mode/PO pred) from maker to inferred token.
+        NOTE: Old code puts inferred token into both new_set and recipient, but can only assign token to one set with tensors.
+              Currently infers one token into the recipient - as driver token can only hold one made token at a time.
+        TODO: See what I should do about this??
+
+        Args:
+            maker (int): The maker token index.
+            recip_analog (int): The recipient analog reference.
+            set (Set): The set to infer the token in.
+        Returns:
+            (int): The index of the inferred token.
         """
-        type = self.network.get_value(ref_maker, TF.TYPE)
-        idx_maker = self.network.get_index(ref_maker)
+        # Create new token
+        type = self.network.node_ops.get_tk_value(maker, TF.TYPE)
         base_features = {
             TF.SET: set,
             TF.INFERRED: B.TRUE,
             TF.ACT: 1.0,
-            TF.ANALOG: recip_analog.analog_number,
-            TF.MAKER_UNIT: idx_maker,
-            TF.MAKER_SET: ref_maker.set
+            TF.ANALOG: recip_analog,
+            TF.MAKER_UNIT: maker,
+            TF.MAKER_SET: self.network.node_ops.get_tk_value(maker, TF.SET)
         }
-        # Infer token
-        if type == Type.P:
-            base_features[TF.MODE] = self.network.get_value(ref_maker, TF.MODE)
-        elif type == Type.PO:
-            base_features[TF.PRED] = self.network.get_value(ref_maker, TF.PRED)
-        elif type != Type.RB:
-            raise ValueError(f"Invalid token type: {type}")
+        match type:
+            case Type.P:
+                base_features[TF.MODE] = self.network.node_ops.get_tk_value(maker, TF.MODE)
+            case Type.PO:
+                base_features[TF.PRED] = self.network.node_ops.get_tk_value(maker, TF.PRED)
+            case Type.RB:
+                pass
+            case _:
+                raise ValueError(f"Invalid token type: {type}")
         new_token = Token(type, base_features)
         
-        # Add token to new set and set maker/made unit features
-        ref_made = self.network.add_token(new_token)
-        idx_made = self.network.get_index(ref_made)
-        self.network.set_value(ref_maker, TF.MADE_UNIT, idx_made)
-        self.network.set_value(ref_maker, TF.MADE_SET, ref_made.set)
-        logger.info(f"- {self.network.get_ref_string(ref_maker)} -> inferred -> maker={self.network.get_ref_string(ref_made)}")
-        return ref_made
+        # Add token to network and set maker/made unit features
+        made = self.network.node_ops.add_token(new_token)
+        self.network.node_ops.set_tk_value(maker, TF.MADE_UNIT, made)
+        # NOTE: Don't think the maker set is needed anymore, since indexes are global now.
+        self.network.node_ops.set_tk_value(maker, TF.MADE_SET, self.network.node_ops.get_tk_value(maker, TF.SET))
+        logger.info(f"- {self.network.get_ref_string(made)} -> inferred -> maker={self.network.get_ref_string(maker)}")
+        return made
 
-    def rel_gen_type(self, type: Type, threshold: float, recip_analog: Ref_Analog, p_mode:Mode = None):
-        """Perform rel gen routine for a given token type."""
-        # Get most active token
-        token_mask = self.network.driver().get_mask(type)
+    def rel_gen_type(self, type: Type, threshold: float, recip_analog: int, p_mode:Mode = None):
+        """
+        Run relational generalisation for a given token type:
+          - Find the most active driver unit of given type.
+          - Check if this token has created a token in the recipient:
+                - True -> Update the inferred token's act to 1 and update connections to lower nodes.
+                - False -> Infer a new token in the recipient with act = 1.0
+        
+        Args:
+            type (Type): The type of token to perform rel gen for.
+            threshold (float): The threshold for the active token to be considered active.
+            recip_analog (int): The recipient analog number.
+            p_mode (Mode): The mode of the P token to perform rel gen for.
+        """
+        net: 'Network' = self.network
+        driver: 'Driver' = net.driver()
+        # Mask tokens
         if type == Type.P:
             if p_mode is None:
-                logger.critical("p_mode is None")
+                logger.critical("p_mode is not set for rel gen type >:[")
                 raise ValueError("p_mode is None")
-            token_mask = self.network.driver().get_mask(type, p_mode)
-        active_unit = self.network.driver().token_op.get_most_active_token(mask=token_mask)
-        if active_unit is None:
-            logger.debug(f"- No active {type.name} token found")
+            token_mask = driver.tnop.get_arb_mask({TF.TYPE: Type.P, TF.MODE: p_mode})
+        else:
+            token_mask = driver.tensor_op.get_mask(type)
+
+        # Get most active token, if no active token, return
+        active_in_mask_idx = driver.token_op.get_most_active_token(local_mask=token_mask)
+        # Check if no active token found (must check before indexing, as None index unsqueezes tensors)
+        if active_in_mask_idx is None:
+            if p_mode is not None:
+                logger.debug(f"No active {p_mode.name} {type.name} token found")
+            else:
+                logger.debug(f"No active {type.name} token found")
             return
+        # The idx is the position in the mask, so we need to convert to the local driver index
+        mask_indices = torch.where(token_mask)[0]
+        active_lcl = mask_indices[active_in_mask_idx]
 
         # check if active above threshold and max map is 0.0
-        act = self.network.get_value(active_unit, TF.ACT)
-        max_map = self.network.get_max_map_value(active_unit, map_set=Set.RECIPIENT)
+        act = driver.token_op.get_feature(active_lcl, TF.ACT)
+        max_map = net.get_max_map_value_local(active_lcl, Set.DRIVER)
         if not (act >= threshold and max_map == 0.0):
-            logger.debug(f"- {self.network.get_ref_string(active_unit)}:active_below_threshold({act}<threshold) or max_map_is_not_zero({max_map}!=0.0) -> not updating made unit")
+            logger.debug(f"- Driver[{active_lcl}]:active_below_threshold({act}<threshold) or max_map_is_not_zero({max_map}!=0.0) -> not updating made unit")
             return
         
-        # check if active unit has made a token
-        made_unit = self.network.node_ops.get_made_unit_ref(active_unit)
-        if made_unit is None:
-            logger.debug(f"- {self.network.get_ref_string(active_unit)}:no_made_unit -> inferring new unit")
-            # infer a new unit in the recipient, and new_set TODO: check this
-            ref_made = self.infer_token(active_unit, recip_analog, Set.RECIPIENT)
-            ref_made_new_set = self.infer_token(active_unit, recip_analog, Set.NEW_SET)
+        # If active unit inferred token: F-> Infer new token, T-> Update made unit act, 
+        made_glbl = driver.tkop.get_feature(active_lcl, TF.MADE_UNIT)
+        if made_glbl == null:
+            logger.debug(f"- Driver[{active_lcl}]:no_made_token -> inferring new token")
+            # infer a new token in the recipient, and new_set TODO: Check how to correctly port the old code putting tokens into both sets.
+            active_glbl = net.to_global(active_lcl, Set.DRIVER)
+            made_recipient = self.infer_token(active_glbl, recip_analog, Set.RECIPIENT)
+            #made_new_set = self.infer_token(active_glbl, recip_analog, Set.NEW_SET)
         else:
-            # Set act of inferred unit
-            logger.debug(f"- {self.network.get_ref_string(active_unit)}:made_unit_exists({self.network.get_ref_string(made_unit)}) -> updating made unit (act = 1.0), connecting tokens")
-            self.network.set_value(made_unit, TF.ACT, 1.0)
-            # Update inferred units connections
-            rec_mask = self.network.recipient().get_mask(type)
+            # Set act of inferred token to 1.0
+            logger.debug(f"- Driver[{active_lcl}]:made_unit_exists({net.get_ref_string(made_glbl)}) -> updating made unit (act = 1.0), connecting tokens")
+            net.node_ops.set_tk_value(made_glbl, TF.ACT, 1.0)
+
+            # Update inferred tokens connections/links to nodes below it. Note type of inferred token is the same as the active token.
             match type:
                 case Type.PO:
-                    # update semantic connections
-                    self.network.links.update_link_weights(made_unit)
+                    # Update semantic connections.
+                    net.semantics.update_link_weights(made_glbl)
                 case Type.RB:
-                    # Get most active PO
+                    # Get most active PO.
+                    active_po_lcl = net.recipient().token_op.get_most_active_token(token_type=Type.PO)
+                    if active_po_lcl is None: # This isn't handled in old code, so assume not possible. Double check just in case.
+                        logger.critical("No active PO found for rel gen, no idea how to handle this :/")
+                        return
+                    active_po_glbl = net.to_global(active_po_lcl, Set.RECIPIENT)
                     # If act >= 0.7, then connect (as child)
-                    ref_active_po = self.network.recipient().token_op.get_most_active_token(mask=rec_mask)
-                    if self.network.get_value(ref_active_po, TF.ACT) >= 0.7:
-                        self.network.recipient().token_op.connect(made_unit, ref_active_po)
+                    if net.node_ops.get_tk_value(active_po_glbl, TF.ACT) >= 0.7:
+                        net.tokens.connections.connect(made_glbl, active_po_glbl)
                 case Type.P:
-                    # Get most active RB
-                    ref_active_rb = self.network.recipient().token_op.get_most_active_token(mask=rec_mask)
+                    # Get most active RB.
+                    active_rb_lcl = net.recipient().token_op.get_most_active_token(token_type=Type.RB)
+                    if active_rb_lcl is None: # This isn't handled in old code, so assume not possible. Double check just in case
+                        logger.critical("No active RB found for rel gen, no idea how to handle this :/")
+                        return
+                    active_rb_glbl = net.to_global(active_rb_lcl, Set.RECIPIENT)
+                    rb_act = net.node_ops.get_tk_value(active_rb_glbl, TF.ACT)
+                    # Update connections.
                     if p_mode == Mode.CHILD:
-                        # if act >= 0.7, then connect (as child)
-                        self.network.recipient().token_op.connect(made_unit, ref_active_rb)
+                        # if act >= 0.7, then connect (P as child)
+                        if rb_act >= 0.7:
+                            net.tokens.connections.connect(active_rb_glbl, made_glbl)
                     elif p_mode == Mode.PARENT:
-                        # if act >= 0.5, then connect (as parent)
-                        self.network.recipient().token_op.connect(ref_active_rb, made_unit)
+                        # Check if RB already has a P as a parent.
+                        parent_p = net.tokens.arb_mask({TF.TYPE: Type.P, TF.MODE: Mode.PARENT})
+                        rb_has_parent_p = net.tokens.connections.tensor[parent_p, active_rb_glbl].any()
+                        # if act >= 0.5, then connect (P as parent)
+                        # and RB does not already have a P as parent.
+                        if rb_act >= 0.5 and not rb_has_parent_p:
+                            net.tokens.connections.connect(made_glbl, active_rb_glbl)
 
-    def rel_gen_routine(self, recip_analog: Ref_Analog):
+    def rel_gen_routine(self, recip_analog: int):
         """
-        Run the relation generalisation routine:
+        Run the relational generalisation routine.
+
+        Note: Only RBs in the driver from the analog that contains mapped tokens are firing.
+
+        If active driver token maps to no unit in the recipient -> infer a token in recipient with act = 1.0 and
+        connect it to active nodes above and below itself (e.g RB to Ps & POs; PO to RBs & Sems; etc) NOTE: Does this happen?
+        
+        Mark that the new unit is inferred from the active driver unit (update made and maker features)
+
+        Inferred tokens are assigned to the recipient analog mapped to the driver tokens driving rel gen.
+        (e.g Driver analog 1, maps to recipient analog 3, then inferred token is assigned to analog 3)
+
         - For each token type (PO, RB, P.child, P.parent):
           - Find the most active driver unit of that type.
           - If this token has created a unit:
             - True -> Update the unit's act to 1 and update connections to lower tokens.
             - False -> Infer a new unit in the recipient
+        
+        Args:
+            recip_analog (int):The recipient analog reference.
         """
-        logger.debug("Running relation generalisation routine")
+        logger.debug("RelGen routine started")
         self.rel_gen_type(Type.PO, 0.5, recip_analog)
         self.rel_gen_type(Type.RB, 0.5, recip_analog)
         self.rel_gen_type(Type.P, 0.5, recip_analog, Mode.CHILD)
         self.rel_gen_type(Type.P, 0.5, recip_analog, Mode.PARENT)
-        
-
-        
