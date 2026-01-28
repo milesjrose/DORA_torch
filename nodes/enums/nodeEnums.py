@@ -217,7 +217,6 @@ class MappingFields(IntEnum):
     - WEIGHT: Weight of mapping.
     - HYPOTHESIS: Hypothesis of mapping.
     - MAX_HYP: Maximum hypothesis of mapping.
-    - CONNETIONS: Connections of mapping.
     """
     WEIGHT      = 0
     HYPOTHESIS  = 1
