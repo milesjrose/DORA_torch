@@ -188,6 +188,16 @@ class Tokens:
             case _:
                 raise ValueError(f"Invalid view type: {view_type}")
     
+    def arb_mask(self, dict: dict[TF, float]) -> torch.Tensor:
+        """
+        Get a mask of tokens that match the given dictionary of features and values.
+        Args:
+            dict: dict[TF, float] - The features and values to match.
+        Returns:
+            torch.Tensor - The mask of tokens that match the given features and values.
+        """
+        return self.token_tensor.cache.get_arbitrary_mask(dict)
+
     def set_name(self, idx: int, name: str):
         """
         Set the name of the token at the given index.

@@ -335,6 +335,19 @@ class Network(object):
         local_idx = local_idx_tensor[0].item()
         return self.mappings.get_single_max_map(local_idx, tk_set)
     
+    def get_max_map_value_local(self, idx: int, tk_set: Set) -> float:
+        """
+        Get the maximum mapping weight for a token at the given index
+
+        Args:
+            idx: int - The index of the token to get the maximum map for.
+            tk_set: Set - The set of the token.
+        Returns:
+            float: The maximum mapping weight for the token at the given index.
+        """
+        logger.debug(f"Get max map value for {tk_set.name}[{idx}]")
+        return self.mappings.get_single_max_map(idx, tk_set)
+    
     def get_ref_string(self, idx: int):
         """
         Get a string representation of a reference token.
@@ -360,13 +373,13 @@ class Network(object):
                 raise ValueError(f"Multiple sets found for indices: {idxs}")
         return self.sets[tk_set].lcl.to_global(idxs)
     
-    def to_global(self, idxs, tk_set: Set = None) -> torch.Tensor:
+    def to_global(self, idxs, tk_set: Set) -> torch.Tensor:
         """
         Convert local idx(s) to global idx(s)
         
         Args:
             idxs: int, list[int], torch.Tensor - The local indices to convert to global indices.
-            tk_set: Set - The local set to convert from.
+            tk_set: Set - The set to convert from.
         Returns:
             torch.Tensor - The global indices.
         """

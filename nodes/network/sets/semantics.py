@@ -215,9 +215,13 @@ class Semantics(object):
         """Get the number of semantics in the semantics tensor."""
         return (self.nodes[:, SF.DELETED]==B.FALSE).sum()
     
-    # TODO: Maybe move this somewhere else? It's more of a links function,
-    #       but I don't want to add a semantics reference to links for only this function
-    #       as this breaks the encapsulation of links. For now this seems the most sensible place.
+
+    # ==================[ LINKS ]=====================
+    # NOTE: Maybe move thes somewhere else? These are links functions, but I don't want to add a 
+    #       semantics reference to links as this breaks the encapsulation of links. 
+    #       For now this seems the most sensible place I think, maybe move to a links operations class
+    #       in the network operations module at some point?
+
     def connect_comparitive(self, idx_tk: int, comp_type: SDM):
         """
         Connect token to the comparative semantic, with weight of 1.
@@ -231,6 +235,30 @@ class Semantics(object):
             raise ValueError("Comps not initialised")
         idx_comp = self.get_index(ref_comp)
         self.links[idx_tk, idx_comp] = 1.0
+    
+    def _to_int(self, idx: int|torch.Tensor|list[int]) -> int:
+        """
+        Convert an index to an integer.
+        """
+        if isinstance(idx, torch.Tensor):
+            idx = int(idx.item())
+        elif isinstance(idx, list):
+            idx = torch.tensor(idx)
+        return int(idx)
+
+    def update_link_weights(self, idx_tk: int):
+        """
+        Update the weights of the links between a token and its semantics.
+
+        link_weight += 1 * (sem_act - link_weight) * gamma
+
+        Args:
+            idx_tk: int - The global index of the token to update the link weights for.
+        """
+        idx_tk = self._to_int(idx_tk)
+        sem_acts = self.nodes[:, SF.ACT]
+        link_weights = self.links[idx_tk, :]
+        self.links[idx_tk, :] += 1 * (sem_acts - link_weights) * self.params.gamma
 
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
