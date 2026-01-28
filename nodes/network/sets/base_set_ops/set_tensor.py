@@ -14,14 +14,24 @@ class TensorOperations:
 
     def get_mask(self, token_type: Type) -> torch.Tensor:
         """
-        Get the mask for a given token type.
+        Get the (local) mask for a given token type.
+
+        Args:
+            token_type (Type): The type of the token to get the mask for.
+        Returns:
+            (torch.Tensor): The mask for the given token type.
         """
         mask = (self.base_set.lcl[:, TF.TYPE] == token_type)
         return mask
     
     def get_arb_mask(self, dict: dict[TF, float]) -> torch.Tensor:
         """
-        Get a mask of tokens that match the given dictionary of features and values.
+        Get a (local) mask of tokens that match the given dictionary of features and values.
+
+        Args:
+            dict (dict[TF, float]): The dictionary of features and values to match.
+        Returns:
+            (torch.Tensor): The mask for the given dictionary of features and values.
         """
         mask = (self.base_set.lcl[:, TF.DELETED] == B.FALSE)
         for feature, value in dict.items():
@@ -30,7 +40,12 @@ class TensorOperations:
     
     def get_combined_mask(self, token_types: list[Type]) -> torch.Tensor:
         """
-        Return combined mask of given types
+        Return combined (local) mask of given types.
+
+        Args:
+            token_types (list[Type]): The types of the tokens to get the mask for.
+        Returns:
+            (torch.Tensor): The mask for the given token types.
         """
         if len(token_types) == 0:
             # Return all False mask if no types provided
@@ -40,7 +55,14 @@ class TensorOperations:
     
     def get_count(self, token_type: Type=None, mask: torch.Tensor = None) -> int:
         """
-        Get the count of tokens of a given type in the set.
+        Get the count of tokens in the set.
+        Optionally filter by token type or mask.
+
+        Args:
+            token_type (Type): The type of the token to get the count for.
+            mask (torch.Tensor): The mask to use to filter the tokens.
+        Returns:
+            (int): The count of tokens of the given type in the set.
         """
         if mask is None:
             mask = torch.ones(len(self.base_set.lcl), dtype=torch.bool)

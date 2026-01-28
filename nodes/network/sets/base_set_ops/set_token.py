@@ -27,24 +27,68 @@ class TokenOperations:
     def get_features(self, idxs: torch.Tensor, features: torch.Tensor) -> torch.Tensor:
         """
         Get the features for the given indices.
+
+        Args:
+            idxs (torch.Tensor): The indices of the tokens to get the features of.
+            features (torch.Tensor): The features to get the values of.
+        Returns:
+            torch.Tensor: The features for the given indices.
         """
-        return self.base_set.glbl.get_features(self.base_set.lcl.to_global(idxs), features)
+        return self.base_set.lcl[idxs, features]
+    
+    def get_feature(self, idx: int|torch.Tensor, feature: TF) -> float:
+        """ Get the value of a feature for a given idx
+        
+        Args:
+            idx (int|torch.Tensor): The index of the token to get the feature value of.
+            feature (TF): The feature to get the value of.
+        Returns:
+            float: The value of the feature for the given index
+        """
+        return self.base_set.lcl[idx, feature]
     
     def set_features(self, idxs: torch.Tensor, features: torch.Tensor, values: torch.Tensor):
         """
         Set the features for the given indices.
+
+        Args:
+            idxs (torch.Tensor): The indices of the tokens to set the features of.
+            features (torch.Tensor): The features to set the values of.
+            values (torch.Tensor): The values to set the features to.
         """
-        self.base_set.glbl.set_features(self.base_set.lcl.to_global(idxs), features, values)
+        # Apparently tensor view class doesn't like assigning sub-tensors. So, use the global tensor to set instead.
+        glb_idxs = self.base_set.lcl.to_global(idxs)
+        self.base_set.glbl.set_features(glb_idxs, features, values)
+    
+    def set_feature(self, idx: int|torch.Tensor, feature: TF, value: float):
+        """
+        Set the value of a feature for a given index.
+
+        Args:
+            idx (int|torch.Tensor): The index of the token to set the feature value of.
+            feature (TF): The feature to set the value of.
+            value (float): The value to set the feature to.
+        """
+        self.base_set.lcl[idx, feature] = value
     
     def set_features_all(self, feature: TF, value: float):
         """
         Set the features for all tokens in the set.
+
+        Args:
+            feature (TF): The feature to set the values of.
+            value (float): The value to set the features to.
         """
         self.base_set.lcl[:, feature] = value
 
     def get_name(self, idx: int) -> str:
         """
         Get the name for the given index (local index).
+
+        Args:
+            idx (int): The index of the token to get the name of.
+        Returns:
+            str: The name of the token at the given index.
         """
         global_idx_tensor = self.base_set.lcl.to_global(idx)
         global_idx = global_idx_tensor[0].item()
@@ -53,6 +97,10 @@ class TokenOperations:
     def set_name(self, idx: int, name: str):
         """
         Set the name for the given index (local index).
+
+        Args:
+            idx (int): The index of the token to set the name of.
+            name (str): The name to set the token to.
         """
         global_idx_tensor = self.base_set.lcl.to_global(idx)
         global_idx = global_idx_tensor[0].item()
@@ -61,6 +109,11 @@ class TokenOperations:
     def get_index(self, idxs: torch.Tensor) -> torch.Tensor:
         """
         Get the indices for the given indices.
+
+        Args:
+            idxs (torch.Tensor): The indices of the tokens to get the global indices of.
+        Returns:
+            torch.Tensor: The global indices of the given indices.
         """
         return self.base_set.lcl.to_global(idxs)
     

@@ -8,7 +8,9 @@ from nodes.network.tokens import Tokens, Token_Tensor, Connections_Tensor, Links
 from nodes.network.network_params import Params
 from nodes.enums import *
 from nodes.network.single_nodes import Token
+from logging import getLogger
 
+logger = getLogger("TEST")
 
 @pytest.fixture
 def mock_tensor():
@@ -203,6 +205,8 @@ def test_set_features_single_index_single_feature(driver_set):
     idxs = torch.tensor([0], dtype=torch.long)
     features = torch.tensor([TF.ACT], dtype=torch.long)
     values = torch.tensor([[0.99]], dtype=tensor_type)
+    logger.debug(f"Setting features for {idxs} to {values}")
+    logger.debug(f"Current value: {driver_set.token_op.get_features(idxs, features)}")
     
     driver_set.token_op.set_features(idxs, features, values)
     
@@ -229,6 +233,14 @@ def test_set_features_multiple_indices_multiple_features(driver_set):
     assert result[0, 1].item() == pytest.approx(0.77, abs=1e-6)  # MAX_ACT
     assert result[1, 0].item() == pytest.approx(0.99, abs=1e-6)  # ACT
     assert result[1, 1].item() == pytest.approx(0.66, abs=1e-6)  # MAX_ACT
+
+def test_set_feature_propagates_to_global(driver_set):
+    """Test setting a single feature for a single index propagates to global tensor."""
+    d_idx = 0
+    glbl_idx = driver_set.lcl.to_global(torch.tensor([d_idx], dtype=torch.long))[0].item()
+    assert driver_set.glbl.tensor[glbl_idx, TF.ACT].item() == pytest.approx(0.1, abs=1e-6)
+    driver_set.token_op.set_feature(d_idx, TF.ACT, 0.99)
+    assert driver_set.glbl.tensor[glbl_idx, TF.ACT].item() == pytest.approx(0.99, abs=1e-6)
 
 
 # =====================[ set_features_all tests ]======================
