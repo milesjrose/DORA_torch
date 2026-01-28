@@ -365,6 +365,33 @@ def test_get_parents_recursive_empty(connections_tensor):
     parents = connections_tensor.get_parents_recursive(torch.tensor([], dtype=torch.long))
     assert len(parents) == 0
 
+def test_get_children_single_p_c(connections_tensor):
+    """Test getting children of a single parent."""
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    print(f"connections_tensor: {connections_tensor.tensor}")
+    print(f"connections_tensor[0, :]: {connections_tensor.tensor[0, :]}")
+    children = connections_tensor.get_children(torch.tensor([0]))
+    assert len(children) == 1
+    assert 1 in children
+
+def test_get_children_single_p_c_list(connections_tensor):
+    """Test getting children of a single parent."""
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    print(f"connections_tensor: {connections_tensor.tensor}")
+    print(f"connections_tensor[0, :]: {connections_tensor.tensor[0, :]}")
+    children = connections_tensor.get_children([0])
+    assert len(children) == 1
+    assert 1 in children
+
+def test_get_children_single_p_c_int(connections_tensor):
+    """Test getting children of a single parent."""
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    print(f"connections_tensor: {connections_tensor.tensor}")
+    print(f"connections_tensor[0, :]: {connections_tensor.tensor[0, :]}")
+    children = connections_tensor.get_children(0)
+    assert len(children) == 1
+    assert 1 in children
+
 
 def test_get_children_recursive(connections_tensor):
     """Test getting all children recursively."""
@@ -386,6 +413,16 @@ def test_get_children_recursive(connections_tensor):
     assert 2 in children
     assert 3 in children
 
+def test_get_children_recursive_int(connections_tensor):
+    """Test getting recursive children of a single parent."""
+    connections_tensor.connect(torch.tensor([0]), torch.tensor([1]))
+    connections_tensor.connect(torch.tensor([1]), torch.tensor([2]))
+    connections_tensor.connect(torch.tensor([2]), torch.tensor([3]))
+    children = connections_tensor.get_children_recursive(0)
+    assert len(children) == 3
+    assert 1 in children
+    assert 2 in children
+    assert 3 in children
 
 def test_get_children_recursive_branching(connections_tensor):
     """Test recursive children with branching structure."""

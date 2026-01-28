@@ -2,7 +2,7 @@ import torch
 from ....enums import *
 from logging import getLogger
 from ..tensor_view import TensorView
-logger = getLogger(__name__)
+logger = getLogger("con")
 
 class Connections_Tensor:
     """Class for holding the connections between tokens. Shape: [tokens, tokens]"""
@@ -12,6 +12,38 @@ class Connections_Tensor:
         """Tensor of connections between tokens. Shape: [parent_tokens, child_tokens]"""
         assert connections.dtype == torch.bool, f"Connections tensor must be a boolean tensor, not {connections.dtype}"
     
+    def _to_tensor(self, idxs: torch.Tensor|list[int]|int) -> torch.Tensor:
+        """
+        Convert the input to a tensor.
+        Args:
+            idxs: torch.Tensor|list[int]|int - The indices to convert to a tensor.
+        Returns:
+            torch.Tensor - The tensor of indices.
+        """
+        if isinstance(idxs, torch.Tensor):
+            return idxs
+        if isinstance(idxs, list):
+            return torch.tensor(idxs)
+        if isinstance(idxs, int):
+            return torch.tensor([idxs])
+        raise ValueError(f"Invalid type for indices: {type(idxs)}")
+    
+    def _to_list(self, idxs: torch.Tensor|list[int]|int) -> list[int]:
+        """
+        Convert the input to a list.
+        Args:
+            idxs: torch.Tensor|list[int]|int - The indices to convert to a list.
+        Returns:
+            list[int] - The list of indices.
+        """
+        if isinstance(idxs, torch.Tensor):
+            return idxs.tolist()
+        if isinstance(idxs, list):
+            return idxs
+        if isinstance(idxs, int):
+            return [idxs]
+        raise ValueError(f"Invalid type for indices: {type(idxs)}")
+
     def get_count(self) -> int:
         """
         Get the number of connections in the tensor.
@@ -34,7 +66,9 @@ class Connections_Tensor:
         Raises:
             ValueError: If parent_idxs and child_idxs have different lengths
         """
-        if isinstance(parent_idxs, torch.Tensor) and len(parent_idxs) != len(child_idxs):
+        parent_idxs = self._to_tensor(parent_idxs)
+        child_idxs = self._to_tensor(child_idxs)
+        if len(parent_idxs) != len(child_idxs):
             raise ValueError(f"parent_idxs and child_idxs must have the same length. "
                            f"Got {len(parent_idxs)} parents and {len(child_idxs)} children")
         
@@ -42,7 +76,7 @@ class Connections_Tensor:
         # Connect pairwise: parent_idxs[i] -> child_idxs[i]
         self.tensor[parent_idxs, child_idxs] = value
     
-    def connect_multiple(self, parent_idxs: torch.Tensor|list[int]|int, child_idxs: torch.Tensor, value=True):
+    def connect_multiple(self, parent_idxs: torch.Tensor|list[int]|int, child_idxs: torch.Tensor|list[int]|int, value=True):
         """
         Connect parent(s) to multiple children.
         If multiple parents and children provides, each parent is connected to all children.
@@ -52,20 +86,20 @@ class Connections_Tensor:
             value: bool - The connection value to set (default: True)
         """
         # TODO: vectorise this.
-        if isinstance(parent_idxs, torch.Tensor):
-            parent_idxs = parent_idxs.tolist()
-        if isinstance(parent_idxs, int):
-            parent_idxs = [parent_idxs]
+        parent_idxs = self._to_list(parent_idxs)
+        child_idxs = self._to_tensor(child_idxs)
 
         for parent_idx in parent_idxs:
             logger.debug(f"Connecting parent {parent_idx} to {len(child_idxs)} children")
             self.tensor[parent_idx] = value
     
-    def connect_bi(self, from_idxs: torch.Tensor, to_idxs: torch.Tensor, value=True):
+    def connect_bi(self, from_idxs: torch.Tensor|list[int]|int, to_idxs: torch.Tensor|list[int]|int, value=True):
         """
         Connect from from_idxs to to_idxs and vice versa.
         If multiple indices are provided, creates all combinations.
         """
+        from_idxs = self._to_tensor(from_idxs)
+        to_idxs = self._to_tensor(to_idxs)
         logger.info(f"Connecting {len(from_idxs)} indices to {len(to_idxs)} indices")
         logger.debug(f"From indices: {from_idxs}")
         logger.debug(f"To indices: {to_idxs}")
@@ -75,7 +109,7 @@ class Connections_Tensor:
         self.tensor[from_expanded, to_expanded] = value
         self.tensor[to_expanded, from_expanded] = value
 
-    def get_parents(self, child_idxs: torch.Tensor) -> torch.Tensor:
+    def get_parents(self, child_idxs: torch.Tensor|list[int]|int) -> torch.Tensor:
         """
         Get the direct parents of the given child_idxs
         Args:
@@ -83,6 +117,7 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of the parents of the given child_idxs.
         """
+        child_idxs = self._to_tensor(child_idxs)
         logger.info(f"Getting parents of {len(child_idxs)} children")
         logger.debug(f"Child indices: {child_idxs}")
         # connections[i, j] = True means i -> j (parent i connects to child j)
@@ -93,7 +128,7 @@ class Connections_Tensor:
         parent_indices = torch.where(mask.any(dim=1))[0]
         return parent_indices
     
-    def get_parents_recursive(self, child_idxs: torch.Tensor) -> torch.Tensor:
+    def get_parents_recursive(self, child_idxs: torch.Tensor|list[int]|int) -> torch.Tensor:
         """
         Get all parents recursively (parents, parents' parents, etc.) from the given child indices.
         Handles circular connections by tracking visited nodes.
@@ -103,6 +138,7 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of all ancestors (parents, grandparents, etc.) of the given child_idxs.
         """
+        child_idxs = self._to_tensor(child_idxs)
         logger.debug(f"Getting parents recursively of {child_idxs} children")
         logger.debug(f"Child indices: {child_idxs}")
         if len(child_idxs) == 0:
@@ -142,7 +178,7 @@ class Connections_Tensor:
             return torch.tensor([], dtype=torch.long)
         return torch.tensor(list(all_parents), dtype=torch.long)
     
-    def get_children(self, parent_idxs: torch.Tensor) -> torch.Tensor:
+    def get_children(self, parent_idxs: torch.Tensor|list[int]|int) -> torch.Tensor:
         """
         Get the direct children of the given parent_idxs
         Args:
@@ -150,18 +186,21 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of the children of the given parent_idxs.
         """
-        logger.debug(f"Getting children for {parent_idxs} ")
-        logger.debug(f"Parent indices: {parent_idxs}")
-        logger.debug(f"Connections shape: {self.tensor.shape}")
+        parent_idxs = self._to_tensor(parent_idxs)
         # connections[i, j] = True means i -> j (parent i connects to child j)
         # To get children of parent i, we need all j where connections[i, j] = True
         # This is the row i, so we check connections[parent_idxs, :]
         mask = self.tensor[parent_idxs, :] == True
         # Get column indices (children) where any of the specified parents have connections
+        logger.debug(f"seaching in {self.tensor[parent_idxs, :]}")
+        logger.debug(f"mask: {mask}")
+        logger.debug(f"any(dim=0): {mask.any(dim=0)}")
+        logger.debug(f"where(mask.any(dim=0)): {torch.where(mask.any(dim=0))[0]}")
         child_indices = torch.where(mask.any(dim=0))[0]
+        logger.debug(f"Children of {parent_idxs.tolist if isinstance(parent_idxs, torch.Tensor) else parent_idxs} => {child_indices.tolist()}")
         return child_indices
     
-    def get_children_recursive(self, parent_idxs: torch.Tensor) -> torch.Tensor:
+    def get_children_recursive(self, parent_idxs: torch.Tensor|list[int]|int) -> torch.Tensor:
         """
         Get all children recursively (children, children's children, etc.) from the given parent indices.
         Handles circular connections by tracking visited nodes.
@@ -171,19 +210,19 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of all descendants (children, grandchildren, etc.) of the given parent_idxs.
         """
-        logger.debug(f"Getting children recursively for {parent_idxs} parents")
-        logger.debug(f"Parent indices: {parent_idxs}")
+        parent_idxs = self._to_list(parent_idxs)
+        logger.debug(f"Children (recursive) of {parent_idxs}:")
         if len(parent_idxs) == 0:
             return torch.tensor([], dtype=torch.long)
         
         # Convert starting indices to set to exclude them from results
-        starting_nodes = set(parent_idxs.tolist() if isinstance(parent_idxs, torch.Tensor) else list(parent_idxs))
+        starting_nodes = set(parent_idxs)
         
         # Convert to set for efficient lookup and to handle duplicates
         visited = set()
         all_children = set()
         # Use a queue for breadth-first traversal
-        queue = parent_idxs.tolist() if isinstance(parent_idxs, torch.Tensor) else list(parent_idxs)
+        queue = parent_idxs
         
         while queue:
             current = queue.pop(0)
@@ -208,10 +247,11 @@ class Connections_Tensor:
         # Convert back to tensor and return
         if len(all_children) == 0:
             return torch.tensor([], dtype=torch.long)
+        logger.debug(f"> {list(all_children)}")
         return torch.tensor(list(all_children), dtype=torch.long)
 
     
-    def get_all_connected(self, idx: torch.Tensor) -> torch.Tensor:
+    def get_all_connected(self, idx: torch.Tensor|list[int]|int) -> torch.Tensor:
         """
         Get both parents and children of the given idx
         Args:
@@ -219,11 +259,12 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of the connected tokens of the given idx.
         """
+        idx = self._to_tensor(idx)
         logger.debug(f"Getting all connected for {idx} indices")
         logger.debug(f"Indices: {idx}")
         return torch.unique(torch.cat([self.get_parents(idx), self.get_children(idx)]))
     
-    def get_all_connected_recursive(self, idx: torch.Tensor) -> torch.Tensor:
+    def get_all_connected_recursive(self, idx: torch.Tensor|list[int]|int) -> torch.Tensor:
         """
         Get all connected tokens recursively (parents, parents' parents, etc., and children, children's children, etc.) from the given idx.
         Handles circular connections by tracking visited nodes.
@@ -232,11 +273,12 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of all connected tokens of the given idx.
         """
+        idx = self._to_tensor(idx)
         logger.debug(f"Getting all connected recursively for {idx} indices")
         logger.debug(f"Indices: {idx}")
         return torch.unique(torch.cat([self.get_parents_recursive(idx), self.get_children_recursive(idx)]))
     
-    def get_connected_set(self, idx: torch.Tensor) -> torch.Tensor:
+    def get_connected_set(self, idx: torch.Tensor|list[int]|int) -> torch.Tensor:
         """
         Get all connected tokens from the given idx. This looks at parents, children, and both their parents and children.
         This returns all tokens that have any path of parents/children that lead to the input token(s).
@@ -247,6 +289,7 @@ class Connections_Tensor:
         Returns:
             torch.Tensor - The indices of all tokens in the connected component (including the input token(s)).
         """
+        idx = self._to_list(idx)
         logger.debug(f"Getting connected set for {idx} indices")
         logger.debug(f"Indices: {idx}")
         if len(idx) == 0:
@@ -256,7 +299,7 @@ class Connections_Tensor:
         visited = set()
         connected_set = set()
         # Use a queue for breadth-first traversal
-        queue = idx.tolist() if isinstance(idx, torch.Tensor) else list(idx)
+        queue = idx
         
         while queue:
             current = queue.pop(0)
@@ -284,12 +327,13 @@ class Connections_Tensor:
             return torch.tensor([], dtype=torch.long)
         return torch.tensor(list(connected_set), dtype=torch.long)
         
-    def del_connections(self, indices: torch.Tensor):
+    def del_connections(self, indices: torch.Tensor|list[int]|int):
         """
         Delete connections to/from the given indices.
         Args:
             indices: torch.Tensor - The indices of the tokens to delete connections from.
         """
+        indices = self._to_tensor(indices)
         self.tensor[indices, :] = B.FALSE
         self.tensor[:, indices] = B.FALSE
 
@@ -311,7 +355,7 @@ class Connections_Tensor:
         self.tensor = new_connections
         logger.info(f"Expanded connections tensor: {old_size} -> {new_size}")
     
-    def get_view(self, indices: torch.Tensor) -> TensorView:
+    def get_view(self, indices: torch.Tensor|list[int]|int) -> TensorView:
         """
         Get a view of the connections for the given set.
         Args:
@@ -319,4 +363,5 @@ class Connections_Tensor:
         Returns:
             TensorView - A view-like object that maps operations back to the original tensor.
         """
+        indices = self._to_tensor(indices)
         return TensorView(self.tensor, indices)
