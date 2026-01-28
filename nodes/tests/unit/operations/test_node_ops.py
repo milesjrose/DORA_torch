@@ -9,7 +9,7 @@ from nodes.network.tokens import Tokens, Token_Tensor, Connections_Tensor, Links
 from nodes.network.sets.semantics import Semantics
 from nodes.network.network_params import default_params
 from nodes.network.single_nodes import Token, Semantic
-from nodes.enums import Set, TF, SF, MappingFields, Type, null
+from nodes.enums import Set, TF, SF, MappingFields, Type, null, tensor_type
 
 
 @pytest.fixture
@@ -178,10 +178,10 @@ def test_del_token(network):
     idx = 8
     
     with patch.object(network.tokens, 'delete_tokens') as mock_delete:
-        with patch.object(network, 'recache') as mock_recache:
+        with patch.object(network, 'update_views') as mock_view_update:
             network.node_ops.del_token(idx)
             mock_delete.assert_called_once()
-            mock_recache.assert_called_once()
+            mock_view_update.assert_called_once()
 
 
 def test_get_token(network):
@@ -367,6 +367,25 @@ def test_global_to_local(network):
     assert isinstance(local_idx, int)
     assert tk_set == Set.DRIVER  # All tokens start in DRIVER from fixture
 
+def test_move_tokens(network:Network):
+    """Test moving tokens to a different set."""
+    d_tk = network.to_global(0, Set.DRIVER)
+    d_count_start = network.driver().get_count()
+    r_count_start = network.recipient().get_count()
+    network.node_ops.move_tokens(d_tk, Set.RECIPIENT)
+    assert network.node_ops.get_tk_value(d_tk, TF.SET) == Set.RECIPIENT.value
+    assert network.driver().get_count() == d_count_start - 1
+    assert network.recipient().get_count() == r_count_start + 1
+
+def test_move_tokens_multiple(network:Network):
+    """Test moving multiple tokens to a different set."""
+    d_tks = network.to_global(torch.tensor([0, 1, 2]), Set.DRIVER)
+    d_count_start = network.driver().get_count()
+    r_count_start = network.recipient().get_count()
+    network.node_ops.move_tokens(d_tks, Set.RECIPIENT)
+    assert torch.allclose(network.node_ops.get_tk_values(d_tks, torch.tensor([TF.SET])), torch.tensor([Set.RECIPIENT.value, Set.RECIPIENT.value, Set.RECIPIENT.value], dtype=tensor_type))
+    assert network.driver().get_count() == d_count_start - 3
+    assert network.recipient().get_count() == r_count_start + 3
 
 # =====================[ Integration Tests ]======================
 

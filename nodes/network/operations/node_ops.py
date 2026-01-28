@@ -74,7 +74,7 @@ class NodeOperations:
         
         name = token.name if hasattr(token, 'name') and token.name else ""
         new_indices = self.network.tokens.add_tokens(token.tensor.unsqueeze(0), [name])
-        self.network.recache()
+        self.network.update_views()
         return new_indices[0].item() if len(new_indices) > 0 else None
 
     def del_token(self, idx: int):
@@ -85,7 +85,22 @@ class NodeOperations:
             idx (int): The global index of the token to delete.
         """
         self.network.tokens.delete_tokens(torch.tensor([idx]))
-        self.network.recache()
+        self.network.update_views()
+    
+    def move_tokens(self, idxs: int|list[int]|torch.Tensor, to_set: Set):
+        """ 
+        Move a token from one set to another.
+        
+        Args:
+            idxs (int|list[int]|torch.Tensor): The global indices of the tokens to move.
+            to_set (Set): The set to move the tokens to.
+        """
+        if isinstance(idxs, int):
+            idxs = torch.tensor([idxs])
+        elif isinstance(idxs, list):
+            idxs = torch.tensor(idxs)
+        self.network.tokens.move_tokens(idxs, to_set)
+        self.network.update_views()
     
     def get_token(self, idx: int) -> Token:
         """
@@ -113,6 +128,16 @@ class NodeOperations:
             float: The value of the feature.
         """
         return self.network.token_tensor.get_feature(idx, feature).item()
+    
+    def get_tk_values(self, idx: int, features: torch.Tensor) -> torch.Tensor:
+        """
+        Get the values of a features for a token.
+
+        Args:
+            idx (int): The global index of the token.
+            features (torch.Tensor): The features to get.
+        """
+        return self.network.token_tensor.get_features(idx, features)
     
     def set_tk_value(self, idx: int, feature: TF, value: float):
         """
