@@ -203,7 +203,7 @@ class Semantics(object):
 
     def get_count(self):
         """Get the number of semantics in the semantics tensor."""
-        return self.nodes.shape[0]
+        return (self.nodes[:, SF.DELETED]==B.FALSE).sum()
     
     # TODO: Maybe move this somewhere else? It's more of a links function,
     #       but I don't want to add a semantics reference to links for only this function
