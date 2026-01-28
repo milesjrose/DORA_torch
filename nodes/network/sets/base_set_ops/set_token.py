@@ -1,4 +1,5 @@
 from logging import getLogger
+from threading import local
 
 from torch.fx.experimental.symbolic_shapes import Int
 from ...single_nodes import Token, Ref_Token, Ref_Analog, Pairs, get_default_features
@@ -89,26 +90,40 @@ class TokenOperations:
         indicies = self.base_set.tokens.connections.get_children(global_idx)
         return self.base_set.lcl.to_local(indicies)
     
-    def get_most_active_token(self, token_type: Type = None) -> int:
+    def get_most_active_token(self, token_type: Type = None, local_mask: torch.Tensor=None) -> int:
         """
-        Get the index of the most active token in the set (returns local index)
+        Get the index of the most active token in the set (returns local index).
+        Must provide either token_type or local_mask.
+
+        Args:
+            token_type (Type): The type of the token to get the most active of.
+            local_mask (torch.Tensor): The local mask to use to filter the tokens.
+        Returns:
+            (int): The local index of the most active token.
         """
-        if token_type is not None:
-            type_mask = self.base_set.tensor_op.get_mask(token_type)
-            local_idxs = self.base_set.lcl.to_global(torch.where(type_mask)[0])
-        else:
-            local_idxs = self.base_set.glbl.cache.get_set_indices(self.base_set.tk_set)
-        if len(local_idxs) == 0:
+        # Check any tokens in the set
+        if self.base_set.get_count() == 0:
             return None
-        max_idx_in_list, max_val = self.base_set.glbl.get_max(TF.ACT, local_idxs)
-        if max_val == 0.0:
+        # Get local mask (if not provided)
+        if local_mask is None:
+            # Use token_type to get local mask
+            if token_type is None:
+                # No filter, use all tokens
+                local_mask = torch.ones(len(self.base_set.lcl), dtype=torch.bool)
+            else:
+                local_mask = self.base_set.tensor_op.get_mask(token_type)
+        # Check we have any tokens to look at
+        if not torch.any(local_mask):
             return None
+        # The custom tensor view implementation does not support torch.max afaik, so we need to do manually.
+        set_idxs = self.base_set.lcl._indices
+        local_view = self.base_set.glbl.tensor[set_idxs]
+        max_val, max_idx = local_view[local_mask, TF.ACT].max(dim=0)
+        # Check the max value is greater than 0.0
+        if max_val.item() > 0.0:
+            return max_idx.item()
         else:
-            global_idx = local_idxs[max_idx_in_list]
-            # indexing into tensor returns 0-d tensor, wrap it
-            global_idx_tensor = global_idx.unsqueeze(0) if global_idx.dim() == 0 else global_idx
-            local_idx_tensor = self.base_set.lcl.to_local(global_idx_tensor)
-            return local_idx_tensor[0].item()
+            return None
     
     def connect(self, parent_idx: int, child_idx: int, value=B.TRUE):
         """
