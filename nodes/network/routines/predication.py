@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 from ...utils import tensor_ops as tOps
 import torch
 from ..single_nodes.token import Token
+from logging import getLogger
+logger = getLogger("rtn")
 
 if TYPE_CHECKING:
     from ...network import Network
@@ -17,7 +19,32 @@ if TYPE_CHECKING:
 class PredicationOperations:
     """
     Predication operations for the Network class.
-    Handles predication routines.
+
+    Implements DORA's predication learning mechanism, which learns single-place predicates 
+    from objects by discovering their shared features through comparison. All the driver POs map
+    strongly to recipient units that are not already bound to RBs. We look at the most active recipient
+    PO, and if it strongly maps to a driver PO (and both POs have high activation), we can infer a new
+    predicate, and an RB to connect it to the recipient PO. If we have inferred a new predicate, 
+    we can then update the predicates links to semantics based on the coactivation of the semantics 
+    and the predicate. This allows the predicate to learn to respond to the common features of 
+    the two mapped POs.
+    
+    Method:
+
+    If no new predicate has been inferred, and the most active recipient PO meets requirments 
+    (object with act > 0.6, max_map > 0.75, max_map_unit act > 0.6):
+        - Copy the object token to newSet
+        - Infer a new predicate (PO with pred=True) and RB token
+        - Connect the RB to both the predicate and the object
+        - Update semantic connections for the new predicate based on active semantics
+    
+    If a new predicate has been inferred:
+        - Refine the predicate by updating its semantic links
+          based on the coactivation of semantics and the predicate
+    
+    Requirements:
+        - Driver POs must map to recipient POs 
+        - Mapping connections must be above threshold (0.8)
     """
     
     def __init__(self, network: 'Network'):
@@ -38,75 +65,41 @@ class PredicationOperations:
         - All driver POs map to units in the recipient that don't have RBs
         - All driver POs map to a recipient PO with weight above threshold (=.8)
         """
-        # Helper functions
-        def check_rb_po_connections(self):
-            """
-            Checks that all driver POs map to units in the recipient that don't have RBs
-            Returns:
-                bool: True if passes check, False o.w.
-            """
-            net: 'Network' = self.network
-            driver: 'Driver' = net.driver()
-            recipient: 'Recipient' = net.recipient()
-            mappings: 'Mapping' = net.mappings
+        net: 'Network' = self.network
+        driver: 'Driver' = net.driver()
+        recipient: 'Recipient' = net.recipient()
+        mappings: 'Mapping' = net.mappings
 
-            # TODO: Check all the edge cases. Don't know if all driver POs have to be mapped or not.
-            # Get masks
-            d_po = driver.tensor_op.get_mask(Type.PO)
-            if not torch.any(d_po): return True  # No driver POs so they can't map to anything -> True?
-            r_po = recipient.tensor_op.get_mask(Type.PO)
-            if not torch.any(r_po): return False # No recipient POs, so driver POs can't map to them -> False
-            
-            # Get mask of recipient POs that are mapped to by driver POs
-            map_cons = mappings[MappingFields.WEIGHT]
-            mapped_r_po = (map_cons[r_po][:, d_po]> 0.0).any(dim=1)
-            mapped_r_po = tOps.sub_union(r_po, mapped_r_po)
-            if not torch.any(mapped_r_po): return False # No recipient POs mapped to, so false.
+        threshold = 0.8
 
-            # Use mask to find RBs connected to mapped recipient POs
-            r_rb_mask = recipient.tensor_op.get_mask(Type.RB)
-            r_connected_rbs = (recipient.get_connections()[mapped_r_po][:, r_rb_mask] == 1)
-            return not bool(r_connected_rbs.any())
-    
-        def check_weights(self):
-            """
-            Checks that all driver POs map to a recipient PO with weight above threshold (=.8)
-            Returns:
-                bool: True if passes check, False o.w.
-            """
-            threshold = 0.8
-            net: 'Network' = self.network
-            mappings: 'Mapping' = net.mappings
-            recipient: 'Recipient' = net.recipient()
-            driver: 'Driver' = net.driver()
-
-            # Get masks
-            d_po = driver.tensor_opget_mask(Type.PO)
-            r_po = recipient.tensor_op.get_mask(Type.PO)
-
-            # Check that mapped recipient nodes are all POs
-            map_cons = mappings[MappingFields.CONNECTIONS]
-            mapped_r_mask = (map_cons[:, d_po] == 1).any(dim=1)  # Which recipient nodes are mapped to
-            # Check if any mapped recipient nodes are NOT POs
-            if (mapped_r_mask & ~r_po).any():
-                raise ValueError("Mapped recipient nodes are not all POs")
-            
-            # Check that all the mapped weights are above 0.8
-            map_weights = mappings[MappingFields.WEIGHT]
-            driver_po_mask = driver.tensor_op.get_mask(Type.PO)
-            active_maps = map_cons[:, driver_po_mask] == 1
-            active_weights = map_weights[:, driver_po_mask][active_maps]
-
-            min_weight = min(active_weights.tolist())
-            return bool(min_weight >= threshold)
-
-        # No idea why I did the checks using assertions, feels like this is a bad way to do it.
-        try:
-            return check_rb_po_connections(self) and check_weights(self)
-        except ValueError as e:
-            if self.debug:
-                print(e)
+        # Get the mappings from driver POs to recipient POs
+        d_po = driver.tensor_op.get_mask(Type.PO)
+        r_po = recipient.tensor_op.get_mask(Type.PO)
+        if not torch.any(d_po):
+            logger.debug("PredReq Failed: No driver POs")
             return False
+        if not torch.any(r_po):
+            logger.debug("PredReq Failed: No recipient POs")
+            return False
+        p_maps = mappings[MappingFields.WEIGHT][r_po][:, d_po]
+    
+        # 1). Check that all driver POs have a mapping above the threshold.
+        max_maps = p_maps.max(dim=0)
+        if torch.any(max_maps <= threshold):
+            logger.debug("PredReq Failed: Driver POs do not all have a mapping above threshold")
+            return False
+        
+        # 2). Check that all recipient POs that are mapped to are not already connected to RBs.
+        mapped_r_po = (p_maps > threshold).any(dim=1)
+        mapped_r_po = tOps.sub_union(r_po, mapped_r_po) # Expand mask to size of recipient
+        r_rb = recipient.tensor_op.get_mask(Type.RB)
+        rec_cons = recipient.get_connections(custom_view=False)
+        r_to_rb = rec_cons[mapped_r_po][:, r_rb] == 1
+        if r_to_rb.any():
+            logger.debug("PredReq Failed: Mapped Recipient POs already connected to RBs.")
+            return False
+        else:
+            return True
     
     def check_po_requirements(self, po: int):
         """

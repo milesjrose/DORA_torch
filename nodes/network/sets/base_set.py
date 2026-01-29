@@ -91,8 +91,14 @@ class Base_Set:
         """
         self.tkop = self.token_op
     
-    def get_connections(self) -> TensorView:
-        return self.tokens.connections.get_view(self.lcl._indices)
+    def get_connections(self, custom_view: bool = True) -> TensorView|torch.Tensor:
+        """ Get the connections for the set.
+        Args:
+            custom_view: bool - Whether to use TensorView or just regular tensor.
+        Returns:
+            TensorView|torch.Tensor - The connections for the set.
+        """
+        return self.tokens.connections.get_view(self.lcl._indices, custom_view)
     
     def get_tensor(self) -> torch.Tensor:
         return self.lcl

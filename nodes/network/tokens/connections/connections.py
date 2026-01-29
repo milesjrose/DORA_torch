@@ -355,13 +355,17 @@ class Connections_Tensor:
         self.tensor = new_connections
         logger.info(f"Expanded connections tensor: {old_size} -> {new_size}")
     
-    def get_view(self, indices: torch.Tensor|list[int]|int) -> TensorView:
+    def get_view(self, indices: torch.Tensor|list[int]|int, custom_view: bool = True) -> TensorView|torch.Tensor:
         """
         Get a view of the connections for the given set.
         Args:
             indices: torch.Tensor - The indices of the tokens to get the view for.
+            custom_view: bool - Whether to use TensorView or just regular tensor.
         Returns:
             TensorView - A view-like object that maps operations back to the original tensor.
         """
-        indices = self._to_tensor(indices)
-        return TensorView(self.tensor, indices)
+        if custom_view:
+            indices = self._to_tensor(indices)
+            return TensorView(self.tensor, indices)
+        else:
+            return self.tensor[indices][:, indices]
