@@ -71,6 +71,17 @@ class TensorOperations:
         else:
             type_mask = self.get_mask(token_type)
             return (mask & type_mask).sum().item()
+        
+    def get_active_mask(self, thresh: float = 0.01) -> torch.Tensor:
+        """
+        Get the mask of tokens that are active above a given threshold.
+
+        Args:
+            thresh (float): The threshold to use to filter the tokens.
+        Returns:
+            (torch.Tensor): The mask of tokens that are active above the threshold.
+        """
+        return self.base_set.lcl[:, TF.ACT] >= thresh
     
     def print(self, f_types=None):
         """

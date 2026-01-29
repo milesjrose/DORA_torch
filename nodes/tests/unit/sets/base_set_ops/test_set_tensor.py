@@ -417,3 +417,18 @@ def test_combined_mask_with_count(driver_set):
     po_in_combined = driver_set.tensor_op.get_count(Type.PO, mask=combined_mask)
     assert po_in_combined == 3
 
+def test_get_active_mask(driver_set):
+    """Test getting active mask."""
+    driver_set.lcl[:, TF.ACT] = 0.0
+    driver_set.lcl[0, TF.ACT] = 0.6
+    driver_set.lcl[1, TF.ACT] = 0.4
+    driver_set.lcl[2, TF.ACT] = 0.3
+    driver_set.lcl[3, TF.ACT] = 0.2
+    driver_set.lcl[4, TF.ACT] = 0.1
+    active_mask = driver_set.tensor_op.get_active_mask(thresh=0.5)
+    assert active_mask.dtype == torch.bool
+    assert len(active_mask) == 10
+    assert active_mask.sum().item() == 1
+    assert torch.all(active_mask[0] == True)
+    assert torch.all(active_mask[1:] == False)
+
