@@ -18,10 +18,26 @@ if TYPE_CHECKING:
 
 class RetrievalOperations:
     """
-    Retrieval operations for the Network class.
-    Handles token retrieval and related functionality.
+    Retrieval finds and brings into the recipient structures in memory that are useful for inference. These are
+    found by looking for prominent structures in memory that are co-active with the driver tokens. This can be done
+    by looking either at the activations of analogs, or individual tokens by setting params.bias_retrieval_analogs.
+
+    Method:
+
+    First update the inputs and activations in memory. Decide on retrieving tokens or analogs based on 
+    params.bias_retrieval_analogs. For analogs, take the sum of the activations of its tokens, and for 
+    tokens consider each token type (PO, RB, P.child, P.parent) individually. Select tokens/analogs to 
+    retrieve using Luce choice:
+        - Get the activations for each token/analog, and the total activation of all tokens/analogs.
+                - If retrieving analogs and params.use_relative_act, transform the activations with a sigmoidal function.
+        - Give each token/analog a retrieval probability based on its activation/total activations.
+        - Generate a number bentween 0 and 1, and select tokens/analogs with a probability greater than this number.
+        - Move the selected tokens/analogs to the recipient. If moving tokens, move all children of the token as well.
+
+    Requirements:
+        - At least one P (proposition) token must be present in the driver to trigger retrieval
     """
-    
+
     def __init__(self, network):
         """
         Initialize RetrievalOperations with reference to Network.
@@ -33,8 +49,13 @@ class RetrievalOperations:
         self.debug = False
     
     def requirements(self) -> bool:
-        """ check the requirements for retrieval """
-        # TODO: test
+        """ 
+        Check the requirements for retrieval:
+        - At least one P token in the driver.
+
+        Returns:
+            bool: True if requirements are met, False o.w.
+        """
         return self.network.driver().tensor_op.get_mask(Type.P).any()
 
     def retrieval_routine(self):

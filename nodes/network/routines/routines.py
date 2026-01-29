@@ -16,15 +16,20 @@ if TYPE_CHECKING:
 class Routines:
     """
     Routines object for the Network class.
-    Handles routines for the network.
+    Provides a unified interface to the learning routines for the Network:
+    - retrieval: Retrieves co-active structures in memory to the recipient.
+    - predication: Learns predicates from object through shared features.
+    - rel_form: Learns multiplace relational structures by linking co-occuring RB pairs.
+    - rel_gen: Infer structure in the recipient based on unmapped structure in the driver.
+    - schematisation: Infer structure into the newSet based on the driver and recipient.
     """
     def __init__(self, network):
         """
         Initialize Routines with reference to Network.
         """
         self.network: 'Network' = network
-        self.retrieval = RetrievalOperations(self.network)
-        self.rel_form = RelFormOperations(self.network)
-        self.schematisation = SchematisationOperations(self.network)
-        self.rel_gen = RelGenOperations(self.network)
-        self.predication = PredicationOperations(self.network)
+        self.retrieval: RetrievalOperations = RetrievalOperations(self.network)
+        self.rel_form: RelFormOperations = RelFormOperations(self.network)
+        self.rel_gen: RelGenOperations = RelGenOperations(self.network)
+        self.schematisation: SchematisationOperations = SchematisationOperations(self.network)
+        self.predication: PredicationOperations = PredicationOperations(self.network)

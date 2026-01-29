@@ -18,8 +18,6 @@ if TYPE_CHECKING:
 
 class PredicationOperations:
     """
-    Predication operations for the Network class.
-
     Implements DORA's predication learning mechanism, which learns single-place predicates 
     from objects by discovering their shared features through comparison. All the driver POs map
     strongly to recipient units that are not already bound to RBs. We look at the most active recipient

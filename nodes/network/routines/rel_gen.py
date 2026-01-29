@@ -18,8 +18,36 @@ logger = logging.getLogger("rtn")
 
 class RelGenOperations:
     """
-    RelGen operations for the Network class.
-    Handles relation generalisation routines.
+    Performs analogical inference using mapped driver analogs to infer structures in the recipient. 
+    If a driver analog is mapped to a recipient analog, and there is a highly active token in the driver 
+    analog that is not mapped to the recipient, try to learn the structure in the recipient analog. 
+    A new token is inferred, and if there are lower level tokens in the recipient analog that are highly 
+    co-active with the driver token, connect them to the inferred token.
+    
+    Method:
+
+    When driver and recipient tokens are mapped but the driver contains unmapped structure, DORA 
+    can infer corresponding structure in the recipient. The routine looks at each token type in the
+    driver (PO, RB, P.child, P.parent), finds the most active token of each type. If the token has 
+    an act above threshold (0.5) and has no mapping connections (max_map == 0.0), it will perform 
+    relational generalisation:
+
+    If the driver token has NOT created a recipient token yet:
+        - Infer a new token in recipient with act = 1.0
+        - Mark maker/made relationships between driver and inferred tokens
+        - Copy type-specific features (e.g., P mode, PO pred status)
+    
+    If the driver token HAS created a recipient token previously:
+        - Update the made token's activation to 1.0
+        - Update connections to lower layers:
+            - PO: Update semantic link weights
+            - RB: Connect to active POs (act ≥ 0.7)
+            - P (parent): Connect to active RBs without existing parent (act ≥ 0.5)
+            - P (child): Connect to active RBs (act ≥ 0.7)
+    
+    Requirements:
+        - At least one driver unit must map to a recipient unit
+        - All active mapping connections must have weights > 0.7
     """
     def __init__(self, network):
         """

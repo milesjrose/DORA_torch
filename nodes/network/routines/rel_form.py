@@ -18,8 +18,21 @@ if TYPE_CHECKING:
 
 class RelFormOperations:
     """
-    RelForm operations for the Network class.
-    Handles relation formation routines.
+    Learn a multiplace relational representation by linking a co-occuring set of role-argument pairs.
+    Find at least 2 RBs in the recipient that strongly map to driver RBs, and infer a new P token that 
+    links them together.
+
+    Method:
+
+    If there are at least 2 RBs in the recipient that don't have a P parent, and strongly map to driver RBs:
+        - If no P token has been inferred yet, infer a new P token in the recipient.
+        - If a P token has been inferred, connect it to the recipient RBs with act >= threshold (0.8).
+    
+    The P token is named based on the RBs that it is connected to after the phase set.
+    
+    Requirements:
+        - At least 2 RBs in recipient without P connections
+        - These RBs must map to driver RBs with mapping weights ≥ 0.8
     """
     
     def __init__(self, network):
@@ -42,7 +55,7 @@ class RelFormOperations:
         """
         Checks requirements for relation formation, there must be at least 2 RBs in the recipient that both:
         - Do not have connections to a P token (where P is the parent).
-        - Map to RBs in the driver with mapping connections above threshold (0.8).
+        - Map to RBs in the driver with mapping connections above threshold (>=0.8).
 
         Returns:
             bool: True if requirements are met, False o.w.
@@ -60,14 +73,15 @@ class RelFormOperations:
             return False
         r_p = tk_tensor.cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT})
         if torch.any(r_p): # Only need to check if there are Ps in the recipient.
-            # P is parent, RB is child, so take dim=0? TODO: Check which dim I need
-            r_rb_no_p = (cons[r_p][:, r_rb] == False).all(dim=0) # Mask of RBs that don't connect to a P unit
+            # P is parent, RB is child, so take dim=0 to get RBs that don't connect to a P unit.
+            r_rb_no_p = (cons[r_p][:, r_rb] == False).all(dim=0)
             if r_rb_no_p.sum() < 2:
                 logger.debug(f"Only {r_rb_no_p.sum()} RBs in recipient that don't connect to a P unit (required at least 2)")
                 return False
-            r_rb_no_p = tOps.sub_union(r_rb, r_rb_no_p) # Expand mask to size of token tensor.
-            r_rb_no_p = r_rb_no_p[net.recipient().lcl._indices] # Shrink mask to be the size of the recipient, to index into mappings.
-            logger.debug(f"r_rb_no_p: {r_rb_no_p.shape}")
+            # Need to manipulate the mask to be the size of the recipient, to index into mappings.
+            r_rb_no_p = tOps.sub_union(r_rb, r_rb_no_p) # Expand mask to size of token tensor
+            r_rb_no_p = r_rb_no_p[net.recipient().lcl._indices] # Shrink mask back to size of recipient
+        
         # 2). Find at least 2 of these RBs that map to driver RBs above threshold.
         map_weights = mappings[MappingFields.WEIGHT]
         d_rb = self.network.driver().tensor_op.get_mask(Type.RB)
