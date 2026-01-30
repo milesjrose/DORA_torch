@@ -215,6 +215,10 @@ class Semantics(object):
         """Get the number of semantics in the semantics tensor."""
         return (self.nodes[:, SF.DELETED]==B.FALSE).sum()
     
+    def get_active_mask(self, thresh: float = 0.01) -> torch.Tensor:
+        """Get the mask of active semantics"""
+        return self.nodes[:, SF.ACT] > thresh
+    
 
     # ==================[ LINKS ]=====================
     # NOTE: Maybe move thes somewhere else? These are links functions, but I don't want to add a 
@@ -246,7 +250,7 @@ class Semantics(object):
             idx = torch.tensor(idx)
         return int(idx)
 
-    def update_link_weights(self, idx_tk: int):
+    def update_link_weights(self, idx_tk: int, mask: torch.Tensor = None):
         """
         Update the weights of the links between a token and its semantics.
 
@@ -254,12 +258,17 @@ class Semantics(object):
 
         Args:
             idx_tk: int - The global index of the token to update the link weights for.
+            mask: torch.Tensor - The mask of semantics to update the link weights for.
         """
         idx_tk = self._to_int(idx_tk)
-        sem_acts = self.nodes[:, SF.ACT]
-        link_weights = self.links[idx_tk, :]
-        self.links[idx_tk, :] += 1 * (sem_acts - link_weights) * self.params.gamma
-
+        if mask is None:
+            sem_acts = self.nodes[:, SF.ACT]
+            link_weights = self.links[idx_tk, :]
+            self.links[idx_tk, :] += 1 * (sem_acts - link_weights) * self.params.gamma
+        else:
+            sem_acts = self.nodes[mask, SF.ACT]
+            link_weights = self.links[idx_tk, mask]
+            self.links[idx_tk, mask] += 1 * (sem_acts - link_weights) * self.params.gamma
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
     def get(self, ref_semantic: Ref_Semantic, feature):
