@@ -2,6 +2,9 @@ import torch
 from .cache import Cache
 from .token_tensor import Token_Tensor
 from ....enums import *
+from enum import IntEnum
+from nodes.utils import tensor_ops as tOps
+from .analogs_return_types import AnalogInfo
 from logging import getLogger
 logger = getLogger("tns")
 
@@ -98,15 +101,19 @@ class Analog_ops:
 
         return unique_analog_ids
     
-    def move_analog(self, analog_number: int, to_set: Set):
+    def move_analog(self, analog_number: int|list[int]|torch.Tensor, to_set: Set):
         """
         Move the analog with the given number to the given set.
         Args:
             analog_number: int - The number of the analog to move.
             to_set: Set - The set to move the analog to.
         """
-        logger.info(f"Moving analog {analog_number} to set {to_set}")
-        indices = self.get_analog_indices(analog_number)
+        if not isinstance(analog_number, int):
+            analogs = tOps.to_tensor(analog_number)
+            indices = self.get_analog_indices_multiple(analogs)
+        else:
+            indices = self.get_analog_indices(analog_number)
+        logger.info(f"Moving analog(s) {analog_number} to set {to_set}")
         self.tokens.move_tokens(indices, to_set)
         self.cache.cache_analogs()
     
@@ -141,3 +148,18 @@ class Analog_ops:
         indices = self.get_analog_indices(analog_number)
         self.tokens.del_tokens(indices)
         self.cache.cache_analogs()
+    
+    def get_analogs_info(self, as_info: bool = True) -> torch.Tensor|AnalogInfo:
+        """ 
+        Get the analog information for all analogs.
+
+        Args:
+            as_info: bool (Default: True) - Whether to return the information as an AnalogInfo object, or a col_stacked tensor.
+        Returns:
+            torch.tensor|AnalogInfo - The tensor of analogs information.
+        """
+        data = self.cache.get_analogs_info()
+        if as_info:
+            return AnalogInfo(data)
+        else:
+            return data

@@ -3,8 +3,10 @@
 
 from ...enums import *
 import torch
-from ..single_nodes import Ref_Analog, Analog, Ref_Token
+from ..single_nodes import Ref_Analog, Analog
 from ...utils import tensor_ops as tOps
+from ..tokens.tensor.analogs_return_types import AnalogInfo
+
 
 from typing import TYPE_CHECKING
 import logging
@@ -50,9 +52,9 @@ class AnalogOperations:
         """
         self.network.tokens.analog_ops.delete_analog(analog)
 
-    def move(self, analog: int, to_set: Set):
+    def move(self, analog: int|list[int]|torch.Tensor, to_set: Set):
         """
-        Move an analog from one set to another
+        Move an analog(s) from one set to another
 
         Args:
             analog (int): The number of the analog to move.
@@ -161,16 +163,20 @@ class AnalogOperations:
         """
         return self.network.tokens.analog_ops.get_analog_indices(analog)
     
-    def set_analog_features(self, analog: int, feature: TF, value):
+    def set_analog_features(self, analog: int|list[int]|torch.Tensor, feature: TF, value):
         """ 
-        Set a feature of the tokens in an analog. 
+        Set a feature of the tokens in the analog(s)
         
         Args:
             analog (int): The number of the analog to set the features of.
             feature (TF): The feature to set.
             value (float): The value to set the feature to.
         """
-        indices = self.get_analog_indices(analog)
+        if not isinstance(analog, int):
+            analogs = tOps.to_tensor(analog)
+            indices = self.get_analog_indices_multiple(analogs)
+        else:
+            indices = self.get_analog_indices(analog)
         self.network.tokens.token_tensor.set_feature(indices, feature, float(value))
     
     def find_mapped_analog(self, set:Set) -> int:
@@ -232,3 +238,23 @@ class AnalogOperations:
         new_id = self.network.tokens.analog_ops.new_analog_id()
         self.network.sets[Set.NEW_SET].token_op.set_features_all(TF.ANALOG, new_id)
         return new_id
+    
+    def get_analogs_info(self, set: Set = None, as_info: bool = True) -> torch.Tensor|AnalogInfo:
+        """ 
+        Get the analog information for a given set.
+        Args:
+            set: Set (Optional) - The set to get the analogs information for. If None get all analogs.
+            as_info: bool (Default: True) - Whether to return the information as an AnalogInfo object, or a col_stacked tensor.
+        Returns:
+            torch.tensor|AnalogInfo - The tensor of analogs information.
+        """
+        # NOTE: Caching here makes it kinda pointless, but just want it to work for now.
+        self.network.cache_analogs()
+        # Get the analogs info.
+        info = self.network.tokens.analog_ops.get_analogs_info(as_info=as_info)
+        if set is not None and info is not None:
+            info = info.get_set_info(set)
+        if as_info is False and info is not None:
+            return info.data
+        return info
+        

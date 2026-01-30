@@ -12,8 +12,9 @@ from nodes.network.tokens.connections.mapping import Mapping
 from nodes.network.tokens.connections.links import Links
 from nodes.network.sets.semantics import Semantics
 from nodes.network.network_params import Params, default_params
-from nodes.enums import Set, TF, SF, MappingFields, Type
-
+from nodes.enums import Set, TF, SF, MappingFields, Type, null, tensor_type, B
+from logging import getLogger
+logger = getLogger("TEST")
 
 @pytest.fixture
 def minimal_params():
@@ -23,29 +24,90 @@ def minimal_params():
 
 @pytest.fixture
 def minimal_token_tensor():
-    """Create minimal Token_Tensor for testing."""
-    num_tokens = 20
+    """
+    Create a mock tensor with multiple tokens across different sets and analogs.
+    """
+    num_tokens = 30
     num_features = len(TF)
-    tokens = torch.zeros((num_tokens, num_features))
-    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
-    names = {}
-    return Token_Tensor(tokens, names)
+    
+    # Create tensor with all features
+    tensor = torch.full((num_tokens, num_features), null, dtype=tensor_type)
+    
+    # Set DELETED to False for active tokens (0-24)
+    tensor[0:30, TF.DELETED] = B.FALSE
+    
+    # DRIVER set: tokens 0-9
+    # Analog 0: tokens 0-2 (PO, ACT=0.1, 0.2, 0.3)
+    # Analog 1: tokens 3-5 (RB, ACT=0.4, 0.5, 0.6)
+    # Analog 2: tokens 6-8 (P, ACT=0.7, 0.8, 0.9)
+    # Analog 3: token 9 (GROUP, ACT=1.0)
+    tensor[0:9, TF.SET] = Set.DRIVER
+    tensor[0:3, TF.ANALOG] = 0
+    tensor[0:3, TF.TYPE] = Type.PO
+    tensor[0:3, TF.ACT] = torch.tensor([0.1, 0.2, 0.3])
+    tensor[3:6, TF.ANALOG] = 1
+    tensor[3:6, TF.TYPE] = Type.RB
+    tensor[3:6, TF.ACT] = torch.tensor([0.4, 0.5, 0.6])
+    tensor[6:9, TF.ANALOG] = 2
+    tensor[6:9, TF.TYPE] = Type.P
+    tensor[6:9, TF.ACT] = torch.tensor([0.7, 0.8, 0.9])
+    tensor[9, TF.SET] = Set.DRIVER
+    tensor[9, TF.ANALOG] = 3
+    tensor[9, TF.TYPE] = Type.GROUP
+    tensor[9, TF.ACT] = 1.0
+    
+    # RECIPIENT set: tokens 10-19.tokens.connection
+    # Analog 0: tokens 10-12 (PO, ACT=1.1, 1.2, 1.3)
+    # Analog 1: tokens 13-15 (RB, ACT=1.4, 1.5, 1.6)
+    # Analog 2: tokens 16-18 (P, ACT=0.0, 0.0, 0.0) - inactive
+    # Analog 4: token 19 (SEMANTIC, ACT=2.0)
+    tensor[10:19, TF.SET] = Set.RECIPIENT
+    tensor[10:13, TF.ANALOG] = 0
+    tensor[10:13, TF.TYPE] = Type.PO
+    tensor[10:13, TF.ACT] = torch.tensor([1.1, 1.2, 1.3])
+    tensor[13:16, TF.ANALOG] = 1
+    tensor[13:16, TF.TYPE] = Type.RB
+    tensor[13:16, TF.ACT] = torch.tensor([1.4, 1.5, 1.6])
+    tensor[16:19, TF.ANALOG] = 2
+    tensor[16:19, TF.TYPE] = Type.P
+    tensor[16:19, TF.ACT] = 0.0  # Inactive tokens
+    tensor[19, TF.SET] = Set.RECIPIENT
+    tensor[19, TF.ANALOG] = 4
+    tensor[19, TF.TYPE] = Type.SEMANTIC
+    tensor[19, TF.ACT] = 2.0
+    
+    # MEMORY set: tokens 20-24
+    # Analog 0: tokens 20-22 (PO, ACT=2.1, 2.2, 2.3)
+    # Analog 1: tokens 23-30 (RB, ACT=2.4, 2.5)
+    tensor[20:25, TF.SET] = Set.MEMORY
+    tensor[20:23, TF.ANALOG] = 0
+    tensor[20:23, TF.TYPE] = Type.PO
+    tensor[20:23, TF.ACT] = torch.tensor([2.1, 2.2, 2.3])
+    tensor[23:30, TF.ANALOG] = 1
+    tensor[23:30, TF.TYPE] = Type.RB
+    tensor[23:30, TF.ACT] = torch.tensor([2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3.0])
+
+    
+    names = {i: f"token_{i}" for i in range(30)}
+    return Token_Tensor(tensor, names)
 
 @pytest.fixture
 def minimal_connections():
-    """Create minimal Connections_Tensor for testing."""
-    num_tokens = 20
-    connections = torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
-    return Connections_Tensor(connections)
-
+    """Create a mock connections tensor."""
+    num_tokens = 30   
+    return Connections_Tensor(torch.zeros((num_tokens, num_tokens), dtype=torch.bool))
 
 @pytest.fixture
-def minimal_links(minimal_token_tensor):
+def minimal_links():
     """Create minimal Links object for testing."""
-    num_tokens = minimal_token_tensor.get_count()
-    num_semantics = 5
-    links = torch.zeros((num_tokens, num_semantics))
-    return Links(links)
+    num_tokens = 30
+    return Links(torch.zeros((num_tokens, 5)))
+
+@pytest.fixture
+def minimal_params():
+    """Create a mock Params object."""
+    from nodes.network.default_parameters import parameters
+    return Params(parameters)
 
 
 @pytest.fixture
@@ -544,3 +606,149 @@ def test_new_set_to_analog_creates_analog_for_new_set(network):
     # Verify set_features_all was called with correct parameters
     mock_set_features_all.assert_called_once_with(TF.ANALOG, 3)
 
+
+# =====================[ get_analogs_info Tests ]======================
+
+def test_get_analogs_info_single_driver(network: Network):
+    """ Test getting analogs info."""
+    # First try set all tokens to one analog
+    driver_set = network.sets[Set.DRIVER]
+    analog_ops = network.analog_ops
+    lcl = driver_set.lcl
+    lcl[:, TF.ANALOG] = 8
+    lcl[:, TF.ACT] = 0.5
+
+    num_tk = driver_set.tensor_op.get_count()
+    total_act = num_tk * 0.5
+
+    info = analog_ops.get_analogs_info(set=Set.DRIVER)
+    logger.info(f"Analog info: {info.data.shape}, {info.data}")
+    #Check the raw data
+    assert info.data[0, info.Cols.NUM] == 8
+    assert info.data[0, info.Cols.COUNT] == num_tk
+    assert info.data[0, info.Cols.ACT] == total_act
+    # Check the return function
+    assert info.get_analog_info(8)[info.Cols.NUM] == 8
+    assert info.get_analog_info(8)[info.Cols.COUNT] == num_tk
+    assert info.get_analog_info(8)[info.Cols.ACT] == total_act
+    # Try a non-existent analog
+    assert info.get_analog_info(20) is None
+
+def test_get_analogs_info_multiple(network: Network):
+    """ Test getting analogs info for two analogs."""
+    driver_set = network.sets[Set.DRIVER]
+    analog_ops = network.analog_ops
+    lcl = driver_set.lcl
+    # Set some analogs to different values
+    lcl[:5, TF.ANALOG] = 9
+    lcl[:5, TF.ACT] = 0.6
+    ninecount = 5
+    nineact = ninecount * 0.6
+
+    lcl[5:9, TF.ANALOG] = 10
+    lcl[5:9, TF.ACT] = 0.7
+    lcl[6, TF.ACT] = 0.8
+    tencount = 4
+    tenact = ((tencount-1) * 0.7) + 0.8
+
+    lcl[9, TF.ANALOG] = 11
+    lcl[9, TF.ACT] = 0.9
+    elevencount = 1
+    elevenact = elevencount * 0.9
+
+    # Get all info
+    info = analog_ops.get_analogs_info(set=Set.DRIVER)
+    logger.info(f"Analog info: {info.data.shape}, {info.data}")
+    nineinfo = info.get_analog_info(9)
+    logger.info(f"Nine info: {nineinfo.shape}, {nineinfo}")
+    # Check raw data
+    assert info.data[0, info.Cols.NUM] == 9
+    assert info.data[0, info.Cols.COUNT] == ninecount
+    assert info.data[0, info.Cols.ACT] == nineact
+    assert info.data[1, info.Cols.NUM] == 10
+    assert info.data[1, info.Cols.COUNT] == tencount
+    assert info.data[1, info.Cols.ACT] == tenact
+    assert info.data[2, info.Cols.NUM] == 11
+    assert info.data[2, info.Cols.COUNT] == elevencount
+    assert info.data[2, info.Cols.ACT] == elevenact
+    # Check the return function
+    assert nineinfo[info.Cols.COUNT] == ninecount
+    assert nineinfo[info.Cols.ACT] == nineact
+    teninfo = info.get_analog_info(10)
+    assert teninfo[info.Cols.COUNT] == tencount
+    assert teninfo[info.Cols.ACT] == tenact
+    eleveninfo = info.get_analog_info(11)
+    assert eleveninfo[info.Cols.COUNT] == elevencount
+    assert eleveninfo[info.Cols.ACT] == elevenact
+    # Try a non-existent analog
+    assert info.get_analog_info(20) is None
+
+def test_get_analogs_info_multiple_sets(network: Network):
+    """ Test getting analogs info for multiple sets."""
+    driver = network.sets[Set.DRIVER]
+    recipient = network.sets[Set.RECIPIENT]
+
+    counts = {}
+    acts = {}
+
+    # Set some analogs in driver
+    lcl = driver.lcl
+    # Set some analogs to different values
+    lcl[:5, TF.ANALOG] = 9
+    lcl[:5, TF.ACT] = 0.6
+    counts[9] = 5
+    acts[9] = counts[9] * 0.6
+
+    lcl[5:9, TF.ANALOG] = 10
+    lcl[5:9, TF.ACT] = 0.7
+    lcl[6, TF.ACT] = 0.7
+    counts[10] = 4
+    acts[10] = ((counts[10]-1) * 0.7) + 0.7
+
+    lcl[9, TF.ANALOG] = 11
+    lcl[9, TF.ACT] = 0.9
+    counts[11] = 1
+    acts[11] = counts[11] * 0.9
+
+    # Set some analogs in recipient
+    lcl = recipient.lcl
+    logger.info(f"Recipient lcl: {recipient.tensor_op.get_count()}")
+    # Set some analogs to different values
+    lcl[:5, TF.ANALOG] = 12
+    lcl[:5, TF.ACT] = 0.2
+    counts[12] = 5
+    acts[12] = counts[12] * 0.2
+
+    lcl[5:9, TF.ANALOG] = 13
+    lcl[5:9, TF.ACT] = 0.3
+    lcl[6, TF.ACT] = 0.5
+    counts[13] = 4
+    acts[13] = ((counts[13]-1) * 0.3) + 0.5
+
+    lcl[9, TF.ANALOG] = 14
+    lcl[9, TF.ACT] = 0.8
+    counts[14] = 1
+    acts[14] = counts[14] * 0.8
+
+    def assert_info(info, analog_number, count, act):
+        def isclose(a, b, rel_tol=1e-06, abs_tol=0.0):
+            return abs(a-b) <= max(rel_tol * max(abs(a), abs(b)), abs_tol)
+        data = info.get_analog_info(analog_number)
+        logger.info(f"Data[Count={data[info.Cols.COUNT].item()}, Act={data[info.Cols.ACT].item()}], Expected[Count={count}, Act={act}]")
+        assert isclose(data[info.Cols.COUNT].item(), count), f"Count for analog {analog_number}: {data[info.Cols.COUNT].item()} is not close to {count}"
+        assert isclose(data[info.Cols.ACT].item(), act), f"Act for analog {analog_number}: {data[info.Cols.ACT].item()} is not close to {act}"
+        
+
+    # Check all info
+    info = network.analog_ops.get_analogs_info()
+    for analog_number in [9, 10, 11, 12, 13, 14]:
+        assert_info(info, analog_number, counts[analog_number], acts[analog_number])
+    
+    # Check info for driver
+    driver_info = info.get_set_info(Set.DRIVER)
+    for analog_number in [9, 10, 11]:
+        assert_info(driver_info, analog_number, counts[analog_number], acts[analog_number])
+    # Check info for recipient
+    recipient_info = info.get_set_info(Set.RECIPIENT)
+    for analog_number in [12, 13, 14]:
+        assert_info(recipient_info, analog_number, counts[analog_number], acts[analog_number])

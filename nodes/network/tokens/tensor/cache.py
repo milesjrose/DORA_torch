@@ -30,6 +30,14 @@ class Cache:
         self.analogs = torch.tensor([], dtype = tensor_type)
         """holds a tensor, with columns: [analog_number, analog_set, count, activation]"""
     
+    def get_analogs_info(self) -> torch.Tensor:
+        """Get a tensor of the analogs information.
+           Columns: [analog_number, analog_set, count, activation]
+        Returns:
+            torch.Tensor - The tensor of analogs information.
+        """
+        return self.analogs
+
     def get_arbitrary_mask(self, dict: dict[TF, float]) -> torch.Tensor:
         """
         Get a mask of tokens that match the given dictionary of features and values.

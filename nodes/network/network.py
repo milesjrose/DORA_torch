@@ -109,7 +109,7 @@ class Network(object):
         """
         Recache the analogs in the network.
         """
-        self.recache()
+        self.tokens.token_tensor.cache.cache_analogs()
         # NOTE: Maybe wasteful, but figure it out later. Just want it to work for now.
         #self.tokens.token_tensor.cache.cache_analogs()
     
