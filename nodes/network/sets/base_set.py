@@ -100,6 +100,10 @@ class Base_Set:
         """
         return self.tokens.connections.get_view(self.lcl._indices, custom_view)
     
+    def get_indicies(self) -> torch.Tensor:
+        """Get all global indices for the set."""
+        return self.lcl._indices
+    
     def get_tensor(self) -> torch.Tensor:
         return self.lcl
     
