@@ -178,11 +178,12 @@ class Connections_Tensor:
             return torch.tensor([], dtype=torch.long)
         return torch.tensor(list(all_parents), dtype=torch.long)
     
-    def get_children(self, parent_idxs: torch.Tensor|list[int]|int) -> torch.Tensor:
+    def get_children(self, parent_idxs: torch.Tensor|list[int]|int, ret_idx: bool = True) -> torch.Tensor:
         """
         Get the direct children of the given parent_idxs
         Args:
             parent_idxs: torch.Tensor - The indices of the parents to get the children of.
+            ret_idx: bool - Whether to return the indices of the children or a mask
         Returns:
             torch.Tensor - The indices of the children of the given parent_idxs.
         """
@@ -196,8 +197,9 @@ class Connections_Tensor:
         logger.debug(f"mask: {mask}")
         logger.debug(f"any(dim=0): {mask.any(dim=0)}")
         logger.debug(f"where(mask.any(dim=0)): {torch.where(mask.any(dim=0))[0]}")
-        child_indices = torch.where(mask.any(dim=0))[0]
-        logger.debug(f"Children of {parent_idxs.tolist if isinstance(parent_idxs, torch.Tensor) else parent_idxs} => {child_indices.tolist()}")
+        if ret_idx:
+            child_indices = torch.where(mask.any(dim=0))[0]
+        logger.debug(f"Children of {parent_idxs.tolist if isinstance(parent_idxs, torch.Tensor) else parent_idxs} => {torch.where(mask.any(dim=0))[0].tolist()}")
         return child_indices
     
     def get_children_recursive(self, parent_idxs: torch.Tensor|list[int]|int) -> torch.Tensor:
