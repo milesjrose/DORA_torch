@@ -141,3 +141,35 @@ def efficient_local_max_excluding_self(tensor: torch.Tensor) -> torch.Tensor:
 
     # 6. Return the maximum of the two resulting tensors
     return torch.max(row_max_excluding_self, col_max_excluding_self)
+
+def to_tensor(idxs: torch.Tensor|list[int]|int) -> torch.Tensor:
+    """
+    Convert the input to a tensor.
+    Args:
+        idxs: torch.Tensor|list[int]|int - The indices to convert to a tensor.
+    Returns:
+        torch.Tensor - The tensor of indices.
+    """
+    if isinstance(idxs, torch.Tensor):
+        return idxs
+    if isinstance(idxs, list):
+        return torch.tensor(idxs)
+    if isinstance(idxs, int):
+        return torch.tensor([idxs])
+    raise ValueError(f"Invalid type for indices: {type(idxs)}")
+
+def to_list(idxs: torch.Tensor|list[int]|int) -> list[int]:
+    """
+    Convert the input to a list.
+    Args:
+        idxs: torch.Tensor|list[int]|int - The indices to convert to a list.
+    Returns:
+        list[int] - The list of indices.
+    """
+    if isinstance(idxs, torch.Tensor):
+        return idxs.tolist()
+    if isinstance(idxs, list):
+        return idxs
+    if isinstance(idxs, int):
+        return [idxs]
+    raise ValueError(f"Invalid type for indices: {type(idxs)}")
