@@ -3,11 +3,9 @@
 
 from ...enums import *
 import torch
-from math import exp
 from logging import getLogger
 from ..single_nodes import Ref_Analog
 from typing import TYPE_CHECKING
-from random import random
 from ...utils import tensor_ops as tOps
 
 logger = getLogger(__name__)
@@ -63,13 +61,14 @@ class RetrievalOperations:
         Run the model retrieval routine - update input/act in memory, then if bias_retrieval_analogs 
         get the total act for each analog, else track the most active tokens in memory.
         """
-        memory: 'Memory' = self.network.memory()
-        memory.update_input()
-        memory.update_act()
+        net = self.network
+        net.update.inputs(Set.MEMORY)
+        net.update.acts(Set.MEMORY)
         if self.network.params.bias_retrieval_analogs:
-            memory.tensor_ops.get_analog_activation_counts_scatter()
+            net.cache_analogs()
         else:
-            memory.token_ops.get_max_acts()
+            net.memory().token_op.get_max_acts()
+        self.retrieve_tokens()
     
     def retrieve_tokens(self):
         """
@@ -85,11 +84,12 @@ class RetrievalOperations:
 
     def retrieve_analogs_biased(self, use_relative_act):
         """ Retrieve analogs from memory, using analog bias"""
-        self.network.memory().tensor_ops.get_analog_activation_counts_scatter()
+        net = self.network
         # Calc normal act for each analog
-        analogs = self.network.memory().analogs
-        counts = self.network.memory().analog_counts
-        acts = self.network.memory().analog_activations
+        info = net.analog_ops.get_analogs_info(set=Set.MEMORY)
+        analogs = info.data[:, info.Cols.NUM]
+        counts = info.data[:, info.Cols.COUNT]
+        acts = info.data[:, info.Cols.ACT]
         normal_act = acts/counts
         
         # If relative act, transform normal_act with sigmoidal function
@@ -112,25 +112,29 @@ class RetrievalOperations:
             random_num = torch.rand(analogs.shape[0])
             retrieve_mask = active_mask & (retrieve_prob > random_num)
             # Retrieve analogs NOTE: not vectorised TODO: Add method for moving multiple analogs at once
-            for analog in analogs[retrieve_mask]:
-                self.retrieve_analog(analog)
+            analogs_to_retrieve = analogs[retrieve_mask]
+            self.retrieve_analogs(analogs_to_retrieve)
         
+    
     def retrieve_tokens_no_bias(self, use_relative_act):
         """Retrieve tokens from memory, no bias to analogs"""
         if use_relative_act:
-            raise NotImplementedError("Relative act not implemented for non-bias retrieval")
-
+            logger.critical("Relative act not implemented for non-bias retrieval -> Skipping retrieval!!")
+            return
+        mem = self.network.memory()
+        
         # Update max acts, and get all mask
-        self.network.memory().token_ops.get_max_acts()                     
-        all_mask = self.network.memory().tensor_op.get_all_nodes_mask()
+        mem.token_op.get_max_acts()
 
         # Decide on retrieval based on luce choice
         def luce_choice_retrieval(token_sum, token_mask):
+            mem = self.network.memory()
             # make sure token_sum > 0
             if token_sum <= 0:
+                # No tokens to retrive, return false mask
                 return torch.zeros_like(token_mask, dtype=torch.bool)
             # retrieve prob = max_act / token_sum
-            retrieve_prob = self.network.memory().nodes[token_mask, TF.MAX_ACT] / token_sum
+            retrieve_prob = mem.lcl[token_mask, TF.MAX_ACT] / token_sum
             # if retrieve prob > random num, flag token for retrieval
             random_num = torch.rand_like(retrieve_prob)
             # Create mask for tokens that should be retrieved
@@ -139,56 +143,228 @@ class RetrievalOperations:
             return retrieve_mask
         
         # Apply luce choice to each token type
-        retrieve_mask = torch.zeros_like(all_mask, dtype=torch.bool)
+        retrieve_masks = {}
         for token_type in [Type.P, Type.RB, Type.PO]:
-            token_mask = self.network.memory().tensor_op.get_mask(token_type)
-            token_sum = self.network.memory().nodes[token_mask, TF.MAX_ACT].sum()
+            token_mask = mem.tensor_op.get_mask(token_type)
+            token_sum = mem.lcl[token_mask, TF.MAX_ACT].sum()
             type_retrieve_mask = luce_choice_retrieval(token_sum, token_mask)
-            retrieve_mask = retrieve_mask | type_retrieve_mask
+            retrieve_masks[token_type] = type_retrieve_mask
 
         # Move tokens to recipient
-        self.retrieve_tokens_with_mask(retrieve_mask)
+        self.retrieve_tokens_with_masks(retrieve_masks)
 
             
-    def retrieve_analog(self, analog: int):
+    def retrieve_analogs(self, analogs: torch.Tensor):
         """
-        Move analog from memory to recipient
+        Move analog(s) from memory to recipient
         """
-        ref = Ref_Analog(analog, Set.MEMORY)
-        self.network.analog.move(ref, Set.RECIPIENT)
+        # Move analogs to recipient
+        self.network.analog.move(analogs, Set.RECIPIENT)
         # Set retrieved to true
-        self.network.analog.set_analog_features(ref, TF.RETRIEVED, B.TRUE)
+        self.network.analog.set_analog_features(analogs, TF.RETRIEVED, B.TRUE)
     
-    def retrieve_tokens_with_mask(self, token_mask: torch.Tensor):
+
+    def retrieve_tokens_with_masks(self, retrieve_masks: dict[Type, torch.Tensor]):
         """
         Move tokens in mask from memory to recipient, including any children of these tokens.
+
+        For P tokens:
+            - Move the P token to recipient
+            - Add its RBs to list of tokens to retrieve
+        For RB tokens:
+            - Move the RB token to recipient
+            - Add its first Pred to recipient
+            - If it has object, add that. O.w add its first child P.
+        For PO tokens:
+            - Move the PO token to recipient
+            - Add its RBs to recipient
+            - Add those RBs parent P's to recipient
         """
-        if not token_mask.any():
-            return
-        memory = self.network.memory()
-        # Get indices of tokens to retrieve
-        highest_token = torch.max(memory.nodes[token_mask, TF.TYPE]).item()
-        levels_of_children = int(highest_token - 1)
-        # Get children
-        for i in range(levels_of_children):
-            logger.debug(f"mask shape: {token_mask.shape}")
-            children = memory.token_op.get_children(token_mask)
-            logger.debug(f"children shape: {children.shape}")
-            token_mask |= children
+        # NOTE: trying to match the old code exactly, so may be some inefficiencies here. 
+        # The code checks each token type in turn and each has different logic, so if e.g a PO is slated to be retrieved,
+        # but while retrieving an RB, it is retrieved through the RB retrieval logic, then it will no longer be retrieved
+        # by the PO retrieval logic. This means we need to go through each token type in turn, and generate masks for what
+        # will be retrieved with its specific logic - and remove the tokens that are retrieved by a higher tokens logic from
+        # the masks for the lower tokens (i.e if PO marked for retrieval, but retrieved RB connects to it, then the PO will
+        # be removed from the initial retrieval mask, and instead be retrieved from the RB retrieval logic). The exception is
+        # that RBs retrieved in P retrieval act the same as RBs retrieved in RB retrieval, so we don't need to remove them from the
+        # PO retrieval mask, but just combine these masks).
+
+        net = self.network
+        mem = net.memory()
+        cons = net.tokens.connections
+        # globalise masks
+        for type in [Type.P, Type.RB, Type.PO]:
+            retrieve_masks[type] = self.lcl_mask_to_glbl(retrieve_masks[type])
+        p_mask = retrieve_masks[Type.P]
+        rb_mask = retrieve_masks[Type.RB]
+        po_mask = retrieve_masks[Type.PO]
         
-        # for now just move them all to a new analog, then move the analog
-        original_analogs = memory.nodes[token_mask, TF.ANALOG]
-        #set new
-        token_indices = torch.where(token_mask)[0]
-        new_analog_id = memory.tensor_op.get_new_analog_id()
-        memory.token_op.set_features(token_indices, TF.ANALOG, new_analog_id)
-        # move the analog to recipient
-        new_analog = self.network.analog.move(Ref_Analog(new_analog_id, Set.MEMORY), Set.RECIPIENT)
-        # set retrieved to true
-        self.network.analog.set_analog_features(new_analog, TF.RETRIEVED, B.TRUE)
-        # reset analogs
-        memory.nodes[token_mask, TF.ANALOG] = original_analogs
-        # set analogs in recipient
-        new_indicies = self.network.analog.get_analog_indices(new_analog)
-        rec_analogs = original_analogs - torch.max(original_analogs).item()
-        self.network.recipient().nodes[new_indicies, TF.ANALOG] += rec_analogs
+        # P retrieval mask logic
+        rb_mask |= self.p_retrieval_mask(p_mask)
+
+        # RB retrieval mask logic
+        rb_with_obj = self.get_rb_with_obj(rb_mask)
+        rb_without_obj = (~rb_with_obj) & rb_mask
+        extra_preds = self.rb_pos(rb_with_obj, B.TRUE)
+        extra_obj = self.rb_pos(rb_with_obj, B.FALSE)
+        extra_preds = self.rb_preds(rb_mask)
+
+        rb_parent_ps = self.rb_parent_ps(rb_mask)
+        rb_child_ps = self.rb_child_ps(rb_without_obj)
+
+        rb_pos = extra_preds | extra_obj
+        rb_ps = rb_parent_ps | rb_child_ps
+
+        # PO retrieval mask logic
+        po_mask &= (~rb_pos) # remove POs that are retrieved by RBs
+        po_rbs = self.po_rbs(po_mask)
+        po_ps = self.po_rb_ps(po_rbs)
+
+        # Combine masks
+        Ps = p_mask | rb_ps | po_ps
+        RBs = rb_mask | po_rbs
+        POs = po_mask | rb_pos
+        
+        # Retrieve tokens
+        all_retrieve_mask = Ps | RBs | POs
+        r_idxs = torch.where(all_retrieve_mask)[0]
+        self.network.tokens.move(r_idxs, Set.RECIPIENT)
+    
+    def lcl_mask_to_glbl(self, lcl_mask: torch.Tensor):
+        """
+        Covert a local memory mask to a global mask. 
+        Args:
+            lcl_mask: Local mask
+        Returns:
+            torch.Tensor: Global mask
+        """
+        net = self.network
+        lcl_idxs = torch.where(lcl_mask)[0]
+        glbl_idxs = net.to_global(lcl_idxs, Set.MEMORY)
+        glbl_mask = torch.zeros_like(net.token_tensor.tensor[:,0], dtype=torch.bool)
+        torch.squeeze(glbl_mask) # remeve extra dimension if there is one, might not be tho idk.
+        glbl_mask[glbl_idxs] = True
+        return glbl_mask
+
+    def p_retrieval_mask(self, p_mask: torch.Tensor):
+        """
+        Do the mask logic for P retrieval.
+        Args:
+            p_mask: Global mask of P tokens to retrieve.
+        Returns:
+            torch.Tensor: Extra RBs to retrieve.
+        """
+        net = self.network
+        cons = net.tokens.connections.tensor
+        rbs = net.tokens.arb_mask({TF.TYPE: Type.RB})
+        p_children = cons[p_mask, :] == True
+        p_rb_children = rbs & p_children
+        return p_rb_children
+    
+    def rb_parent_ps(self, rb_mask: torch.Tensor) -> torch.Tensor:
+        """
+        Do the mask logic for RB retrieval for parent Ps.
+        Args:
+            rb_mask: Global mask of RB tokens to retrieve.
+        Returns:
+            torch.Tensor: Extra P tokens to retrieve.
+        """
+        net = self.network
+        cons = net.tokens.connections.tensor
+        parent_p_mask = net.tokens.arb_mask({TF.TYPE: Type.P, TF.MODE: Mode.PARENT})
+        rb_parents = cons.tensor[:, rb_mask] == True
+        extra_parent_ps = parent_p_mask & rb_parents
+        return extra_parent_ps
+    
+    def rb_child_ps(self, rb_mask: torch.Tensor) -> torch.Tensor:
+        """
+        Do the mask logic for RB retrieval for child Ps.
+        Args:
+            rb_mask: Global mask of RB tokens to retrieve.
+        Returns:
+            torch.Tensor: Extra P tokens to retrieve.
+        """
+        net = self.network
+        cons = net.tokens.connections.tensor
+        child_p_mask = net.tokens.arb_mask({TF.TYPE: Type.P, TF.MODE: Mode.CHILD})
+        rb_children = cons.tensor[:, rb_mask] == True
+        extra_child_ps = child_p_mask & rb_children
+        return extra_child_ps
+    
+    def rb_pos(self, rb_mask: torch.Tensor, pred: B) -> torch.Tensor:
+        """
+        Do the mask logic for RB retrieval for POs.
+        Args:
+            rb_mask: Global mask of RB tokens to retrieve.
+            pred: True if retrieving preds, False if retrieving objects.
+        Returns:
+            torch.Tensor: Extra P tokens to retrieve.
+        """
+        # TODO: Make this not aweful. Currently very inefficient, and ugly
+        net = self.network
+        cons = net.tokens.connections.tensor
+        po_mask = net.tokens.arb_mask({TF.TYPE: Type.PO, TF.PRED: pred})
+        
+        # Find the RBs that have a po.
+        rb_with_po = cons.tensor[rb_mask, po_mask].sum(dim=1) > 0
+        tOps.sub_union(rb_mask, rb_with_po)
+
+        # Go through each RB with a PO and add update the mask for its first PO.
+        extra_po = torch.zeros_like(rb_mask, dtype=torch.bool)
+        for rb_index in rb_with_po.to_list(): # For each RB
+            rb_children = cons.tensor[rb_index, :] == True
+            rb_children = tOps.sub_union(rb_mask, rb_children)
+            rb_po_children = rb_children & po_mask
+            if not torch.any(rb_po_children):
+                logger.critical("RB has no PO children in mask logic, this should never happen >:(")
+                continue # skip to next RB
+            rb_pred_idx = torch.where(rb_po_children)[0][0] # Get first pred
+            extra_po[rb_pred_idx] = True # Add to extra preds mask
+        return extra_po
+    
+    def get_rb_with_obj(self, rb_mask: torch.Tensor) -> torch.Tensor:
+        """
+        Get the RBs that have an object.
+        Args:
+            rb_mask: Global mask of RB tokens to retrieve.
+        Returns:
+            torch.Tensor: Global mask of RB tokens with an object.
+        """
+        net = self.network
+        cons = net.tokens.connections.tensor
+        obj_mask = net.tokens.arb_mask({TF.TYPE: Type.PO, TF.PRED: B.FALSE})
+        rb_with_obj = cons.tensor[rb_mask, obj_mask].sum(dim=1) > 0
+        return tOps.sub_union(rb_mask, rb_with_obj)
+    
+    def po_rbs(self, po_mask: torch.Tensor) -> torch.Tensor:
+        """
+        Get the parent RBs of POs.
+
+        Args:
+            po_mask: Global mask of PO tokens to retrieve.
+        Returns:
+            torch.Tensor: Global mask of RB tokens that are parents of the POs.
+        """
+        net = self.network
+        cons = net.tokens.connections.tensor
+        po_parents = cons.tensor[:, po_mask] == True
+        rbs = net.tokens.arb_mask({TF.TYPE: Type.RB})
+        parent_rbs = rbs & po_parents
+        return parent_rbs
+    
+    def po_rb_ps(self, rb_mask: torch.Tensor) -> torch.Tensor:
+        """
+        Get the parent Ps of RBs from POs.
+
+        Args:
+            po_mask: Global mask of PO tokens to retrieve.
+        Returns:
+            torch.Tensor: Global mask of P tokens that are parents of the RBs.
+        """
+        net = self.network
+        cons = net.tokens.connections.tensor
+        parent_p_mask = net.tokens.arb_mask({TF.TYPE: Type.P, TF.MODE: Mode.PARENT})
+        rb_parents = cons.tensor[:, rb_mask] == True
+        extra_parent_ps = parent_p_mask & rb_parents
+        return extra_parent_ps

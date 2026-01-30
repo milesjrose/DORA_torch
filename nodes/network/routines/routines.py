@@ -31,5 +31,5 @@ class Routines:
         self.retrieval: RetrievalOperations = RetrievalOperations(self.network)
         self.rel_form: RelFormOperations = RelFormOperations(self.network)
         self.rel_gen: RelGenOperations = RelGenOperations(self.network)
-        self.schematisation: SchematisationOperations = SchematisationOperations(self.network)
+        self.schema: SchematisationOperations = SchematisationOperations(self.network)
         self.predication: PredicationOperations = PredicationOperations(self.network)

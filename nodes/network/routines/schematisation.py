@@ -16,8 +16,16 @@ logger = logging.getLogger(__name__)
 
 class SchematisationOperations:
     """
-    Schematisation operations for the Network class.
-    Handles schematisation routines.
+    Schematisation (refinement) operations for the Network class.
+
+    Does inference into the newSet
+
+    Method:
+        Do some stuff to schematis the netowkr
+
+    Requirements:
+        - All mapping connections must be ≥ 0.7 (no partial/weak mappings)
+        - Connected tokens (parents/children) of mapped tokens must also be mapped above threshold
     """
     
     def __init__(self, network):
@@ -35,200 +43,208 @@ class SchematisationOperations:
         """
         threshold = 0.7
         # Check recipient nodes
+        net = self.network
+        cons = net.tokens.connections.tensor
+        max_maps = net.tokens.token_tensor.tensor[:, TF.MAX_MAP]
 
-        def check_set(self, set: 'Set'):
-            tensor = self.network.sets[set]
-            max_maps = tensor.nodes[:, TF.MAX_MAP]
-            cons = tensor.connections
-            valid_mask = max_maps >= threshold
-            invalid_mask = ~valid_mask
+        # Get mask of tokens that map above threshold, and those that don't
+        valid_mask = max_maps >= threshold
+        invalid_mask = ~valid_mask
 
-            # Check for any nodes with 0 < max_map < threshold
-            if torch.any((max_maps > 0) & (max_maps < threshold)):
-                raise ValueError(f"Nodes with 0 < max_map < threshold found in {set} set")
-
-            # Check for connections to invalid nodes
-            invalid_child = torch.matmul(
-                cons,
-                invalid_mask.float()
-            )
-
-            invalid_parent = torch.matmul(
-                torch.t(cons),              # Transpose to get parent->child connections.
-                invalid_mask.float()
-            )
-
-            invalid_connections = (invalid_child > 0) | (invalid_parent > 0) # Get all nodes that connect to an invalid node
-            fail_nodes = valid_mask & invalid_connections                    # Get all nodes that are valid but connect to an invalid node
-
-            if torch.any(fail_nodes):
-                raise ValueError(f"Failing nodes found in {set} set")
-
-        try:
-            check_set(self, Set.DRIVER)
-            check_set(self, Set.RECIPIENT)
-            logger.debug("Schematisation:requirements_passed")
-            return True
-        except ValueError as e:
-            if self.debug:
-                print(e)
-            logger.debug("Schematisation:requirements_failed")
+        # Check for any nodes with 0 < max_map < threshold:
+        if ((max_maps > 0) & (max_maps < threshold)):
+            logger.debug("SchematisationReq failed: nodes with 0 < max_map < threshold found")
             return False
+        
+        # Check valid-invalid connections:
+        #   Find all nodes that connect to invalid nodes.
+        invalid_child = torch.matmul(cons, invalid_mask.float())
+        invalid_parent = torch.matmul(torch.t(cons), invalid_mask.float()) # Transpose to get parent->child connections.
+        invalid_connections = (invalid_child > 0) | (invalid_parent > 0)
+        #   Get nodes that are valid but connect to invalid nodes.
+        fail_nodes = valid_mask & invalid_connections
+        if torch.any(fail_nodes):
+            logger.debug("SchematisationReq failed: tokens with map>threshold connect to tokens with map<threshold")
+            return False
+        
+        # All checks passed.
+        logger.debug("SchematisationReq passed")
+        return True
     
-    def shcematise_p(self, mode):
+    def schematise_p(self, mode):
         """
         Perform schematisation for p tokens with given mode.
         """
+        act_thresh = 0.4
+        map_thresh = 0.75
+        net = self.network
+        driver = net.driver()
         logger.debug("Schematisating P tokens")
-        token_mask = self.network.driver().get_mask(Type.P)
-        token_mask = tOps.refine_mask(self.network.driver().nodes, token_mask, TF.MODE, mode)
-        ref_active = self.network.driver().token_op.get_most_active_token(mask=token_mask)
-        threshold = 0.4
-        # Check if most active token is active above threshold.
-        if ref_active is not None and self.network.get_value(ref_active, TF.ACT) >= threshold: # NOTE: original code had both > and >=, assume combining these is fine.
-            ref_made = self.network.node_ops.get_made_unit_ref(ref_active)
-            logger.debug(f"- {self.network.get_ref_string(ref_active)}:made_unit={self.network.get_ref_string(ref_made)}")
-            # Token has caused a token to be inferred.
-            if ref_made != None:
-                logger.debug(f"- {self.network.get_ref_string(ref_active)}:made_unit_exists({self.network.get_ref_string(ref_made)}) -> updating made unit (act = 1.0), connecting RBs")
-                # update made (newSet) unit (act = 1.0, connect to active newSet RBs).
-                self.network.set_value(ref_made, TF.ACT, 1.0)
-                # Connect to any active newSet RBs
-                rb_thresh = 0.5
-                rb_mask = self.network.new_set().get_mask(Type.RB)
-                active_mask = self.network.new_set().nodes[:, TF.ACT] >= rb_thresh
-                rb_to_connect = rb_mask & active_mask
-                idx_made = self.network.get_index(ref_made)
-                if mode == Mode.PARENT: # Connect as parent
-                    self.network.new_set().connections[idx_made, rb_to_connect] = B.TRUE
-                else: # Connect as child
-                    self.network.new_set().connections[rb_to_connect, idx_made] = B.TRUE  
-            # Token has not caused a token to be inferred.
-            else:
-                # if act (already checked) and map to rec token above threshold, infer a newSet token
-                max_map = self.network.get_max_map_value(ref_active, map_set=Set.RECIPIENT)
-                map_threshold = 0.75
-                if max_map >= map_threshold:
-                    logger.debug(f"- {self.network.get_ref_string(ref_active)}:map_above_threshold({max_map}>={map_threshold}) -> inferring token")
-                    self.infer_token(ref_active)
-                else:
-                    logger.debug(f"- {self.network.get_ref_string(ref_active)}:map_below_threshold({max_map}<{map_threshold}) -> not inferring token")
-        else:
-            logger.debug(f"- {self.network.get_ref_string(ref_active)}:not_active({self.network.get_value(ref_active, TF.ACT)}<{threshold}) -> not inferring token")
+        p_mask = driver.tensor_op.get_arb_mask({TF.TYPE: Type.P, TF.MODE: mode})
+
+        # Try find most active token.
+        active_lcl = driver.token_op.get_most_active_token(local_mask=p_mask)
+        if active_lcl is None:
+            logger.debug(f"Schematisation failed (P, mode={mode}): no active tokens found")
+            return
+
+        # Check if token act is above threshold.
+        active_act = driver.token_op.get_feature(active_lcl, TF.ACT)
+        if active_act < act_thresh:
+            logger.debug(f"Schematisation failed (P, mode={mode}): active token ({driver.lcl.to_global(active_lcl)}) below threshold ({active_act} < {act_thresh})")
+            return
+
+        # Check if token has caused a toke to be inferred.
+        made = driver.token_op.get_feature(active_lcl, TF.MADE_UNIT)
+        if made != null: # Token has caused a token to be inferred, Update made (newSet) unit (act = 1.0, connect to active newSet RBs)
+            new_set = net.new_set()
+            made = int(made)
+            # Set act to 1.0
+            net.node_ops.set_feature(made, TF.ACT, 1.0)
+            # Get active RBs
+            active = new_set.tensor_op.get_active_mask(thresh=0.5)
+            rbs = new_set.tensor_op.get_mask(Type.RB)
+            active_rbs = active & rbs
+            if not (active_rbs).any():
+                logger.debug(f"Schematisation(P, mode={mode}): No active RBs found")
+                return
+            active_rbs_idxs = new_set.lcl.to_global(torch.where(active_rbs)[0]) # Global indices of active RBs.
+            # Connect made to active RBs
+            if mode == Mode.PARENT: # connect as parent
+                logger.debug(f"Schematisation(P, mode={mode}): Connecting {made} to active RBs")
+                net.tokens.connections.connect_multiple(parent_idxs=made, child_idxs=active_rbs_idxs)
+            else: # connect as child
+                logger.debug(f"Schematisation(P, mode={mode}): Connecting active RBs to {made}")
+                net.tokens.connections.connect_multiple(parent_idxs=active_rbs_idxs, child_idxs=made)
+
+        else: # Token has not caused a token to be inferred -> infer a new token
+            # Check map to rec token above threshold (0.75), infer newSet token
+            max_map = driver.token_op.get_feature(active_lcl, TF.MAX_MAP)
+            if max_map < map_thresh:
+                logger.debug(f"Schematisation(P, mode={mode}): No token inferred")
+                return
+            # Infer a new token
+            logger.debug(f"Schematisation(P, mode={mode}): Inferring new token")
+            glbl = driver.lcl.to_global(active_lcl)
+            self.infer_token(glbl)
+
 
     def schematise_rb(self):
         """
         Perform schematisation for rb tokens.
         """
+        act_thresh = 0.4
+        map_thresh = 0.75
         logger.debug("Schematising RB tokens")
-        token_mask = self.network.driver().get_mask(Type.RB)
-        ref_most_active_token = self.network.driver().token_op.get_most_active_token(mask=token_mask)
-        # Check most active RB is active.
-        if ref_most_active_token is not None:
-            ref_made_unit = self.network.node_ops.get_made_unit_ref(ref_most_active_token)
-            logger.debug(f"- {self.network.get_ref_string(ref_most_active_token)}:made_unit={self.network.get_ref_string(ref_made_unit)}")
-            # Rb has caused a token to be inferred.
-            if ref_made_unit != None:
-                logger.debug(f"- {self.network.get_ref_string(ref_most_active_token)}:made_unit_exists({self.network.get_ref_string(ref_made_unit)}) -> updating made unit (act = 1.0), connecting POs")
-                # Set activation to 1.0 for made unit
-                self.network.set_value(ref_made_unit, TF.ACT, 1.0)
-                # Connect to any active newSet POs
-                po_mask = self.network.new_set().get_mask(Type.PO)
-                active_mask = self.network.new_set().nodes[:, TF.ACT] >= po_thresh
-                po_to_connect = po_mask & active_mask
-                po_thresh = 0.5
-                made_unit_index = self.network.get_index(ref_made_unit)
-                self.network.new_set().connections[made_unit_index, po_to_connect] = B.TRUE
-            # Rb has not caused a token to be inferred.
-            else:
-                # if act and map to rec token above threshold, infer a newSet token
-                active_thresh = 0.4
-                map_thresh = 0.75
-                if self.act_and_map_above_threshold(ref_most_active_token, active_thresh, map_thresh):
-                    logger.debug(f"- {self.network.get_ref_string(ref_most_active_token)}:act_and_map_above_threshold({self.network.get_value(ref_most_active_token, TF.ACT)}>={active_thresh} and {self.network.get_max_map_value(ref_most_active_token, map_set=Set.RECIPIENT)}>={map_thresh}) -> inferring token")
-                    self.infer_token(ref_most_active_token)
-                else:
-                    logger.debug(f"- {self.network.get_ref_string(ref_most_active_token)}:act_or_map_below_threshold({self.network.get_value(ref_most_active_token, TF.ACT)}<{active_thresh} or {self.network.get_max_map_value(ref_most_active_token, map_set=Set.RECIPIENT)}<{map_thresh}) -> not inferring token")
-    
+        net = self.network
+        driver = net.driver()
+        new_set = net.new_set()
+
+        # Get active RB token in driver
+        active_lcl = driver.token_op.get_most_active_token(token_type=Type.RB)
+        if active_lcl is None:
+            logger.debug("Schematisation failed (RB): no active tokens found")
+            return
+        
+        # check if token has caused a token to be inferred
+        made = driver.token_op.get_feature(active_lcl, TF.MADE_UNIT)
+        if made != null: # Token has caused a token to be inferred, Update made (newSet) unit (act = 1.0, connect to active newSet POs)
+            made = int(made)
+            # Set act to 1.0
+            net.node_ops.set_feature(made, TF.ACT, 1.0)
+            # Get active POs
+            active = new_set.tensor_op.get_active_mask(thresh=0.5)
+            pos = new_set.tensor_op.get_mask(Type.PO)
+            active_pos = active & pos
+            if not (active_pos).any():
+                logger.debug(f"Schematisation(RB): No active POs found")
+                return
+            active_pos_idxs = new_set.lcl.to_global(torch.where(active_pos)[0]) # Global indices of active POs.
+            # Connect made to active POs
+            net.tokens.connections.connect_multiple(parent_idxs=made, child_idxs=active_pos_idxs)
+        else: # Token has not caused a token to be inferred -> infer a new token
+            # Check active above threshold, and map to recipient token above threshold.
+            active_act = driver.token_op.get_feature(active_lcl, TF.ACT)
+            max_map = driver.token_op.get_feature(active_lcl, TF.MAX_MAP)
+            if active_act < act_thresh or max_map < map_thresh:
+                logger.debug(f"Schematisation(RB): No token inferred")
+                return
+            logger.debug(f"Schematisation(RB): Inferring new token")
+            # Infer a new token
+            glbl = driver.lcl.to_global(active_lcl)
+            self.infer_token(glbl)
+
+
     def schematise_po(self):
         """
         Perform schematisation for po tokens.
         """
+        act_thresh = 0.4
+        map_thresh = 0.75
         logger.debug("Schematising PO tokens")
-        token_mask = self.network.driver().get_mask(Type.PO)
-        ref_most_active_token = self.network.driver().token_op.get_most_active_token(mask=token_mask)
-        # Check most active PO is active.
-        if ref_most_active_token is not None:
-            ref_made_unit = self.network.node_ops.get_made_unit_ref(ref_most_active_token)
-            logger.debug(f"- {self.network.get_ref_string(ref_most_active_token)}:made_unit={self.network.get_ref_string(ref_made_unit)}")
-            # Po has caused a token to be inferred.
-            if ref_made_unit != None:
-                # Update made unit activation to 1.0
-                logger.debug(f"- {self.network.get_ref_string(ref_most_active_token)}:made_unit_exists({self.network.get_ref_string(ref_made_unit)}) -> updating made unit (act = 1.0), updating link weights")
-                self.network.set_value(ref_made_unit, TF.ACT, 1.0)
-                # Get semantics connected to made unit
-                made_unit_index = self.network.get_index(ref_made_unit)
-                # Get shared semantics between active token and its made unit
-                active_token_index = self.network.get_index(ref_most_active_token)
-                active_token_sems = self.network.links[Set.NEW_SET][active_token_index, :] > 0
-                made_token_sems = self.network.links[Set.NEW_SET][made_unit_index, :] > 0
-                shared_sems = active_token_sems & made_token_sems
-                # If shared semantics, update their link weights
-                if torch.any(shared_sems):
-                    self.network.links.update_link_weights(ref_made_unit, mask=shared_sems)
-                else:
-                    # Otherwise, update connection to any active semantics
-                    active_sems = self.network.links[Set.NEW_SET][made_unit_index, SF.ACT] > 0
-                    self.network.links.update_link_weights(ref_made_unit, mask=active_sems)
-            # Po has not caused a token to be inferred.
-            else:
-                # Check if active above threshold, and map to recipient token above threshold
-                act_thresh = 0.4
-                map_thresh = 0.75
-                if self.act_and_map_above_threshold(ref_most_active_token, act_thresh, map_thresh):
-                    logger.debug(f"- {self.network.get_ref_string(ref_most_active_token)}:act_and_map_above_threshold({self.network.get_value(ref_most_active_token, TF.ACT)}>={act_thresh} and {self.network.get_max_map_value(ref_most_active_token, map_set=Set.RECIPIENT)}>={map_thresh}) -> inferring token")
-                    self.infer_token(ref_most_active_token)
-                else:
-                    logger.debug(f"- {self.network.get_ref_string(ref_most_active_token)}:act_or_map_below_threshold({self.network.get_value(ref_most_active_token, TF.ACT)}<{act_thresh} or {self.network.get_max_map_value(ref_most_active_token, map_set=Set.RECIPIENT)}<{map_thresh}) -> not inferring token")
+        net = self.network
+        driver = net.driver()
+        new_set = net.new_set()
+
+        # Get active PO token in driver
+        active_lcl = driver.token_op.get_most_active_token(token_type=Type.PO)
+        if active_lcl is None:
+            logger.debug("Schematisation failed (PO): no active tokens found")
+            return
+        
+        # Check if token has caused a token to be inferred
+        made = driver.token_op.get_feature(active_lcl, TF.MADE_UNIT)
+        if made != null: # Token has caused a token to be inferred, Update made (newSet) unit (act = 1.0, update link weights)
+            made = int(made)
+            # Set act to 1.0
+            net.node_ops.set_feature(made, TF.ACT, 1.0)
+            # Update link weights
+            net.semantics.update_link_weights(made)
+        
+        else: # Token has not caused a token to be inferred -> infer a new token
+            # Check if active above threshold and map to recipient token above threshold.
+            active_act = driver.token_op.get_feature(active_lcl, TF.ACT)
+            max_map = driver.token_op.get_feature(active_lcl, TF.MAX_MAP)
+            if active_act < act_thresh or max_map < map_thresh:
+                logger.debug(f"Schematisation(PO): No token inferred")
+                return
+            logger.debug(f"Schematisation(PO): Inferring new token")
+            # Infer a new token
+            glbl = driver.lcl.to_global(active_lcl)
+            self.infer_token(glbl)
     
-    def infer_token(self, ref_maker):
+
+    def infer_token(self, maker: int):
         """
         Infer a newSet token (act = 1.0)
         """
-        type = self.network.get_value(ref_maker, TF.TYPE)
-        idx_maker = self.network.get_index(ref_maker)
+        net = self.network
+        type = net.node_ops.get_tk_feature(maker, TF.TYPE)
+        # Create token
         base_features = {
             TF.SET: Set.NEW_SET,
             TF.INFERRED: B.TRUE,
             TF.ACT: 1.0,
             TF.ANALOG: null,
-            TF.MAKER_UNIT: idx_maker,
-            TF.MAKER_SET: ref_maker.set
+            TF.MAKER_UNIT: maker,
+            TF.MAKER_SET: net.node_ops.get_tk_feature(maker, TF.SET)
         }
-        # Infer token
-        if type == Type.P:
-            base_features[TF.MODE] = self.network.get_value(ref_maker, TF.MODE)
-        elif type == Type.PO:
-            base_features[TF.PRED] = self.network.get_value(ref_maker, TF.PRED)
-        elif type != Type.RB:
-            raise ValueError(f"Invalid token type: {type}")
+        match type:
+            case Type.P:
+                base_features[TF.MODE] = net.node_ops.get_tk_feature(maker, TF.MODE)
+            case Type.PO:
+                base_features[TF.PRED] = net.node_ops.get_tk_feature(maker, TF.PRED)
+            case Type.RB:
+                pass
+            case _:
+                raise ValueError(f"Invalid token type: {type}")
         new_token = Token(type, base_features)
-        
-        # Add token to new set and set maker/made unit features
-        ref_made = self.network.add_token(new_token)
-        idx_made = self.network.get_index(ref_made)
-        self.network.node_ops.set_value(ref_maker, TF.MADE_UNIT, idx_made)
-        self.network.node_ops.set_value(ref_maker, TF.MADE_SET, ref_made.set)
-        logger.info(f"- {self.network.get_ref_string(ref_maker)} -> inferred -> maker={self.network.get_ref_string(ref_made)}")
-        return ref_made
 
-    def act_and_map_above_threshold(self, ref_token, act_thresh, map_thresh):
-        """
-        Check if token is active above threshold, and maps to recipient token above threshold.
-        """
-        act_value = self.network.get_value(ref_token, TF.ACT)
-        map_value = self.network.get_max_map_value(ref_token, map_set=Set.RECIPIENT)
-        return act_value >= act_thresh and map_value >= map_thresh
+        made = net.node_ops.add_token(new_token)
+        net.node_ops.set_tk_feature(maker, TF.MADE_UNIT, made)
+        net.node_ops.set_tk_feature(maker, TF.MADE_SET, new_token.set)
+        logger.info(f"inferred token: {made} from {maker}")
+        return made
 
     def schematisation_routine(self):
         """
