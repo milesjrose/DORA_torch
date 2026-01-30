@@ -16,15 +16,15 @@ logger = logging.getLogger(__name__)
 
 class SchematisationOperations:
     """
-    Schematisation (refinement) operations for the Network class.
+    Schematisation operations for the Network class.
 
-    Does inference into the newSet
+    Does inference into the newSet, to refine the analogs or smt
 
     Method:
         Do some stuff to schematis the netowkr
 
     Requirements:
-        - All mapping connections must be ≥ 0.7 (no partial/weak mappings)
+        - All mapping connections must be ≥ 0.7
         - Connected tokens (parents/children) of mapped tokens must also be mapped above threshold
     """
     

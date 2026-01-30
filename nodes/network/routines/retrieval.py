@@ -30,7 +30,7 @@ class RetrievalOperations:
                 - If retrieving analogs and params.use_relative_act, transform the activations with a sigmoidal function.
         - Give each token/analog a retrieval probability based on its activation/total activations.
         - Generate a number bentween 0 and 1, and select tokens/analogs with a probability greater than this number.
-        - Move the selected tokens/analogs to the recipient. If moving tokens, move all children of the token as well.
+        - Move the selected tokens/analogs to the recipient. If moving tokens, move some of its connected tokens as well.
 
     Requirements:
         - At least one P (proposition) token must be present in the driver to trigger retrieval
