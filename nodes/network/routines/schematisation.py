@@ -52,14 +52,14 @@ class SchematisationOperations:
         invalid_mask = ~valid_mask
 
         # Check for any nodes with 0 < max_map < threshold:
-        if ((max_maps > 0) & (max_maps < threshold)):
+        if ((max_maps > 0) & (max_maps < threshold)).any():
             logger.debug("SchematisationReq failed: nodes with 0 < max_map < threshold found")
             return False
         
         # Check valid-invalid connections:
         #   Find all nodes that connect to invalid nodes.
-        invalid_child = torch.matmul(cons, invalid_mask.float())
-        invalid_parent = torch.matmul(torch.t(cons), invalid_mask.float()) # Transpose to get parent->child connections.
+        invalid_child = torch.matmul(cons.float(), invalid_mask.float())
+        invalid_parent = torch.matmul(torch.t(cons.float()), invalid_mask.float()) # Transpose to get parent->child connections.
         invalid_connections = (invalid_child > 0) | (invalid_parent > 0)
         #   Get nodes that are valid but connect to invalid nodes.
         fail_nodes = valid_mask & invalid_connections
@@ -91,7 +91,7 @@ class SchematisationOperations:
         # Check if token act is above threshold.
         active_act = driver.token_op.get_feature(active_lcl, TF.ACT)
         if active_act < act_thresh:
-            logger.debug(f"Schematisation failed (P, mode={mode}): active token ({driver.lcl.to_global(active_lcl)}) below threshold ({active_act} < {act_thresh})")
+            logger.debug(f"Schematisation failed (P, mode={mode}): most active token ({driver.lcl.to_global(active_lcl).item()}) below threshold ({active_act} < {act_thresh})")
             return
 
         # Check if token has caused a toke to be inferred.
@@ -100,7 +100,7 @@ class SchematisationOperations:
             new_set = net.new_set()
             made = int(made)
             # Set act to 1.0
-            net.node_ops.set_feature(made, TF.ACT, 1.0)
+            net.node_ops.set_tk_value(made, TF.ACT, 1.0)
             # Get active RBs
             active = new_set.tensor_op.get_active_mask(thresh=0.5)
             rbs = new_set.tensor_op.get_mask(Type.RB)
@@ -151,7 +151,7 @@ class SchematisationOperations:
         if made != null: # Token has caused a token to be inferred, Update made (newSet) unit (act = 1.0, connect to active newSet POs)
             made = int(made)
             # Set act to 1.0
-            net.node_ops.set_feature(made, TF.ACT, 1.0)
+            net.node_ops.set_tk_value(made, TF.ACT, 1.0)
             # Get active POs
             active = new_set.tensor_op.get_active_mask(thresh=0.5)
             pos = new_set.tensor_op.get_mask(Type.PO)
@@ -197,7 +197,7 @@ class SchematisationOperations:
         if made != null: # Token has caused a token to be inferred, Update made (newSet) unit (act = 1.0, update link weights)
             made = int(made)
             # Set act to 1.0
-            net.node_ops.set_feature(made, TF.ACT, 1.0)
+            net.node_ops.set_tk_value(made, TF.ACT, 1.0)
             # Update link weights
             net.semantics.update_link_weights(made)
         
@@ -219,7 +219,7 @@ class SchematisationOperations:
         Infer a newSet token (act = 1.0)
         """
         net = self.network
-        type = net.node_ops.get_tk_feature(maker, TF.TYPE)
+        type = net.node_ops.get_tk_value(maker, TF.TYPE)
         # Create token
         base_features = {
             TF.SET: Set.NEW_SET,
@@ -227,13 +227,13 @@ class SchematisationOperations:
             TF.ACT: 1.0,
             TF.ANALOG: null,
             TF.MAKER_UNIT: maker,
-            TF.MAKER_SET: net.node_ops.get_tk_feature(maker, TF.SET)
+            TF.MAKER_SET: net.node_ops.get_tk_value(maker, TF.SET)
         }
         match type:
             case Type.P:
-                base_features[TF.MODE] = net.node_ops.get_tk_feature(maker, TF.MODE)
+                base_features[TF.MODE] = net.node_ops.get_tk_value(maker, TF.MODE)
             case Type.PO:
-                base_features[TF.PRED] = net.node_ops.get_tk_feature(maker, TF.PRED)
+                base_features[TF.PRED] = net.node_ops.get_tk_value(maker, TF.PRED)
             case Type.RB:
                 pass
             case _:
@@ -241,8 +241,9 @@ class SchematisationOperations:
         new_token = Token(type, base_features)
 
         made = net.node_ops.add_token(new_token)
-        net.node_ops.set_tk_feature(maker, TF.MADE_UNIT, made)
-        net.node_ops.set_tk_feature(maker, TF.MADE_SET, new_token.set)
+        net.node_ops.set_tk_value(maker, TF.MADE_UNIT, made)
+        made_set = net.node_ops.get_tk_value(made, TF.SET)
+        net.node_ops.set_tk_value(maker, TF.MADE_SET, made_set)
         logger.info(f"inferred token: {made} from {maker}")
         return made
 
