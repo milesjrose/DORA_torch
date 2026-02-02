@@ -4,7 +4,6 @@
 from ...enums import *
 import torch
 from logging import getLogger
-from ..single_nodes import Ref_Analog
 from typing import TYPE_CHECKING
 from ...utils import tensor_ops as tOps
 
@@ -12,7 +11,6 @@ logger = getLogger(__name__)
 
 if TYPE_CHECKING:
     from ...network import Network
-    from ..sets import Driver, Recipient, Memory
 
 class RetrievalOperations:
     """
@@ -54,34 +52,38 @@ class RetrievalOperations:
         Returns:
             bool: True if requirements are met, False o.w.
         """
-        return self.network.driver().tensor_op.get_mask(Type.P).any()
+        p_mask = self.network.driver().tensor_op.get_mask(Type.P)
+        if not p_mask.any():
+            logger.debug("RetrievalReq Failed: No P tokens in driver")
+            return False
+        return True
+
 
     def retrieval_routine(self):
         """
         Run the model retrieval routine - update input/act in memory, then if bias_retrieval_analogs 
         get the total act for each analog, else track the most active tokens in memory.
         """
+        use_efficient = True
         net = self.network
         net.update.inputs(Set.MEMORY)
         net.update.acts(Set.MEMORY)
-        if self.network.params.bias_retrieval_analogs:
-            net.cache_analogs()
-        else:
-            net.memory().token_op.get_max_acts()
-        self.retrieve_tokens()
-    
-    def retrieve_tokens(self):
-        """
-        Retrieve tokens from memory.
-        Biases retrieval to analogs and uses relative act based on network params.
-        """
-        use_rel_act = self.network.params.use_relative_act
-        analog_bias = self.network.params.bias_retrieval_analogs
+        rel_act = net.params.use_relative_act
+        analog_bias = net.params.bias_retrieval_analogs
         if analog_bias:
-            self.retrieve_analogs_biased(use_rel_act)
+            net.cache_analogs()
+            self.retrieve_analogs_biased(rel_act)
         else:
-            self.retrieve_tokens_no_bias(use_rel_act)
+            if rel_act:
+                logger.critical("Relative act not implemented for non-bias retrieval, ignoring flag.")
+            net.memory().token_op.get_max_acts()
+            if use_efficient:
+                self.retrieve_tokens_efficient()
+            else:
+                self.retrieve_tokens_direct_match()
 
+
+# ================================[ ANALOG RETRIEVAL LOGIC ]================================
     def retrieve_analogs_biased(self, use_relative_act):
         """ Retrieve analogs from memory, using analog bias"""
         net = self.network
@@ -114,45 +116,6 @@ class RetrievalOperations:
             # Retrieve analogs NOTE: not vectorised TODO: Add method for moving multiple analogs at once
             analogs_to_retrieve = analogs[retrieve_mask]
             self.retrieve_analogs(analogs_to_retrieve)
-        
-    
-    def retrieve_tokens_no_bias(self, use_relative_act):
-        """Retrieve tokens from memory, no bias to analogs"""
-        if use_relative_act:
-            logger.critical("Relative act not implemented for non-bias retrieval -> Skipping retrieval!!")
-            return
-        mem = self.network.memory()
-        
-        # Update max acts, and get all mask
-        mem.token_op.get_max_acts()
-
-        # Decide on retrieval based on luce choice
-        def luce_choice_retrieval(token_sum, token_mask):
-            mem = self.network.memory()
-            # make sure token_sum > 0
-            if token_sum <= 0:
-                # No tokens to retrive, return false mask
-                return torch.zeros_like(token_mask, dtype=torch.bool)
-            # retrieve prob = max_act / token_sum
-            retrieve_prob = mem.lcl[token_mask, TF.MAX_ACT] / token_sum
-            # if retrieve prob > random num, flag token for retrieval
-            random_num = torch.rand_like(retrieve_prob)
-            # Create mask for tokens that should be retrieved
-            retrieve_mask = torch.zeros_like(token_mask, dtype=torch.bool)
-            retrieve_mask[token_mask] = retrieve_prob > random_num
-            return retrieve_mask
-        
-        # Apply luce choice to each token type
-        retrieve_masks = {}
-        for token_type in [Type.P, Type.RB, Type.PO]:
-            token_mask = mem.tensor_op.get_mask(token_type)
-            token_sum = mem.lcl[token_mask, TF.MAX_ACT].sum()
-            type_retrieve_mask = luce_choice_retrieval(token_sum, token_mask)
-            retrieve_masks[token_type] = type_retrieve_mask
-
-        # Move tokens to recipient
-        self.retrieve_tokens_with_masks(retrieve_masks)
-
             
     def retrieve_analogs(self, analogs: torch.Tensor):
         """
@@ -162,7 +125,98 @@ class RetrievalOperations:
         self.network.analog.move(analogs, Set.RECIPIENT)
         # Set retrieved to true
         self.network.analog.set_analog_features(analogs, TF.RETRIEVED, B.TRUE)
-    
+
+
+# ================================[ TOKEN RETRIEVAL LOGIC ]================================
+    def luce_choice_retrieval(self, token_sum: float, token_mask: torch.Tensor) -> torch.Tensor:
+        """ 
+        Decide on retrieval based on luce choice for the tokens in the mask.
+        Args:
+            token_sum: Sum of the max acts of the tokens in the mask.
+            token_mask: Mask of the tokens to decide on retrieval for.
+        Returns:
+            torch.Tensor: Mask of the tokens that should be retrieved.
+        """
+        mem = self.network.memory()
+        # make sure token_sum > 0
+        if token_sum <= 0:
+            # No tokens to retrive, return false mask
+            return torch.zeros_like(token_mask, dtype=torch.bool)
+        # retrieve prob = max_act / token_sum
+        retrieve_prob = mem.lcl[token_mask, TF.MAX_ACT] / token_sum
+        # if retrieve prob > random num, flag token for retrieval
+        random_num = torch.rand_like(retrieve_prob)
+        # Create mask for tokens that should be retrieved
+        retrieve_mask = torch.zeros_like(token_mask, dtype=torch.bool)
+        retrieve_mask[token_mask] = retrieve_prob > random_num
+        return retrieve_mask
+
+
+    def retrieve_tokens_efficient(self):
+        """ 
+        Uses slightly different logic to retrieve tokens, but way more simple. Depending on how
+        the tensor is sructured this may have the same result as the direct match logic. But I did 
+        both as I'm not exactly sure how the connections will be structured when running.
+
+        Method:
+        Finds the children of each token type recursively, to get all tokens connected under the 
+        token selected for retrieval. For P & RB tokens, we get all children recursively. 
+        For PO tokens, we also use the child RBs, and get their parents for the parent Ps.
+
+        Potential issues:
+        In the case that RB tokens don't just have two children (pred + obj)/(pred + child_p), 
+        we are getting all children here. An RBs child P will also have it's own children added 
+        to retrieval. Also if an RB is retrieved in the PO retrieval step, all parents of it are 
+        retrieved, not just one parent P.
+         """
+        # Apply luce choice to each token type
+        mem = self.network.memory()
+        net = self.network
+
+        # Retrieve tokens and their children
+        po_ret_mask = None
+        for tk_type in [Type.P, Type.RB, Type.PO]:
+            type_mask = mem.tensor_op.get_mask(tk_type)
+            if not torch.any(type_mask): 
+                continue # No tokens of this type to retrieve, skip
+            type_sum = mem.lcl[type_mask, TF.MAX_ACT].sum()
+            if type_sum == 0: 
+                continue # No active tokens to retrieve, skip.
+            ret_mask = self.luce_choice_retrieval(type_sum, type_mask)
+            glbl_mask = self.lcl_mask_to_glbl(ret_mask) # Mask of mem view -> whole tensor mask
+            type_children = mem.tokens.connections.get_children_recursive(glbl_mask)
+            ret_mask = ret_mask | type_children
+            if tk_type == Type.PO:
+                po_ret_mask = ret_mask # Keep the PO ret mask for finding parent Ps.
+            ret_type_idxs = torch.where(ret_mask)[0]
+            net.node_ops.move_tokens(ret_type_idxs, Set.RECIPIENT)
+
+        # Retrieve parent Ps of RBs retrieved from POs
+        if po_ret_mask is not None:
+            rbs = mem.tokens.arb_mask({TF.TYPE: Type.RB})
+            ret_rbs = rbs & po_ret_mask
+            ret_rb_parents = mem.tokens.connections.get_parents(ret_rbs)
+            if torch.any(ret_rb_parents):
+                net.node_ops.move_tokens(ret_rb_parents, Set.RECIPIENT)
+
+
+    def retrieve_tokens_direct_match(self):
+        """ 
+        Attempts to directly emulate the old retrieval logic, but my code for it is pretty 
+        inefficient and convoluted. Not sure how robust it is, and might have bugs.
+        """
+        # Apply luce choice to each token type
+        mem = self.network.memory()
+        retrieve_masks = {}
+        for token_type in [Type.P, Type.RB, Type.PO]:
+            token_mask = mem.tensor_op.get_mask(token_type)
+            token_sum = mem.lcl[token_mask, TF.MAX_ACT].sum()
+            type_retrieve_mask = self.luce_choice_retrieval(token_sum, token_mask)
+            retrieve_masks[token_type] = type_retrieve_mask
+
+        # Move tokens to recipient
+        self.retrieve_tokens_with_masks(retrieve_masks)
+
 
     def retrieve_tokens_with_masks(self, retrieve_masks: dict[Type, torch.Tensor]):
         """
@@ -208,7 +262,6 @@ class RetrievalOperations:
         rb_without_obj = (~rb_with_obj) & rb_mask
         extra_preds = self.rb_pos(rb_with_obj, B.TRUE)
         extra_obj = self.rb_pos(rb_with_obj, B.FALSE)
-        extra_preds = self.rb_preds(rb_mask)
 
         rb_parent_ps = self.rb_parent_ps(rb_mask)
         rb_child_ps = self.rb_child_ps(rb_without_obj)
