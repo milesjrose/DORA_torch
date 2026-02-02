@@ -149,17 +149,14 @@ class RelGenOperations:
             token_mask = driver.tensor_op.get_mask(type)
 
         # Get most active token, if no active token, return
-        active_in_mask_idx = driver.token_op.get_most_active_token(local_mask=token_mask)
+        active_lcl = driver.token_op.get_most_active_token(local_mask=token_mask)
         # Check if no active token found (must check before indexing, as None index unsqueezes tensors)
-        if active_in_mask_idx is None:
+        if active_lcl is None:
             if p_mode is not None:
                 logger.debug(f"No active {p_mode.name} {type.name} token found")
             else:
                 logger.debug(f"No active {type.name} token found")
             return
-        # The idx is the position in the mask, so we need to convert to the local driver index
-        mask_indices = torch.where(token_mask)[0]
-        active_lcl = mask_indices[active_in_mask_idx]
 
         # check if active above threshold and max map is 0.0
         act = driver.token_op.get_feature(active_lcl, TF.ACT)

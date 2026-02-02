@@ -172,9 +172,15 @@ class TokenOperations:
         set_idxs = self.base_set.lcl._indices
         local_view = self.base_set.glbl.tensor[set_idxs]
         max_val, max_idx = local_view[local_mask, TF.ACT].max(dim=0)
+        logger.debug(f"Most active token: {max_val.item()}, {max_idx.item()}")
         # Check the max value is greater than 0.0
         if max_val.item() >= 0.01:
-            return max_idx.item()
+            max_idx = max_idx.item()
+            # Turn from index in mask to index in local view
+            mask_idxs = torch.where(local_mask)[0]
+            local_max_idx = mask_idxs[max_idx]
+            logger.debug(f"Local max idx: {local_max_idx}")
+            return local_max_idx
         else:
             return None
     
