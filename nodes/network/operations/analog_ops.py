@@ -163,6 +163,18 @@ class AnalogOperations:
         """
         return self.network.tokens.analog_ops.get_analog_indices(analog)
     
+    def get_analog_indices_multiple(self, analogs: torch.Tensor) -> torch.Tensor:
+        """
+        Get the indices of the tokens in multiple analogs.
+
+        Args:
+            analogs (torch.Tensor): The analog numbers to get the indices of.
+
+        Returns:
+            torch.Tensor: The indices of the tokens in the analogs.
+        """
+        return self.network.tokens.analog_ops.get_analog_indices_multiple(analogs)
+    
     def set_analog_features(self, analog: int|list[int]|torch.Tensor, feature: TF, value):
         """ 
         Set a feature of the tokens in the analog(s)

@@ -752,3 +752,36 @@ def test_get_analogs_info_multiple_sets(network: Network):
     recipient_info = info.get_set_info(Set.RECIPIENT)
     for analog_number in [12, 13, 14]:
         assert_info(recipient_info, analog_number, counts[analog_number], acts[analog_number])
+
+def test_set_analogs_features_analogs(network: Network):
+    """ Test setting features for multiple analogs."""
+    lcl = network.driver().lcl
+    lcl[0, TF.ANALOG] = 10
+    lcl[0, TF.ACT] = 0.0
+
+    network.analog_ops.set_analog_features(10, TF.ACT, 0.5)
+    assert lcl[0, TF.ACT] == 0.5
+
+def test_set_analogs_features_multiple_analogs(network: Network):
+    """ Test setting features for multiple analogs."""
+    lcl = network.driver().lcl
+    lcl[1, TF.ANALOG] = 11
+    lcl[1, TF.ACT] = 0.0
+    lcl[0, TF.ANALOG] = 10
+    lcl[0, TF.ACT] = 0.1
+    network.print_token_tensor(features=[TF.ANALOG,TF.ACT])
+    network.analog_ops.set_analog_features([10, 11], TF.ACT, 0.5)
+    network.print_token_tensor(features=[TF.ANALOG,TF.ACT])
+    assert lcl[0, TF.ACT] == 0.5
+    assert lcl[1, TF.ACT] == 0.5
+
+def test_get_analog_indices_multiple(network: Network):
+    """ Test getting indices for multiple analogs."""
+    lcl = network.driver().lcl
+    lcl[0, TF.ANALOG] = 10
+    lcl[1, TF.ANALOG] = 11
+    lcl[2, TF.ANALOG] = 11
+
+    indices = network.analog_ops.get_analog_indices_multiple(torch.tensor([10, 11]))
+    assert len(indices) == 3
+    assert torch.equal(indices, torch.tensor([0, 1, 2]))
