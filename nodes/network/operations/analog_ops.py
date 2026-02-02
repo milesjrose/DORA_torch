@@ -41,7 +41,9 @@ class AnalogOperations:
         Returns:
             int: The number of the new analog.
         """
-        return self.network.tokens.analog_ops.copy_analog(analog, to_set)
+        num = self.network.tokens.analog_ops.copy_analog(analog, to_set)
+        self.network.recache()
+        return num
 
     def delete(self, analog: int):
         """
@@ -51,6 +53,7 @@ class AnalogOperations:
             analog (int): The number of the analog to delete.
         """
         self.network.tokens.analog_ops.delete_analog(analog)
+        self.network.recache()
 
     def move(self, analog: int|list[int]|torch.Tensor, to_set: Set):
         """
@@ -61,6 +64,7 @@ class AnalogOperations:
             to_set (Set): The set to move the analog to.
         """
         self.network.tokens.analog_ops.move_analog(analog, to_set)
+        self.network.recache()
     
     def check_for_copy(self) -> torch.Tensor:
         """
@@ -80,6 +84,7 @@ class AnalogOperations:
             analog (int): The number of the analog to clear the set feature for.
         """
         self.set_analog_features(analog, TF.SET, Set.MEMORY)
+        self.network.recache()
 
 
     #Checking subtokens not done fully I dont think. At least for moving into recipient.
@@ -114,8 +119,7 @@ class AnalogOperations:
             new_analog_number = tokens.analog_ops.new_analog_id()
             tokens.token_tensor.set_feature(new_indices, TF.ANALOG, new_analog_number)
             new_analogs.append(new_analog_number)
-        self.network.cache_sets()
-        self.network.cache_analogs()
+        self.network.recache()
         return new_analogs
     
     def make_AM_move(self):
@@ -130,8 +134,7 @@ class AnalogOperations:
                 continue  # skip if no tokens in set
             lower_tokens = self.network.tokens.connections.get_children_recursive(set_tokens)
             self.network.tokens.token_tensor.set_features(lower_tokens, TF.SET, check_set)
-        self.network.cache_sets()
-        self.network.cache_analogs()
+        self.network.recache()
 
     def get_analog(self, analog: Ref_Analog):
         """ Get an analog from the network. """
@@ -190,6 +193,8 @@ class AnalogOperations:
         else:
             indices = self.get_analog_indices(analog)
         self.network.tokens.token_tensor.set_feature(indices, feature, float(value))
+        if feature == TF.SET:
+            self.network.recache()
     
     def find_mapped_analog(self, set:Set) -> int:
         """
@@ -237,8 +242,7 @@ class AnalogOperations:
         indices = self.network.tokens.analog_ops.get_analog_indices_multiple(map_analogs)
         new_id = self.network.tokens.analog_ops.new_analog_id()
         self.network.tokens.token_tensor.set_feature(indices, TF.ANALOG, new_id)
-        self.network.cache_sets()
-        self.network.cache_analogs()
+        self.network.recache()
         return new_id
 
     def new_set_to_analog(self) -> int:
@@ -249,6 +253,7 @@ class AnalogOperations:
         """
         new_id = self.network.tokens.analog_ops.new_analog_id()
         self.network.sets[Set.NEW_SET].token_op.set_features_all(TF.ANALOG, new_id)
+        self.network.cache_analogs()
         return new_id
     
     def get_analogs_info(self, set: Set = None, as_info: bool = True) -> torch.Tensor|AnalogInfo:
