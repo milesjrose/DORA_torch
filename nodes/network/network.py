@@ -20,14 +20,16 @@ class Network(object):
     """
     def __init__(self, tokens: Tokens, semantics: Semantics, params: Params = None):
         """
-        Initialize the Network object. Checks types; sets inter-set connections and params.
+        Initialise the Network object by constructing the sets, and operations objects.
 
         Args:
-            dict_sets (dict[Set, Base_Set]): The dictionary of set objects.
-            semantics (Semantics): The semantics object.
-            mappings (dict[int, Mappings]): The mappings objects.
-            links (Links): The links object.
-            params (Params): The parameters object.
+            tokens: Tokens - The Tokens object.
+            semantics: Semantics - The Semantics object.
+            params: Params - The parameters object.
+        Raises:
+            ValueError: If tokens is not a Tokens object.
+            ValueError: If semantics is not a Semantics object.
+            ValueError: If params is not a Params object.
         """
         logger.info(f"> Initialising Network object")
         # Check types
@@ -37,19 +39,21 @@ class Network(object):
             raise ValueError("params must be a Params object.")
         # set objects
         self.tokens: Tokens = tokens
-        """ Tokens object for the network. """
+        """ Holds tokens, connections, links, mappings, and provides basic operations. """
         self.token_tensor: Token_Tensor = tokens.token_tensor
-        """ Token tensor object for the network. """
+        """ Holds the tensor of tokens
+        - Shape: [tokens, features]"""
         self.semantics: Semantics = semantics
-        """ Semantics object for the network. """
+        """ Holds the tensor of semantics
+        - Shape: [semantics, features]"""
         self.params: Params = params
         """ Parameters object for the network. """
         self.mappings: Mapping = tokens.mapping
-        """ Mappings object for the network. """
+        """ Holds the mappings tensor
+        - Shape: [driver, recipient, mapping fields]"""
         self.links: Links = tokens.links
-        """ Links object for the network. 
-            - Links[set] gives set's links to semantics
-            - Link tensor shape: [nodes, semantics]
+        """ Holds the links tensor
+        - Shape: [tokens, semantics]
         """
         self.sets: dict[Set, Base_Set] = {
             Set.DRIVER: Driver(self.tokens, self.params),
@@ -425,9 +429,7 @@ class Network(object):
             use_names (bool): Whether to use token names instead of indices. Default False.
             features (list[TF]): Optional specific features to print. If None, prints all features.
         """
-        from nodes.utils import Printer
-        p = Printer()
-        p.print_token_tensor(token_tensor=self.token_tensor, cols_per_table=cols_per_table, show_deleted=show_deleted, indices=indices, use_names=use_names, features=features)
+        self.tokens.print_token_tensor(cols_per_table=cols_per_table, show_deleted=show_deleted, indices=indices, use_names=use_names, features=features)
     
     def print_connections(self, show_deleted: bool = False, indices: torch.Tensor = None, use_names: bool = False, connected_char: str = "●", empty_char: str = "·"):
         """ 
@@ -440,9 +442,7 @@ class Network(object):
             connected_char (str): Character to show for connections. Default "●".
             empty_char (str): Character to show for no connection. Default "·".
         """
-        from nodes.utils import Printer
-        p = Printer()
-        p.print_connections(self.tokens, show_deleted=show_deleted, indices=indices, use_names=use_names, connected_char=connected_char, empty_char=empty_char)
+        self.tokens.print_connections(show_deleted=show_deleted, indices=indices, use_names=use_names, connected_char=connected_char, empty_char=empty_char)
     
     def print_connections_list(self, show_deleted: bool = False, indices: torch.Tensor = None, use_names: bool = False, list_only_connected: bool = True):
         """ 
@@ -455,9 +455,7 @@ class Network(object):
             use_names (bool): Whether to use token names instead of indices. Default False.
             list_only_connected (bool): Whether to only list connected tokens. Default True.
         """
-        from nodes.utils import Printer
-        p = Printer()
-        p.print_connections_list(self.tokens, show_deleted=show_deleted, indices=indices, use_names=use_names, list_only_connected=list_only_connected)
+        self.tokens.print_connections_list(show_deleted=show_deleted, indices=indices, use_names=use_names, list_only_connected=list_only_connected)
     
     def print_links(self, token_names: dict[int, str] = None, semantic_names: dict[int, str] = None, token_indices: torch.Tensor = None, semantic_indices: torch.Tensor = None, min_weight: float = 0.0, show_weights: bool = True):
         """ 
@@ -471,14 +469,7 @@ class Network(object):
             min_weight (float): Minimum weight to display. Links below this are shown as empty. Default 0.0.
             show_weights (bool): If True, show weight values. If False, show "●" for linked. Default True.
         """
-        from nodes.utils import Printer
-        p = Printer()
-        # Use network names if not provided
-        if token_names is None:
-            token_names = self.token_tensor.names
-        if semantic_names is None:
-            semantic_names = self.semantics.names if hasattr(self.semantics, 'names') else None
-        p.print_links(self.links, token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, semantic_indices=semantic_indices, min_weight=min_weight, show_weights=show_weights)
+        self.tokens.print_links(token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, semantic_indices=semantic_indices, min_weight=min_weight, show_weights=show_weights)
     
     def print_links_list(self, token_names: dict[int, str] = None, semantic_names: dict[int, str] = None, token_indices: torch.Tensor = None, min_weight: float = 0.0, show_weights: bool = True):
         """ 
@@ -492,14 +483,7 @@ class Network(object):
             min_weight (float): Minimum weight to display. Default 0.0.
             show_weights (bool): If True, show weight values with semantics. Default True.
         """
-        from nodes.utils import Printer
-        p = Printer()
-        # Use network names if not provided
-        if token_names is None:
-            token_names = self.token_tensor.names
-        if semantic_names is None:
-            semantic_names = self.semantics.names if hasattr(self.semantics, 'names') else None
-        p.print_links_list(self.links, token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, min_weight=min_weight, show_weights=show_weights)
+        self.tokens.print_links_list(token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, min_weight=min_weight, show_weights=show_weights)
     
     def print_mappings(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, driver_indices: torch.Tensor = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
         """ 
@@ -514,14 +498,7 @@ class Network(object):
             min_value (float): Minimum value to display. Values below this shown as empty. Default 0.0.
             show_values (bool): If True, show values. If False, show "●" for non-zero. Default True.
         """
-        from nodes.utils import Printer
-        p = Printer()
-        # Use network names if not provided
-        if driver_names is None:
-            driver_names = self.token_tensor.names
-        if recipient_names is None:
-            recipient_names = self.token_tensor.names
-        p.print_mappings(self.mappings, driver_names=driver_names, recipient_names=recipient_names, driver_indices=driver_indices, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
+        self.tokens.print_mappings(driver_names=driver_names, recipient_names=recipient_names, driver_indices=driver_indices, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
     
     def print_mappings_list(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
         """ 
@@ -536,11 +513,4 @@ class Network(object):
             min_value (float): Minimum value to display. Default 0.0.
             show_values (bool): If True, show values with drivers. Default True.
         """
-        from nodes.utils import Printer
-        p = Printer()
-        # Use network names if not provided
-        if driver_names is None:
-            driver_names = self.token_tensor.names
-        if recipient_names is None:
-            recipient_names = self.token_tensor.names
-        p.print_mappings_list(self.mappings, driver_names=driver_names, recipient_names=recipient_names, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
+        self.tokens.print_mappings_list(driver_names=driver_names, recipient_names=recipient_names, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)

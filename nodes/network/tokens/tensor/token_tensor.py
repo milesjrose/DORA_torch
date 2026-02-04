@@ -502,3 +502,23 @@ class Token_Tensor:
         # Fallback
         else:
             return str(value)   
+    
+    def print(self, cols_per_table: int = 8, show_deleted: bool = False, indices: torch.Tensor = None, use_names: bool = False, features: list[TF] = None):
+        """ 
+        Print token tensor to console.
+        
+        Args:
+            cols_per_table (int): Number of feature columns per table. Default 8.
+            show_deleted (bool): Whether to include deleted tokens. Default False.
+            indices (torch.Tensor): Optional specific indices to print. If None, prints all (non-deleted) tokens.
+            use_names (bool): Whether to use token names instead of indices. Default False.
+            features (list[TF]): Optional specific features to print. If None, prints all features.
+        """
+        try:
+            from nodes.utils import Printer
+        except ImportError:
+            print(f"Nodes.utils.Printer not found.")
+            print(self.tensor)
+        else:
+            p = Printer()
+            p.print_token_tensor(token_tensor=self, cols_per_table=cols_per_table, show_deleted=show_deleted, indices=indices, use_names=use_names, features=features)
