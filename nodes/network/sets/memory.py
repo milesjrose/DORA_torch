@@ -1,4 +1,4 @@
-from ..tokens.tensor.token_tensor import Token_Tensor
+
 from ..network_params import Params
 from ...enums import *
 from .base_set import Base_Set
@@ -6,12 +6,12 @@ import torch
 from ...utils import tensor_ops as tOps
 from ..tokens.connections.links import Links
 from .semantics import Semantics
-
+from ..tokens import Tokens
 class Memory(Base_Set):
     """
     A class for representing a memory of tokens.
     """
-    def __init__(self, tokens: Token_Tensor, params: Params):
+    def __init__(self, tokens: Tokens, params: Params):
         super().__init__(tokens, Set.MEMORY, params)
         
     def update_input(self, semantics: Semantics, links: Links):
@@ -32,10 +32,10 @@ class Memory(Base_Set):
         # Exitatory: td (my Groups), bu (my RBs), mapping input.
         # Inhibitory: lateral (other P units in parent mode*lat_input_level), inhibitor.
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.tensor
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
-        p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.PARENT})
+        p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.MEMORY, TF.MODE: Mode.PARENT})
         if not torch.any(p): return;
         group = cache.get_type_mask(Type.GROUP)  # Boolean mask for GROUP nodes
         rb = cache.get_type_mask(Type.RB)        # Boolean mask for RB nodes
@@ -77,16 +77,16 @@ class Memory(Base_Set):
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.tensor
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # Exitatory: td (RBs above me), mapping input, bu (my semantics [currently not implmented]).
         # Inhibitory: lateral (other Ps in child, and, if in DORA mode, other PO objects not connected to my RB, and 3*PO connected to my RB), inhibitor.
         # 1). get masks
-        p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.CHILD})
+        p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.MEMORY, TF.MODE: Mode.CHILD})
         if not torch.any(p): return;
         rb = cache.get_type_mask(Type.RB)                           # Boolean mask for RB nodes
         po = cache.get_type_mask(Type.PO)
-        obj = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT, TF.PRED: B.FALSE}) # get object mask
+        obj = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.MEMORY, TF.PRED: B.FALSE}) # get object mask
         # Exitatory input:
         # 2). TD_INPUT: my_groups and my_parent_RBs
         """ NOTE: Says this should be input in comments, but not implemented in code.
@@ -141,21 +141,21 @@ class Memory(Base_Set):
         Update input for RB units
         """
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.tensor
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         phase_set = self.params.phase_set
         lateral_input_level = self.params.lateral_input_level
         # Exitatory: td (my P units), bu (my pred and obj POs, and my child Ps), mapping input.
         # Inhibitory: lateral (other RBs*3), inhbitor.
         # 1). get masks
-        rb = cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT})
+        rb = cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.MEMORY})
         if not torch.any(rb): return;
         po = cache.get_type_mask(Type.PO)
         p = cache.get_type_mask(Type.P)
 
         # Exitatory input:
         # 2). TD_INPUT: my_parent_p
-        if phase_set > 1:
+        if phase_set >= 1:
             t_con = torch.transpose(con_tensor, 0, 1)               # Connnections: Parent -> child, take transpose to get list of parents instead
             nodes[rb, TF.TD_INPUT] += torch.matmul(            # matmul outputs martix (sum(rb) x 1) of values to add to current input value
                 t_con[rb][:, p].float(),                                       # Masks connections between rb[i] and its ps
@@ -199,35 +199,36 @@ class Memory(Base_Set):
         # Inhibitory: lateral (PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)]), (as_DORA: child p not connect same RB // not_as_DORA: (if object: child p)), inhibitor
         # Inhibitory: td (if asDORA: not-connected RB nodes)
         cache = self.glbl.cache
-        con_tensor = self.glbl.connections.tensor
+        con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
-        all_po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT})
+        all_po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.MEMORY})
         if not torch.any(all_po): return;
-        po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT, TF.INFERRED: B.FALSE}) # non-infered pos
+        po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.MEMORY, TF.INFERRED: B.FALSE}) # non-infered pos
         rb = cache.get_type_mask(Type.RB)
         pred_sub = (nodes[po, TF.PRED] == B.TRUE)              # predicate sub mask of po nodes
         obj_sub = (nodes[po, TF.PRED] == B.FALSE)              # object sub mask of po nodes
         obj = tOps.sub_union(po, obj_sub)                           # objects
         parent_cons = torch.transpose(con_tensor, 0 , 1)             # Transpose of connections matrix, so that index by child node (PO) to parent (RB)
-        child_p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.CHILD}) # P nodes in child mode
+        child_p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.MEMORY, TF.MODE: Mode.CHILD}) # P nodes in child mode
         # Exitatory input:
         # 2). TD_INPUT: my_rb * gain(pred:1, obj:1)  NOTE: neither change, so removed checking for type
-        if phase_set > 1:
+        if phase_set >= 1:
             nodes[po, TF.TD_INPUT] += torch.matmul(            # matmul outputs martix (sum(po) x 1) of values to add to current input value
                 parent_cons[po][:, rb].float(),                                # Masks connections between po[i] and its parent rbs
                 nodes[rb, TF.ACT]                              # For each po node -> sum of act of connected rb nodes 
                 )
         # 3). BU_INPUT: my_semantics [normalised by no. semantics po connects to]
-        sem_input = torch.matmul(
-            sem_links[po],
-            semantics.nodes[:, SF.ACT]
-        )
         # need to get sem count, for po normalisation.
         nodes[po, TF.SEM_COUNT] = links.get_sem_count(torch.where(po)[0])
         # mask by sem_count = zero to avoid division by zero
         has_sem = nodes[:, TF.SEM_COUNT] != 0
-        nodes[po&has_sem, TF.BU_INPUT] += sem_input / nodes[po&has_sem, TF.SEM_COUNT]
+        sem_pos = po&has_sem
+        sem_input = torch.matmul(
+            sem_links[sem_pos],
+            semantics.nodes[:, SF.ACT]
+        )
+        nodes[sem_pos, TF.BU_INPUT] += sem_input / nodes[sem_pos, TF.SEM_COUNT]
         # 4). Mapping input
         nodes[po, TF.MAP_INPUT] += self.map_input(po) 
         # Inhibitory input:
@@ -295,8 +296,16 @@ class Memory(Base_Set):
         inhib_act = torch.mul(10, nodes[po, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
         nodes[po, TF.LATERAL_INPUT] -= inhib_act               # Update lat input
     
-    def map_input(self, t_mask):
+    # =================[ MAPPING INPUT FUNCTION ]===================
+    def map_input(self, t_mask):                                        # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
         """
-        No mapping for memory set, uses recipient map_input function so just return 0.
+        Calculate mapping input for tokens in mask
+        NOTE: Memory has no mapping input, but copied the update from recipient set.
+
+        Args:
+            t_mask (torch.Tensor): Token mask to get mapping input for.
+        Returns:
+            torch.Tensor: (sum(t_mask) x 1) matrix of mapping input.
         """
-        return 0
+        return 0 
+    # --------------------------------------------------------------
