@@ -612,7 +612,8 @@ class Printer:
                        recipient_indices: torch.Tensor = None,
                        field: MappingFields = MappingFields.WEIGHT,
                        min_value: float = 0.0,
-                       show_values: bool = True):
+                       show_values: bool = True,
+                       show_empty: bool = True):
         """
         Print the mapping tensor as a matrix showing recipient-to-driver mappings.
         Mapping tensor shape: [recipient_nodes, driver_nodes, fields]
@@ -649,17 +650,23 @@ class Printer:
         if recipient_indices is not None:
             display_rec_indices = recipient_indices
         else:
-            # Show recipients that have at least one mapping above min_value
-            rec_has_mappings = (field_tensor >= min_value).any(dim=1) & (field_tensor > 0).any(dim=1)
-            display_rec_indices = torch.where(rec_has_mappings)[0]
+            if show_empty:
+                display_rec_indices = torch.arange(num_recipients)
+            else:
+                # Show recipients that have at least one mapping above min_value
+                rec_has_mappings = (field_tensor >= min_value).any(dim=1) & (field_tensor > 0).any(dim=1)
+                display_rec_indices = torch.where(rec_has_mappings)[0]
         
         # Determine which driver indices to display
         if driver_indices is not None:
             display_dri_indices = driver_indices
         else:
-            # Show drivers that have at least one mapping above min_value
-            dri_has_mappings = (field_tensor >= min_value).any(dim=0) & (field_tensor > 0).any(dim=0)
-            display_dri_indices = torch.where(dri_has_mappings)[0]
+            if show_empty:
+                display_dri_indices = torch.arange(num_drivers)
+            else:
+                # Show drivers that have at least one mapping above min_value
+                dri_has_mappings = (field_tensor >= min_value).any(dim=0) & (field_tensor > 0).any(dim=0)
+                display_dri_indices = torch.where(dri_has_mappings)[0]
         
         if len(display_rec_indices) == 0:
             self._output("No recipients with mappings to display")
@@ -692,17 +699,15 @@ class Printer:
             
             for dri_idx in display_dri_indices:
                 value = field_tensor[rec_idx, dri_idx].item()
-                
-                if value >= min_value and value > 0:
-                    total_mappings += 1
-                    if show_values:
-                        # Format value nicely
-                        if value == 1.0:
-                            row.append("1.0")
-                        else:
-                            row.append(f"{value:.3f}".rstrip('0').rstrip('.'))
+                if show_values:
+                    # Format value nicely
+                    if value == 1.0:
+                        row.append("1.0")
                     else:
-                        row.append("●")
+                        row.append(f"{value:.3f}".rstrip('0').rstrip('.'))
+                elif value >= min_value and value > 0:
+                    total_mappings += 1
+                    row.append("●")
                 else:
                     row.append("·")
             
@@ -718,7 +723,8 @@ class Printer:
                             recipient_indices: torch.Tensor = None,
                             field: MappingFields = MappingFields.WEIGHT,
                             min_value: float = 0.0,
-                            show_values: bool = True):
+                            show_values: bool = True,
+                            show_empty: bool = False):
         """
         Print the mapping tensor as a list showing each recipient's mapped drivers.
         More readable for sparse matrices.
@@ -732,6 +738,7 @@ class Printer:
             field (MappingFields): Which field to display. Default WEIGHT.
             min_value (float): Minimum value to display. Default 0.0.
             show_values (bool): If True, show values with drivers. Default True.
+            show_empty (bool): If True, show empty mappings. Default False.
         """
         # Handle Mapping wrapper or raw tensor
         if hasattr(mapping, 'adj_matrix'):
@@ -753,9 +760,12 @@ class Printer:
         if recipient_indices is not None:
             display_rec_indices = recipient_indices
         else:
-            # Show recipients that have at least one mapping above min_value
-            rec_has_mappings = (field_tensor >= min_value).any(dim=1) & (field_tensor > 0).any(dim=1)
-            display_rec_indices = torch.where(rec_has_mappings)[0]
+            if show_empty:
+                display_rec_indices = torch.arange(num_recipients)
+            else:
+                # Show recipients that have at least one mapping above min_value
+                rec_has_mappings = (field_tensor >= min_value).any(dim=1) & (field_tensor > 0).any(dim=1)
+                display_rec_indices = torch.where(rec_has_mappings)[0]
         
         if len(display_rec_indices) == 0:
             self._output("No recipients with mappings to display")
