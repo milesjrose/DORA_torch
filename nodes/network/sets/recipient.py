@@ -166,7 +166,7 @@ class Recipient(Base_Set):
 
         # Exitatory input:
         # 2). TD_INPUT: my_parent_p
-        if phase_set > 1:
+        if phase_set >= 1:
             t_con = torch.transpose(con_tensor, 0, 1)               # Connnections: Parent -> child, take transpose to get list of parents instead
             nodes[rb, TF.TD_INPUT] += torch.matmul(            # matmul outputs martix (sum(rb) x 1) of values to add to current input value
                 t_con[rb][:, p].float(),                                       # Masks connections between rb[i] and its ps
@@ -224,21 +224,22 @@ class Recipient(Base_Set):
         child_p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.CHILD}) # P nodes in child mode
         # Exitatory input:
         # 2). TD_INPUT: my_rb * gain(pred:1, obj:1)  NOTE: neither change, so removed checking for type
-        if phase_set > 1:
+        if phase_set >= 1:
             nodes[po, TF.TD_INPUT] += torch.matmul(            # matmul outputs martix (sum(po) x 1) of values to add to current input value
                 parent_cons[po][:, rb].float(),                                # Masks connections between po[i] and its parent rbs
                 nodes[rb, TF.ACT]                              # For each po node -> sum of act of connected rb nodes 
                 )
         # 3). BU_INPUT: my_semantics [normalised by no. semantics po connects to]
-        sem_input = torch.matmul(
-            sem_links[po],
-            semantics.nodes[:, SF.ACT]
-        )
         # need to get sem count, for po normalisation.
         nodes[po, TF.SEM_COUNT] = links.get_sem_count(torch.where(po)[0])
         # mask by sem_count = zero to avoid division by zero
         has_sem = nodes[:, TF.SEM_COUNT] != 0
-        nodes[po&has_sem, TF.BU_INPUT] += sem_input / nodes[po&has_sem, TF.SEM_COUNT]
+        po_has_sem = po&has_sem
+        sem_input = torch.matmul(
+            sem_links[po_has_sem],
+            semantics.nodes[:, SF.ACT]
+        )
+        nodes[po_has_sem, TF.BU_INPUT] += sem_input / nodes[po_has_sem, TF.SEM_COUNT]
         # 4). Mapping input
         nodes[po, TF.MAP_INPUT] += self.map_input(po) 
         # Inhibitory input:
