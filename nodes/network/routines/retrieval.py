@@ -43,6 +43,7 @@ class RetrievalOperations:
         """
         self.network: 'Network' = network
         self.debug = False
+        self.efficient_token_retrieval = True
     
     def requirements(self) -> bool:
         """ 
@@ -64,7 +65,6 @@ class RetrievalOperations:
         Run the model retrieval routine - update input/act in memory, then if bias_retrieval_analogs 
         get the total act for each analog, else track the most active tokens in memory.
         """
-        use_efficient = True
         net = self.network
         net.update.inputs(Set.MEMORY)
         net.update.acts(Set.MEMORY)
@@ -77,7 +77,7 @@ class RetrievalOperations:
             if rel_act:
                 logger.critical("Relative act not implemented for non-bias retrieval, ignoring flag.")
             net.memory().token_op.get_max_acts()
-            if use_efficient:
+            if self.efficient_token_retrieval:
                 self.retrieve_tokens_efficient()
             else:
                 self.retrieve_tokens_direct_match()
