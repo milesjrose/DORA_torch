@@ -637,6 +637,6 @@ def load_net_from_sim(sim_path: str):
     gen = TestDataGenerator()
     gen.load_sim(sim_path)
     old_state = gen.get_state()
-    new_network = load_from_state(old_state)
+    new_network = NetworkLoader().load_from_state(old_state)
     return new_network
 
