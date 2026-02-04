@@ -93,6 +93,7 @@ class UpdateOperations:
         HebbBias = self.base_set.params.HebbBias
         net_input = self.base_set.lcl[:, net_input_types].sum(dim=1, keepdim=True)  # sum non mapping inputs
         net_input += (self.base_set.lcl[:, TF.MAP_INPUT] * HebbBias).unsqueeze(1)   # Add biased mapping input, reshape to match
+        self.base_set.lcl[:, TF.NET_INPUT] = net_input.squeeze(1)
         acts = self.base_set.lcl[:, TF.ACT]                                         # Get node acts
         delta_act = gamma * net_input.squeeze(1) * (1.1 - acts) - (delta * acts)    # Find change in act for each node
         self.base_set.lcl[:, TF.ACT] = acts + delta_act                             # Update acts (assign back to tensor)
