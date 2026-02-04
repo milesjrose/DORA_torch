@@ -542,3 +542,119 @@ def test_get_view_links_none(tokens):
     assert view is not None
     assert view.shape[0] == 15  # All tokens
 
+
+# =====================[ get_max_map tests ]======================
+
+def test_get_max_map_basic(tokens: Tokens):
+    """Test basic get_max_map functionality sets MAX_MAP and MAX_MAP_UNIT features."""
+    # Set up mapping weights
+    # recipient 0 -> driver 0: 0.8, driver 1: 0.9 (max is 0.9 at driver 1)
+    # recipient 1 -> driver 0: 0.6 (max is 0.6 at driver 0)
+    tokens.mapping.adj_matrix[0, 0, MappingFields.WEIGHT] = 0.8
+    tokens.mapping.adj_matrix[0, 1, MappingFields.WEIGHT] = 0.9
+    tokens.mapping.adj_matrix[1, 0, MappingFields.WEIGHT] = 0.6
+    
+    tokens.get_max_map()
+    
+    # Get recipient and driver indices
+    rec_idxs = tokens.token_tensor.cache.get_set_indices(Set.RECIPIENT)
+    dri_idxs = tokens.token_tensor.cache.get_set_indices(Set.DRIVER)
+    
+    # Check recipient MAX_MAP values
+    # Recipient 0 max is 0.9 (from driver 1)
+    assert tokens.token_tensor.tensor[rec_idxs[0], TF.MAX_MAP].item() == pytest.approx(0.9, abs=1e-6)
+    # Recipient 1 max is 0.6 (from driver 0)
+    assert tokens.token_tensor.tensor[rec_idxs[1], TF.MAX_MAP].item() == pytest.approx(0.6, abs=1e-6)
+    
+    # Check recipient MAX_MAP_UNIT values (index of driver with max weight)
+    assert tokens.token_tensor.tensor[rec_idxs[0], TF.MAX_MAP_UNIT].item() == 1  # driver 1
+    assert tokens.token_tensor.tensor[rec_idxs[1], TF.MAX_MAP_UNIT].item() == 0  # driver 0
+    
+    # Check driver MAX_MAP values
+    # Driver 0 max is 0.8 (from recipient 0)
+    assert tokens.token_tensor.tensor[dri_idxs[0], TF.MAX_MAP].item() == pytest.approx(0.8, abs=1e-6)
+    # Driver 1 max is 0.9 (from recipient 0)
+    assert tokens.token_tensor.tensor[dri_idxs[1], TF.MAX_MAP].item() == pytest.approx(0.9, abs=1e-6)
+    
+    # Check driver MAX_MAP_UNIT values (index of recipient with max weight)
+    assert tokens.token_tensor.tensor[dri_idxs[0], TF.MAX_MAP_UNIT].item() == 0  # recipient 0
+    assert tokens.token_tensor.tensor[dri_idxs[1], TF.MAX_MAP_UNIT].item() == 0  # recipient 0
+
+
+def test_get_max_map_no_mappings(tokens: Tokens):
+    """Test get_max_map when there are no mappings (all zeros)."""
+    # Reset all mappings to zero
+    tokens.mapping.adj_matrix[:, :, MappingFields.WEIGHT] = 0.0
+    
+    tokens.get_max_map()
+    
+    rec_idxs = tokens.token_tensor.cache.get_set_indices(Set.RECIPIENT)
+    dri_idxs = tokens.token_tensor.cache.get_set_indices(Set.DRIVER)
+    
+    # All MAX_MAP values should be 0
+    for rec_idx in rec_idxs:
+        assert tokens.token_tensor.tensor[rec_idx, TF.MAX_MAP].item() == pytest.approx(0.0, abs=1e-6)
+    for dri_idx in dri_idxs:
+        assert tokens.token_tensor.tensor[dri_idx, TF.MAX_MAP].item() == pytest.approx(0.0, abs=1e-6)
+
+
+def test_get_max_map_all_recipients_mapped(tokens: Tokens):
+    """Test get_max_map when all recipients have mappings to different drivers."""
+    # Set distinct mappings for each recipient
+    tokens.mapping.adj_matrix[:, :, MappingFields.WEIGHT] = 0.0
+    tokens.mapping.adj_matrix[0, 2, MappingFields.WEIGHT] = 0.7  # rec 0 -> driver 2
+    tokens.mapping.adj_matrix[1, 3, MappingFields.WEIGHT] = 0.8  # rec 1 -> driver 3
+    tokens.mapping.adj_matrix[2, 0, MappingFields.WEIGHT] = 0.5  # rec 2 -> driver 0
+    tokens.mapping.adj_matrix[3, 1, MappingFields.WEIGHT] = 0.6  # rec 3 -> driver 1
+    tokens.mapping.adj_matrix[4, 4, MappingFields.WEIGHT] = 0.9  # rec 4 -> driver 4
+    
+    tokens.get_max_map()
+    
+    rec_idxs = tokens.token_tensor.cache.get_set_indices(Set.RECIPIENT)
+    
+    # Verify each recipient has correct max map
+    expected_max_maps = [0.7, 0.8, 0.5, 0.6, 0.9]
+    expected_max_units = [2, 3, 0, 1, 4]
+    
+    for i, rec_idx in enumerate(rec_idxs):
+        assert tokens.token_tensor.tensor[rec_idx, TF.MAX_MAP].item() == pytest.approx(expected_max_maps[i], abs=1e-6)
+        assert tokens.token_tensor.tensor[rec_idx, TF.MAX_MAP_UNIT].item() == expected_max_units[i]
+
+
+def test_get_max_map_competing_mappings(tokens: Tokens):
+    """Test get_max_map with competing mappings to same driver."""
+    # Multiple recipients mapping to same driver
+    tokens.mapping.adj_matrix[:, :, MappingFields.WEIGHT] = 0.0
+    tokens.mapping.adj_matrix[0, 0, MappingFields.WEIGHT] = 0.3
+    tokens.mapping.adj_matrix[1, 0, MappingFields.WEIGHT] = 0.5
+    tokens.mapping.adj_matrix[2, 0, MappingFields.WEIGHT] = 0.9  # highest
+    tokens.mapping.adj_matrix[3, 0, MappingFields.WEIGHT] = 0.4
+    
+    tokens.get_max_map()
+    
+    dri_idxs = tokens.token_tensor.cache.get_set_indices(Set.DRIVER)
+    
+    # Driver 0 should have max map 0.9 from recipient 2
+    assert tokens.token_tensor.tensor[dri_idxs[0], TF.MAX_MAP].item() == pytest.approx(0.9, abs=1e-6)
+    assert tokens.token_tensor.tensor[dri_idxs[0], TF.MAX_MAP_UNIT].item() == 2
+
+
+def test_get_max_map_updates_existing_values(tokens: Tokens):
+    """Test that get_max_map overwrites existing MAX_MAP values."""
+    rec_idxs = tokens.token_tensor.cache.get_set_indices(Set.RECIPIENT)
+    dri_idxs = tokens.token_tensor.cache.get_set_indices(Set.DRIVER)
+    
+    # Set initial MAX_MAP values
+    tokens.token_tensor.tensor[rec_idxs, TF.MAX_MAP] = 999.0
+    tokens.token_tensor.tensor[dri_idxs, TF.MAX_MAP] = 999.0
+    
+    # Set up mappings
+    tokens.mapping.adj_matrix[:, :, MappingFields.WEIGHT] = 0.0
+    tokens.mapping.adj_matrix[0, 0, MappingFields.WEIGHT] = 0.5
+    
+    tokens.get_max_map()
+    
+    # Values should be updated (not 999.0 anymore)
+    assert tokens.token_tensor.tensor[rec_idxs[0], TF.MAX_MAP].item() == pytest.approx(0.5, abs=1e-6)
+    # Other recipients should have 0.0 (their max)
+    assert tokens.token_tensor.tensor[rec_idxs[1], TF.MAX_MAP].item() == pytest.approx(0.0, abs=1e-6)

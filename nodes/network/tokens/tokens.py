@@ -217,6 +217,17 @@ class Tokens:
         """
         return self.token_tensor.get_name(idx)
     
+    def get_max_map(self):
+        """ Set the max map weight/unit features for each token in recipient/driver set. """
+        max_recipient, max_driver = self.mapping.get_max_map()
+        rec_idxs = self.token_tensor.cache.get_set_indices(Set.RECIPIENT)
+        dri_idxs = self.token_tensor.cache.get_set_indices(Set.DRIVER)
+        self.token_tensor.set_feature(rec_idxs, TF.MAX_MAP, max_recipient.values)
+        self.token_tensor.set_feature(dri_idxs, TF.MAX_MAP, max_driver.values)
+        self.token_tensor.set_feature(rec_idxs, TF.MAX_MAP_UNIT, max_recipient.indices.to(tensor_type))
+        self.token_tensor.set_feature(dri_idxs, TF.MAX_MAP_UNIT, max_driver.indices.to(tensor_type))
+
+    
     # ======================[ PRINTING FUNCTIONS ]======================
     def _import_printer(self):
         try:
@@ -327,7 +338,7 @@ class Tokens:
                 semantic_names = self.semantics.names if hasattr(self.semantics, 'names') else None
             p.print_links_list(self.links, token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, min_weight=min_weight, show_weights=show_weights)
         
-    def print_mappings(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, driver_indices: torch.Tensor = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
+    def print_mappings(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, driver_indices: torch.Tensor = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True, show_empty: bool = True):
         """ 
         Print mappings to console as a matrix showing recipient-to-driver mappings.
         
@@ -351,9 +362,9 @@ class Tokens:
                 driver_names = self.token_tensor.names
             if recipient_names is None:
                 recipient_names = self.token_tensor.names
-            p.print_mappings(self.mapping, driver_names=driver_names, recipient_names=recipient_names, driver_indices=driver_indices, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
+            p.print_mappings(self.mapping, driver_names=driver_names, recipient_names=recipient_names, driver_indices=driver_indices, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values, show_empty=show_empty)
     
-    def print_mappings_list(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
+    def print_mappings_list(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True, show_empty: bool = False):
         """ 
         Print mappings as a list showing each recipient's mapped drivers.
         More readable for sparse matrices.
@@ -365,6 +376,7 @@ class Tokens:
             field (MappingFields): Which field to display. Default WEIGHT.
             min_value (float): Minimum value to display. Default 0.0.
             show_values (bool): If True, show values with drivers. Default True.
+            show_empty (bool): If True, show empty mappings. Default False.
         """
         p = self._import_printer()
         if p is None:
@@ -377,4 +389,4 @@ class Tokens:
                 driver_names = self.token_tensor.names
             if recipient_names is None:
                 recipient_names = self.token_tensor.names
-            p.print_mappings_list(self.mapping, driver_names=driver_names, recipient_names=recipient_names, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
+            p.print_mappings_list(self.mapping, driver_names=driver_names, recipient_names=recipient_names, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values, show_empty=show_empty)

@@ -58,8 +58,8 @@ class Mapping:
         For now they are returned, and then used by higher classes to assign to the set tensors.
 
         Returns:
-            max_recipient (torch.Tensor): Object containing index and weight of driver token with highest weight for recipient token.
-            max_driver (torch.Tensor): Object containing index and weight of recipient token with highest weight for driver token.
+            max_recipient (torch.return_types.max): Object containing index and weight of driver token with highest weight for recipient token.
+            max_driver (torch.return_types.max): Object containing index and weight of recipient token with highest weight for driver token.
         """
         # max_connection[i] = max(connection[i,:]))
         max_recipient: torch.return_types.max = self[MappingFields.WEIGHT].max(dim=MD.DRI)
