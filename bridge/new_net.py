@@ -59,6 +59,12 @@ class NewNet:
         """ get the state object. """
         return self.state
     
+    def update_state(self):
+        """ Update the saved state from the network. """
+        self.generator.network = self.network
+        self.state = self.generator.get_state()
+        self.printer.set_state(self.state)
+    
     def load_json(self, json_path: str):
         """ load a network from a JSON state file. 
         Args:
@@ -90,8 +96,8 @@ class NewNet:
             use_builder: Whether to use the NetworkBuilder to load the network.
         """
         if use_builder:
-            net = self.generator.load_sim(sim_path)
-            self.set_network(net)
+            self.generator.load_sim(sim_path)
+            self.set_network(self.generator.network)
         else:
             # load the old network:
             gen = TestDataGenerator()
@@ -239,6 +245,7 @@ class NetworkLoader:
         
         for i, (token_type, token_data) in enumerate(all_tokens):
             original_idx = token_data['index']
+            i = original_idx
             
             # Basic properties
             tokens_data[i, TF.ID] = original_idx + 1  # 1-indexed IDs
@@ -325,25 +332,11 @@ class NetworkLoader:
         if 'links' not in self._state:
             return Links(links_data)
         
-        # Build name to index mappings
-        token_name_to_idx = {}
-        for i, (_, token_data) in enumerate(all_tokens):
-            token_name_to_idx[token_data['name']] = i
-        
-        sem_name_to_idx = {}
-        for i, sem_data in enumerate(self._state.get('semantics', [])):
-            sem_name_to_idx[sem_data['name']] = i
-        
         # Process links list
-        for link in self._state['links'].get('links_list', []):
-            po_name = link['po_name']
-            sem_name = link['sem_name']
-            weight = link['weight']
-            
-            if po_name in token_name_to_idx and sem_name in sem_name_to_idx:
-                po_idx = token_name_to_idx[po_name]
-                sem_idx = sem_name_to_idx[sem_name]
-                links_data[po_idx, sem_idx] = weight
+        links_matrix = self._state['links'].get('matrix', [[]])
+        for x in range(len(links_matrix)):
+            for y in range(len(links_matrix[x])):
+                links_data[x, y] = links_matrix[x][y]
         
         return Links(links_data)
     
@@ -777,7 +770,7 @@ class NewNetworkStateGenerator:
         
         for sem_id, sem_idx in sem_obj.IDs.items():
             tensor_row = sem_obj.nodes[sem_idx]
-            
+
             # Get dimension name
             dim_key = int(tensor_row[SF.DIM].item()) if tensor_row[SF.DIM].item() != null else None
             dimension = sem_obj.dimensions.get(dim_key, 'nil') if dim_key else 'nil'
@@ -789,14 +782,17 @@ class NewNetworkStateGenerator:
             # Get amount
             amount = float(tensor_row[SF.AMOUNT].item()) if tensor_row[SF.AMOUNT].item() != null else None
             
-            semantics.append({
+            sem_info = {
                 'index': sem_idx,
                 'name': sem_obj.names.get(sem_id, f"sem_{sem_id}"),
                 'act': float(tensor_row[SF.ACT].item()),
+                'input': float(tensor_row[SF.INPUT].item()),
+                'max_input': float(tensor_row[SF.MAX_INPUT].item()),
                 'dimension': dimension,
                 'amount': amount,
                 'ont_status': ont_status,
-            })
+            }
+            semantics.append(sem_info)
         
         return semantics
     

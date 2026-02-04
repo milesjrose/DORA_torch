@@ -44,7 +44,15 @@ class OldNet:
 
     def get_state(self):
         """ Get the state of the old network. """
+        self.generator.memory = self.memory
+        self.update_state()
         return self.state
+    
+    def update_state(self):
+        """ Update the state of the old network. """
+        self.generator.memory = self.memory
+        self.state = self.generator.get_state()
+        self.printer.set_state(self.state)
     
     def print_summary(self):
         """ Print a summary of the old network. """
@@ -320,27 +328,30 @@ class TestDataGenerator:
                 return None
         
         # Extract P tokens
-        for i, myP in enumerate(self.memory.Ps):
-            tokens['Ps'].append({
+        i = 0
+        # Extract PO tokens
+        for myPO in self.memory.POs:
+            tokens['POs'].append({
                 'index': i,
-                'name': myP.name,
-                'set': myP.set,
-                'analog': get_analog_index(myP.myanalog),
-                'act': myP.act,
-                'net_input': getattr(myP, 'net_input', 0.0),
-                'td_input': getattr(myP, 'td_input', 0.0),
-                'bu_input': getattr(myP, 'bu_input', 0.0),
-                'lateral_input': getattr(myP, 'lateral_input', 0.0),
-                'map_input': getattr(myP, 'map_input', 0.0),
-                'max_map': myP.max_map,
-                'max_map_unit_name': myP.max_map_unit.name if myP.max_map_unit else None,
-                'inferred': getattr(myP, 'inferred', False),
-                'child_RB_names': [rb.name for rb in myP.myRBs],
-                'parent_RB_names': [rb.name for rb in myP.myParentRBs] if hasattr(myP, 'myParentRBs') else [],
+                'name': myPO.name,
+                'set': myPO.set,
+                'analog': get_analog_index(myPO.myanalog),
+                'act': myPO.act,
+                'net_input': getattr(myPO, 'net_input', 0.0),
+                'td_input': getattr(myPO, 'td_input', 0.0),
+                'bu_input': getattr(myPO, 'bu_input', 0.0),
+                'lateral_input': getattr(myPO, 'lateral_input', 0.0),
+                'map_input': getattr(myPO, 'map_input', 0.0),
+                'predOrObj': myPO.predOrObj,  # 1 = pred, 0 = obj
+                'max_map': myPO.max_map,
+                'max_map_unit_name': myPO.max_map_unit.name if myPO.max_map_unit else None,
+                'inferred': getattr(myPO, 'inferred', False),
+                'parent_RB_names': [rb.name for rb in myPO.myRBs],
+                'semantic_names': [link.mySemantic.name for link in myPO.mySemantics],
             })
-        
+            i += 1
         # Extract RB tokens
-        for i, myRB in enumerate(self.memory.RBs):
+        for myRB in self.memory.RBs:
             tokens['RBs'].append({
                 'index': i,
                 'name': myRB.name,
@@ -360,27 +371,26 @@ class TestDataGenerator:
                 'obj_name': myRB.myObj[0].name if myRB.myObj else None,
                 'child_P_name': myRB.myChildP[0].name if myRB.myChildP else None,
             })
-        
-        # Extract PO tokens
-        for i, myPO in enumerate(self.memory.POs):
-            tokens['POs'].append({
+            i += 1
+        for myP in self.memory.Ps:
+            tokens['Ps'].append({
                 'index': i,
-                'name': myPO.name,
-                'set': myPO.set,
-                'analog': get_analog_index(myPO.myanalog),
-                'act': myPO.act,
-                'net_input': getattr(myPO, 'net_input', 0.0),
-                'td_input': getattr(myPO, 'td_input', 0.0),
-                'bu_input': getattr(myPO, 'bu_input', 0.0),
-                'lateral_input': getattr(myPO, 'lateral_input', 0.0),
-                'map_input': getattr(myPO, 'map_input', 0.0),
-                'predOrObj': myPO.predOrObj,  # 1 = pred, 0 = obj
-                'max_map': myPO.max_map,
-                'max_map_unit_name': myPO.max_map_unit.name if myPO.max_map_unit else None,
-                'inferred': getattr(myPO, 'inferred', False),
-                'parent_RB_names': [rb.name for rb in myPO.myRBs],
-                'semantic_names': [link.mySemantic.name for link in myPO.mySemantics],
+                'name': myP.name,
+                'set': myP.set,
+                'analog': get_analog_index(myP.myanalog),
+                'act': myP.act,
+                'net_input': getattr(myP, 'net_input', 0.0),
+                'td_input': getattr(myP, 'td_input', 0.0),
+                'bu_input': getattr(myP, 'bu_input', 0.0),
+                'lateral_input': getattr(myP, 'lateral_input', 0.0),
+                'map_input': getattr(myP, 'map_input', 0.0),
+                'max_map': myP.max_map,
+                'max_map_unit_name': myP.max_map_unit.name if myP.max_map_unit else None,
+                'inferred': getattr(myP, 'inferred', False),
+                'child_RB_names': [rb.name for rb in myP.myRBs],
+                'parent_RB_names': [rb.name for rb in myP.myParentRBs] if hasattr(myP, 'myParentRBs') else [],
             })
+            i += 1
         
         return tokens
     
@@ -392,6 +402,8 @@ class TestDataGenerator:
                 'index': i,
                 'name': sem.name,
                 'act': sem.act,
+                'input': sem.myinput,
+                'max_input': sem.max_sem_input,
                 'dimension': getattr(sem, 'dimension', 'nil'),
                 'amount': getattr(sem, 'amount', None),
                 'ont_status': getattr(sem, 'ont_status', None),
