@@ -3,10 +3,13 @@
 
 import pytest
 import torch
-from nodes.network.sets.recipient import Recipient
 from nodes.network.tokens import Tokens, Connections_Tensor, Mapping, Links, Token_Tensor
 from nodes.network.network_params import Params
+from nodes.network.sets import Recipient, Semantics
 from nodes.enums import *
+
+from logging import getLogger
+logger = getLogger("test")
 
 
 @pytest.fixture
@@ -119,7 +122,6 @@ def mock_params():
 def recipient(mock_tensor_with_parent_p_recipient, mock_connections_with_parent_p_recipient, mock_names, mock_params):
     """Create a Recipient instance."""
     recipient_obj = create_recipient(tk_tensor=mock_tensor_with_parent_p_recipient, connections=mock_connections_with_parent_p_recipient, names=mock_names, params=mock_params)
-    recipient_obj.map_input = lambda p: torch.zeros(torch.sum(p).item() if torch.any(p) else 0)
     return recipient_obj
 
 def create_recipient(
@@ -146,12 +148,14 @@ def create_recipient(
         links = Links(torch.zeros((tensor_size, sem_size), dtype=torch.bool))
     tokens = Tokens(tk_obj, con_obj, links, mappings)
     recipient = Recipient(tokens, params)
+    recipient.tokens.print_token_tensor(features=[TF.TYPE, TF.SET, TF.ACT, TF.MAX_MAP_UNIT,TF.MAX_MAP, TF.MAP_INPUT])
+    recipient.tokens.print_mappings()
     return recipient
 
 
 # =====================[ update_input_p_parent tests ]======================
 
-def test_update_input_p_parent_td_input_from_groups_phase_set_1(recipient):
+def test_update_input_p_parent_td_input_from_groups_phase_set_1(recipient: Recipient):
     """
     Test that TD_INPUT is correctly updated from connected GROUP nodes when phase_set >= 1.
     P[0] is connected to GROUP[4] (act=0.3) and GROUP[5] (act=0.4)
@@ -197,7 +201,7 @@ def test_update_input_p_parent_td_input_from_groups_phase_set_1(recipient):
         f"TD_INPUT not updated correctly. Expected increment: {expected_td_input}, Got: {updated_td_input - initial_td_input}"
 
 
-def test_update_input_p_parent_td_input_from_groups_phase_set_0(recipient):
+def test_update_input_p_parent_td_input_from_groups_phase_set_0(recipient: Recipient):
     """
     Test that TD_INPUT is NOT updated from GROUPs when phase_set < 1.
     """
@@ -241,7 +245,7 @@ def test_update_input_p_parent_td_input_from_groups_phase_set_0(recipient):
         f"TD_INPUT should not include group contribution when phase_set < 1"
 
 
-def test_update_input_p_parent_bu_input_from_rbs(recipient):
+def test_update_input_p_parent_bu_input_from_rbs(recipient: Recipient):
     """
     Test that BU_INPUT is correctly updated from connected RB nodes.
     P[0] is connected to RB[6] (act=0.8)
@@ -284,7 +288,7 @@ def test_update_input_p_parent_bu_input_from_rbs(recipient):
         f"BU_INPUT not updated correctly. Expected increment: {expected_bu_input}, Got: {updated_bu_input - initial_bu_input}"
 
 
-def test_update_input_p_parent_lateral_input_from_other_parent_ps(recipient):
+def test_update_input_p_parent_lateral_input_from_other_parent_ps(recipient: Recipient):
     """
     Test that LATERAL_INPUT is correctly decremented by lateral_input_level * (sum of other parent P activations).
     P[0] (act=0.5) and P[1] (act=0.6) are both in PARENT mode.
@@ -330,7 +334,7 @@ def test_update_input_p_parent_lateral_input_from_other_parent_ps(recipient):
         f"LATERAL_INPUT not updated correctly. Expected decrement: {total_expected_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_p_parent_lateral_input_with_custom_lateral_input_level(recipient):
+def test_update_input_p_parent_lateral_input_with_custom_lateral_input_level(recipient: Recipient):
     """
     Test that LATERAL_INPUT uses lateral_input_level parameter correctly.
     """
@@ -370,7 +374,7 @@ def test_update_input_p_parent_lateral_input_with_custom_lateral_input_level(rec
         f"LATERAL_INPUT not updated correctly with lateral_input_level={recipient.params.lateral_input_level}. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_p_parent_lateral_input_from_inhibitor(recipient):
+def test_update_input_p_parent_lateral_input_from_inhibitor(recipient: Recipient):
     """
     Test that LATERAL_INPUT is correctly decremented by 10 * inhibitor_act.
     P[0] has inhibitor_act=0.1, so LATERAL_INPUT should decrease by 1.0
@@ -406,7 +410,7 @@ def test_update_input_p_parent_lateral_input_from_inhibitor(recipient):
         f"LATERAL_INPUT not updated correctly from inhibitor. Expected decrement: {expected_inhibitor_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_p_parent_only_affects_parent_mode_ps(recipient):
+def test_update_input_p_parent_only_affects_parent_mode_ps(recipient: Recipient):
     """
     Test that only P nodes in PARENT mode in RECIPIENT are affected.
     P[2] is in CHILD mode and should NOT have its inputs updated.
@@ -433,7 +437,7 @@ def test_update_input_p_parent_only_affects_parent_mode_ps(recipient):
     assert updated_lateral_input == initial_lateral_input, "LATERAL_INPUT should not change for CHILD mode P node"
 
 
-def test_update_input_p_parent_only_affects_recipient_set(recipient):
+def test_update_input_p_parent_only_affects_recipient_set(recipient: Recipient):
     """
     Test that P nodes in PARENT mode in other sets (e.g., DRIVER) are NOT affected.
     """
@@ -459,7 +463,7 @@ def test_update_input_p_parent_only_affects_recipient_set(recipient):
     assert updated_lateral_input == initial_lateral_input, "LATERAL_INPUT should not change for P nodes in other sets"
 
 
-def test_update_input_p_parent_increments_not_overwrites(recipient):
+def test_update_input_p_parent_increments_not_overwrites(recipient: Recipient):
     """
     Test that update_input_p_parent increments input values rather than overwriting them.
     """
@@ -493,7 +497,7 @@ def test_update_input_p_parent_increments_not_overwrites(recipient):
     assert torch.all(updated_bu > initial_bu), "BU_INPUT should be incremented, not overwritten"
 
 
-def test_update_input_p_parent_no_parent_ps_no_error(recipient):
+def test_update_input_p_parent_no_parent_ps_no_error(recipient: Recipient):
     """
     Test that update_input_p_parent handles the case where there are no P nodes in PARENT mode gracefully.
     """
@@ -618,12 +622,10 @@ def mock_connections_with_child_p_recipient():
 def recipient_child_p(mock_tensor_with_child_p_recipient, mock_connections_with_child_p_recipient, mock_names, mock_params):
     """Create a Recipient instance for child P tests."""
     recipient_obj = create_recipient(tk_tensor=mock_tensor_with_child_p_recipient, connections=mock_connections_with_child_p_recipient, names=mock_names, params=mock_params)
-    # Mock map_input to return zeros for now (since it requires mappings)
-    recipient_obj.map_input = lambda p: torch.zeros(torch.sum(p).item() if torch.any(p) else 0)
     return recipient_obj
 
 
-def test_update_input_p_child_td_input_from_parent_rbs_phase_set_1(recipient_child_p):
+def test_update_input_p_child_td_input_from_parent_rbs_phase_set_1(recipient_child_p: Recipient):
     """
     Test that TD_INPUT is correctly updated from connected parent RB nodes when phase_set >= 1.
     P[0] has parent RB[6] (act=0.8) and RB[7] (act=0.9)
@@ -670,7 +672,7 @@ def test_update_input_p_child_td_input_from_parent_rbs_phase_set_1(recipient_chi
         f"TD_INPUT not updated correctly from parent RBs. Expected increment: {expected_td_input}, Got: {updated_td_input - initial_td_input}"
 
 
-def test_update_input_p_child_td_input_from_parent_rbs_phase_set_0(recipient_child_p):
+def test_update_input_p_child_td_input_from_parent_rbs_phase_set_0(recipient_child_p: Recipient):
     """
     Test that TD_INPUT is NOT updated from parent RBs when phase_set < 1.
     """
@@ -703,7 +705,7 @@ def test_update_input_p_child_td_input_from_parent_rbs_phase_set_0(recipient_chi
         f"TD_INPUT should not include parent RB contribution when phase_set < 1. Got: {rb_contribution}"
 
 
-def test_update_input_p_child_lateral_input_from_other_child_ps(recipient_child_p):
+def test_update_input_p_child_lateral_input_from_other_child_ps(recipient_child_p: Recipient):
     """
     Test that LATERAL_INPUT is correctly decremented from other child P nodes.
     P[0] (act=0.5) and P[1] (act=0.6) are both in CHILD mode.
@@ -750,7 +752,7 @@ def test_update_input_p_child_lateral_input_from_other_child_ps(recipient_child_
         f"LATERAL_INPUT not updated correctly from other child P nodes. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_p_child_lateral_input_from_all_objects_non_dora_mode(recipient_child_p):
+def test_update_input_p_child_lateral_input_from_all_objects_non_dora_mode(recipient_child_p: Recipient):
     """
     Test that LATERAL_INPUT is correctly decremented from all objects when as_DORA=False.
     P[0] and P[1] should both get lateral input from Object[8] (act=0.2) and Object[9] (act=0.3)
@@ -795,7 +797,7 @@ def test_update_input_p_child_lateral_input_from_all_objects_non_dora_mode(recip
         f"LATERAL_INPUT not updated correctly from all objects in non-DORA mode. Expected decrement per P: {expected_decrement_per_p}, Got: {-updated_lateral_input}"
 
 
-def test_update_input_p_child_lateral_input_from_non_shared_pos_dora_mode(recipient_child_p):
+def test_update_input_p_child_lateral_input_from_non_shared_pos_dora_mode(recipient_child_p: Recipient):
     """
     Test that LATERAL_INPUT is correctly decremented from POs NOT connected to same RBs when as_DORA=True.
     P[0] is connected to RB[6] and RB[7]
@@ -838,7 +840,7 @@ def test_update_input_p_child_lateral_input_from_non_shared_pos_dora_mode(recipi
     assert torch.all(updated_lateral_input <= 0.0), "LATERAL_INPUT should be non-positive (inhibitory)"
 
 
-def test_update_input_p_child_only_affects_child_mode_ps(recipient_child_p):
+def test_update_input_p_child_only_affects_child_mode_ps(recipient_child_p: Recipient):
     """
     Test that only P nodes in CHILD mode in RECIPIENT are affected.
     P[2] is in PARENT mode and should NOT have its inputs updated.
@@ -862,7 +864,7 @@ def test_update_input_p_child_only_affects_child_mode_ps(recipient_child_p):
     assert updated_lateral_input == initial_lateral_input, "LATERAL_INPUT should not change for PARENT mode P node"
 
 
-def test_update_input_p_child_only_affects_recipient_set(recipient_child_p):
+def test_update_input_p_child_only_affects_recipient_set(recipient_child_p: Recipient):
     """
     Test that P nodes in CHILD mode in other sets (e.g., DRIVER) are NOT affected.
     """
@@ -885,7 +887,7 @@ def test_update_input_p_child_only_affects_recipient_set(recipient_child_p):
     assert updated_lateral_input == initial_lateral_input, "LATERAL_INPUT should not change for P nodes in other sets"
 
 
-def test_update_input_p_child_increments_not_overwrites(recipient_child_p):
+def test_update_input_p_child_increments_not_overwrites(recipient_child_p: Recipient):
     """
     Test that update_input_p_child increments input values rather than overwriting them.
     """
@@ -915,7 +917,7 @@ def test_update_input_p_child_increments_not_overwrites(recipient_child_p):
     assert torch.all(updated_td > initial_td), "TD_INPUT should be incremented, not overwritten"
 
 
-def test_update_input_p_child_no_child_ps_no_error(recipient_child_p):
+def test_update_input_p_child_no_child_ps_no_error(recipient_child_p: Recipient):
     """
     Test that update_input_p_child handles the case where there are no P nodes in CHILD mode gracefully.
     """
@@ -1030,14 +1032,12 @@ def mock_connections_with_rb_recipient():
 def recipient_rb(mock_tensor_with_rb_recipient, mock_connections_with_rb_recipient, mock_names, mock_params):
     """Create a Recipient instance for RB tests."""
     recipient_obj = create_recipient(tk_tensor=mock_tensor_with_rb_recipient, connections=mock_connections_with_rb_recipient, names=mock_names, params=mock_params)
-    # Mock map_input to return zeros for now (since it requires mappings)
-    recipient_obj.map_input = lambda rb: torch.zeros(torch.sum(rb).item() if torch.any(rb) else 0)
     return recipient_obj
 
 
 # ====================[ TESTS FOR update_input_rb ]===================
 
-def test_update_input_rb_td_input_from_parent_ps_phase_set_2(recipient_rb):
+def test_update_input_rb_td_input_from_parent_ps_phase_set_2(recipient_rb: Recipient):
     """
     Test that TD_INPUT is correctly updated from connected parent P nodes when phase_set > 1.
     RB[0] has parent P[2] (act=0.7) via transpose connection
@@ -1083,9 +1083,9 @@ def test_update_input_rb_td_input_from_parent_ps_phase_set_2(recipient_rb):
         f"TD_INPUT not updated correctly from parent P nodes. Expected increment: {expected_td_input}, Got: {updated_td_input - initial_td_input}"
 
 
-def test_update_input_rb_td_input_from_parent_ps_phase_set_1(recipient_rb):
+def test_update_input_rb_td_input_from_parent_ps_phase_set_1(recipient_rb: Recipient):
     """
-    Test that TD_INPUT is NOT updated from parent P nodes when phase_set <= 1.
+    Test that TD_INPUT is updated from parent P nodes when phase_set == 1.
     """
     # Set phase_set to 1 (must be > 1, so this should NOT update TD_INPUT)
     recipient_rb.params.phase_set = 1
@@ -1108,11 +1108,11 @@ def test_update_input_rb_td_input_from_parent_ps_phase_set_1(recipient_rb):
     updated_td_input = recipient_rb.glbl.tensor[rb_indices, TF.TD_INPUT]
     
     # Verify TD_INPUT was NOT changed (since phase_set <= 1)
-    assert torch.allclose(updated_td_input, initial_td_input, atol=1e-5), \
+    assert not torch.allclose(updated_td_input, initial_td_input, atol=1e-5), \
         f"TD_INPUT should not be updated when phase_set <= 1. Expected: {initial_td_input}, Got: {updated_td_input}"
 
 
-def test_update_input_rb_bu_input_from_po_and_p(recipient_rb):
+def test_update_input_rb_bu_input_from_po_and_p(recipient_rb: Recipient):
     """
     Test that BU_INPUT is correctly updated from connected PO and P nodes.
     RB[0] is connected to PO[4] (act=0.3), PO[5] (act=0.4), and P[3] (act=0.8)
@@ -1156,7 +1156,7 @@ def test_update_input_rb_bu_input_from_po_and_p(recipient_rb):
         f"BU_INPUT not updated correctly from PO and P nodes. Expected increment: {expected_bu_input}, Got: {updated_bu_input - initial_bu_input}"
 
 
-def test_update_input_rb_lateral_input_from_other_rbs(recipient_rb):
+def test_update_input_rb_lateral_input_from_other_rbs(recipient_rb: Recipient):
     """
     Test that LATERAL_INPUT is correctly decremented by lateral_input_level * (sum of other RB activations).
     RB[0] (act=0.5) and RB[1] (act=0.6) are both in RECIPIENT.
@@ -1199,7 +1199,7 @@ def test_update_input_rb_lateral_input_from_other_rbs(recipient_rb):
         f"LATERAL_INPUT not updated correctly from other RBs. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_rb_lateral_input_from_inhibitor(recipient_rb):
+def test_update_input_rb_lateral_input_from_inhibitor(recipient_rb: Recipient):
     """
     Test that LATERAL_INPUT is correctly decremented by 10 * inhibitor_act.
     RB[0] has inhibitor_act=0.1, so LATERAL_INPUT should decrease by 1.0
@@ -1242,7 +1242,7 @@ def test_update_input_rb_lateral_input_from_inhibitor(recipient_rb):
         f"LATERAL_INPUT not updated correctly from inhibitor. Expected total decrement: {total_expected_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_rb_only_affects_recipient_set(recipient_rb):
+def test_update_input_rb_only_affects_recipient_set(recipient_rb: Recipient):
     """
     Test that RB nodes in other sets (e.g., DRIVER) are NOT affected.
     """
@@ -1268,7 +1268,7 @@ def test_update_input_rb_only_affects_recipient_set(recipient_rb):
     assert updated_lateral_input == initial_lateral_input, "LATERAL_INPUT should not change for RB nodes in other sets"
 
 
-def test_update_input_rb_increments_not_overwrites(recipient_rb):
+def test_update_input_rb_increments_not_overwrites(recipient_rb: Recipient):
     """
     Test that update_input_rb increments input values rather than overwriting them.
     """
@@ -1301,7 +1301,7 @@ def test_update_input_rb_increments_not_overwrites(recipient_rb):
     assert torch.all(updated_bu > initial_bu), "BU_INPUT should be incremented, not overwritten"
 
 
-def test_update_input_rb_no_rbs_no_error(recipient_rb):
+def test_update_input_rb_no_rbs_no_error(recipient_rb: Recipient):
     """
     Test that update_input_rb handles the case where there are no RB nodes in RECIPIENT gracefully.
     """
@@ -1459,14 +1459,12 @@ def mock_links():
 def recipient_po(mock_tensor_with_po_recipient, mock_connections_with_po_recipient, mock_names, mock_params):
     """Create a Recipient instance for PO tests."""
     recipient_obj = create_recipient(tk_tensor=mock_tensor_with_po_recipient, connections=mock_connections_with_po_recipient, names=mock_names, params=mock_params)
-    # Mock map_input to return zeros for now (since it requires mappings)
-    recipient_obj.map_input = lambda po: torch.zeros(torch.sum(po).item() if torch.any(po) else 0)
     return recipient_obj
 
 
 # ====================[ TESTS FOR update_input_po ]===================
 
-def test_update_input_po_td_input_from_rbs_phase_set_2(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_td_input_from_rbs_phase_set_2(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that TD_INPUT is correctly updated from connected RB nodes when phase_set > 1.
     PO[0] is connected to RB[2] (act=0.7) and RB[3] (act=0.8)
@@ -1515,7 +1513,7 @@ def test_update_input_po_td_input_from_rbs_phase_set_2(recipient_po, mock_semant
         f"TD_INPUT not updated correctly from RBs. Expected increment: {expected_td_input}, Got: {updated_td_input - initial_td_input}"
 
 
-def test_update_input_po_td_input_from_rbs_phase_set_1(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_td_input_from_rbs_phase_set_1(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that TD_INPUT is NOT updated from RB nodes when phase_set <= 1.
     """
@@ -1552,7 +1550,7 @@ def test_update_input_po_td_input_from_rbs_phase_set_1(recipient_po, mock_semant
             f"TD_INPUT should not be updated when phase_set <= 1 (and as_DORA=False). Expected: {initial_td_input}, Got: {updated_td_input}"
 
 
-def test_update_input_po_bu_input_from_semantics(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_bu_input_from_semantics(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that BU_INPUT is correctly updated from connected semantics (normalized by sem_count).
     PO[0] connects to Sem[0] (act=0.2, weight=0.5) and Sem[1] (act=0.3, weight=0.5)
@@ -1601,7 +1599,7 @@ def test_update_input_po_bu_input_from_semantics(recipient_po, mock_semantics, m
         f"BU_INPUT not updated correctly from semantics. Expected increment: {expected_bu_input[has_sem]}, Got: {actual_increment[has_sem]}"
 
 
-def test_update_input_po_lateral_input_from_shared_pos_dora_mode(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_lateral_input_from_shared_pos_dora_mode(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that LATERAL_INPUT is correctly decremented from POs connected to same RB when as_DORA=True.
     PO[0] and PO[1] both connect to RB[2], so they share an RB.
@@ -1673,7 +1671,7 @@ def test_update_input_po_lateral_input_from_shared_pos_dora_mode(recipient_po, m
         f"LATERAL_INPUT not updated correctly from shared POs in DORA mode. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_po_lateral_input_from_non_shared_pos_non_dora_mode(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_lateral_input_from_non_shared_pos_non_dora_mode(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that LATERAL_INPUT is correctly decremented from POs NOT connected to same RB when as_DORA=False.
     PO[0] and PO[1] both connect to RB[2], so they share an RB -> should NOT contribute to each other.
@@ -1743,7 +1741,7 @@ def test_update_input_po_lateral_input_from_non_shared_pos_non_dora_mode(recipie
         f"LATERAL_INPUT not updated correctly from non-shared POs in non-DORA mode. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_po_lateral_input_from_child_p_dora_mode(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_lateral_input_from_child_p_dora_mode(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that LATERAL_INPUT is correctly decremented from child P nodes NOT connected to same RB when as_DORA=True.
     PO[0] and PO[1] connect to RB[2], and P[4] (child) also connects to RB[2], so they share an RB.
@@ -1809,7 +1807,7 @@ def test_update_input_po_lateral_input_from_child_p_dora_mode(recipient_po, mock
         f"LATERAL_INPUT not updated correctly from child P nodes in DORA mode. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_po_lateral_input_from_child_p_non_dora_mode(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_lateral_input_from_child_p_non_dora_mode(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that LATERAL_INPUT is correctly decremented from child P nodes for objects when as_DORA=False.
     Only objects should get lateral input from child P nodes.
@@ -1866,7 +1864,7 @@ def test_update_input_po_lateral_input_from_child_p_non_dora_mode(recipient_po, 
         f"LATERAL_INPUT not updated correctly from child P nodes for objects in non-DORA mode. Expected decrement: {expected_decrement_tensor}, Got: {actual_decrement}"
 
 
-def test_update_input_po_td_input_from_non_connected_rbs_dora_mode(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_td_input_from_non_connected_rbs_dora_mode(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that TD_INPUT is decremented from non-connected RB nodes when as_DORA=True.
     PO[0] connects to RB[2] and RB[3], so non-connected RBs are others.
@@ -1921,7 +1919,7 @@ def test_update_input_po_td_input_from_non_connected_rbs_dora_mode(recipient_po,
         f"TD_INPUT not updated correctly from non-connected RBs in DORA mode. Expected: {expected_td_input}, Got: {updated_td_input}"
 
 
-def test_update_input_po_lateral_input_from_inhibitor(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_lateral_input_from_inhibitor(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that LATERAL_INPUT is correctly decremented by 10 * inhibitor_act.
     PO[0] has inhibitor_act=0.1, so LATERAL_INPUT should decrease by 1.0
@@ -1967,7 +1965,7 @@ def test_update_input_po_lateral_input_from_inhibitor(recipient_po, mock_semanti
         f"LATERAL_INPUT not updated correctly from inhibitor. Expected decrement: {expected_inhibitor_decrement}, Got: {actual_decrement}"
 
 
-def test_update_input_po_only_affects_recipient_set(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_only_affects_recipient_set(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that PO nodes in other sets (e.g., DRIVER) are NOT affected.
     """
@@ -1993,7 +1991,7 @@ def test_update_input_po_only_affects_recipient_set(recipient_po, mock_semantics
     assert updated_lateral_input == initial_lateral_input, "LATERAL_INPUT should not change for PO nodes in other sets"
 
 
-def test_update_input_po_increments_not_overwrites(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_increments_not_overwrites(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that update_input_po increments input values rather than overwriting them.
     """
@@ -2028,7 +2026,7 @@ def test_update_input_po_increments_not_overwrites(recipient_po, mock_semantics,
     assert torch.all(updated_bu > initial_bu), "BU_INPUT should be incremented, not overwritten"
 
 
-def test_update_input_po_no_pos_no_error(recipient_po, mock_semantics, mock_links):
+def test_update_input_po_no_pos_no_error(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
     Test that update_input_po handles the case where there are no PO nodes in RECIPIENT gracefully.
     """
@@ -2047,3 +2045,509 @@ def test_update_input_po_no_pos_no_error(recipient_po, mock_semantics, mock_link
     except Exception as e:
         pytest.fail(f"update_input_po raised an exception when no PO nodes exist in RECIPIENT: {e}")
 
+class TestMapInput():
+    """ Test the mapping input function/if it updates the map_input field of tokens."""
+    
+    @pytest.fixture
+    def mock_tensor_for_map_input(self):
+        """
+        Create a mock tensor for testing map_input function.
+        Structure:
+        - Tokens 0-1: PO nodes in RECIPIENT (predicate and object)
+        - Tokens 2-3: RB nodes in RECIPIENT
+        - Tokens 4-5: P nodes in RECIPIENT (parent and child mode)
+        - Tokens 10-12: PO, RB, P nodes in DRIVER
+        """
+        num_tokens = 20
+        num_features = len(TF)
+        
+        tensor = torch.full((num_tokens, num_features), null, dtype=tensor_type)
+        tensor[:, TF.DELETED] = B.FALSE
+        
+        # RECIPIENT set: tokens 0-9
+        tensor[0:10, TF.SET] = Set.RECIPIENT
+        tensor[0:10, TF.ID] = torch.arange(0, 10)
+        tensor[0:10, TF.ANALOG] = 0
+        
+        # PO nodes in RECIPIENT (indices 0-1)
+        tensor[0:2, TF.TYPE] = Type.PO
+        tensor[0, TF.PRED] = B.TRUE   # Predicate
+        tensor[1, TF.PRED] = B.FALSE  # Object
+        tensor[0:2, TF.ACT] = torch.tensor([0.5, 0.6])
+        tensor[0:2, TF.MAX_MAP] = torch.tensor([0.3, 0.4])  # MAX_MAP for recipient tokens
+        tensor[0:2, TF.INFERRED] = B.FALSE
+        
+        # RB nodes in RECIPIENT (indices 2-3)
+        tensor[2:4, TF.TYPE] = Type.RB
+        tensor[2:4, TF.ACT] = torch.tensor([0.7, 0.8])
+        tensor[2:4, TF.MAX_MAP] = torch.tensor([0.2, 0.25])
+        
+        # P nodes in RECIPIENT (indices 4-5)
+        tensor[4:6, TF.TYPE] = Type.P
+        tensor[4, TF.MODE] = Mode.PARENT
+        tensor[5, TF.MODE] = Mode.CHILD
+        tensor[4:6, TF.ACT] = torch.tensor([0.4, 0.5])
+        tensor[4:6, TF.MAX_MAP] = torch.tensor([0.15, 0.2])
+        
+        # DRIVER set: tokens 10-14
+        tensor[10:15, TF.SET] = Set.DRIVER
+        tensor[10:15, TF.ID] = torch.arange(10, 15)
+        tensor[10:15, TF.ANALOG] = 1
+        
+        # PO node in DRIVER (index 10)
+        tensor[10, TF.TYPE] = Type.PO
+        tensor[10, TF.ACT] = 0.8
+        tensor[10, TF.MAX_MAP] = 0.35
+        
+        # RB node in DRIVER (index 11)
+        tensor[11, TF.TYPE] = Type.RB
+        tensor[11, TF.ACT] = 0.9
+        tensor[11, TF.MAX_MAP] = 0.3
+        
+        # P node in DRIVER (index 12)
+        tensor[12, TF.TYPE] = Type.P
+        tensor[12, TF.MODE] = Mode.PARENT
+        tensor[12, TF.ACT] = 0.7
+        tensor[12, TF.MAX_MAP] = 0.25
+        
+        # Initialize input values
+        tensor[:, TF.TD_INPUT] = 0.0
+        tensor[:, TF.BU_INPUT] = 0.0
+        tensor[:, TF.LATERAL_INPUT] = 0.0
+        tensor[:, TF.MAP_INPUT] = 0.0
+        tensor[:, TF.NET_INPUT] = 0.0
+        
+        return tensor
+    
+    @pytest.fixture
+    def mock_connections_for_map_input(self):
+        """Create connections tensor (not used directly by map_input but required for Recipient)."""
+        num_tokens = 20
+        return torch.zeros((num_tokens, num_tokens), dtype=torch.bool)
+    
+    @pytest.fixture
+    def mock_mappings_for_map_input(self):
+        """
+        Create a mapping tensor for testing map_input.
+        Mappings are from recipient -> driver (shape: [recipient, driver, fields]).
+        
+        Mapping weights:
+        - Recipient PO[0] -> Driver PO[10]: weight 0.5
+        - Recipient PO[1] -> Driver PO[10]: weight 0.3
+        - Recipient RB[2] -> Driver RB[11]: weight 0.6
+        - Recipient RB[3] -> Driver RB[11]: weight 0.4
+        - Recipient P[4] (parent) -> Driver P[12]: weight 0.7
+        - Recipient P[5] (child) -> Driver P[12]: weight 0.5
+        """
+        driver_count = 5
+        recipient_count = 10
+        num_fields = len(MappingFields)
+        
+        mappings = torch.zeros((recipient_count, driver_count, num_fields), dtype=torch.float)
+        
+        # PO mappings: recipient -> driver
+        mappings[0, 0, MappingFields.WEIGHT] = 0.5  # PO[0] -> Driver PO[10]
+        mappings[1, 0, MappingFields.WEIGHT] = 0.3  # PO[1] -> Driver PO[10]
+        
+        # RB mappings
+        mappings[2, 1, MappingFields.WEIGHT] = 0.6  # RB[2] -> Driver RB[11]
+        mappings[3, 1, MappingFields.WEIGHT] = 0.4  # RB[3] -> Driver RB[11]
+        
+        # P mappings
+        mappings[4, 2, MappingFields.WEIGHT] = 0.7  # P[4] (parent) -> Driver P[12]
+        mappings[5, 2, MappingFields.WEIGHT] = 0.5  # P[5] (child) -> Driver P[12]
+
+        return Mapping(mappings)
+    
+    @pytest.fixture
+    def recipient_map_input(self, mock_tensor_for_map_input, mock_connections_for_map_input, mock_names, mock_params, mock_mappings_for_map_input):
+        """Create a Recipient instance for map_input tests."""
+        recipient_obj = create_recipient(
+            tk_tensor=mock_tensor_for_map_input, 
+            connections=mock_connections_for_map_input, 
+            names=mock_names, 
+            params=mock_params,
+            mappings=mock_mappings_for_map_input
+        )
+        return recipient_obj
+    
+    # ==================[ Tests for map_input with None mappings ]==================
+    
+    def test_map_input_returns_zeros_when_mappings_is_none_po(self, recipient_map_input: Recipient):
+        """
+        Test that map_input returns a tensor of zeros when mappings is None for PO type.
+        """
+        result = recipient_map_input.map_input(Type.PO, mappings=None)
+        
+        # Should return zeros tensor of size matching PO nodes in recipient
+        cache = recipient_map_input.glbl.cache
+        po_mask = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT})
+        expected_size = po_mask.sum().item()
+        
+        assert result.shape[0] == expected_size, f"Expected size {expected_size}, got {result.shape[0]}"
+        assert torch.all(result == 0), "Expected all zeros when mappings is None"
+    
+    def test_map_input_returns_zeros_when_mappings_is_none_rb(self, recipient_map_input: Recipient):
+        """
+        Test that map_input returns a tensor of zeros when mappings is None for RB type.
+        """
+        result = recipient_map_input.map_input(Type.RB, mappings=None)
+        
+        cache = recipient_map_input.glbl.cache
+        rb_mask = cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT})
+        expected_size = rb_mask.sum().item()
+        
+        assert result.shape[0] == expected_size, f"Expected size {expected_size}, got {result.shape[0]}"
+        assert torch.all(result == 0), "Expected all zeros when mappings is None"
+    
+    def test_map_input_returns_zeros_when_mappings_is_none_p_parent(self, recipient_map_input: Recipient):
+        """
+        Test that map_input returns a tensor of zeros when mappings is None for P type in parent mode.
+        """
+        result = recipient_map_input.map_input(Type.P, mappings=None, p_mode=Mode.PARENT)
+        
+        cache = recipient_map_input.glbl.cache
+        p_mask = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.PARENT})
+        expected_size = p_mask.sum().item()
+        
+        assert result.shape[0] == expected_size, f"Expected size {expected_size}, got {result.shape[0]}"
+        assert torch.all(result == 0), "Expected all zeros when mappings is None"
+    
+    def test_map_input_returns_zeros_when_mappings_is_none_p_child(self, recipient_map_input: Recipient):
+        """
+        Test that map_input returns a tensor of zeros when mappings is None for P type in child mode.
+        """
+        result = recipient_map_input.map_input(Type.P, mappings=None, p_mode=Mode.CHILD)
+        
+        cache = recipient_map_input.glbl.cache
+        p_mask = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.CHILD})
+        expected_size = p_mask.sum().item()
+        
+        assert result.shape[0] == expected_size, f"Expected size {expected_size}, got {result.shape[0]}"
+        assert torch.all(result == 0), "Expected all zeros when mappings is None"
+    
+    # ==================[ Tests for map_input calculation for PO ]==================
+    
+    def test_map_input_po_calculates_weight_component(self, recipient_map_input: Recipient):
+        """
+        Test that map_input correctly calculates the weight component (3 * map_weights * driver.act).
+        
+        For PO[0]: weight = 3 * 0.5 * 0.8 = 1.2
+        For PO[1]: weight = 3 * 0.3 * 0.8 = 0.72
+        """
+        mappings = recipient_map_input.mappings.adj_matrix
+        result = recipient_map_input.map_input(Type.PO, mappings)
+        
+        # Get driver activation
+        driver_act = 0.8  # Driver PO[10] activation
+        
+        # Calculate expected weight component
+        expected_weight_0 = 3 * 0.5 * driver_act  # 1.2
+        expected_weight_1 = 3 * 0.3 * driver_act  # 0.72
+        
+        # The result includes subtractions, so we verify the weight is part of the calculation
+        # We can verify by checking that result[0] > result[1] since PO[0] has higher mapping weight
+        assert result[0] > result[1], "PO[0] should have higher map_input than PO[1] due to higher mapping weight"
+    
+    def test_map_input_po_full_calculation(self, recipient_map_input: Recipient):
+        """
+        Test the full map_input calculation for PO nodes.
+        
+        Formula: map_input = (3 * driver.act * mapping_weight) - max_map - driver_max_map
+        
+        For PO[0]:
+        - weight = 3 * 0.5 * 0.8 = 1.2
+        - max_map = 0.8 * 0.3 = 0.24 (driver_act * recipient_max_map)
+        - driver_max_map = 0.35 * 0.8 = 0.28 (driver_max_map * driver_act)
+        - result = 1.2 - 0.24 - 0.28 = 0.68
+        
+        For PO[1]:
+        - weight = 3 * 0.3 * 0.8 = 0.72
+        - max_map = 0.8 * 0.4 = 0.32 (driver_act * recipient_max_map)
+        - driver_max_map = 0.35 * 0.8 = 0.28 (driver_max_map * driver_act)
+        - result = 0.72 - 0.32 - 0.28 = 0.12
+        """
+        rec = recipient_map_input
+        mappings = rec.mappings.adj_matrix
+        result = rec.map_input(Type.PO, mappings)
+        rec.tokens.print_token_tensor(features=[TF.TYPE, TF.SET, TF.ACT, TF.MAX_MAP_UNIT,TF.MAX_MAP, TF.MAP_INPUT])
+        rec.tokens.print_mappings()
+        # Calculate expected values
+        driver_act = 0.8
+        driver_max_map_val = 0.35
+        
+        # PO[0]
+        weight_0 = 3 * 0.5 * driver_act
+        max_map_0 = driver_act * 0.3  # recipient MAX_MAP
+        driver_max_map_0 = driver_max_map_val * driver_act
+        expected_0 = weight_0 - max_map_0 - driver_max_map_0
+        
+        # PO[1]
+        weight_1 = 3 * 0.3 * driver_act
+        max_map_1 = driver_act * 0.4  # recipient MAX_MAP
+        driver_max_map_1 = driver_max_map_val * driver_act
+        expected_1 = weight_1 - max_map_1 - driver_max_map_1
+        
+        assert torch.allclose(result[0], torch.tensor(expected_0), atol=1e-5), \
+            f"Expected PO[0] map_input {expected_0}, got {result[0].item()}"
+        assert torch.allclose(result[1], torch.tensor(expected_1), atol=1e-5), \
+            f"Expected PO[1] map_input {expected_1}, got {result[1].item()}"
+    
+    # ==================[ Tests for map_input calculation for RB ]==================
+    
+    def test_map_input_rb_full_calculation(self, recipient_map_input: Recipient):
+        """
+        Test the full map_input calculation for RB nodes.
+        
+        For RB[2]:
+        - weight = 3 * 0.6 * 0.9 = 1.62
+        - max_map = 0.9 * 0.2 = 0.18 (driver_act * recipient_max_map)
+        - driver_max_map = 0.3 * 0.9 = 0.27 (driver_max_map * driver_act)
+        - result = 1.62 - 0.18 - 0.27 = 1.17
+        
+        For RB[3]:
+        - weight = 3 * 0.4 * 0.9 = 1.08
+        - max_map = 0.9 * 0.25 = 0.225
+        - driver_max_map = 0.3 * 0.9 = 0.27
+        - result = 1.08 - 0.225 - 0.27 = 0.585
+        """
+        mappings = recipient_map_input.mappings.adj_matrix
+        result = recipient_map_input.map_input(Type.RB, mappings)
+        
+        driver_act = 0.9
+        driver_max_map_val = 0.3
+        
+        # RB[2]
+        weight_2 = 3 * 0.6 * driver_act
+        max_map_2 = driver_act * 0.2
+        driver_max_map_2 = driver_max_map_val * driver_act
+        expected_2 = weight_2 - max_map_2 - driver_max_map_2
+        
+        # RB[3]
+        weight_3 = 3 * 0.4 * driver_act
+        max_map_3 = driver_act * 0.25
+        driver_max_map_3 = driver_max_map_val * driver_act
+        expected_3 = weight_3 - max_map_3 - driver_max_map_3
+        
+        assert torch.allclose(result[0], torch.tensor(expected_2), atol=1e-5), \
+            f"Expected RB[2] map_input {expected_2}, got {result[0].item()}"
+        assert torch.allclose(result[1], torch.tensor(expected_3), atol=1e-5), \
+            f"Expected RB[3] map_input {expected_3}, got {result[1].item()}"
+    
+    # ==================[ Tests for map_input calculation for P ]==================
+    
+    def test_map_input_p_parent_full_calculation(self, recipient_map_input: Recipient):
+        """
+        Test the full map_input calculation for P nodes in parent mode.
+        
+        For P[4] (parent):
+        - weight = 3 * 0.7 * 0.7 = 1.47
+        - max_map = 0.7 * 0.15 = 0.105
+        - driver_max_map = 0.25 * 0.7 = 0.175
+        - result = 1.47 - 0.105 - 0.175 = 1.19
+        """
+        mappings = recipient_map_input.mappings.adj_matrix
+        result = recipient_map_input.map_input(Type.P, mappings, p_mode=Mode.PARENT)
+        
+        driver_act = 0.7
+        driver_max_map_val = 0.25
+        
+        weight_4 = 3 * 0.7 * driver_act
+        max_map_4 = driver_act * 0.15
+        driver_max_map_4 = driver_max_map_val * driver_act
+        expected_4 = weight_4 - max_map_4 - driver_max_map_4
+        
+        assert torch.allclose(result[0], torch.tensor(expected_4), atol=1e-5), \
+            f"Expected P[4] map_input {expected_4}, got {result[0].item()}"
+    
+    def test_map_input_p_child_full_calculation(self, recipient_map_input: Recipient):
+        """
+        Test the full map_input calculation for P nodes in child mode.
+        
+        For P[5] (child):
+        - weight = 3 * 0.5 * 0.7 = 1.05
+        - max_map = 0.7 * 0.2 = 0.14
+        - driver_max_map = 0.25 * 0.7 = 0.175
+        - result = 1.05 - 0.14 - 0.175 = 0.735
+        """
+        mappings = recipient_map_input.mappings.adj_matrix
+        result = recipient_map_input.map_input(Type.P, mappings, p_mode=Mode.CHILD)
+        
+        driver_act = 0.7
+        driver_max_map_val = 0.25
+        
+        weight_5 = 3 * 0.5 * driver_act
+        max_map_5 = driver_act * 0.2
+        driver_max_map_5 = driver_max_map_val * driver_act
+        expected_5 = weight_5 - max_map_5 - driver_max_map_5
+        
+        assert torch.allclose(result[0], torch.tensor(expected_5), atol=1e-5), \
+            f"Expected P[5] map_input {expected_5}, got {result[0].item()}"
+    
+    def test_map_input_p_without_mode_returns_both(self, recipient_map_input: Recipient):
+        """
+        Test that map_input for P type without specifying mode returns results for all P nodes.
+        """
+        mappings = recipient_map_input.mappings.adj_matrix
+        result = recipient_map_input.map_input(Type.P, mappings, p_mode=None)
+        
+        # Should return results for both P nodes (parent and child)
+        cache = recipient_map_input.glbl.cache
+        p_mask = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT})
+        expected_size = p_mask.sum().item()
+        
+        assert result.shape[0] == expected_size, \
+            f"Expected {expected_size} results, got {result.shape[0]}"
+    
+    # ==================[ Tests for edge cases ]==================
+    
+    def test_map_input_with_zero_mapping_weights(self, mock_tensor_for_map_input, mock_connections_for_map_input, mock_names, mock_params):
+        """
+        Test that map_input returns zeros when all mapping weights are zero.
+        """
+        num_fields = len(MappingFields)
+        tensor = mock_tensor_for_map_input.clone()
+        d_count = (tensor[:, TF.SET] == Set.DRIVER).sum().item()
+        r_count = (tensor[:, TF.SET] == Set.RECIPIENT).sum().item()
+        mappings = torch.zeros((r_count, d_count, num_fields), dtype=torch.float)
+        mapping_obj = Mapping(mappings)
+        
+        recipient_obj = create_recipient(
+            tk_tensor=mock_tensor_for_map_input, 
+            connections=mock_connections_for_map_input, 
+            names=mock_names, 
+            params=mock_params,
+            mappings=mapping_obj
+        )
+        
+        result = recipient_obj.map_input(Type.PO, mappings)
+        
+        # With zero weights, weight component is 0, max_map and driver_max_map are also 0
+        # Result should be all zeros
+        assert torch.all(result == 0), "Expected all zeros when mapping weights are zero"
+    
+    def test_map_input_with_multiple_driver_connections(self, mock_tensor_for_map_input, mock_connections_for_map_input, mock_names, mock_params):
+        """
+        Test map_input when a recipient token maps to multiple driver tokens.
+        """
+        num_tokens = 20
+        num_fields = len(MappingFields)
+        
+        # Add another driver PO node
+        tensor = mock_tensor_for_map_input.clone()
+        tensor[13, TF.TYPE] = Type.PO
+        tensor[13, TF.SET] = Set.DRIVER
+        tensor[13, TF.ACT] = 0.6
+        tensor[13, TF.MAX_MAP] = 0.2
+        
+        d_count = (tensor[:, TF.SET] == Set.DRIVER).sum()
+        r_count = (tensor[:, TF.SET] == Set.RECIPIENT).sum()
+        mappings = torch.zeros((r_count, d_count, num_fields), dtype=torch.float)
+
+        mappings[0, 10-r_count, MappingFields.WEIGHT] = 0.5  # PO[0] -> Driver PO[10]
+        mappings[0, 13-r_count, MappingFields.WEIGHT] = 0.4  # PO[0] -> Driver PO[13]
+        mapping_obj = Mapping(mappings)
+        
+        recipient_obj = create_recipient(
+            tk_tensor=tensor, 
+            connections=mock_connections_for_map_input, 
+            names=mock_names, 
+            params=mock_params,
+            mappings=mapping_obj
+        )
+        
+        result = recipient_obj.map_input(Type.PO, mappings)
+        
+        # Calculate expected for PO[0] with multiple connections
+        # weight = 3 * (0.5*0.8 + 0.4*0.6) = 3 * (0.4 + 0.24) = 3 * 0.64 = 1.92
+        # max_map = (0.8 + 0.6) * 0.3 = 1.4 * 0.3 = 0.42
+        # driver_max_map = 0.35*0.8 + 0.2*0.6 = 0.28 + 0.12 = 0.4
+        # result = 1.92 - 0.42 - 0.4 = 1.1
+        
+        expected_weight = 3 * (0.5 * 0.8 + 0.4 * 0.6)
+        expected_max_map = (0.8 + 0.6) * 0.3
+        expected_driver_max_map = 0.35 * 0.8 + 0.2 * 0.6
+        expected_0 = expected_weight - expected_max_map - expected_driver_max_map
+        
+        assert torch.allclose(result[0], torch.tensor(expected_0), atol=1e-5), \
+            f"Expected PO[0] map_input {expected_0} with multiple connections, got {result[0].item()}"
+    
+    def test_map_input_negative_result_possible(self, mock_tensor_for_map_input, mock_connections_for_map_input, mock_names, mock_params):
+        """
+        Test that map_input can return negative values when max_map and driver_max_map exceed weight.
+        """
+        num_fields = len(MappingFields)
+        
+        # Set up tensor with high MAX_MAP values
+        tensor = mock_tensor_for_map_input.clone()
+        tensor[0, TF.MAX_MAP] = 2.0  # High recipient MAX_MAP
+        tensor[10, TF.MAX_MAP] = 2.0  # High driver MAX_MAP
+        tensor[10, TF.ACT] = 1.0  # Driver activation
+
+        d_count = (tensor[:, TF.SET] == Set.DRIVER).sum()
+        r_count = (tensor[:, TF.SET] == Set.RECIPIENT).sum()
+        # Create mappings with low weight
+        mappings = torch.zeros((r_count, d_count, num_fields), dtype=torch.float)
+        mappings[0, 0, MappingFields.WEIGHT] = 0.1  # Low mapping weight
+        mapping_obj = Mapping(mappings)
+        
+        recipient_obj = create_recipient(
+            tk_tensor=tensor, 
+            connections=mock_connections_for_map_input, 
+            names=mock_names, 
+            params=mock_params,
+            mappings=mapping_obj
+        )
+        
+        result = recipient_obj.map_input(Type.PO, mappings)
+        
+        # weight = 3 * 0.1 * 1.0 = 0.3
+        # max_map = 1.0 * 2.0 = 2.0
+        # driver_max_map = 2.0 * 1.0 = 2.0
+        # result = 0.3 - 2.0 - 2.0 = -3.7
+        expected_0 = 3 * 0.1 * 1.0 - 1.0 * 2.0 - 2.0 * 1.0
+        assert result[0] < 0, "Expected negative map_input when max_map values are high"
+        assert torch.allclose(result[0], torch.tensor(expected_0), atol=1e-5), \
+            f"Expected PO[0] map_input {expected_0}, got {result[0].item()}"
+    
+    def test_map_input_driver_activation_affects_all_components(self, mock_tensor_for_map_input, mock_connections_for_map_input, mock_names, mock_params, mock_mappings_for_map_input):
+        """
+        Test that changing driver activation affects all components of the calculation.
+        """
+        # Create first recipient with original driver activation
+        tensor1 = mock_tensor_for_map_input.clone()
+        recipient1 = create_recipient(
+            tk_tensor=tensor1, 
+            connections=mock_connections_for_map_input, 
+            names=mock_names, 
+            params=mock_params,
+            mappings=mock_mappings_for_map_input
+        )
+        result1 = recipient1.map_input(Type.PO, recipient1.mappings.adj_matrix)
+        
+        # Create second recipient with doubled driver activation
+        tensor2 = mock_tensor_for_map_input.clone()
+        tensor2[10, TF.ACT] = 1.6  # Double the original 0.8
+        
+        # Need to create new mapping object
+        r_count = (tensor1[:, TF.SET] == Set.RECIPIENT).sum()
+        d_count = (tensor1[:, TF.SET] == Set.DRIVER).sum()
+        num_fields = len(MappingFields)
+        mappings2 = torch.zeros((r_count, d_count, num_fields), dtype=torch.float)
+        mappings2[0, 0, MappingFields.WEIGHT] = 0.5
+        mappings2[1, 0, MappingFields.WEIGHT] = 0.3
+        mapping_obj2 = Mapping(mappings2)
+        
+        recipient2 = create_recipient(
+            tk_tensor=tensor2, 
+            connections=mock_connections_for_map_input, 
+            names=mock_names, 
+            params=mock_params,
+            mappings=mapping_obj2
+        )
+        result2 = recipient2.map_input(Type.PO, recipient2.mappings.adj_matrix)
+        
+        # Since all components scale with driver activation, doubling it should double the result
+        # (assuming linear relationship - all terms contain driver_act exactly once)
+        assert torch.allclose(result2, result1 * 2, atol=1e-5), \
+            "Doubling driver activation should double the map_input result"

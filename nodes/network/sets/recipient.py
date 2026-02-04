@@ -1,3 +1,4 @@
+from numpy import r_
 from .base_set import Base_Set
 from ...enums import *
 import torch 
@@ -9,6 +10,9 @@ from ...utils import tensor_ops as tOps
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..tokens import Mapping
+
+from logging import getLogger
+logger = getLogger("set")
 
 class Recipient(Base_Set):
     """
@@ -34,7 +38,7 @@ class Recipient(Base_Set):
         self.update_input_rb()
         self.update_input_po(semantics, links)
     
-    def update_input_p_parent(self):
+    def update_input_p_parent(self, mappings: torch.Tensor=None):
         """
         Update input for P units in parent mode
         """
@@ -63,7 +67,7 @@ class Recipient(Base_Set):
             nodes[rb, TF.ACT]                       # Each p node -> sum of act of connected rb nodes
             )  
         # 4). Mapping input
-        nodes[p, TF.MAP_INPUT] += self.map_input(p) 
+        nodes[p, TF.MAP_INPUT] += self.map_input(Type.P, mappings, Mode.PARENT) 
         # Inhibitory input:
         # 5). LATERAL_INPUT: (lat_input_level * other parent p nodes in recipient), inhibitor
         # 5a). Tensor to connect p nodes to each other
@@ -80,7 +84,7 @@ class Recipient(Base_Set):
         inhib_input = nodes[p, TF.INHIBITOR_ACT]
         nodes[p, TF.LATERAL_INPUT] -= torch.mul(10, inhib_input)
 
-    def update_input_p_child(self):     # P Units in child mode - recipient:
+    def update_input_p_child(self, mappings: torch.Tensor=None):     # P Units in child mode - recipient:
         """
         Update input for P units in child mode
         """
@@ -116,7 +120,7 @@ class Recipient(Base_Set):
                 )
         # 3). BU_INPUT: Semantics                                   NOTE: Not implemented yet
         # 4). Mapping input
-        nodes[p, TF.MAP_INPUT] += self.map_input(p) 
+        nodes[p, TF.MAP_INPUT] += self.map_input(Type.P, mappings, Mode.CHILD) 
         # Inhibitory input:
         # 5). LATERAL_INPUT: (Other child p), (if DORA_mode: POs not connected to same RBs / Else: All Objects)
         # 5a). other p in child mode
@@ -147,7 +151,7 @@ class Recipient(Base_Set):
                     nodes[po, TF.ACT]           # POx1, act of each PO
                 )
   
-    def update_input_rb(self):                                              # RB inputs - recipient
+    def update_input_rb(self, mappings: torch.Tensor=None):                                              # RB inputs - recipient
         """
         Update input for RB units
         """
@@ -179,7 +183,7 @@ class Recipient(Base_Set):
             nodes[po_p, TF.ACT]                                # For each rb node -> sum of act of connected po and child p nodes
             )
         # 4). Mapping input
-        nodes[rb, TF.MAP_INPUT] += self.map_input(rb) 
+        nodes[rb, TF.MAP_INPUT] += self.map_input(Type.RB, mappings) 
         # Inhibitory input:
         # 5). LATERAL: (other RBs*lat_input_level), inhibitor*10
         # 5a). (other RBs*lat_input_level)
@@ -195,7 +199,7 @@ class Recipient(Base_Set):
         inhib_act = torch.mul(10, nodes[rb, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
         nodes[rb, TF.LATERAL_INPUT] -= inhib_act       # Update lat inhibition
     
-    def update_input_po(self, semantics: Semantics, links: Links):                                      # PO units in - recipient
+    def update_input_po(self, semantics: Semantics, links: Links, mappings: torch.Tensor=None):                                      # PO units in - recipient
         """
         Update input for PO units
         """
@@ -241,7 +245,7 @@ class Recipient(Base_Set):
         )
         nodes[po_has_sem, TF.BU_INPUT] += sem_input / nodes[po_has_sem, TF.SEM_COUNT]
         # 4). Mapping input
-        nodes[po, TF.MAP_INPUT] += self.map_input(po) 
+        nodes[po, TF.MAP_INPUT] += self.map_input(Type.PO, mappings)
         # Inhibitory input:
         # 5). LATERAL: PO nodes s.t(asDORA&sameRB or [if ingore_sem: not(sameRB)&same(predOrObj) / else: not(sameRB)])
         # 5a). find other PO connected to same RB
@@ -308,7 +312,7 @@ class Recipient(Base_Set):
         nodes[po, TF.LATERAL_INPUT] -= inhib_act               # Update lat input
     
     # =================[ MAPPING INPUT FUNCTION ]===================
-    def map_input(self, t_mask):                                        # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
+    def map_input(self, type: Type, mappings: torch.Tensor, p_mode: Mode = None):                                        # Return (sum(t_mask) x 1) matrix of mapping_input for tokens in mask
         """
         Calculate mapping input for tokens in mask
         NOTE: Not implemented yet.
@@ -318,32 +322,40 @@ class Recipient(Base_Set):
         Returns:
             torch.Tensor: (sum(t_mask) x 1) matrix of mapping input.
         """
-        return 0 # TODO: implement mapping input for recipient set
-        """
-        driver = self.mappings.driver
-        map_weights = self.mappings[MappingFields.WEIGHT][t_mask] 
-        map_connections = self.mappings[MappingFields.CONNECTIONS][t_mask]
+        # Recipient mask
+        if type is Type.P and p_mode is not None:
+            r_t_mask = self.tensor_op.get_arb_mask({TF.TYPE: type, TF.MODE: p_mode})
+        else:
+            r_t_mask = self.tensor_op.get_mask(type)
+        if mappings is None:
+            return torch.zeros_like(r_t_mask[r_t_mask], dtype=tensor_type)
+        # Driver mask
+        d_mask = self.tokens.arb_mask({TF.SET: Set.DRIVER})
+        driver = self.tokens.token_tensor.tensor[d_mask]
+        # mapping weights and connections
+        map_weights = mappings[:, :,MappingFields.WEIGHT][r_t_mask] 
+        map_connections = (map_weights > 0).to(tensor_type)
 
         # 1). weight = (3*map_weight*driverToken.act)
         weight = torch.mul(                                         
             3,
             torch.matmul(
                 map_weights,
-                driver.nodes[:, TF.ACT]
+                driver[:, TF.ACT]
             )
         )
 
         # 2). max_map = (self.max_map*driverToken.act)
         act_sum = torch.matmul(                                     
             map_connections,
-            driver.nodes[:, TF.ACT]
+            driver[:, TF.ACT]
         )
-        max_map = act_sum * self.nodes[t_mask, TF.MAX_MAP]
+        max_map = act_sum * self.lcl[r_t_mask, TF.MAX_MAP]
 
         # 3). driver_max_map = (driverToken.max_map*driverToken.act)
         driver_max_map_vals = torch.mul(                                      
-            driver.nodes[:, TF.MAX_MAP],
-            driver.nodes[:, TF.ACT]
+            driver[:, TF.MAX_MAP],
+            driver[:, TF.ACT]
         )
         driver_max_map = torch.matmul(
             map_connections,
@@ -352,6 +364,9 @@ class Recipient(Base_Set):
         # 4). map_input = (3*driver.act*mapping_weight) 
         #                   - max(mapping_weight_driver_unit) 
         #                   - max(own_mapping_weight)
-        return (weight - max_map - driver_max_map)     
-        """                  
+        logger.debug(f"weight: {weight}")
+        logger.debug(f"max_map: {max_map}")
+        logger.debug(f"driver_max_map: {driver_max_map}")
+        map_input = (weight - max_map - driver_max_map)                   
+        return map_input                   
     # --------------------------------------------------------------

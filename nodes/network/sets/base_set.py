@@ -13,6 +13,9 @@ class Base_Set:
     Base class for token sets.
     """
     def __init__(self, tokens: Tokens, token_set: Set, params: Params):
+        assert isinstance(tokens, Tokens), "tokens must be a Tokens object"
+        assert isinstance(token_set, Set), "token_set must be a Set object"
+        assert isinstance(params, Params), "params must be a Params object"
         self.tokens: Tokens = tokens
         """Tokens: Tokens object"""
         self.glbl: 'Token_Tensor' = tokens.token_tensor
