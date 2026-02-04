@@ -288,7 +288,7 @@ class Tokens:
         else:
             p.print_connections_list(self, show_deleted=show_deleted, indices=indices, use_names=use_names, list_only_connected=list_only_connected)
     
-    def print_links(self, token_names: dict[int, str] = None, semantic_names: dict[int, str] = None, token_indices: torch.Tensor = None, semantic_indices: torch.Tensor = None, min_weight: float = 0.0, show_weights: bool = True):
+    def print_links(self, token_names: dict[int, str] = None, semantic_names: dict[int, str] = None, token_indices: torch.Tensor = None, semantic_indices: torch.Tensor = None, min_weight: float = 0.0, show_weights: bool = True, use_names: bool = True):
         """ 
         Print links to console as a matrix showing token-to-semantic connections.
         
@@ -299,6 +299,7 @@ class Tokens:
             semantic_indices (torch.Tensor): Optional specific semantic indices to show. If None, shows all semantics with at least one link.
             min_weight (float): Minimum weight to display. Links below this are shown as empty. Default 0.0.
             show_weights (bool): If True, show weight values. If False, show "●" for linked. Default True.
+            use_names (bool): If True, show token and semantic names. If False, show indices. Default True.
         """
         p = self._import_printer()
         if p is None:
@@ -309,7 +310,7 @@ class Tokens:
             # Use network names if not provided
             if token_names is None:
                 token_names = self.token_tensor.names
-            p.print_links(self.links, token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, semantic_indices=semantic_indices, min_weight=min_weight, show_weights=show_weights)
+            p.print_links(self.links, token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, semantic_indices=semantic_indices, min_weight=min_weight, show_weights=show_weights, use_names=use_names)
         
     def print_links_list(self, token_names: dict[int, str] = None, semantic_names: dict[int, str] = None, token_indices: torch.Tensor = None, min_weight: float = 0.0, show_weights: bool = True):
         """ 

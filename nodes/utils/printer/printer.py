@@ -425,7 +425,8 @@ class Printer:
                     token_indices: torch.Tensor = None,
                     semantic_indices: torch.Tensor = None,
                     min_weight: float = 0.0,
-                    show_weights: bool = True):
+                    show_weights: bool = True,
+                    use_names: bool = True):
         """
         Print the links tensor as a matrix showing token-to-semantic connections.
         Links tensor shape: [tokens, semantics] with float weights.
@@ -440,6 +441,7 @@ class Printer:
                                              If None, shows all semantics with at least one link.
             min_weight (float): Minimum weight to display. Links below this are shown as empty.
             show_weights (bool): If True, show weight values. If False, show "●" for linked.
+            use_names (bool): If True, show token and semantic names. If False, show indices.
         """
         # Handle Links wrapper or raw tensor
         if hasattr(links, 'adj_matrix'):
@@ -478,18 +480,18 @@ class Printer:
         
         # Helper to get token label
         def get_token_label(idx: int) -> str:
-            if token_names and idx in token_names and token_names[idx]:
+            if use_names and token_names and idx in token_names and token_names[idx]:
                 return token_names[idx]
-            return f"T{idx}"
+            return f"{idx}"
         
         # Helper to get semantic label
         def get_sem_label(idx: int) -> str:
-            if semantic_names and idx in semantic_names and semantic_names[idx]:
+            if use_names and semantic_names and idx in semantic_names and semantic_names[idx]:
                 return semantic_names[idx]
-            return f"S{idx}"
+            return f"{idx}"
         
         # Build column headers (semantic labels)
-        col_headers = ["Token"] + [get_sem_label(idx.item()) for idx in display_sem_indices]
+        col_headers = ["T\S"] + [get_sem_label(idx.item()) for idx in display_sem_indices]
         
         # Build row data
         rows = []
