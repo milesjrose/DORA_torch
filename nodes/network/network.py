@@ -469,6 +469,8 @@ class Network(object):
             min_weight (float): Minimum weight to display. Links below this are shown as empty. Default 0.0.
             show_weights (bool): If True, show weight values. If False, show "●" for linked. Default True.
         """
+        if semantic_names is None:
+            semantic_names = self.semantics.names if hasattr(self.semantics, 'names') else None
         self.tokens.print_links(token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, semantic_indices=semantic_indices, min_weight=min_weight, show_weights=show_weights)
     
     def print_links_list(self, token_names: dict[int, str] = None, semantic_names: dict[int, str] = None, token_indices: torch.Tensor = None, min_weight: float = 0.0, show_weights: bool = True):
