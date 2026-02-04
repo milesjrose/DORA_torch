@@ -1,6 +1,13 @@
 from typing import Dict, Any
+
+from torch._refs import T
+
+from nodes.enums import B
+from .print_table import tablePrinter as TablePrinter
 from ..old_net import TestDataGenerator
 from ..new_net import NetworkLoader
+from logging import getLogger
+logger = getLogger("UTIL")
 
 def load_network_from_json(file_path):
     """
@@ -479,7 +486,7 @@ def compare_mappings_weights(old_state: Dict, new_state: Dict, tolerance: float 
     return results
 
 
-def compare_states(old_state: Dict, new_state: Dict, verbose: bool = True) -> Dict[str, Any]:
+def compare_states(old_state: Dict, new_state: Dict, verbose: bool = False) -> Dict[str, Any]:
     """
     Compare two network states and identify differences.
     
@@ -505,6 +512,16 @@ def compare_states(old_state: Dict, new_state: Dict, verbose: bool = True) -> Di
         'link_diffs': {},
         'mapping_diffs': {},
     }
+
+    # Compare params
+    old_params = old_state['metadata']['parameters']
+    new_params = new_state['metadata']['parameters']
+    for key in old_params.keys():
+        if old_params[key] != new_params[key]:
+            results['match'] = False
+            results['differences'].append(f"Param {key} mismatch: old={old_params[key]}, new={new_params[key]}")
+            if verbose:
+                print(f"  ❌ {diff}")
     
     # Compare token counts
     old_counts = old_state['metadata']['token_counts']
@@ -573,25 +590,100 @@ def compare_states(old_state: Dict, new_state: Dict, verbose: bool = True) -> Di
         for name in old_names & new_names:
             old_t = old_tokens[name]
             new_t = new_tokens[name]
+            token_fields = list(old_t.keys())
+            token_fields.remove('name')
+            token_fields.remove('set')
+
+            old_set = old_t.get('set')
+            new_set = new_t.get('set')
+
+            if old_set != new_set:
+                results['match'] = False
+                diff = f"{token_type} {name}.set: old={old_set}, new={new_set}"
+                results['differences'].append(diff)
+                if verbose:
+                    print(f"  ❌ {diff}")
             
-            for field in ['set', 'analog', 'act', 'inferred']:
-                try:
-                    old_val = float(old_t.get(field))
-                    new_val = float(new_t.get(field))
-                    if abs(old_val - new_val) > 1e-6:
-                        matching = False
-                    else:
-                        matching = True
-                except:
-                    print(f"Error converting {field} to float: {old_t.get(field)} or {new_t.get(field)}")
-                    matching = (old_t.get(field) == new_t.get(field))
+            for field in token_fields:
+                if field == 'index':
+                    continue
+                old_val = old_t.get(field)
+                new_val = new_t.get(field)
+                if type(old_val) != type(new_val):
+                    logger.critical(f"Type mismatch for {field}: {type(old_val)} != {type(new_val)}")
+                    raise ValueError(f"Type mismatch for {field}: {type(old_val)} != {type(new_val)}")
+                matching = True
+                match old_val:
+                    case list():
+                        pass
+                    case dict():
+                        pass
+                    case str():
+                        matching = (old_val == new_val)
+                    case None:
+                        pass
+                    case bool():
+                        matching = (old_val == new_val)
+                    case int():
+                        matching = (old_val == new_val)
+                    case float():
+                        try:
+                            matching = (abs(float(old_val) - float(new_val)) <= 1e-6)
+                        except:
+                            logger.error(f"Error converting ({field}) to float: {old_t.get(field)} or {new_t.get(field)}")
+                            matching = (old_t.get(field) == new_t.get(field))
                 if not matching:
+                    logger.error(f"[COMP]: ({token_type}) {name}.{field}: old={old_val}, new={new_val}")
                     results['match'] = False
-                    diff = f"{token_type} {name}.{field}: old={old_t.get(field)}, new={new_t.get(field)}"
+                    diff = [token_type, [old_t.get('index'), new_t.get('index')], name, field, old_val, new_val]
                     results['differences'].append(diff)
-                    if verbose:
-                        print(f"  ❌ {diff}")
     
+    # Compare semantics by name
+    old_semantics = {s['name']: s for s in old_state['semantics']}
+    new_semantics = {s['name']: s for s in new_state['semantics']}
+    old_names = set(old_semantics.keys())
+    new_names = set(new_semantics.keys())
+    missing_in_new = old_names - new_names
+    missing_in_old = new_names - old_names - set(['MORE', 'LESS', 'SAME', 'DIFF'])
+
+    if missing_in_new:
+        results['match'] = False
+        diff = f"Semantics missing in new: {missing_in_new}"
+        results['differences'].append(diff)
+        results['semantic_diffs']['missing_in_new'] = list(missing_in_new)
+        if verbose:
+            print(f"  ❌ {diff}")
+    if missing_in_old:
+        results['match'] = False
+        diff = f"Semantics missing in old: {missing_in_old}"
+        results['differences'].append(diff)
+        results['semantic_diffs']['missing_in_old'] = list(missing_in_old)
+        if verbose:
+            print(f"  ❌ {diff}")
+    for name in old_names & new_names:
+        old_s = old_semantics[name]
+        new_s = new_semantics[name]
+        old_fields = list(old_s.keys())
+        new_fields = list(new_s.keys())
+        if not (old_fields == new_fields):
+            logger.critical(f"Semantic fields mismatch for {name}: {old_fields} != {new_fields}")
+        for field in old_fields:
+            old_val = old_s.get(field)
+            new_val = new_s.get(field)
+            if old_val in [None, 'nil'] and new_val in [None, 'nil']:
+                continue
+            if old_val != new_val:
+                if isinstance(old_val, float) or isinstance(new_val, float):
+                    if abs(float(old_val) - float(new_val)) <= 1e-6:
+                        continue
+                results['match'] = False
+                diff = ["SEM", [old_s.get('index'), new_s.get('index')], name,field, old_val, new_val]
+                results['differences'].append(diff)
+                if verbose:
+                    print(f"  ❌ {diff}")
+
+
+
     # Compare links
     old_links = set((l['po_name'], l['sem_name']) for l in old_state['links']['links_list'])
     new_links = set((l['po_name'], l['sem_name']) for l in new_state['links']['links_list'])
@@ -618,6 +710,16 @@ def compare_states(old_state: Dict, new_state: Dict, verbose: bool = True) -> Di
     if results['match'] and verbose:
         print("  ✅ States match!")
     return results
+
+def print_diffs(diffs: list, header=False):
+    """ Print a table of differences."""
+    try:
+        tp = TablePrinter(headers=["DIFF"],columns=['Type','Idxs', 'Name', 'Field', 'Old', 'New'], rows=diffs)
+        tp.print_table(header=header)
+    except Exception as e:
+        for diff in diffs:
+            print(diff)
+
 
 def load_net_from_sim(sim_path: str):
     """

@@ -5,6 +5,9 @@ import os
 from typing import Dict, List, Optional
 from .print_table import tablePrinter
 
+from logging import getLogger
+logger = getLogger("UTIL")
+
 
 class StatePrinter:
     """
@@ -75,7 +78,8 @@ class StatePrinter:
         table.print_table(header=True, column_names=True, split=False)
     
     def tokens(self, token_types: List[str] = None, 
-                     show_all_fields: bool = False, filter_set: str = None) -> None:
+                     show_all_fields: bool = False, filter_set: str = None,
+                     names: list[str] = None) -> None:
         """
         Print the tokens in the state dictionary.
         
@@ -87,27 +91,39 @@ class StatePrinter:
                                     If False, shows compact view. Default False.
             filter_set (str): Filter tokens by set ('driver', 'recipient'). 
                               If None, shows all.
+            names (list[str]): List of names to filter tokens by. If None, shows all.
         """
         if token_types is None:
             token_types = ['Ps', 'RBs', 'POs']
         
         tokens_data = self._state.get('tokens', {})
-        
+
+        num_empty = 0
+
         for token_type in token_types:
             tokens = tokens_data.get(token_type, [])
             
             if not tokens:
-                self._output(f"\n{token_type}: (none)")
+                num_empty += 1
                 continue
+                
+            if names is not None:
+                tokens = [t for t in tokens if t.get('name') in names]
+                if not tokens:
+                    num_empty += 1
+                    continue
             
             # Filter by set if specified
             if filter_set:
                 tokens = [t for t in tokens if t.get('set') == filter_set]
                 if not tokens:
-                    self._output(f"\n{token_type} ({filter_set}): (none)")
+                    num_empty += 1
                     continue
             
             self._print_token_type(tokens, token_type, show_all_fields, filter_set)
+        if num_empty == len(token_types):
+            self._output(f"No {token_types} found")
+            return
     
     def _print_token_type(self, tokens: List[Dict], token_type: str, 
                           show_all_fields: bool, filter_set: Optional[str]):
@@ -117,7 +133,7 @@ class StatePrinter:
         if show_all_fields:
             # Full field view
             if token_type == 'Ps':
-                columns = ['Name', 'Set', 'Analog', 'Act', 'Inferred', 'Child RBs']
+                columns = ['Name', 'Index', 'Set', 'Analog', 'Act', 'Inferred', 'Child RBs']
                 rows = []
                 for t in tokens:
                     child_rbs = ', '.join(t.get('child_RB_names', [])[:3])
@@ -125,6 +141,7 @@ class StatePrinter:
                         child_rbs += '...'
                     rows.append([
                         t.get('name', ''),
+                        str(t.get('index', '')),
                         t.get('set', ''),
                         str(t.get('analog', '')),
                         self._format_float(t.get('act', 0.0)),
@@ -132,7 +149,7 @@ class StatePrinter:
                         child_rbs
                     ])
             elif token_type == 'RBs':
-                columns = ['Name', 'Set', 'Analog', 'Act', 'Pred', 'Obj', 'Parent Ps']
+                columns = ['Name', 'Index', 'Set', 'Analog', 'Act', 'Pred', 'Obj', 'Parent Ps']
                 rows = []
                 for t in tokens:
                     parent_ps = ', '.join(t.get('parent_P_names', [])[:2])
@@ -140,6 +157,7 @@ class StatePrinter:
                         parent_ps += '...'
                     rows.append([
                         t.get('name', ''),
+                        str(t.get('index', '')),
                         t.get('set', ''),
                         str(t.get('analog', '')),
                         self._format_float(t.get('act', 0.0)),
@@ -148,7 +166,7 @@ class StatePrinter:
                         parent_ps
                     ])
             else:  # POs
-                columns = ['Name', 'Set', 'Analog', 'Act', 'Type', 'Parent RBs', 'Semantics']
+                columns = ['Name', 'Index', 'Set', 'Analog', 'Act', 'Type', 'Parent RBs', 'Semantics']
                 rows = []
                 for t in tokens:
                     parent_rbs = ', '.join(t.get('parent_RB_names', [])[:2])
@@ -160,6 +178,7 @@ class StatePrinter:
                     po_type = 'pred' if t.get('predOrObj') == 1 else 'obj'
                     rows.append([
                         t.get('name', ''),
+                        str(t.get('index', '')),
                         t.get('set', ''),
                         str(t.get('analog', '')),
                         self._format_float(t.get('act', 0.0)),
@@ -169,11 +188,12 @@ class StatePrinter:
                     ])
         else:
             # Compact view
-            columns = ['Name', 'Set', 'Analog', 'Act', 'Net Input', 'TD Input', 'BU Input', 'Lateral Input', 'Map Input']
+            columns = ['Name', 'Index', 'Set', 'Analog', 'Act', 'Net Input', 'TD Input', 'BU Input', 'Lateral Input', 'Map Input']
             rows = []
             for t in tokens:
                 rows.append([
                     t.get('name', ''),
+                    str(t.get('index', '')),
                     t.get('set', ''),
                     str(t.get('analog', '')),
                     self._format_float(t.get('act', 0.0)),
@@ -188,7 +208,7 @@ class StatePrinter:
         header_text = f"{token_type}{set_str} ({len(tokens)} tokens)"
         self._print_table(columns, rows, header_text)
     
-    def semantics(self, show_zero_act: bool = True) -> None:
+    def semantics(self, show_zero_act: bool = True, names: list[str] = None) -> None:
         """
         Print the semantics in the state dictionary.
         
@@ -196,6 +216,7 @@ class StatePrinter:
             state (Dict): The state dictionary containing semantic data.
             show_zero_act (bool): Whether to show semantics with zero activation.
                                   Default True.
+            names (list[str]): List of names to filter semantics by. If None, shows all.
         """
         semantics = self._state.get('semantics', [])
         
@@ -209,14 +230,22 @@ class StatePrinter:
                 self._output("Semantics: (all zero activation)")
                 return
         
-        columns = ['Name', 'Index', 'Act', 'Ont Status', 'Dimension', 'Amount']
+        if names is not None:
+            semantics = [s for s in semantics if s.get('name') in names]
+            if not semantics:
+                self._output(f"Semantics ({names}): (none)")
+                return
+        
+        columns = ['Name', 'Index', 'Act', 'Input', 'Max Input', 'Ont Status', 'Dimension', 'Amount']
         rows = []
         
         for sem in semantics:
             rows.append([
                 sem.get('name', ''),
                 str(sem.get('index', '')),
-                self._format_float(sem.get('act', 0.0)),
+                self._format_float(sem.get('act', '-')),
+                self._format_float(sem.get('input', '-')),
+                self._format_float(sem.get('max_input', '-')),
                 sem.get('ont_status', '') or '-',
                 sem.get('dimension') or '-',
                 str(sem.get('amount', '')) if sem.get('amount') is not None else '-'
@@ -226,7 +255,8 @@ class StatePrinter:
         self._print_table(columns, rows, header_text)
     
     def links(self, show_weights: bool = True, 
-                    min_weight: float = 0.0, as_matrix: bool = False) -> None:
+                    min_weight: float = 0.0, as_matrix: bool = False,
+                    names: list[str] = None) -> None:
         """
         Print the links between POs and semantics in the state dictionary.
         
@@ -250,6 +280,12 @@ class StatePrinter:
             self._output(f"Links: (none above min_weight={min_weight})")
             return
         
+        if names is not None:
+            links_list = [l for l in links_list if l.get('po_name') in names or l.get('sem_name') in names]
+            if not links_list:
+                self._output(f"Links ({names}): (none)")
+                return
+
         if as_matrix:
             self._print_links_matrix(links_list, show_weights)
         else:

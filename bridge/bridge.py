@@ -41,6 +41,11 @@ class Bridge:
         """ Load the new network from the old network. """
         state = self.old.get_state()
         self.new.load_state(state)
+    
+    def update_states(self):
+        """ Update the states of both the old and new implementations to match their saved networks. """
+        self.old.update_state()
+        self.new.update_state()
 
     def compare_states(self) -> dict:
         """Compare the states of both loaded implementations.
@@ -55,7 +60,7 @@ class Bridge:
         Raises:
             ValueError: If simulations haven't been loaded into both implementations.
         """
-        compared = compare_states(self.get_state_old(), self.get_state_new())
+        compared = compare_states(self.old.state, self.new.state)
         return compared
     
     def compare_states_arg(self, old_state: dict, new_state: dict) -> dict:
@@ -80,8 +85,8 @@ class Bridge:
         Returns:
             True if the connections match, False otherwise.
         """
-        old_state = self.get_state_old()
-        new_state = self.get_state_new()
+        old_state = self.old.state
+        new_state = self.new.state
         connections_match = compare_connections(old_state, new_state)
         links_connections_match = compare_links_connections(old_state, new_state)
         links_weights_match = compare_links_weights(old_state, new_state)
@@ -89,6 +94,9 @@ class Bridge:
         mappings_weights_match = compare_mappings_weights(old_state, new_state)
         all_match = connections_match and links_connections_match and links_weights_match and mappings_connections_match and mappings_weights_match
         return all_match
+    
+    def print_diffs(self, diffs:list):
+        print_diffs(diffs)
     
     def print_summary_old(self):
         """Print a summary of the network loaded in the old implementation.
