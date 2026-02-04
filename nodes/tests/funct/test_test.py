@@ -1,6 +1,6 @@
 # expample test file for DORA_bridge
 
-from DORA_bridge import Bridge, StatePrinter
+from bridge import Bridge, StatePrinter
 from nodes.enums import *
 from nodes.utils.printer import Printer as NodePrinter
 from nodes.network import Network
@@ -9,8 +9,8 @@ bridge = Bridge()
 def test_match_new_networks():
     bridge = Bridge()
 
-    old_net = bridge.load_sim_old("sims/testsim15.py")
-    new_net = bridge.load_sim_new("sims/testsim15.py")
+    bridge.old.load_sim("sims/testsim15.py")
+    bridge.new.load_sim("sims/testsim15.py")
 
     compared = bridge.compare_states()
     print(compared)
@@ -29,16 +29,18 @@ def test_update_recipient():
     4. Updates recipient inputs/acts in both implementations
     5. Compares the resulting states
     """
-    old_net = bridge.load_sim_old("sims/testsim15.py")
-    new_net: Network = bridge.load_sim_new("sims/testsim15.py")
+    bridge.old.load_sim("sims/testsim15.py")
+    bridge.new.load_sim("sims/testsim15.py")
 
-    memory = old_net.memory
+    new_net: Network = bridge.new.network
+    memory = bridge.old.memory
 
     sp = StatePrinter()
     np = NodePrinter()
 
     import basicRunDORA
 
+    assert compare_states(bridge), "States do not match"
     # =====================================================
     # Step 1: Set driver PO activations in both networks
     # =====================================================
@@ -64,17 +66,18 @@ def test_update_recipient():
         
     # NOTE: For some reason, we don't generate the links correctly in the new network. 
     # I assume this is because the builder is just going off names, and so when tokens/semantics have the same name in different sets,
-    # it will only add the link for the first one it finds. So for now add links manually.
-    # TODO: Fix this in the builder.
-    new_net.links.update_link(2, 0, 1.0)
-    new_net.links.update_link(2, 1, 1.0)
-    new_net.links.update_link(2, 2, 1.0)
+    # it will only add the link for the first one it finds.
+    # TODO: Fix this in the builder. UPDATED : Now using different builder, so works for now. Still need to fix.
+    if False:
+        new_net.links.update_link(2, 0, 1.0)
+        new_net.links.update_link(2, 1, 1.0)
+        new_net.links.update_link(2, 2, 1.0)
 
-    new_net.links.update_link(8, 6, 1.0)
-    new_net.links.update_link(8, 7, 1.0)
-    new_net.links.update_link(8, 8, 1.0)
-
-
+        new_net.links.update_link(8, 6, 1.0)
+        new_net.links.update_link(8, 7, 1.0)
+        new_net.links.update_link(8, 8, 1.0)
+    
+    assert compare_states(bridge), "States do not match"
     # =====================================================
     # Step 2: Update semantic inputs/acts in both networks
     # =====================================================
@@ -89,7 +92,7 @@ def test_update_recipient():
             ignore_memory_semantics=True
         )
     new_net.update_ops.inputs_sem()
-
+    assert compare_states(bridge), "States do not match"
     
     # OLD: Get max semantic input and update semantic activations
     max_input = basicRunDORA.get_max_sem_input(memory)
@@ -102,6 +105,7 @@ def test_update_recipient():
     new_net.semantics.set_max_input(max_sem_input)
     new_net.update_ops.acts_sem()
 
+    assert compare_states(bridge), "States do not match"
     # =====================================================
     # Step 3: Update recipient inputs/acts in both networks
     # =====================================================
@@ -110,8 +114,8 @@ def test_update_recipient():
     phase_set = new_net.params.phase_set
     lateral_input_level = new_net.params.lateral_input_level
     ignore_object_semantics = new_net.params.ignore_object_semantics
-    old_net.memory = basicRunDORA.update_recipient_inputs(
-        old_net.memory, 
+    memory = basicRunDORA.update_recipient_inputs(
+        memory, 
         asDORA=asDORA, 
         phase_set=phase_set, 
         lateral_input_level=lateral_input_level, 
@@ -120,20 +124,13 @@ def test_update_recipient():
 
     new_net.update_ops.inputs(Set.RECIPIENT)
 
-    np.print_token_tensor(new_net.token_tensor)
-
-    print("\n UPDATED INPUTS")
-    printer = StatePrinter()
-    print("\n=== OLD STATE ===")
-    printer.tokens(bridge.get_state_old())
-    print("\n=== NEW STATE ===")
-    printer.tokens(bridge.get_state_new())
+    assert compare_states(bridge), "States do not match"
 
     gamma = new_net.params.gamma
     delta = new_net.params.delta
     HebbBias = new_net.params.HebbBias
     
-    # Acts
+    # OLD: Update recipient acts
     for Group in memory.recipient.Groups:
         Group.update_act(gamma, delta, HebbBias)
     for myP in memory.recipient.Ps:
@@ -143,23 +140,49 @@ def test_update_recipient():
     for myPO in memory.recipient.POs:
         myPO.update_act(gamma, delta, HebbBias)
 
-    # NEW: Update recipient inputs and acts
+    # NEW: Update recipient acts
     new_net.update_ops.acts(Set.RECIPIENT)
+    assert compare_states(bridge), "States do not match"
 
-    # =====================================================
-    # Step 4: Compare states
-    # =====================================================
+
+def compare_states(bridge: Bridge):
+    bridge.update_states()
     compared = bridge.compare_states()
-    
-    # Debug: Print states if they don't match
-    if not compared['match']:
-        printer = StatePrinter()
+    match = compared['match']
+    if not match:
+        diffs = compared['differences']
+        names = []
+        for diff in diffs:
+            names.append(diff[2])
         print("\n=== OLD STATE ===")
-        printer.tokens(bridge.get_state_old())
+        po_names = [l['po_name'] for l in bridge.old.get_state().get('links', {}).get('links_list', []) if l.get('sem_name') in names]
+        bridge.old.printer.tokens(names=names+po_names)
+        bridge.old.printer.semantics(names=['lover1', 'lover2', 'lover3'])
+        bridge.old.printer.links(names=names)
         print("\n=== NEW STATE ===")
-        printer.tokens(bridge.get_state_new())
+        po_names = [l['po_name'] for l in bridge.new.get_state().get('links', {}).get('links_list', []) if l.get('sem_name') in names]
+        bridge.new.printer.tokens(names=names+po_names)
+        bridge.new.printer.semantics(names=['lover1', 'lover2', 'lover3'])
+        bridge.new.printer.links(names=names)
         print("\n=== DIFFERENCES ===")
-        print(compared)
-    
-    assert compared['match'], f"States do not match: {compared}"
+        bridge.print_diffs(compared['differences'])
+    return match
 
+def get_indices(state: dict):
+    indices = []
+    for type in ['Ps', 'RBs', 'POs']:
+        type_tokens = state['tokens'][type]
+        for token in type_tokens:
+            indices.append(token['index'])
+    return sorted(indices)
+
+def map_dict(state, indent=0):
+    """"""
+    if isinstance(state, dict):
+        for key, value in state.items():
+            print(f"{' ' * indent}{key}")
+            map_dict(value, indent+2)
+    elif isinstance(state, list) and len(state) > 0 and isinstance(state[0], dict) and False:
+        print(f"{' ' * indent}List:")
+        for item in state:
+            map_dict(item, indent+2)
