@@ -491,7 +491,7 @@ class Printer:
             return f"{idx}"
         
         # Build column headers (semantic labels)
-        col_headers = ["T\S"] + [get_sem_label(idx.item()) for idx in display_sem_indices]
+        col_headers = ["T/S"] + [get_sem_label(idx.item()) for idx in display_sem_indices]
         
         # Build row data
         rows = []
