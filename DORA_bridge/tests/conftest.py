@@ -1,13 +1,18 @@
 # conftest.py for DORA_bridge tests
+# Adds DORA_torch to Python path so 'nodes' module can be imported
 
 import sys
 from pathlib import Path
-import pytest
 
-# Add project root to path
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+# Add project root to path - MUST be done before any other imports
+# conftest.py is in DORA_torch/DORA_bridge/tests/
+# So we need to go up 3 levels: tests -> DORA_bridge -> DORA_torch
+project_root = Path(__file__).resolve().parent.parent.parent
+project_root_str = str(project_root)
+if project_root_str not in sys.path:
+    sys.path.insert(0, project_root_str)
+
+import pytest
 
 
 @pytest.fixture

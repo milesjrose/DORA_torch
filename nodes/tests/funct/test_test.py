@@ -125,9 +125,9 @@ def test_update_recipient():
     print("\n UPDATED INPUTS")
     printer = StatePrinter()
     print("\n=== OLD STATE ===")
-    printer.print_tokens(bridge.get_state_old())
+    printer.tokens(bridge.get_state_old())
     print("\n=== NEW STATE ===")
-    printer.print_tokens(bridge.get_state_new())
+    printer.tokens(bridge.get_state_new())
 
     gamma = new_net.params.gamma
     delta = new_net.params.delta
@@ -155,9 +155,9 @@ def test_update_recipient():
     if not compared['match']:
         printer = StatePrinter()
         print("\n=== OLD STATE ===")
-        printer.print_tokens(bridge.get_state_old())
+        printer.tokens(bridge.get_state_old())
         print("\n=== NEW STATE ===")
-        printer.print_tokens(bridge.get_state_new())
+        printer.tokens(bridge.get_state_new())
         print("\n=== DIFFERENCES ===")
         print(compared)
     

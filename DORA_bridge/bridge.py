@@ -4,13 +4,11 @@ This module provides utilities for loading simulations into both implementations
 and comparing their states to validate the new tensorized implementation.
 """
 
-from .load_network_from_json import NetworkLoader
-from .test_data_generator import TestDataGenerator
-from .new_network_state_generator import NewNetworkStateGenerator
+from .old_net import OldNet
+from .new_net import NewNet
 import sys
 from pathlib import Path
-from .utils import *
-from nodes.enums import B
+from .utils.utils import *
 
 
 class Bridge:
@@ -21,79 +19,28 @@ class Bridge:
     extracting their states, and comparing them for validation.
     
     Attributes:
-        NetworkLoader: Loader for reconstructing networks from JSON state files.
-        TestDataGenerator: Generator for extracting state from the old implementation.
-        NewNetworkStateGenerator: Generator for extracting state from the new implementation.
-    
-    Example:
-        >>> bridge = Bridge()
-        >>> # Load the same simulation into both implementations
-        >>> old_net = bridge.load_sim_old('sims/testsim15.py')
-        >>> new_net = bridge.load_sim_new('sims/testsim15.py')
-        >>> # Compare their states
-        >>> differences = bridge.compare_states()
-        >>> if not differences:
-        ...     print("Implementations match!")
+        old: OldNet object for the old implementation.
+        new: NewNet object for the new implementation.
     """
 
     def __init__(self):
         """Initialize the Bridge with fresh generator instances."""
-        self.NetworkLoader = NetworkLoader()
-        self.TestDataGenerator = TestDataGenerator()
-        self.NewNetworkStateGenerator = NewNetworkStateGenerator()
         currvers_dir = Path(__file__).parent / 'currVers'
         if str(currvers_dir) not in sys.path:
             sys.path.insert(0, str(currvers_dir))
-
-    def load_sim_old(self, sim_path: str):
-        """Load a simulation file into the old (currVers) implementation.
         
-        Args:
-            sim_path: Path to the simulation file (.py format).
-        
-        Returns:
-            The network object from the old implementation.
-        """
-        self.TestDataGenerator.load_sim(sim_path)
-        return self.TestDataGenerator.network
+        self.old = OldNet()
+        self.new = NewNet()
     
-    def load_sim_new(self, sim_path: str):
-        """Load a simulation file into the new (nodes/network) implementation.
-        
-        Args:
-            sim_path: Path to the simulation file (.py format).
-        
-        Returns:
-            Network: The Network object from the new implementation.
-        """
-        network = load_net_from_sim(sim_path)
-        self.NewNetworkStateGenerator.network = network
-        return network
+    def load_both(self, sim_path: str):
+        """ Load the simulation into both the old and new implementations. """
+        self.old.load_sim(sim_path)
+        self.new.load_sim(sim_path)
     
-    
-    def get_state_old(self) -> dict:
-        """Extract the current state from the old implementation.
-        
-        Returns:
-            A dictionary containing the complete state of the old network,
-            including tokens, semantics, links, mappings, and metadata.
-        
-        Raises:
-            ValueError: If no simulation has been loaded into the old implementation.
-        """
-        return self.TestDataGenerator.get_state()
-    
-    def get_state_new(self) -> dict:
-        """Extract the current state from the new implementation.
-        
-        Returns:
-            A dictionary containing the complete state of the new network,
-            including tokens, semantics, links, mappings, and metadata.
-        
-        Raises:
-            ValueError: If no simulation has been loaded into the new implementation.
-        """
-        return self.NewNetworkStateGenerator.get_state()
+    def load_new_from_old(self):
+        """ Load the new network from the old network. """
+        state = self.old.get_state()
+        self.new.load_state(state)
 
     def compare_states(self) -> dict:
         """Compare the states of both loaded implementations.

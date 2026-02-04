@@ -1,6 +1,21 @@
 from typing import Dict, Any
-from .test_data_generator import TestDataGenerator
-from .load_network_from_json import load_from_state
+from ..old_net import TestDataGenerator
+from ..new_net import NetworkLoader
+
+def load_network_from_json(file_path):
+    """
+    Convenience function to load a Network from a JSON state file.
+    
+    Args:
+        file_path: Path to the JSON state file
+        
+    Returns:
+        Network: The reconstructed Network object
+        
+    Example:
+        >>> network = load_network_from_json('test_data/state.json')
+    """
+    return NetworkLoader().load(file_path)
 
 def compare_connections(old_state: Dict, new_state: Dict, verbose: bool = False) -> Dict[str, Any]:
     """

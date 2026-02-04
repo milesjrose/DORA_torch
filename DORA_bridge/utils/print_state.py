@@ -18,7 +18,7 @@ class StatePrinter:
         print_to_console (bool): Whether to print output to console.
     """
     
-    def __init__(self, log_file: str = None, print_to_console: bool = True):
+    def __init__(self, log_file: str = None, print_to_console: bool = True, state: Dict = None):
         """
         Initialize the StatePrinter.
         
@@ -28,6 +28,15 @@ class StatePrinter:
         """
         self.log_file = log_file
         self.print_to_console = print_to_console
+        self._state = state
+    
+    def set_state(self, state: Dict):
+        """ Set the state of the StatePrinter. """
+        self._state = state
+    
+    def get_state(self):
+        """ Get the state of the StatePrinter. """
+        return self._state
     
     def _output(self, message: str):
         """
@@ -65,7 +74,7 @@ class StatePrinter:
         )
         table.print_table(header=True, column_names=True, split=False)
     
-    def print_tokens(self, state: Dict, token_types: List[str] = None, 
+    def tokens(self, token_types: List[str] = None, 
                      show_all_fields: bool = False, filter_set: str = None) -> None:
         """
         Print the tokens in the state dictionary.
@@ -82,7 +91,7 @@ class StatePrinter:
         if token_types is None:
             token_types = ['Ps', 'RBs', 'POs']
         
-        tokens_data = state.get('tokens', {})
+        tokens_data = self._state.get('tokens', {})
         
         for token_type in token_types:
             tokens = tokens_data.get(token_type, [])
@@ -179,7 +188,7 @@ class StatePrinter:
         header_text = f"{token_type}{set_str} ({len(tokens)} tokens)"
         self._print_table(columns, rows, header_text)
     
-    def print_semantics(self, state: Dict, show_zero_act: bool = True) -> None:
+    def semantics(self, show_zero_act: bool = True) -> None:
         """
         Print the semantics in the state dictionary.
         
@@ -188,7 +197,7 @@ class StatePrinter:
             show_zero_act (bool): Whether to show semantics with zero activation.
                                   Default True.
         """
-        semantics = state.get('semantics', [])
+        semantics = self._state.get('semantics', [])
         
         if not semantics:
             self._output("Semantics: (none)")
@@ -216,7 +225,7 @@ class StatePrinter:
         header_text = f"Semantics ({len(semantics)} units)"
         self._print_table(columns, rows, header_text)
     
-    def print_links(self, state: Dict, show_weights: bool = True, 
+    def links(self, show_weights: bool = True, 
                     min_weight: float = 0.0, as_matrix: bool = False) -> None:
         """
         Print the links between POs and semantics in the state dictionary.
@@ -227,7 +236,7 @@ class StatePrinter:
             min_weight (float): Minimum weight to display. Links below this are hidden.
             as_matrix (bool): If True, print as matrix. If False, print as list.
         """
-        links_data = state.get('links', {})
+        links_data = self._state.get('links', {})
         links_list = links_data.get('links_list', [])
         
         if not links_list:
@@ -242,7 +251,7 @@ class StatePrinter:
             return
         
         if as_matrix:
-            self._print_links_matrix(state, links_list, show_weights)
+            self._print_links_matrix(links_list, show_weights)
         else:
             self._print_links_list(links_list, show_weights)
     
@@ -278,9 +287,9 @@ class StatePrinter:
         header_text = f"Links List ({len(links_list)} links, {len(po_links)} POs)"
         self._print_table(columns, rows, header_text)
     
-    def _print_links_matrix(self, state: Dict, links_list: List[Dict], show_weights: bool):
+    def _print_links_matrix(self, links_list: List[Dict], show_weights: bool):
         """Print links as a matrix."""
-        links_data = state.get('links', {})
+        links_data = self._state.get('links', {})
         po_names = links_data.get('po_names', [])
         sem_names = links_data.get('semantic_names', [])
         matrix = links_data.get('matrix', [])
@@ -324,7 +333,7 @@ class StatePrinter:
         header_text = f"Links Matrix ({len(po_names)} POs × {len(active_sem_indices)} semantics)"
         self._print_table(col_headers, rows, header_text)
     
-    def print_mappings(self, state: Dict, mapping_types: List[str] = None,
+    def mappings(self, mapping_types: List[str] = None,
                        show_weights: bool = True, min_weight: float = 0.0) -> None:
         """
         Print the mappings between driver and recipient tokens in the state dictionary.
@@ -336,7 +345,7 @@ class StatePrinter:
             show_weights (bool): If True, show weight values. If False, show "●".
             min_weight (float): Minimum weight to display.
         """
-        mappings_data = state.get('mappings', {})
+        mappings_data = self._state.get('mappings', {})
         
         if mapping_types is None:
             mapping_types = ['P', 'RB', 'PO']
@@ -379,7 +388,7 @@ class StatePrinter:
         if total_mappings == 0:
             self._output(f"Mappings: (none above min_weight={min_weight})")
     
-    def print_connections(self, state: Dict, connection_types: List[str] = None) -> None:
+    def connections(self, connection_types: List[str] = None) -> None:
         """
         Print the structural connections between tokens in the state dictionary.
         
@@ -389,7 +398,7 @@ class StatePrinter:
                                           ('P_to_RB', 'RB_to_PO', 'RB_to_childP').
                                           If None, prints all types.
         """
-        connections_data = state.get('connections', {})
+        connections_data = self._state.get('connections', {})
         
         if connection_types is None:
             connection_types = ['P_to_RB', 'RB_to_PO', 'RB_to_childP']
@@ -426,14 +435,14 @@ class StatePrinter:
             header_text = f"{conn_display} ({len(connections)} connections)"
             self._print_table(columns, rows, header_text)
     
-    def print_analogs(self, state: Dict) -> None:
+    def analogs(self) -> None:
         """
         Print the analog groups in the state dictionary.
         
         Args:
             state (Dict): The state dictionary containing analog data.
         """
-        analogs = state.get('analogs', [])
+        analogs = self._state.get('analogs', [])
         
         if not analogs:
             self._output("Analogs: (none)")
@@ -455,13 +464,14 @@ class StatePrinter:
             
             self._print_table(columns, rows, header_text)
     
-    def print_summary(self, state: Dict) -> None:
+    def summary(self) -> None:
         """
         Print a summary of the state dictionary.
         
         Args:
             state (Dict): The state dictionary.
         """
+        state = self._state
         metadata = state.get('metadata', {})
         counts = metadata.get('token_counts', {})
         driver = state.get('driver', {}).get('counts', {})
@@ -491,7 +501,7 @@ class StatePrinter:
         header_text = "Network State Summary"
         self._print_table(columns, rows, header_text)
     
-    def print_state(self, state: Dict, verbose: bool = True) -> None:
+    def all(self, verbose: bool = True) -> None:
         """
         Print a complete overview of the state dictionary.
         
@@ -499,23 +509,24 @@ class StatePrinter:
             state (Dict): The state dictionary to print.
             verbose (bool): If True, print detailed information. Default True.
         """
+        state = self.get_state()
         self.print_summary(state)
         self._output("")
         
         if verbose:
-            self.print_tokens(state, show_all_fields=True)
+            self.tokens(state, show_all_fields=True)
             self._output("")
             
-            self.print_semantics(state)
+            self.semantics(state)
             self._output("")
             
-            self.print_connections(state)
+            self.connections(state)
             self._output("")
             
-            self.print_links(state)
+            self.links(state)
             self._output("")
             
-            self.print_mappings(state)
+            self.mappings(state)
     
     def _format_float(self, value: float) -> str:
         """Format a float value nicely."""
@@ -541,8 +552,8 @@ def print_tokens(state: Dict, token_types: List[str] = None,
         show_all_fields (bool): If True, shows all available fields.
         filter_set (str): Filter tokens by set ('driver', 'recipient').
     """
-    printer = StatePrinter()
-    printer.print_tokens(state, token_types, show_all_fields, filter_set)
+    printer = StatePrinter(state=state)
+    printer.tokens(state, token_types, show_all_fields, filter_set)
 
 
 def print_semantics(state: Dict, show_zero_act: bool = True) -> None:
@@ -553,8 +564,8 @@ def print_semantics(state: Dict, show_zero_act: bool = True) -> None:
         state (Dict): The state dictionary containing semantic data.
         show_zero_act (bool): Whether to show semantics with zero activation.
     """
-    printer = StatePrinter()
-    printer.print_semantics(state, show_zero_act)
+    printer = StatePrinter(state=state)
+    printer.semantics(state, show_zero_act)
 
 
 def print_links(state: Dict, show_weights: bool = True,
@@ -569,7 +580,7 @@ def print_links(state: Dict, show_weights: bool = True,
         as_matrix (bool): If True, print as matrix. If False, print as list.
     """
     printer = StatePrinter()
-    printer.print_links(state, show_weights, min_weight, as_matrix)
+    printer.links(state, show_weights, min_weight, as_matrix)
 
 
 def print_mappings(state: Dict, mapping_types: List[str] = None,
@@ -584,7 +595,7 @@ def print_mappings(state: Dict, mapping_types: List[str] = None,
         min_weight (float): Minimum weight to display.
     """
     printer = StatePrinter()
-    printer.print_mappings(state, mapping_types, show_weights, min_weight)
+    printer.mappings(state, mapping_types, show_weights, min_weight)
 
 
 def print_connections(state: Dict, connection_types: List[str] = None) -> None:
@@ -596,4 +607,4 @@ def print_connections(state: Dict, connection_types: List[str] = None) -> None:
         connection_types (list[str]): Which connection types to print.
     """
     printer = StatePrinter()
-    printer.print_connections(state, connection_types)
+    printer.connections(state, connection_types)

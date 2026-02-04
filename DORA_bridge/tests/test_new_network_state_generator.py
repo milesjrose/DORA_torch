@@ -2,18 +2,66 @@
 # Tests for NewNetworkStateGenerator class
 
 import pytest
-import pickle
-import json
-from pathlib import Path
-
-from DORA_bridge import (
-    NewNetworkStateGenerator,
-    new_load_state,
-    new_load_state_json,
-    compare_states
-)
+from ..new_net import NewNetworkStateGenerator, NetworkLoader
+from ..bridge import compare_states
 from nodes.enums import TF, Type, B
 import torch
+import json
+import pickle
+
+def load_network_from_json(file_path):
+    """
+    Convenience function to load a Network from a JSON state file.
+    
+    Args:
+        file_path: Path to the JSON state file
+        
+    Returns:
+        Network: The reconstructed Network object
+        
+    Example:
+        >>> network = load_network_from_json('test_data/state.json')
+    """
+    return NetworkLoader().load(file_path)
+
+def load_from_state(state):
+    """
+    Load a Network from a state dictionary.
+    
+    Args:
+        state: State dictionary
+    
+    Returns:
+        Network: The reconstructed Network object
+    """
+    return NetworkLoader().load_from_state(state)
+
+def load_state(file_path):
+    """
+    Load a previously saved state from a pickle file.
+    
+    Args:
+        file_path: Path to the pickle file
+        
+    Returns:
+        The saved state dictionary
+    """
+    with open(file_path, 'rb') as f:
+        return pickle.load(f)
+
+
+def load_state_json(file_path):
+    """
+    Load a previously saved state from a JSON file.
+    
+    Args:
+        file_path: Path to the JSON file
+        
+    Returns:
+        The saved state dictionary
+    """
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
 
 # =====================[ Initialization Tests ]======================
@@ -439,7 +487,7 @@ class TestSaveState:
 # =====================[ Load State Tests ]======================
 
 class TestLoadState:
-    """Tests for new_load_state functions."""
+    """Tests for load_state functions."""
 
     def test_load_state_pickle(self, testsim_path, tmp_output_dir):
         """Test loading state from pickle file."""
@@ -449,7 +497,7 @@ class TestLoadState:
         output_path = tmp_output_dir / "state.pkl"
         gen.save_state(output_path, format='pickle')
 
-        loaded_state = new_load_state(output_path)
+        loaded_state = load_state(output_path)
 
         assert isinstance(loaded_state, dict)
         assert 'tokens' in loaded_state
@@ -462,7 +510,7 @@ class TestLoadState:
         output_path = tmp_output_dir / "state.json"
         gen.save_state(output_path, format='json')
 
-        loaded_state = new_load_state_json(output_path)
+        loaded_state = load_state_json(output_path)
 
         assert isinstance(loaded_state, dict)
         assert 'tokens' in loaded_state
@@ -477,7 +525,7 @@ class TestLoadState:
         output_path = tmp_output_dir / "state.pkl"
         gen.save_state(output_path)
 
-        loaded_state = new_load_state(output_path)
+        loaded_state = load_state(output_path)
 
         # Token counts should match
         assert len(loaded_state['tokens']['Ps']) == len(original_state['tokens']['Ps'])
@@ -606,8 +654,8 @@ class TestIntegration:
         gen.save_state(after_path)
 
         # Load both and compare
-        initial_state = new_load_state(initial_path)
-        after_state = new_load_state(after_path)
+        initial_state = load_state(initial_path)
+        after_state = load_state(after_path)
 
         # Both should be valid
         assert 'tokens' in initial_state
@@ -646,8 +694,8 @@ class TestIntegration:
         gen.save_state(path1)
         gen.save_state(path2)
 
-        state1 = new_load_state(path1)
-        state2 = new_load_state(path2)
+        state1 = load_state(path1)
+        state2 = load_state(path2)
 
         # States should be identical
         assert state1['metadata']['token_counts'] == state2['metadata']['token_counts']

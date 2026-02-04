@@ -1,6 +1,4 @@
-# DORA_bridge/test_data_generator.py
-# Class for generating and inspecting test data from currVers
-
+from .utils.print_state import StatePrinter
 import sys
 import json
 import pickle
@@ -9,6 +7,64 @@ from typing import Optional, Dict, List, Any, Union
 
 from logging import getLogger
 logger = getLogger(__name__)
+
+class OldNet:
+    """
+    A class for holding the old network object.
+    """
+    def __init__(self, parameters: Optional[Dict] = None):
+        self.memory = None
+        self.state = None
+        self.sim_path = None
+        self.generator = TestDataGenerator(parameters)
+        self.printer = StatePrinter()
+    
+    def load_sim(self, sim_path: str):
+        """ Load a simulation file into the old network. """
+        self.sim_path = sim_path
+        self.generator.load_sim(sim_path)
+        self.memory = self.generator.memory
+        self.state = self.generator.get_state()
+        self.printer.set_state(self.state)
+    
+    def load_props(self, props: dict):
+        """ Load a props dictionary into the old network. """
+        self.generator.load_props(props)
+        self.memory = self.generator.memory
+        self.state = self.generator.get_state()
+        self.printer.set_state(self.state)
+    
+    def load_state(self, state: dict):
+        """ Load a state into the old network. """
+        raise NotImplementedError("Loading state from dictionary is not implemented for the old network.")
+    
+    def save_state(self, path: str, format: str = 'pickle'):
+        """ Save the state of the old network to a file. """
+        self.generator.save_state(path, format)
+
+    def get_state(self):
+        """ Get the state of the old network. """
+        return self.state
+    
+    def print_summary(self):
+        """ Print a summary of the old network. """
+        self.generator.print_summary()
+    
+    def print_tokens(self):
+        """ Print the tokens of the old network. """
+        self.generator.print_tokens()
+    
+    def print_semantics(self):
+        """ Print the semantics of the old network. """
+        self.generator.print_semantics()
+    
+    def print_links(self):
+        """ Print the links of the old network. """
+        self.generator.print_links()
+    
+    def print_mappings(self):
+        """ Print the mappings of the old network. """
+        self.generator.print_mappings()
 
 
 class TestDataGenerator:

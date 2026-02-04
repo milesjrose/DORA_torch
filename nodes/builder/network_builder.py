@@ -85,7 +85,7 @@ class NetworkBuilder(object):
             tokens = Tokens(token_tensor, connections, links, mapping)
             
             # 4. Create and return Network
-            network = Network(tokens, semantics, mapping, links, self.params)
+            network = Network(tokens, semantics, self.params)
             return network
         else:
             raise ValueError("No symProps or file_path provided")
@@ -223,7 +223,7 @@ class NetworkBuilder(object):
         # Create names dict
         names = {i: name for i, name in enumerate(self._token_names)}
         
-        return Token_Tensor(tokens_data, connections, names)
+        return Token_Tensor(tokens_data, names)
     
     def _build_connections_tensor(self) -> Connections_Tensor:
         """Build the Connections_Tensor from parent-child pairs."""

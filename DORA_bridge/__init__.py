@@ -2,7 +2,7 @@
 # Used for testing, validation, and generating expected outputs
 
 from .bridge import Bridge
-from .print_state import StatePrinter
+from .utils.print_state import StatePrinter
 
 __all__ = [
     'Bridge',

@@ -4,10 +4,33 @@
 import pytest
 import pickle
 import json
-from pathlib import Path
+from ..old_net import TestDataGenerator
 
-from DORA_bridge import TestDataGenerator, load_state, load_state_json
+def load_state(file_path):
+    """
+    Load a previously saved state from a pickle file.
+    
+    Args:
+        file_path: Path to the pickle file
+        
+    Returns:
+        The saved state dictionary
+    """
+    with open(file_path, 'rb') as f:
+        return pickle.load(f)
 
+def load_state_json(file_path):
+    """
+    Load a previously saved state from a JSON file.
+    
+    Args:
+        file_path: Path to the JSON file
+        
+    Returns:
+        The saved state dictionary
+    """
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
 # =====================[ Initialization Tests ]======================
 
