@@ -9,6 +9,7 @@ from .new_net import NewNet
 import sys
 from pathlib import Path
 from .utils.utils import *
+from nodes.utils.printer.print_table import OutputType
 
 
 class Bridge:
@@ -47,12 +48,15 @@ class Bridge:
         self.old.update_state()
         self.new.update_state()
 
-    def compare_states(self) -> dict:
+    def compare_states(self, print_diffs: bool = True, return_diffs: bool = False) -> dict:
         """Compare the states of both loaded implementations.
         
         Extracts states from both the old and new implementations and
         performs a detailed comparison to identify any differences.
-        
+
+        Args:
+            print_diffs: Whether to print a summary of the differences between the two states
+            return_diffs: Whether to return the differences between the two states
         Returns:
             A dictionary containing any differences found between the two
             implementations. Empty dict if implementations match exactly.
@@ -60,8 +64,39 @@ class Bridge:
         Raises:
             ValueError: If simulations haven't been loaded into both implementations.
         """
-        compared = compare_states(self.old.state, self.new.state)
-        return compared
+        self.update_states()
+        old_state = self.old.state
+        new_state = self.new.state
+        compared = compare_states(old_state, new_state)
+        matched = compared['match']
+        if print_diffs and not matched:
+            self.set_print_output_type(OutputType.PRINT_CONSOLE)
+            diffs = compared['differences']
+            names = []
+            for diff in diffs:
+                names.append(diff[2])
+            print("\n=== OLD STATE ===")
+            po_names = [l['po_name'] for l in old_state.get('links', {}).get('links_list', []) if l.get('sem_name') in names]
+            self.old.printer.tokens(names=names+po_names)
+            self.old.printer.semantics(names=['lover1', 'lover2', 'lover3'])
+            self.old.printer.links(names=names)
+            print("\n=== NEW STATE ===")
+            po_names = [l['po_name'] for l in new_state.get('links', {}).get('links_list', []) if l.get('sem_name') in names]
+            self.new.printer.tokens(names=names+po_names)
+            self.new.printer.semantics(names=['lover1', 'lover2', 'lover3'])
+            self.new.printer.links(names=names)
+            print("\n=== DIFFERENCES ===")
+            self.print_diffs(compared['differences'])
+            self.set_print_output_type(OutputType.SINGLE_LOG_CONSOLE)
+        if return_diffs:
+            return compared
+        else:
+            return matched
+    
+    def set_print_output_type(self, output_type: OutputType):
+        """ Set the output type for the printer. """
+        self.old.printer.output_type = output_type
+        self.new.printer.output_type = output_type
     
     def compare_states_arg(self, old_state: dict, new_state: dict) -> dict:
         """Compare two state dictionaries directly.
