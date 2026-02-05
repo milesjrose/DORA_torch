@@ -26,7 +26,14 @@ def test_update_recipient():
 
     import basicRunDORA
 
-    assert bridge.compare_states(), "States do not match"
+    assert bridge.compare_states(), "Mismatch after loading sim"
+    # Try set the p mode in both networks
+    #old
+    for myP in memory.Ps:
+        myP.get_Pmode()
+    #new
+    new_net.node_ops.get_pmode()
+    assert bridge.compare_states(), "Mismatch after get p mode"
 
     # =====================================================
     # Step 1: Set driver PO activations in both networks
@@ -64,7 +71,7 @@ def test_update_recipient():
         new_net.links.update_link(8, 7, 1.0)
         new_net.links.update_link(8, 8, 1.0)
     
-    assert bridge.compare_states(), "States do not match"
+    assert bridge.compare_states(), "Mismatch after setting driver PO activations"
     # =====================================================
     # Step 2: Update semantic inputs/acts in both networks
     # =====================================================
@@ -79,7 +86,7 @@ def test_update_recipient():
             ignore_memory_semantics=True
         )
     new_net.update_ops.inputs_sem()
-    assert bridge.compare_states(), "States do not match"
+    assert bridge.compare_states(), "Mismatch after update semantic inputs"
     
     # OLD: Get max semantic input and update semantic activations
     max_input = basicRunDORA.get_max_sem_input(memory)
@@ -92,12 +99,12 @@ def test_update_recipient():
     new_net.semantics.set_max_input(max_sem_input)
     new_net.update_ops.acts_sem()
 
-    assert bridge.compare_states(), "States do not match"
+    assert bridge.compare_states(), "Mismatch after update semantic acts"
     # =====================================================
     # Step 3: Test some update cycles
     # =====================================================
 
-    for i in range(5):
+    for i in range(10):
         # Inputs
         # - old
         logger.info(" -------------------------------> UPDATING INPUTS OLD - CYCLE " + str(i))
@@ -134,8 +141,15 @@ def test_update_recipient():
         new_net.update_ops.acts(Set.RECIPIENT)
         # Compare
         logger.info(" ===============================> UPDATED ACTS - CYCLE " + str(i))
-        new_net.params.phase_set += 1
         assert bridge.compare_states(), "Mismatch after update acts"
+            # Try set the p mode in both networks
+        #old
+        for myP in memory.Ps:
+            myP.get_Pmode()
+        #new
+        new_net.node_ops.get_pmode()
+        assert bridge.compare_states(), "Mismatch after get p mode"
+        new_net.params.phase_set += 1
 
 def test_update_driver():
     """
