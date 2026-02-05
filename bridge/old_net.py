@@ -372,6 +372,11 @@ class TestDataGenerator:
                 'child_P_name': myRB.myChildP[0].name if myRB.myChildP else None,
             })
             i += 1
+        mode_dict = {
+            -1: 'child',
+            0: 'neutral',
+            1: 'parent',
+        }
         for myP in self.memory.Ps:
             tokens['Ps'].append({
                 'index': i,
@@ -387,6 +392,7 @@ class TestDataGenerator:
                 'max_map': myP.max_map,
                 'max_map_unit_name': myP.max_map_unit.name if myP.max_map_unit else None,
                 'inferred': getattr(myP, 'inferred', False),
+                'mode': mode_dict[myP.mode],
                 'child_RB_names': [rb.name for rb in myP.myRBs],
                 'parent_RB_names': [rb.name for rb in myP.myParentRBs] if hasattr(myP, 'myParentRBs') else [],
             })

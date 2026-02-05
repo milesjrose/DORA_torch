@@ -242,7 +242,11 @@ class NetworkLoader:
         # Create token tensor
         tokens_data = torch.full((num_tokens, len(TF)), null, dtype=tensor_type)
         names = {}
-        
+        mode_dict = {
+            'child': Mode.CHILD,
+            'neutral': Mode.NEUTRAL,
+            'parent': Mode.PARENT,
+        }
         for i, (token_type, token_data) in enumerate(all_tokens):
             original_idx = token_data['index']
             i = original_idx
@@ -271,6 +275,9 @@ class NetworkLoader:
             if token_type == 'PO':
                 pred_or_obj = token_data.get('predOrObj', 0)
                 tokens_data[i, TF.PRED] = B.TRUE if pred_or_obj == 1 else B.FALSE
+            if token_type == 'P':
+                mode = token_data.get('mode', 0)
+                tokens_data[i, TF.MODE] = mode_dict[mode]
             
             # Store name
             names[i] = token_data['name']
@@ -723,9 +730,14 @@ class NewNetworkStateGenerator:
                 child_rb_names = self._get_child_names(idx_int, Type.RB)
                 # Get parent RBs (look for RBs that have this P as child)
                 parent_rb_names = self._get_parent_rb_names_for_p(idx_int)
-                
+                mode_dict = {
+                    Mode.CHILD: 'child',
+                    Mode.NEUTRAL: 'neutral',
+                    Mode.PARENT: 'parent',
+                }
                 tokens['Ps'].append({
                     **base_props,
+                    'mode': mode_dict[int(tensor_row[TF.MODE].item())],
                     'child_RB_names': child_rb_names,
                     'parent_RB_names': parent_rb_names,
                 })

@@ -135,7 +135,7 @@ class StatePrinter:
         if show_all_fields:
             # Full field view
             if token_type == 'Ps':
-                columns = ['Name', 'Index', 'Set', 'Analog', 'Act', 'Inferred', 'Child RBs']
+                columns = ['Name', 'Index', 'Set', 'Analog', 'Act', 'Mode', 'Inferred', 'Child RBs']
                 rows = []
                 for t in tokens:
                     child_rbs = ', '.join(t.get('child_RB_names', [])[:3])
@@ -147,6 +147,7 @@ class StatePrinter:
                         t.get('set', ''),
                         str(t.get('analog', '')),
                         self._format_float(t.get('act', 0.0)),
+                        str(t.get('mode', 0)),
                         str(t.get('inferred', False)),
                         child_rbs
                     ])
@@ -190,7 +191,7 @@ class StatePrinter:
                     ])
         else:
             # Compact view
-            columns = ['Name', 'Index', 'Set', 'Analog', 'Act', 'Net Input', 'TD Input', 'BU Input', 'Lateral Input', 'Map Input']
+            columns = ['Name', 'Index', 'Set', 'Analog', 'Act', 'Mode', 'Net Input', 'TD Input', 'BU Input', 'Lateral Input', 'Map Input']
             rows = []
             for t in tokens:
                 rows.append([
@@ -199,6 +200,7 @@ class StatePrinter:
                     t.get('set', ''),
                     str(t.get('analog', '')),
                     self._format_float(t.get('act', 0.0)),
+                    str(t.get('mode', '-')),
                     self._format_float(t.get('net_input', 0.0)),
                     self._format_float(t.get('td_input', 0.0)),
                     self._format_float(t.get('bu_input', 0.0)),
