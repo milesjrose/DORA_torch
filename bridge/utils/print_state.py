@@ -33,6 +33,7 @@ class StatePrinter:
         self.print_to_console = print_to_console
         self._state = state
         self.output_type = OutputType.SINGLE_LOG_CONSOLE
+        self.header_text = None
     
     def set_state(self, state: Dict):
         """ Set the state of the StatePrinter. """
@@ -80,8 +81,10 @@ class StatePrinter:
         table.print_table(header=True, column_names=True, split=False)
     
     def tokens(self, token_types: List[str] = None, 
-                     show_all_fields: bool = False, filter_set: str = None,
-                     names: list[str] = None) -> None:
+                     show_all_fields: bool = False, 
+                     filter_set: str = None,
+                     names: list[str] = None,
+                     compact: bool = True) -> None:
         """
         Print the tokens in the state dictionary.
         
@@ -96,12 +99,15 @@ class StatePrinter:
             names (list[str]): List of names to filter tokens by. If None, shows all.
         """
         if token_types is None:
-            token_types = ['Ps', 'RBs', 'POs']
+            if compact:
+                token_types = ['POs', 'RBs', 'Ps']
+            else:
+                token_types = ['Ps', 'RBs', 'POs']
         
         tokens_data = self._state.get('tokens', {})
 
         num_empty = 0
-
+        total = []
         for token_type in token_types:
             tokens = tokens_data.get(token_type, [])
             
@@ -121,8 +127,14 @@ class StatePrinter:
                 if not tokens:
                     num_empty += 1
                     continue
-            
-            self._print_token_type(tokens, token_type, show_all_fields, filter_set)
+            if compact:
+                total.extend(tokens)
+            else: 
+                self._print_token_type(tokens, token_type, show_all_fields, filter_set)
+        
+        if compact:
+            self._print_token_type(total, 'All', show_all_fields, filter_set)
+
         if num_empty == len(token_types):
             self._output(f"No {token_types} found")
             return
@@ -132,6 +144,8 @@ class StatePrinter:
         """
         Print a specific token type.
         """
+        set_str = f" ({filter_set})" if filter_set else ""
+        header_text = f"{token_type}{set_str} ({len(tokens)} tokens)"
         if show_all_fields:
             # Full field view
             if token_type == 'Ps':
@@ -191,12 +205,13 @@ class StatePrinter:
                     ])
         else:
             # Compact view
-            columns = ['Name', 'Index', 'Set', 'Analog', 'Act', 'Mode', 'Net Input', 'TD Input', 'BU Input', 'Lateral Input', 'Map Input']
+            columns = ['Name', 'Index', 'Type', 'Set', 'Analog', 'Act', 'Mode', 'Net Input', 'TD Input', 'BU Input', 'Lateral Input', 'Map Input']
             rows = []
             for t in tokens:
                 rows.append([
                     t.get('name', ''),
                     str(t.get('index', '')),
+                    t.get('type', ''),
                     t.get('set', ''),
                     str(t.get('analog', '')),
                     self._format_float(t.get('act', 0.0)),
@@ -207,9 +222,9 @@ class StatePrinter:
                     self._format_float(t.get('lateral_input', 0.0)),
                     self._format_float(t.get('map_input', 0.0)),
                 ])
+            if self.header_text is not None:
+                header_text = f"{self.header_text}{set_str} ({len(tokens)} tokens)"
         
-        set_str = f" ({filter_set})" if filter_set else ""
-        header_text = f"{token_type}{set_str} ({len(tokens)} tokens)"
         self._print_table(columns, rows, header_text)
     
     def semantics(self, show_zero_act: bool = True, names: list[str] = None) -> None:
@@ -217,7 +232,6 @@ class StatePrinter:
         Print the semantics in the state dictionary.
         
         Args:
-            state (Dict): The state dictionary containing semantic data.
             show_zero_act (bool): Whether to show semantics with zero activation.
                                   Default True.
             names (list[str]): List of names to filter semantics by. If None, shows all.

@@ -588,9 +588,13 @@ def compare_states(old_state: Dict, new_state: Dict, verbose: bool = False) -> D
                 print(f"  ❌ {diff}")
         
         # Compare matching tokens
-        for name in old_names & new_names:
-            old_t = old_tokens[name]
-            new_t = new_tokens[name]
+        old_tks = {t['index']: t for t in old_state['tokens'][token_type]}
+        new_tks = {t['index']: t for t in new_state['tokens'][token_type]}
+        old_indices = set(old_tks.keys())
+        new_indices = set(new_tks.keys())
+        for index in old_indices & new_indices:
+            old_t = old_tks[index]
+            new_t = new_tks[index]
             token_fields = list(old_t.keys())
             token_fields.remove('name')
             token_fields.remove('set')
@@ -634,9 +638,9 @@ def compare_states(old_state: Dict, new_state: Dict, verbose: bool = False) -> D
                             logger.error(f"Error converting ({field}) to float: {old_t.get(field)} or {new_t.get(field)}")
                             matching = (old_t.get(field) == new_t.get(field))
                 if not matching:
-                    logger.error(f"[COMP]: ({token_type}) {name}.{field}: old={old_val}, new={new_val}")
+                    logger.error(f"[COMP]: ({token_type}) {old_t.get('name')}[{index}].{field}: old={old_val}, new={new_val}")
                     results['match'] = False
-                    diff = [token_type, [old_t.get('index'), new_t.get('index')], name, field, old_val, new_val]
+                    diff = [token_type, index, old_t.get('name'), field, old_val, new_val]
                     results['differences'].append(diff)
     
     # Compare semantics by name

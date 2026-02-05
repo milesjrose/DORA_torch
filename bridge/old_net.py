@@ -18,6 +18,7 @@ class OldNet:
         self.sim_path = None
         self.generator = TestDataGenerator(parameters)
         self.printer = StatePrinter()
+        self.printer.header_text = "OLD"
     
     def load_sim(self, sim_path: str):
         """ Load a simulation file into the old network. """
@@ -348,6 +349,7 @@ class TestDataGenerator:
                 'inferred': getattr(myPO, 'inferred', False),
                 'parent_RB_names': [rb.name for rb in myPO.myRBs],
                 'semantic_names': [link.mySemantic.name for link in myPO.mySemantics],
+                'type': 'PO',
             })
             i += 1
         # Extract RB tokens
@@ -370,6 +372,7 @@ class TestDataGenerator:
                 'pred_name': myRB.myPred[0].name if myRB.myPred else None,
                 'obj_name': myRB.myObj[0].name if myRB.myObj else None,
                 'child_P_name': myRB.myChildP[0].name if myRB.myChildP else None,
+                'type': 'RB',
             })
             i += 1
         mode_dict = {
@@ -395,6 +398,7 @@ class TestDataGenerator:
                 'mode': mode_dict[myP.mode],
                 'child_RB_names': [rb.name for rb in myP.myRBs],
                 'parent_RB_names': [rb.name for rb in myP.myParentRBs] if hasattr(myP, 'myParentRBs') else [],
+                'type': 'P',
             })
             i += 1
         

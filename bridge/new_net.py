@@ -27,6 +27,7 @@ class NewNet:
         self.generator = NewNetworkStateGenerator(parameters)
         self.loader = NetworkLoader()
         self.printer = StatePrinter()
+        self.printer.header_text = "NEW"
         self.network = None
     
     def set_network(self, network: Network):
@@ -703,6 +704,12 @@ class NewNetworkStateGenerator:
         non_deleted_mask = token_tensor.tensor[:, TF.DELETED] == B.FALSE
         all_indices = torch.where(non_deleted_mask)[0]
         
+        type_dict = {
+            Type.P: 'P',
+            Type.RB: 'RB',
+            Type.PO: 'PO',
+        }
+
         for idx in all_indices:
             idx_int = idx.item()
             tensor_row = token_tensor.tensor[idx_int]
@@ -723,6 +730,7 @@ class NewNetworkStateGenerator:
                 'max_map': float(tensor_row[TF.MAX_MAP].item()),
                 'max_map_unit_name': self._get_max_map_unit_name(idx_int),
                 'inferred': bool(tensor_row[TF.INFERRED].item() == B.TRUE),
+                'type': type_dict[int(tensor_row[TF.TYPE].item())],
             }
             
             if token_type == Type.P:
