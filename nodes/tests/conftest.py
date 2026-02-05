@@ -9,7 +9,7 @@ from pathlib import Path
 # Get the DORA_tensorised directory (parent of nodes)
 # conftest.py is in DORA_tensorised/nodes/tests/unit/
 # So we need to go up 4 levels: unit -> tests -> nodes -> DORA_tensorised
-dora_tensorised_dir = Path(__file__).parent.parent.parent.parent
+dora_tensorised_dir = Path(__file__).parent.parent.parent
 
 # Add to Python path if not already there
 if str(dora_tensorised_dir) not in sys.path:
@@ -57,8 +57,3 @@ def reset_logging():
             original_levels[logger_name] = logger.level
     
     yield
-    
-    # Restore original levels
-    for logger_name, level in original_levels.items():
-        logging.getLogger(logger_name).setLevel(level)
-
