@@ -8,9 +8,10 @@ Provides utilities for the nodes package.
 - tablePrinter: Object to print tables to console or a file.
 """
 
-from .printer import Printer, tablePrinter
+from .printer import Printer, TablePrinter, OutputType
 
 __all__ = [
     "Printer",
-    "tablePrinter"
+    "TablePrinter",
+    "OutputType"
 ]

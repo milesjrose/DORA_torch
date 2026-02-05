@@ -3,13 +3,14 @@
 
 import os
 import torch
-from .print_table import tablePrinter
+from .print_table import TablePrinter
 from nodes.enums import *
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from nodes.network.tokens.tensor.token_tensor import Token_Tensor
     from nodes.network.tokens.tokens import Tokens
-
+from logging import getLogger
+logger = getLogger("PRINT")
 
 class Printer:
     """
@@ -63,6 +64,8 @@ class Printer:
                                     If None, prints all (non-deleted) tokens.
             use_names: Whether to use token names instead of indices.
         """
+        if isinstance(indices, list):
+            indices = torch.tensor(indices)
         tensor = token_tensor.tensor
         names = token_tensor.names
         
@@ -826,7 +829,7 @@ class Printer:
             rows (list[list[str]]): Row data.
             header_text (str): Header text for the table.
         """
-        table = tablePrinter(
+        table = TablePrinter(
             columns=columns,
             rows=rows,
             headers=[header_text],

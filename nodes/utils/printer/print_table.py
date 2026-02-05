@@ -3,6 +3,8 @@
 
 from enum import IntEnum
 import os
+from logging import getLogger
+logger = getLogger("PRINT")
 
 # ====================[ PRINTER ENUMS ]=====================
 class lineTypes(IntEnum):
@@ -30,8 +32,19 @@ class C(IntEnum):
     VERTICAL_LEFT = 9
     VERTICAL_RIGHT = 10
 
+class OutputType(IntEnum):
+    """
+    Enum for the type of output to print.
+    """
+    PRINT_CONSOLE = 0
+    LOG_CONSOLE = 1
+    SINGLE_LOG_CONSOLE = 2
+    BUILD_STRING = 3
+    BUILD_STR_LIST = 4
+    LOG_FILE = 5
+
 # =================[ TABLE PRINTER CLASS ]==================
-class tablePrinter(object):
+class TablePrinter(object):
     """
     Print a table of data.
 
@@ -42,7 +55,7 @@ class tablePrinter(object):
         log_file (str): The file to log to. Only logs if provided.
         print_to_console (bool): Whether to print to the console.
     """
-    def __init__(self, columns: list[str], rows: list[list[str]], headers: list[str], log_file: str = None, print_to_console: bool = True):
+    def __init__(self, columns: list[str], rows: list[list[str]], headers: list[str], log_file: str = None, print_to_console: bool = True, output_type: OutputType = OutputType.SINGLE_LOG_CONSOLE):
         """
         Initialize the table printer. Must either set log_file or print_to_console, or both.
         Args:
@@ -51,6 +64,7 @@ class tablePrinter(object):
             headers (list): The headers of the table.
             log_file (str): The file to log to. Only logs if provided.
             print_to_console (bool): Whether to print to the console.
+            output_type (OutputType): The type of output to print, if list, output in multiple types at once.
         """
         self.col_widths = None
         self.header_widths = None
@@ -65,7 +79,8 @@ class tablePrinter(object):
             "header" : ["╒","╕","╘","╛","═","│","╪", "╤", "╧", "╣", "╠"],
             "table"  : ["┌","┐","└","┘","─","│","┼", "┬", "┴", "┤", "├"]
         }
-
+        self.output_type = output_type
+        self.output = [] if output_type == OutputType.BUILD_STR_LIST else ""
         self.line_chars = {
             # LINETYPE : [LEFTC, RIGHTC, FILLC, SPLITC]
             lineTypes.TOP: [C.TOP_LEFT, C.TOP_RIGHT, C.HORIZONTAL, C.HORIZONTAL_DOWN],
@@ -163,6 +178,7 @@ class tablePrinter(object):
         if column_names:
             self.print_column_names(char_set=column_char_set)
         self.print_rows(char_set=row_char_set, split=split, print_top=not(column_names))
+        return self.get_output()
 
     def calc_col_widths(self):
         """
@@ -191,8 +207,8 @@ class tablePrinter(object):
         for row in self.rows:
             if len(row) != col_len:
                 for r in self.rows:
-                    print(r, len(r))
-                print(self.columns, len(self.columns))
+                    self.output_line(r, len(r))
+                self.output_line(self.columns, len(self.columns))
                 raise ValueError(f"Row/Column length mismatch row_len:{len(row)} != col_len:{col_len} at row {row, enumerate(row)}")
     
     def calc_header_width(self):
@@ -219,11 +235,7 @@ class tablePrinter(object):
             line = self.get_line_no_data(line_type, char_set, widths)
         else:
             line = self.get_line_with_data(line_type, char_set, widths, format_data)
-        if self.log_file is not None:
-            with self.open_file(self.log_file) as f:
-                f.write(str(line) + "\n")
-        if self.print_to_console:
-            print(line)
+        self.output_line(line)
     
     def get_line_with_data(self, line_type: lineTypes, char_set: str, widths, format_data):
         """
@@ -310,3 +322,35 @@ class tablePrinter(object):
             f = open(filename, "x", encoding='utf-8')
         return f
     
+    def output_line(self, line: str):
+        """ Output the given line to the appropriate output type. """
+        ot = self.output_type if isinstance(self.output_type, list) else [self.output_type]
+        for o in ot:
+            match o:
+                case OutputType.PRINT_CONSOLE:
+                    print(line)
+                case OutputType.LOG_CONSOLE:
+                    logger.info(line)
+                case OutputType.BUILD_STRING:
+                    self.output += line + "\n"
+                case OutputType.BUILD_STR_LIST:
+                    self.output.append(line)
+                case OutputType.LOG_FILE:
+                    if self.log_file is not None:
+                        with self.open_file(self.log_file) as f:
+                            f.write(str(line) + "\n")
+                case OutputType.SINGLE_LOG_CONSOLE:
+                    self.output += line + "\n"
+                case _:
+                    raise ValueError(f"Invalid output type: {o}")
+    
+    def get_output(self):
+        """ Get the final output """
+        ot = self.output_type if isinstance(self.output_type, list) else [self.output_type]
+        for o in ot:
+            if o == OutputType.SINGLE_LOG_CONSOLE:
+                logger.info("\n" + self.output)
+            elif o in [OutputType.BUILD_STRING, OutputType.BUILD_STR_LIST]:
+                return self.output
+        return None
+            
