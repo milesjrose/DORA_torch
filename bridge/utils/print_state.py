@@ -3,7 +3,7 @@
 
 import os
 from typing import Dict, List, Optional
-from .print_table import tablePrinter
+from nodes.utils.printer.print_table import TablePrinter, OutputType
 
 from logging import getLogger
 logger = getLogger("UTIL")
@@ -21,7 +21,7 @@ class StatePrinter:
         print_to_console (bool): Whether to print output to console.
     """
     
-    def __init__(self, log_file: str = None, print_to_console: bool = True, state: Dict = None):
+    def __init__(self, log_file: str = None, print_to_console: bool = True, state: Dict = None, output_type: OutputType = OutputType.SINGLE_LOG_CONSOLE):
         """
         Initialize the StatePrinter.
         
@@ -32,6 +32,7 @@ class StatePrinter:
         self.log_file = log_file
         self.print_to_console = print_to_console
         self._state = state
+        self.output_type = OutputType.SINGLE_LOG_CONSOLE
     
     def set_state(self, state: Dict):
         """ Set the state of the StatePrinter. """
@@ -68,12 +69,13 @@ class StatePrinter:
             self._output(f"{header_text}: (empty)")
             return
         
-        table = tablePrinter(
+        table = TablePrinter(
             columns=columns,
             rows=rows,
             headers=[header_text],
             log_file=self.log_file,
-            print_to_console=self.print_to_console
+            print_to_console=self.print_to_console,
+            output_type=self.output_type
         )
         table.print_table(header=True, column_names=True, split=False)
     

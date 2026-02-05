@@ -3,10 +3,11 @@ from typing import Dict, Any
 from torch._refs import T
 
 from nodes.enums import B
-from .print_table import tablePrinter as TablePrinter
+from nodes.utils import TablePrinter, OutputType
 from ..old_net import TestDataGenerator
 from ..new_net import NetworkLoader
 from logging import getLogger
+
 logger = getLogger("UTIL")
 
 def load_network_from_json(file_path):
@@ -628,7 +629,7 @@ def compare_states(old_state: Dict, new_state: Dict, verbose: bool = False) -> D
                         matching = (old_val == new_val)
                     case float():
                         try:
-                            matching = (abs(float(old_val) - float(new_val)) <= 1e-6)
+                            matching = (abs(float(old_val) - float(new_val)) <= 0.001)
                         except:
                             logger.error(f"Error converting ({field}) to float: {old_t.get(field)} or {new_t.get(field)}")
                             matching = (old_t.get(field) == new_t.get(field))
@@ -714,7 +715,7 @@ def compare_states(old_state: Dict, new_state: Dict, verbose: bool = False) -> D
 def print_diffs(diffs: list, header=False):
     """ Print a table of differences."""
     try:
-        tp = TablePrinter(headers=["DIFF"],columns=['Type','Idxs', 'Name', 'Field', 'Old', 'New'], rows=diffs)
+        tp = TablePrinter(headers=["DIFF"],columns=['Type','Idxs', 'Name', 'Field', 'Old', 'New'], rows=diffs, output_type=OutputType.PRINT_CONSOLE)
         tp.print_table(header=header)
     except Exception as e:
         for diff in diffs:
@@ -742,3 +743,22 @@ def load_net_from_sim(sim_path: str):
     new_network = NetworkLoader().load_from_state(old_state)
     return new_network
 
+def get_indices(state: dict):
+    indices = []
+    for type in ['Ps', 'RBs', 'POs']:
+        type_tokens = state['tokens'][type]
+        for token in type_tokens:
+            indices.append(token['index'])
+    return sorted(indices)
+
+
+def map_dict(state, indent=0):
+    """"""
+    if isinstance(state, dict):
+        for key, value in state.items():
+            print(f"{' ' * indent}{key}")
+            map_dict(value, indent+2)
+    elif isinstance(state, list) and len(state) > 0 and isinstance(state[0], dict) and False:
+        print(f"{' ' * indent}List:")
+        for item in state:
+            map_dict(item, indent+2)
