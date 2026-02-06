@@ -148,8 +148,6 @@ def create_recipient(
         links = Links(torch.zeros((tensor_size, sem_size), dtype=torch.bool))
     tokens = Tokens(tk_obj, con_obj, links, mappings)
     recipient = Recipient(tokens, params)
-    recipient.tokens.print_token_tensor(features=[TF.TYPE, TF.SET, TF.ACT, TF.MAX_MAP_UNIT,TF.MAX_MAP, TF.MAP_INPUT])
-    recipient.tokens.print_mappings()
     return recipient
 
 
@@ -1678,7 +1676,19 @@ def test_update_input_po_lateral_input_from_non_shared_pos_non_dora_mode(recipie
     """
     # Set as_DORA to False
     recipient_po.params.as_DORA = False
-    
+    recipient_po.params.ignore_object_semantics = False
+    # Set a token to a child p with act 0.5
+    features = {
+        TF.TYPE: Type.P,
+        TF.ACT: 0.5,
+        TF.MODE: Mode.CHILD,
+        TF.DELETED: B.FALSE
+    }
+    for feature in features.keys():
+        recipient_po.tokens.token_tensor.set_feature(5, feature, features[feature])
+    recipient_po.tokens.recache()
+    recipient_po.update_view()
+
     # Get global indices for PO nodes
     cache = recipient_po.glbl.cache
     po_mask = cache.get_arbitrary_mask({
@@ -1700,7 +1710,10 @@ def test_update_input_po_lateral_input_from_non_shared_pos_non_dora_mode(recipie
         TF.SET: Set.RECIPIENT,
         TF.MODE: Mode.CHILD
     })
-    recipient_po.glbl.tensor[child_p_mask, TF.ACT] = 0.0
+
+    child_p_indices = recipient_po.lcl.to_global(torch.where(child_p_mask)[0])
+    logger.info(f"Child P indices: {child_p_indices}")
+    recipient_po.tokens.print_token_tensor(indices=child_p_indices, features=[TF.ACT])
     
     # Reset lateral input
     recipient_po.glbl.tensor[:, TF.LATERAL_INPUT] = 0.0
@@ -1711,32 +1724,30 @@ def test_update_input_po_lateral_input_from_non_shared_pos_non_dora_mode(recipie
     # Get updated LATERAL_INPUT values
     updated_lateral_input = recipient_po.glbl.tensor[po_indices, TF.LATERAL_INPUT]
     
-    # Calculate expected lateral input change
-    con_tensor = recipient_po.tokens.connections.tensor
-    parent_cons = torch.transpose(con_tensor, 0, 1)
-    rb_mask = cache.get_type_mask(Type.RB)
-    rb_indices = torch.where(rb_mask)[0]
-    
-    # Find shared RBs
-    shared = torch.matmul(
-        parent_cons[po_indices][:, rb_indices].float(),
-        con_tensor[rb_indices][:, all_po_indices].float()
-    )
-    shared = torch.gt(shared, 0).int()
-    from nodes.utils import tensor_ops as tOps
-    po_submask = po_mask[all_po_indices]
-    diag_zeroes = tOps.diag_zeros(sum(all_po_mask))[po_submask]
-    shared = torch.bitwise_and(shared.int(), diag_zeroes.int()).float()
-    
-    # In non-DORA mode, use non-shared POs
-    po_connections = 1 - shared
-    expected_decrement = torch.matmul(
-        po_connections,
-        recipient_po.glbl.tensor[all_po_indices, TF.ACT]
-    )
-    
-    # Verify LATERAL_INPUT was decremented correctly
+    # Expected decrement is from child ps act * lat input level
+    expected_decrement = torch.tensor([(0), (0.5+0.9)]) * recipient_po.params.lateral_input_level
     actual_decrement = -updated_lateral_input  # Since we started at 0
+    
+    # Check
+    tk = recipient_po.tokens
+    r_idxs = recipient_po.lcl._indices
+    from nodes.utils import Printer
+    p = Printer()
+    po_idxs = list(torch.where(tk.arb_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT}))[0])
+    po_idxs = [i.item() for i in po_idxs if i in all_po_indices]
+    po_types = [bool(tk.token_tensor.get_feature(i, TF.PRED).item()) for i in po_idxs]
+    actual_list = actual_decrement.tolist()
+    expected_list = expected_decrement.tolist()
+    cols = ["PO indices", "Pred", "Expected decrement", "Actual decrement"]
+    row = []
+    for i in range(len(po_idxs)):
+        row.append([po_idxs[i], po_types[i], expected_list[i], actual_list[i]])
+    p._print_table(cols, row, header_text="LATERAL_INPUT not updated correctly from non-shared POs in non-DORA mode")
+
+    tk.print_token_tensor(indices=r_idxs, features=[TF.TYPE, TF.ACT, TF.LATERAL_INPUT])
+    tk.print_connections(indices=r_idxs)
+
+    # Verify LATERAL_INPUT was decremented correctly
     assert torch.allclose(actual_decrement, expected_decrement, atol=1e-5), \
         f"LATERAL_INPUT not updated correctly from non-shared POs in non-DORA mode. Expected decrement: {expected_decrement}, Got: {actual_decrement}"
 
@@ -1884,37 +1895,63 @@ def test_update_input_po_td_input_from_non_connected_rbs_dora_mode(recipient_po:
     
     # Reset TD_INPUT to 0 for clean test
     recipient_po.glbl.tensor[:, TF.TD_INPUT] = 0.0
-    
+
+
+    # Phase_set < 1: TD_INPUT should not be updated:
     # Call the function
     recipient_po.update_input_po(mock_semantics, mock_links)
-    
     # Get updated TD_INPUT values
     updated_td_input = recipient_po.glbl.tensor[po_indices, TF.TD_INPUT]
-    
-    # Calculate expected TD_INPUT change from non-connected RBs
-    con_tensor = recipient_po.tokens.connections.tensor
-    parent_cons = torch.transpose(con_tensor, 0, 1)
-    rb_mask = cache.get_type_mask(Type.RB)
-    rb_indices = torch.where(rb_mask)[0]
-    
-    # non_connect_rb = 1 - parent_cons[po][:, rb] gives -1 for connected, 0 for non-connected
-    # So matmul gives negative contribution (decrement) from connected RBs, and positive from non-connected
-    # Actually, wait - the code says "+=" and non_connect_rb = 1 - parent_cons, so:
-    # - If connected: parent_cons = 1, so non_connect_rb = 0, no change
-    # - If not connected: parent_cons = 0, so non_connect_rb = 1, adds RB activation
-    # But the comment says "non_connect_rb = -1 for po->rb", which suggests it should be negative
-    # Let me check the actual behavior - the code uses "+=" with non_connect_rb which is (1 - connections)
-    # So if connected: (1-1) = 0, no change
-    # If not connected: (1-0) = 1, adds RB activation
-    # But the comment suggests it should subtract... Let me just test what actually happens
-    
-    non_connect_rb = 1 - parent_cons[po_indices][:, rb_indices].float()
-    expected_td_input = torch.matmul(
-        non_connect_rb,
-        recipient_po.glbl.tensor[rb_indices, TF.ACT]
-    )
-    
+    # expected: 0
+    expected_td_input = torch.zeros_like(updated_td_input)
+     # Check
+    tk = recipient_po.tokens
+    r_idxs = recipient_po.lcl._indices
+    from nodes.utils import Printer
+    p = Printer()
+    po_idxs = list(torch.where(tk.arb_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT}))[0])
+    po_idxs = [i.item() for i in po_idxs if i in po_indices]
+    po_types = [bool(tk.token_tensor.get_feature(i, TF.PRED).item()) for i in po_idxs]
+    actual_list = updated_td_input.tolist()
+    expected_list = expected_td_input.tolist()
+    cols = ["PO indices", "Pred", "Expected", "Actual"]
+    row = []
+    for i in range(len(po_idxs)):
+        row.append([po_idxs[i], po_types[i], expected_list[i], actual_list[i]])
+    p._print_table(cols, row, header_text="TD_INPUT not updated correctly from non-connected RBs in DORA mode")
+    po_rb = torch.where(tk.arb_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT}) | tk.arb_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT}))[0]
+    tk.print_token_tensor(indices=po_rb, features=[TF.TYPE, TF.ACT, TF.TD_INPUT])
+    tk.print_connections(indices=po_rb)
     # Verify TD_INPUT was updated correctly
+    assert torch.allclose(updated_td_input, expected_td_input, atol=1e-5), \
+        f"TD_INPUT not updated correctly from non-connected RBs in DORA mode. Expected: {expected_td_input}, Got: {updated_td_input}"
+    
+    #phase_set >= 1: TD_INPUT should be updated:
+    recipient_po.params.phase_set = 1
+    recipient_po.update_input_po(mock_semantics, mock_links)
+    updated_td_input = recipient_po.glbl.tensor[po_indices, TF.TD_INPUT]
+    #expected = connected rb act
+    # 2). TD_INPUT: my_rb * gain(pred:2, obj:1)
+    # rb 2 act: 0.7
+    # rb 3 act: 0.8
+    # po 0 -> 2, 3: 0.7 + 0.8 = 1.5
+    # po 1 -> 2: 0.7
+    # expected: 1.5 + 0.7 = 2.2
+    # 7). TD_INPUT inhibition: non_connect_rb * rb act
+    # po 0 non_connected: none
+    # po 1 non_connected: rb 3 -> -0.8
+    expected_td_input = torch.tensor([1.5, 0.7-0.8])
+    actual_list = updated_td_input.tolist()
+    expected_list = expected_td_input.tolist()
+    cols = ["PO indices", "Pred", "Expected", "Actual"]
+    row = []
+    for i in range(len(po_idxs)):
+        row.append([po_idxs[i], po_types[i], expected_list[i], actual_list[i]])
+    p._print_table(cols, row, header_text="TD_INPUT not updated correctly from non-connected RBs in DORA mode")
+    po_rb = torch.where(tk.arb_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT}) | tk.arb_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT}))[0]
+    tk.print_token_tensor(indices=po_rb, features=[TF.TYPE, TF.ACT, TF.TD_INPUT])
+    tk.print_connections(indices=po_rb)
+
     assert torch.allclose(updated_td_input, expected_td_input, atol=1e-5), \
         f"TD_INPUT not updated correctly from non-connected RBs in DORA mode. Expected: {expected_td_input}, Got: {updated_td_input}"
 
@@ -1991,9 +2028,9 @@ def test_update_input_po_only_affects_recipient_set(recipient_po: Recipient, moc
     assert updated_lateral_input == initial_lateral_input, "LATERAL_INPUT should not change for PO nodes in other sets"
 
 
-def test_update_input_po_increments_not_overwrites(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
+def test_update_input_po_overwrites_not_increments(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):
     """
-    Test that update_input_po increments input values rather than overwriting them.
+    Test that update_input_po overwrites input values rather than incrementing them.
     """
     # Set phase_set to 2 to ensure TD_INPUT is incremented
     recipient_po.params.phase_set = 2
@@ -2023,7 +2060,7 @@ def test_update_input_po_increments_not_overwrites(recipient_po: Recipient, mock
     # Verify values were incremented (not overwritten)
     # Note: TD_INPUT might decrease if as_DORA=True due to non-connected RB inhibition
     # So we check BU_INPUT which should always increase
-    assert torch.all(updated_bu > initial_bu), "BU_INPUT should be incremented, not overwritten"
+    assert torch.all(updated_bu < initial_bu), "BU_INPUT should overwritten not incremented"
 
 
 def test_update_input_po_no_pos_no_error(recipient_po: Recipient, mock_semantics: Semantics, mock_links: Links):

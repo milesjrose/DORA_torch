@@ -2,7 +2,8 @@ from .base_set import Base_Set
 from ...enums import *
 import torch 
 from logging import getLogger
-logger = getLogger("set")
+log_rb = getLogger("DRIVER_RB")
+log_po = getLogger("DRIVER_PO")
 from ..tokens import Tokens
 from ..network_params import Params
 from ...utils import tensor_ops as tOps
@@ -187,6 +188,7 @@ class Driver(Base_Set):
         rb = cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.DRIVER})
         po = cache.get_type_mask(Type.PO)
         p = cache.get_type_mask(Type.P)
+        child_p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.MODE: Mode.CHILD})
 
         # Exitatory input:
         if not torch.any(rb): return;
@@ -196,12 +198,15 @@ class Driver(Base_Set):
             t_con[rb][:, p].float(),                 # Masks connections between rb[i] and its ps
             nodes[p, TF.ACT]                         # For each rb node -> sum of act of connected p nodes
             )
+
         # 3). BU_INPUT: my_po, my_child_p           # NOTE: Old function explicitly took myPred[0].act etc. as there should only be one pred/child/etc. This version sums all connections, so if rb mistakenly connected to multiple of a node type it will not give expected output.
-        po_p = torch.bitwise_or(po, p)              # Get mask of both pos and ps
-        nodes[rb, TF.BU_INPUT] += torch.matmul(     # matmul outputs martix (sum(rb) x 1) of values to add to current input value
+        po_p = torch.bitwise_or(po, child_p)        # Get mask of both pos and ps
+        diff = torch.matmul(                        # matmul outputs martix (sum(rb) x 1) of values to add to current input value
             con_tensor[rb][:, po_p].float(),        # Masks connections between rb[i] and its po and child p nodes
             nodes[po_p, TF.ACT]                     # For each rb node -> sum of act of connected po and child p nodes
             )
+        log_rb.debug(f"3). BU_INPUT: += {diff}")
+        nodes[rb, TF.BU_INPUT] += diff
         
         # Inhibitory input: NOTE: Inhibitory input only comes from local nodes.
         # 4). LATERAL: (other RBs*3), inhibitor*10
@@ -237,10 +242,14 @@ class Driver(Base_Set):
         # 2). TD_INPUT: my_rb * gain(pred:2, obj:1)
         cons = parent_cons[po][:, rb].clone().float()   # get copy of connections matrix from po to rb (child to parent connection)
         cons[pred_sub] = cons[pred_sub] * 2             # multipy predicate -> rb connections by 2
-        nodes[po, TF.TD_INPUT] += torch.matmul(         # matmul outputs martix (sum(po) x 1) of values to add to current input value
+        diff = torch.matmul(         # matmul outputs martix (sum(po) x 1) of values to add to current input value
             cons,                                       # Masks connections between po[i] and its rbs
             nodes[rb, TF.ACT]                           # For each po node -> sum of act of connected rb nodes (multiplied by 2 for predicates)
             )
+        log_po.debug(f"2). TD_INPUT: cons: {cons}")
+        log_po.debug(f"2). TD_INPUT: nodes[rb, TF.ACT]: {nodes[rb, TF.ACT]}")
+        log_po.debug(f"2). TD_INPUT: += {diff}")
+        nodes[po, TF.TD_INPUT] += diff
         
         # Inhibitory input:
         # 3). LATERAL: 3 * (if DORA_mode: PO connected to same rb / Else: POs not connected to same RBs)

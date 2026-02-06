@@ -188,8 +188,6 @@ class UpdateOperations:
         
         # Get local masks of p, by mode
         input_diff = parent_input - child_input                     # (input_diff > 0) <-> (parents > childs)
-        logger.debug(f"input_diff_shape: {input_diff.shape}")
-        logger.debug(f"p_shape: {p.shape}")
         # Create boolean masks for each mode
         child_p = tOps.sub_union(p, (input_diff > 0.0))       # (input_diff > 0) -> (parents > childs) -> (p mode = child)
         parent_p = tOps.sub_union(p, (input_diff < 0.0))      # (input_diff < 0) -> (parents < childs) -> (p mode = parent) 
