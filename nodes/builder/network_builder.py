@@ -288,8 +288,8 @@ class NetworkBuilder(object):
             connections = torch.zeros(num_sems, num_sems, dtype=tensor_type)
             
             # Build ID and name mappings
-            ids = {i + 1: i for i in range(num_sems)}  # id -> index
-            names = {i + 1: self._semantic_list[i].name for i in range(num_sems)}  # id -> name
+            ids = {i: i for i in range(num_sems)}  # id -> index
+            names = {i: self._semantic_list[i].name for i in range(num_sems)}  # id -> name
         
         return Semantics(nodes, connections, ids, names)
 
