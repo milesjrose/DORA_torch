@@ -88,9 +88,9 @@ class Semantics(object):
         self.dimensions[new_dim_key] = dimension
         return new_dim_key
     
-    def get_dim(self, sem: Ref_Semantic) -> int:
+    def get_dim(self, idx: int) -> int:
         """Get the dimension of a semantic"""
-        dim_key = int(self.get(sem, SF.DIM))
+        dim_key = int(self.get(idx, SF.DIM))
         return dim_key
     
     def get_dim_name(self, dim_key: int) -> str:
@@ -101,13 +101,13 @@ class Semantics(object):
         """Set the name of a dimension"""
         self.dimensions[dim_key] = name
     
-    def set_dim(self, sem: Ref_Semantic, dimension: str):
+    def set_dim(self, idx: int, dimension: str):
         """
         Set the dimension of a semantic
         NOTE: Inefficient: Use sems.set(sem, SF.DIMENSION, encoded_dim_key) if possible
         """
         dim_key = self.add_dim(dimension) if dimension not in self.dimensions.values() else list(self.dimensions.keys())[list(self.dimensions.values()).index(dimension)]
-        self.set(sem, SF.DIM, dim_key)
+        self.set(idx, SF.DIM, dim_key)
 
     def init_sdm(self):
         """Initialise the comparative semantics"""
@@ -139,7 +139,7 @@ class Semantics(object):
                 return False
         return True
             
-    def add_semantic(self, semantic: Semantic):
+    def add_semantic(self, semantic: Semantic) -> int:
         """
         Add a semantic to the semantics tensor.
 
@@ -151,17 +151,15 @@ class Semantics(object):
         if not deleted_mask.any():                                  # if no deleted semantics, expand tensor
             self.expand_tensor()
         empty_rows = torch.where(self.nodes[:, SF.DELETED] == B.TRUE)[0]                   # find all empty rows in nodes tensor
-        empty_row = empty_rows[0]                                   # find first empty row
-        self.nodes[empty_row, :] = semantic.tensor                  # add semantic to empty row
+        mt_idx = int(empty_rows[0].item())                                # find first empty row
+        self.nodes[mt_idx, :] = semantic.tensor                  # add semantic to empty row
         new_id = max(self.IDs.keys()) + 1 if self.IDs else 1        # get new id
-        self.IDs[new_id] = empty_row                                # add id to IDs
+        self.IDs[new_id] = mt_idx                                # add id to IDs
         if semantic.name is None:
             semantic.name = f"Semantic {new_id}"
         self.names[new_id] = semantic.name                          # add name to names
-        self.nodes[empty_row, SF.ID] = new_id                       # set node id feature
-        ref_new = Ref_Semantic(new_id, semantic.name)
-        #logger.debug(f"Added semantic {semantic.name}: \n{semantic.get_string()}")
-        return ref_new
+        self.nodes[mt_idx, SF.ID] = new_id                       # set node id feature
+        return mt_idx
     
     def expand_tensor(self):
         """
@@ -194,22 +192,19 @@ class Semantics(object):
             elif link_size > sem_size:
                 logger.critical(f"Links tensor size is greater than semantics tensor size, no way to handle this atm.")
 
-    def del_semantic(self, ID):                                     # Delete a semantic from the semantics tensor.
+    def del_semantic(self, idx: int):                                     # Delete a semantic from the semantics tensor.
         """
         Delete a semantic from the semantics tensor.
         """ 
-        logger.debug(f"Deleting semantic {ID}")
-        semantic_index = self.IDs[ID]
-        self.nodes[semantic_index, SF.DELETED] = B.TRUE
-        self.IDs.pop(ID)
-        self.names.pop(ID)
+        logger.debug(f"Deleting semantic {idx}")
+        self.nodes[idx, SF.DELETED] = B.TRUE
+        self.names.pop(idx)
         
         if self.links is not None:
-            for set in Set:
-                self.links[set][:, semantic_index] = 0.0
+            self.links.tensor[:, idx] = 0.0
 
-        self.connections[semantic_index, :] = 0.0
-        self.connections[:, semantic_index] = 0.0
+        self.connections[idx, :] = 0.0
+        self.connections[:, idx] = 0.0
 
     def get_count(self):
         """Get the number of semantics in the semantics tensor."""
@@ -234,10 +229,9 @@ class Semantics(object):
             idx_tk: int - The global index of the token to connect.
             comp_type: SDM - The type of comparative semantic to connect.
         """
-        ref_comp = self.sdms[comp_type]
-        if ref_comp is None:
+        idx_comp = self.sdms.get(comp_type, None)
+        if idx_comp is None:
             raise ValueError("Comps not initialised")
-        idx_comp = self.get_index(ref_comp)
         self.links[idx_tk, idx_comp] = 1.0
     
     def _to_int(self, idx: int|torch.Tensor|list[int]) -> int:
@@ -271,12 +265,12 @@ class Semantics(object):
             self.links[idx_tk, mask] += 1 * (sem_acts - link_weights) * self.params.gamma
 
     # ===============[ INDIVIDUAL TOKEN FUNCTIONS ]=================   
-    def get(self, ref_semantic: Ref_Semantic, feature):
+    def get(self, idx: int, feature):
         """
         Get a feature for a semantic with a given ID.
         
         Args:
-            ref_semantic (Ref_Semantic): The semantic to get the feature for.
+            idx: int - The index of the semantic to get the feature for.
             feature (TF): The feature to get.
 
         Returns:
@@ -284,16 +278,16 @@ class Semantics(object):
         """
 
         try:
-            return self.nodes[self.get_index(ref_semantic), feature]
+            return self.nodes[idx, feature]
         except:
-            raise ValueError("Invalid reference semantic or feature.")
+            raise ValueError("Invalid semantic or feature.")
 
-    def set(self, ref_semantic: Ref_Semantic, feature, value):
+    def set(self, idx: int, feature, value):
         """
         Set a feature for a semantic with a given ID.
         
         Args:
-            ref_semantic (Ref_Semantic): The semantic to set the feature for.
+            idx: int - The index of the semantic to set the feature for.
             feature (TF): The feature to set.
             value (float): The value to set the feature to.
 
@@ -303,73 +297,11 @@ class Semantics(object):
         """
 
         try:
-            self.nodes[self.get_index(ref_semantic), feature] = float(value)
+            self.nodes[idx, feature] = float(value)
         except:
-            raise ValueError("Invalid reference semantic or feature.")
-        
-    def get_index(self, ref_semantic: Ref_Semantic):
-        """
-        Get the index for a semantic based on a reference semantic.
-
-        Args:
-            ref_semantic (Ref_Semantic): The reference semantic.
-
-        Returns:
-            The index of the semantic.
-
-        Raises:
-            ValueError: If the reference semantic is invalid.
-        """
-        try:
-            return self.IDs[ref_semantic.ID]
-        except:
-            raise ValueError("Invalid reference semantic.")
+            raise ValueError("Invalid semantic or feature.")
     
-    def get_reference(self, id=None, index=None, name=None):
-        """
-        Get the reference for a semantic using any of the following:
-        - ID
-        - index
-        - name
-
-        Args:
-            id (int, optional): The ID of the semantic.
-            index (int, optional): The index of the semantic.
-            name (str, optional): The name of the semantic.
-
-
-        Returns:
-            A Ref_Semantic object.
-
-        Raises:
-            ValueError: If the ID, index, or name is invalid. Or if none are provided.
-        """
-        if index is not None:
-            try:
-                id = int(self.nodes[index, SF.ID].item())
-            except:
-                raise ValueError("Invalid index.")
-        elif name is not None:
-            try:
-                # I feel like there is a better way to do this
-                dict_index = list(self.names.values()).index(name)
-                id = list(self.names.keys())[dict_index]
-            except:
-                raise ValueError("Invalid name.")
-        elif id is not None:
-            if id not in self.IDs:
-                raise ValueError("Invalid ID.")
-        else:
-            raise ValueError("No ID, index, or name provided.")
-        
-        try:
-            name = self.names[id]
-        except:
-            name = None
-
-        return Ref_Semantic(    id, name)
-    
-    def get_single_semantic(self, ref_semantic: Ref_Semantic, copy=True):
+    def get_single_semantic(self, idx: int, copy=True):
         """
         Get a single semantic from the semantics tensor.
 
@@ -385,21 +317,21 @@ class Semantics(object):
         Raises:
             ValueError: If the reference semantic is invalid.
         """
-        tensor = self.nodes[self.get_index(ref_semantic), :]
-        sem = Semantic(self.names[ref_semantic.ID], {SF.TYPE: Type.SEMANTIC})
+        tensor = self.nodes[idx, :]
+        sem = Semantic(self.names[idx], {SF.TYPE: Type.SEMANTIC})
         if copy:
             sem.tensor = tensor.clone()
         else:
             sem.tensor = tensor
         return sem
     
-    def get_name(self, ref_semantic: Ref_Semantic) -> str:
+    def get_name(self, idx: int) -> str:
         """Get the name of a semantic"""
-        return self.names[ref_semantic.ID]
+        return self.names[idx]
     
-    def set_name(self, ref_semantic: Ref_Semantic, name: str):
+    def set_name(self, idx: int, name: str):
         """Set the name of a semantic"""
-        self.names[ref_semantic.ID] = name
+        self.names[idx] = name
 
     # --------------------------------------------------------------
 

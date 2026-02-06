@@ -226,7 +226,7 @@ class TestFindLinksToAbsDim:
         sem1 = network.semantics.add_semantic(
             Semantic("sem1", {SF.DIM: dim1, SF.ONT: OntStatus.VALUE})
         )
-        sem1_idx = network.semantics.get_index(sem1)
+        sem1_idx = sem1
         
         # Create link from PO to semantic
         network.links[po_idx, sem1_idx] = 1.0
@@ -250,8 +250,8 @@ class TestFindLinksToAbsDim:
             Semantic("sem_state", {SF.DIM: dim1, SF.ONT: OntStatus.STATE})
         )
         
-        sem_value_idx = network.semantics.get_index(sem_value)
-        sem_state_idx = network.semantics.get_index(sem_state)
+        sem_value_idx = sem_value
+        sem_state_idx = sem_state
         
         # Link PO to both
         network.links[po_idx, sem_value_idx] = 1.0
@@ -277,8 +277,8 @@ class TestFindLinksToAbsDim:
             Semantic("sem2", {SF.DIM: dim2, SF.ONT: OntStatus.VALUE})
         )
         
-        sem1_idx = network.semantics.get_index(sem1)
-        sem2_idx = network.semantics.get_index(sem2)
+        sem1_idx = sem1
+        sem2_idx = sem2
         
         # Link PO to both
         network.links[po_idx, sem1_idx] = 1.0
@@ -327,8 +327,8 @@ class TestEnBasedMagChecks:
         )
         
         # Link each PO to different dimensions
-        network.links[po1_idx, network.semantics.get_index(sem1)] = 0.95
-        network.links[po2_idx, network.semantics.get_index(sem2)] = 0.95
+        network.links[po1_idx, sem1] = 0.95
+        network.links[po2_idx, sem2] = 0.95
         
         high_dim, num_sdm_above, num_sdm_below = network.entropy_ops.en_based_mag_checks(po1_idx, po2_idx)
         
@@ -352,8 +352,8 @@ class TestEnBasedMagChecks:
         )
         
         # Link both POs to the shared dimension
-        network.links[po1_idx, network.semantics.get_index(sem1)] = 0.95
-        network.links[po2_idx, network.semantics.get_index(sem2)] = 0.95
+        network.links[po1_idx, sem1] = 0.95
+        network.links[po2_idx, sem2] = 0.95
         
         high_dim, num_sdm_above, num_sdm_below = network.entropy_ops.en_based_mag_checks(po1_idx, po2_idx)
         
@@ -416,8 +416,8 @@ class TestAttachMagSemantics:
         # Check that MORE is connected to po1 and LESS to po2
         more_ref = network.semantics.sdms[SDM.MORE]
         less_ref = network.semantics.sdms[SDM.LESS]
-        more_idx = network.semantics.get_index(more_ref)
-        less_idx = network.semantics.get_index(less_ref)
+        more_idx = more_ref
+        less_idx = less_ref
         
         assert network.links[po1_idx, more_idx].item() == 1.0
         assert network.links[po2_idx, less_idx].item() == 1.0
@@ -437,7 +437,7 @@ class TestAttachMagSemantics:
         
         # Check that SAME is connected to both
         same_ref = network.semantics.sdms[SDM.SAME]
-        same_idx = network.semantics.get_index(same_ref)
+        same_idx = same_ref
         
         assert network.links[po1_idx, same_idx].item() == 1.0
         assert network.links[po2_idx, same_idx].item() == 1.0
@@ -452,7 +452,7 @@ class TestAttachMagSemantics:
         sem1 = network.semantics.add_semantic(
             Semantic("sem1", {SF.DIM: dim1, SF.ONT: OntStatus.VALUE})
         )
-        sem1_idx = network.semantics.get_index(sem1)
+        sem1_idx = sem1
         
         # Set initial weight
         network.links[po1_idx, sem1_idx] = 1.0
@@ -491,7 +491,7 @@ class TestUpdateMagSemantics:
         network.entropy_ops.update_mag_semantics(True, po1_idx, po2_idx, sem_links)
         
         same_ref = network.semantics.sdms[SDM.SAME]
-        same_idx = network.semantics.get_index(same_ref)
+        same_idx = same_ref
         
         assert network.links[po1_idx, same_idx].item() == 1.0
         assert network.links[po2_idx, same_idx].item() == 1.0
@@ -511,8 +511,8 @@ class TestUpdateMagSemantics:
         
         more_ref = network.semantics.sdms[SDM.MORE]
         less_ref = network.semantics.sdms[SDM.LESS]
-        more_idx = network.semantics.get_index(more_ref)
-        less_idx = network.semantics.get_index(less_ref)
+        more_idx = more_ref
+        less_idx = less_ref
         
         assert network.links[po1_idx, more_idx].item() == 1.0
         assert network.links[po2_idx, less_idx].item() == 1.0
@@ -527,7 +527,7 @@ class TestUpdateMagSemantics:
         sem1 = network.semantics.add_semantic(
             Semantic("sem1", {SF.DIM: dim1, SF.ONT: OntStatus.STATE})
         )
-        sem1_idx = network.semantics.get_index(sem1)
+        sem1_idx = sem1
         
         # Set initial weight
         network.links[po1_idx, sem1_idx] = 0.5
