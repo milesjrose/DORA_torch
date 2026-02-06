@@ -387,6 +387,20 @@ def test_move_tokens_multiple(network:Network):
     assert network.driver().get_count() == d_count_start - 3
     assert network.recipient().get_count() == r_count_start + 3
 
+def test_tk_valc(network:Network):
+    """Test casting a token feature value."""
+    idx = 14
+    assert network.node_ops.tk_valc(idx, TF.SET) == Set.DRIVER
+    assert network.node_ops.tk_valc(idx, TF.TYPE) == Type.PO
+    assert network.node_ops.tk_valc(idx, TF.ANALOG) == 0
+    assert network.node_ops.tk_valc(idx, TF.MAX_MAP_UNIT) == 0
+    assert network.node_ops.tk_valc(idx, TF.MADE_UNIT) == 0
+    assert network.node_ops.tk_valc(idx, TF.MADE_SET) == Set.DRIVER
+    assert network.node_ops.tk_valc(idx, TF.MAKER_UNIT) == 0
+    assert network.node_ops.tk_valc(idx, TF.MAKER_SET) == Set.DRIVER
+    network.node_ops.set_tk_value(idx, TF.MODE, null)
+    assert network.node_ops.tk_valc(idx, TF.MODE) == None
+
 # =====================[ Integration Tests ]======================
 
 def test_set_and_get_tk_value_workflow(network):

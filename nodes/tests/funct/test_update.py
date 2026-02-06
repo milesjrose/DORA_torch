@@ -200,16 +200,59 @@ def test_update_driver():
     # Step 2: Test some update cycles
     # =====================================================
 
-    # Inputs
-    # - old
-    memory = basicRunDORA.update_driver_inputs(
-        memory,
-        asDORA=new_net.params.as_DORA,
-        lateral_input_level=new_net.params.lateral_input_level
-    )
-    # - new
-    new_net.update_ops.inputs(Set.DRIVER)
-    # Compare
-    assert bridge.compare_states(), "States do not match"
+    for i in range(10):
+        # Inputs
+        # - old
+        logger.info(f" -------------------------------> {i} Inputs OLD")
+        memory = basicRunDORA.update_driver_inputs(
+            memory, 
+            asDORA=new_net.params.as_DORA,
+            lateral_input_level=new_net.params.lateral_input_level
+        )
+        # - new
+        logger.info(f" -------------------------------> {i} Inputs NEW")
+        new_net.update_ops.inputs(Set.DRIVER)
+        # Compare
+        bridge.update_states()
+        match = bridge.compare_states()
+        if match == False:
+            logger.info(f" ===============================> {i} Inputs NO MATCH >:(\n")
+            bridge.new.printer.tokens()
+            bridge.new.printer.connections()
+            new_net.print_connections()
+            logger.info(f" Token(0): {new_net.get_name(0)}")
+        assert match, "Mismatch after update inputs"
+
+        logger.info(f" ===============================> {i} Inputs Match :)\n")
+
+        # Acts
+        # - old
+        logger.info(f" -------------------------------> {i} Acts OLD")
+        gamma = new_net.params.gamma
+        delta = new_net.params.delta
+        HebbBias = new_net.params.HebbBias
+        for Group in memory.driver.Groups:
+            Group.update_act(gamma, delta, HebbBias)
+        for myP in memory.driver.Ps:
+            myP.update_act(gamma, delta, HebbBias)
+        for myRB in memory.driver.RBs:
+            myRB.update_act(gamma, delta, HebbBias)
+        for myPO in memory.driver.POs:
+            myPO.update_act(gamma, delta, HebbBias)
+
+        # - new
+        logger.info(f" -------------------------------> {i} Acts NEW")
+        new_net.update_ops.acts(Set.DRIVER)
+        # Compare
+        logger.info(f" ===============================> {i} Acts Match :)\n")
+        assert bridge.compare_states(), "Mismatch after update acts"
+            # Try set the p mode in both networks
+        #old
+        for myP in memory.Ps:
+            myP.get_Pmode()
+        #new
+        new_net.node_ops.get_pmode()
+        assert bridge.compare_states(), "Mismatch after get p mode"
+        new_net.params.phase_set += 1
 
 
