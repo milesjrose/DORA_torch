@@ -1,104 +1,19 @@
-from .utils.print_state import StatePrinter
+from .state_printer import StatePrinter
+from .state import State
+from nodes.enums import *
+
 import sys
-import json
-import pickle
 from pathlib import Path
 from typing import Optional, Dict, List, Any, Union
 
 from logging import getLogger
-logger = getLogger(__name__)
+logger = getLogger("old_state_extractor")
 
 class OldNet:
     """
-    A class for holding the old network object.
+    A class for extracting the state of the old network.
     """
-    def __init__(self, parameters: Optional[Dict] = None):
-        self.memory = None
-        self.state = None
-        self.sim_path = None
-        self.generator = TestDataGenerator(parameters)
-        self.printer = StatePrinter()
-        self.printer.header_text = "OLD"
-    
-    def load_sim(self, sim_path: str):
-        """ Load a simulation file into the old network. """
-        self.sim_path = sim_path
-        self.generator.load_sim(sim_path)
-        self.memory = self.generator.memory
-        self.state = self.generator.get_state()
-        self.printer.set_state(self.state)
-    
-    def load_props(self, props: dict):
-        """ Load a props dictionary into the old network. """
-        self.generator.load_props(props)
-        self.memory = self.generator.memory
-        self.state = self.generator.get_state()
-        self.printer.set_state(self.state)
-    
-    def load_state(self, state: dict):
-        """ Load a state into the old network. """
-        raise NotImplementedError("Loading state from dictionary is not implemented for the old network.")
-    
-    def save_state(self, path: str, format: str = 'pickle'):
-        """ Save the state of the old network to a file. """
-        self.generator.save_state(path, format)
-
-    def get_state(self):
-        """ Get the state of the old network. """
-        self.generator.memory = self.memory
-        self.update_state()
-        return self.state
-    
-    def update_state(self):
-        """ Update the state of the old network. """
-        self.generator.memory = self.memory
-        self.state = self.generator.get_state()
-        self.printer.set_state(self.state)
-    
-    def print_summary(self):
-        """ Print a summary of the old network. """
-        self.generator.print_summary()
-    
-    def print_tokens(self):
-        """ Print the tokens of the old network. """
-        self.generator.print_tokens()
-    
-    def print_semantics(self):
-        """ Print the semantics of the old network. """
-        self.generator.print_semantics()
-    
-    def print_links(self):
-        """ Print the links of the old network. """
-        self.generator.print_links()
-    
-    def print_mappings(self):
-        """ Print the mappings of the old network. """
-        self.generator.print_mappings()
-
-
-class TestDataGenerator:
-    """
-    Generate and inspect test data from the currVers DORA implementation.
-    
-    This class provides a bridge between the original DORA implementation
-    and the new tensorized implementation, enabling:
-    - Loading simulation files into currVers
-    - Extracting detailed network state
-    - Saving state snapshots for comparison testing
-    
-    Example usage:
-        >>> gen = TestDataGenerator()
-        >>> gen.load_sim('sims/testsim15.py')
-        >>> state = gen.get_state()
-        >>> gen.save_state('test_data/initial_state.pkl')
-        
-        # Run some operations
-        >>> gen.network.do_retrieval()
-        >>> gen.network.do_map()
-        >>> gen.save_state('test_data/after_mapping.pkl')
-    """
-    
-    def __init__(self, parameters: Optional[Dict] = None):
+    def __init__(self, parameters: Optional[Dict] = None, sim_path: Optional[str] = None):
         """
         Initialize the TestDataGenerator.
         
@@ -112,6 +27,9 @@ class TestDataGenerator:
         self.network = None
         self.parameters = parameters or self._default_parameters()
         self._sim_path = None
+        self.state = State()
+        self.printer = StatePrinter(state=self.state)
+        self.printer.header_text = "OLD"
     
     def _setup_currvers_path(self):
         """Add currVers to Python path if not already there."""
@@ -168,9 +86,7 @@ class TestDataGenerator:
             "remove_compressed": False,
         }
     
-    # ==================[ Loading Functions ]==================
-    
-    def load_sim(self, sim_path: Union[str, Path]) -> 'TestDataGenerator':
+    def load_sim(self, sim_path: Union[str, Path]):
         """
         Load a simulation file into the currVers network.
         
@@ -237,9 +153,9 @@ class TestDataGenerator:
         logger.info(f"  Ps: {len(self.memory.Ps)}, RBs: {len(self.memory.RBs)}, "
               f"POs: {len(self.memory.POs)}, Semantics: {len(self.memory.semantics)}")
         
-        return self
+        self.get_state()
     
-    def load_props(self, symProps: List[Dict]) -> 'TestDataGenerator':
+    def load_props(self, symProps: List[Dict]):
         """
         Load a network from symProps directly (without a file).
         
@@ -268,601 +184,256 @@ class TestDataGenerator:
         logger.info(f"  Ps: {len(self.memory.Ps)}, RBs: {len(self.memory.RBs)}, "
               f"POs: {len(self.memory.POs)}, Semantics: {len(self.memory.semantics)}")
         
-        return self
-    
-    # ==================[ State Extraction ]==================
-    
-    def get_state(self) -> Dict[str, Any]:
-        """
-        Get the complete detailed state of the currVers network.
-        
-        Returns:
-            Dict containing:
-                - tokens: All P, RB, PO tokens with properties
-                - semantics: All semantic units with properties
-                - links: PO-semantic link matrix with weights
-                - mappings: All mapping connections with weights
-                - analogs: Analog structure
-                - driver: Current driver set contents
-                - recipient: Current recipient set contents
-                - metadata: Sim file path, parameters, etc.
-        
-        Raises:
-            ValueError: If no network is loaded
-        """
-        if self.memory is None:
-            raise ValueError("No network loaded. Call load_sim() first.")
-        
-        return {
-            'tokens': self._extract_tokens(),
-            'semantics': self._extract_semantics(),
-            'links': self._extract_links(),
-            'mappings': self._extract_mappings(),
-            'analogs': self._extract_analogs(),
-            'connections': self._extract_connections(),
-            'driver': self._extract_set_contents('driver'),
-            'recipient': self._extract_set_contents('recipient'),
-            'metadata': {
-                'sim_path': str(self._sim_path) if self._sim_path else None,
-                'parameters': self.parameters,
-                'token_counts': {
-                    'Ps': len(self.memory.Ps),
-                    'RBs': len(self.memory.RBs),
-                    'POs': len(self.memory.POs),
-                    'semantics': len(self.memory.semantics),
-                },
+        self.get_state()
+
+    def get_state(self) -> State:
+        """ Get the state of the network. """
+        state = self.state
+        state.clear()
+        state.tokens = self._extract_tokens()
+        state.tk_count = len(state.tokens)
+        ids = [tk['ID'] for tk in state.tokens.values()]
+        state.idxs = {id: i for i, id in enumerate(sorted(ids))}
+        state.recipient_idxs = {id: i for i, id in enumerate(sorted(state.recipient))}
+        state.driver_idxs = {id: i for i, id in enumerate(sorted(state.driver))}
+        state.semantics = self._extract_semantics()
+        sem_ids = [tk['ID'] for tk in state.semantics.values()]
+        state.sem_idxs = {id: i for i, id in enumerate(sorted(sem_ids))}
+        state.sem_count = len(state.semantics)
+        state.links, state.links_list = self._extract_links()
+        state.mappings = self._extract_mappings()
+        state.connections = self._extract_connections()
+        state.metadata = {
+            'sim_path': str(self._sim_path) if self._sim_path else None,
+            'parameters': self.parameters,
+            'token_counts': {
+                'Ps': len(self.memory.Ps),
+                'RBs': len(self.memory.RBs),
+                'POs': len(self.memory.POs),
+                'semantics': len(self.memory.semantics),
             },
         }
+        return self.state
     
-    def _extract_tokens(self) -> Dict[str, List[Dict]]:
-        """Extract all token data."""
-        tokens = {'Ps': [], 'RBs': [], 'POs': []}
-        
-        # Helper to get analog index from myanalog object
-        def get_analog_index(myanalog_obj):
-            """Get the analog index number from the myanalog object."""
-            if myanalog_obj is None:
-                return None
-            try:
-                return self.memory.analogs.index(myanalog_obj)
-            except ValueError:
-                return None
-        
-        # Extract P tokens
-        i = 0
-        # Extract PO tokens
-        for myPO in self.memory.POs:
-            tokens['POs'].append({
-                'index': i,
-                'name': myPO.name,
-                'set': myPO.set,
-                'analog': get_analog_index(myPO.myanalog),
-                'act': myPO.act,
-                'net_input': getattr(myPO, 'net_input', 0.0),
-                'td_input': getattr(myPO, 'td_input', 0.0),
-                'bu_input': getattr(myPO, 'bu_input', 0.0),
-                'lateral_input': getattr(myPO, 'lateral_input', 0.0),
-                'map_input': getattr(myPO, 'map_input', 0.0),
-                'predOrObj': myPO.predOrObj,  # 1 = pred, 0 = obj
-                'max_map': myPO.max_map,
-                'max_map_unit_name': myPO.max_map_unit.name if myPO.max_map_unit else None,
-                'inferred': getattr(myPO, 'inferred', False),
-                'parent_RB_names': [rb.name for rb in myPO.myRBs],
-                'semantic_names': [link.mySemantic.name for link in myPO.mySemantics],
-                'type': 'PO',
-            })
-            i += 1
-        # Extract RB tokens
-        for myRB in self.memory.RBs:
-            tokens['RBs'].append({
-                'index': i,
-                'name': myRB.name,
-                'set': myRB.set,
-                'analog': get_analog_index(myRB.myanalog),
-                'act': myRB.act,
-                'net_input': getattr(myRB, 'net_input', 0.0),
-                'td_input': getattr(myRB, 'td_input', 0.0),
-                'bu_input': getattr(myRB, 'bu_input', 0.0),
-                'lateral_input': getattr(myRB, 'lateral_input', 0.0),
-                'map_input': getattr(myRB, 'map_input', 0.0),
-                'max_map': myRB.max_map,
-                'max_map_unit_name': myRB.max_map_unit.name if myRB.max_map_unit else None,
-                'inferred': getattr(myRB, 'inferred', False),
-                'parent_P_names': [p.name for p in myRB.myParentPs],
-                'pred_name': myRB.myPred[0].name if myRB.myPred else None,
-                'obj_name': myRB.myObj[0].name if myRB.myObj else None,
-                'child_P_name': myRB.myChildP[0].name if myRB.myChildP else None,
-                'type': 'RB',
-            })
-            i += 1
-        mode_dict = {
-            -1: 'child',
-            0: 'neutral',
-            1: 'parent',
-        }
+    def _extract_tokens(self) -> dict[int, dict]:
+        """ Extract all token data. """
+        tokens = {}
         for myP in self.memory.Ps:
-            tokens['Ps'].append({
-                'index': i,
-                'name': myP.name,
-                'set': myP.set,
-                'analog': get_analog_index(myP.myanalog),
-                'act': myP.act,
-                'net_input': getattr(myP, 'net_input', 0.0),
-                'td_input': getattr(myP, 'td_input', 0.0),
-                'bu_input': getattr(myP, 'bu_input', 0.0),
-                'lateral_input': getattr(myP, 'lateral_input', 0.0),
-                'map_input': getattr(myP, 'map_input', 0.0),
-                'max_map': myP.max_map,
-                'max_map_unit_name': myP.max_map_unit.name if myP.max_map_unit else None,
-                'inferred': getattr(myP, 'inferred', False),
-                'mode': mode_dict[myP.mode],
-                'child_RB_names': [rb.name for rb in myP.myRBs],
-                'parent_RB_names': [rb.name for rb in myP.myParentRBs] if hasattr(myP, 'myParentRBs') else [],
-                'type': 'P',
-            })
-            i += 1
-        
+            tokens[myP.ID] = self._extract_token_data(myP)
+        for myRB in self.memory.RBs:
+            tokens[myRB.ID] = self._extract_token_data(myRB)
+        for myPO in self.memory.POs:
+            tokens[myPO.ID] = self._extract_token_data(myPO)
+        logger.debug(f"Extracted {len(tokens)} tokens.")
         return tokens
     
-    def _extract_semantics(self) -> List[Dict]:
-        """Extract all semantic unit data."""
-        semantics = []
-        for i, sem in enumerate(self.memory.semantics):
-            semantics.append({
-                'index': i,
+    def _encode_data(self, data, enum_class) -> any:
+        """ Encode data into a standard format. """
+        match enum_class:
+            case 'type':
+                return {
+                    'P': Type.P,
+                    'RB': Type.RB,
+                    'PO': Type.PO,
+                }[data]
+            case 'set':
+                return {
+                    'driver': Set.DRIVER,
+                    'recipient': Set.RECIPIENT,
+                    'memory': Set.MEMORY,
+                    'newSet': Set.NEW_SET,
+                }[data]
+            case 'mode':
+                return {
+                    -1: Mode.CHILD,
+                    0: Mode.NEUTRAL,
+                    1: Mode.PARENT,
+                }[data]
+            case 'ont_status':
+                return {
+                    'state': OntStatus.STATE,
+                    'value': OntStatus.VALUE,
+                    'sdm': OntStatus.SDM,
+                    'ho': OntStatus.HO,
+                }[data]
+            case 'sdm':
+                return {
+                    'more': SDM.MORE,
+                    'less': SDM.LESS,
+                    'same': SDM.SAME,
+                    'diff': SDM.DIFF,
+                }[data]
+
+    def _extract_token_data(self, token) -> dict:
+        """ Extract data from a token. """
+        logger.info(f"Analog:{token.myanalog.ID}")
+        data = {
+            'name': token.name,
+            'ID': token.ID,
+            'set': self._encode_data(token.set, 'set'),
+            'type': self._encode_data(token.my_type, 'type'),
+            'myanalog': token.myanalog.ID,
+            'act': token.act,
+            'max_act': token.max_act,
+            'my_index': token.my_index,
+            'inhibitor_input': token.inhibitor_input,
+            'inhibitor_act': token.inhibitor_act,
+            'mappingHypotheses': token.mappingHypotheses,
+            'mappingConnections': token.mappingConnections,
+            'max_map_unit': token.max_map_unit,
+            'max_map': token.max_map,
+            'td_input': token.td_input,
+            'bu_input': token.bu_input,
+            'lateral_input': token.lateral_input,
+            'map_input': token.map_input,
+            'net_input': token.net_input,
+            'GUI_unit': token.GUI_unit,
+            'my_made_unit': token.my_made_unit.ID if token.my_made_unit else None,
+            'my_made_units': [made.ID for made in token.my_made_units],
+            'my_maker_unit': token.my_maker_unit.ID if token.my_maker_unit else None,
+            'inferred': token.inferred,
+            'retrieved': token.retrieved,
+            'copy_for_DR': token.copy_for_DR,
+            'copied_DR_index': token.copied_DR_index,
+            'sim_made': token.sim_made,
+            'inhibitorThreshold': token.inhibitorThreshold
+        }
+        match token.my_type:
+            case 'P':
+                data['myRBs'] = [rb.ID for rb in token.myRBs]
+                data['myParentRBs'] = [rb.ID for rb in token.myParentRBs]
+                data['myGroups'] = [group.ID for group in token.myGroups]
+                data['mode'] = self._encode_data(token.mode, 'mode')
+                self.state.token_ids[Type.P].append(token.ID)
+            case 'RB':
+                data['myParentPs'] = [p.ID for p in token.myParentPs]
+                data['myPred'] = [pred.ID for pred in token.myPred]
+                data['myObj'] = [obj.ID for obj in token.myObj]
+                data['myChildP'] = [childP.ID for childP in token.myChildP]
+                data['timesFired'] = token.timesFired
+                self.state.token_ids[Type.RB].append(token.ID)
+            case 'PO':
+                data['predOrObj'] = token.predOrObj
+                data['myRBs'] = [rb.ID for rb in token.myRBs]
+                data['same_RB_POs'] = [po.ID for po in token.same_RB_POs]
+                data['mySemantics'] = [link.mySemantic.ID for link in token.mySemantics]
+                data['semNormalization'] = token.semNormalization
+                data['max_sem_weight'] = token.max_sem_weight
+                self.state.token_ids[Type.PO].append(token.ID)
+            case _:
+                raise ValueError(f"Unknown token type: {token.my_type}")
+        if data['set'] == Set.DRIVER:
+            self.state.driver.append(token.ID)
+        if data['set'] == Set.RECIPIENT:
+            self.state.recipient.append(token.ID)
+        return data
+
+    def _extract_semantics(self) -> dict[int, dict]:
+        """ Extract all semantic data. """
+        semantics = {}
+        for sem in self.memory.semantics:
+            semantics[sem.ID] = {
                 'name': sem.name,
+                'ID': sem.ID,
+                'my_type': 'semantic',
+                'dimension': sem.dimension,
+                'amount': sem.amount,
+                'ont_status': self._encode_data(sem.ont_status, 'ont_status'),
+                'myinput': sem.myinput,
+                'max_sem_input': sem.max_sem_input,
                 'act': sem.act,
-                'input': sem.myinput,
-                'max_input': sem.max_sem_input,
-                'dimension': getattr(sem, 'dimension', 'nil'),
-                'amount': getattr(sem, 'amount', None),
-                'ont_status': getattr(sem, 'ont_status', None),
-            })
+                'myPOs': [link.myPO.ID for link in sem.myPOs],
+                'myGroups': [link.group.ID for link in sem.myGroups],
+                'semConnect': [link.mySemantic.ID for link in sem.semConnect],
+                'semConnectWeights': sem.semConnectWeights,
+            }
+        logger.debug(f"Extracted {len(semantics)} semantics.")
         return semantics
     
-    def _extract_links(self) -> Dict:
-        """
-        Extract PO-semantic links as a matrix and detailed list.
-        """
-        num_pos = len(self.memory.POs)
-        num_sems = len(self.memory.semantics)
-        
-        # Initialize weight matrix
-        matrix = [[0.0] * num_sems for _ in range(num_pos)]
-        
-        # Detailed link list
-        links_list = []
-        
-        # Fill from PO links
-        for po_idx, myPO in enumerate(self.memory.POs):
-            for link in myPO.mySemantics:
-                try:
-                    sem_idx = self.memory.semantics.index(link.mySemantic)
-                    matrix[po_idx][sem_idx] = link.weight
-                    links_list.append({
-                        'po_index': po_idx,
-                        'po_name': myPO.name,
-                        'sem_index': sem_idx,
-                        'sem_name': link.mySemantic.name,
-                        'weight': link.weight,
-                    })
-                except ValueError:
-                    pass
-        
-        return {
-            'matrix': matrix,
-            'po_names': [po.name for po in self.memory.POs],
-            'semantic_names': [sem.name for sem in self.memory.semantics],
-            'links_list': links_list,
-        }
+    def _extract_links(self) -> list[list[float]]:
+        """ Extract all link data. """
+        links = [[0.0] * self.state.sem_count for _ in range(self.state.tk_count)]
+        count = 0
+        links_list = {}
+        for po in self.memory.POs:
+            for link in po.mySemantics:
+                weight = link.weight
+                if weight > 0:
+                    sem_id = link.mySemantic.ID
+                    po_id = link.myPO.ID
+                    links[self.state.idxs[po_id]][self.state.sem_idxs[sem_id]] = link.weight
+                    if po_id not in links_list:
+                        links_list[po_id] = []
+                    if sem_id not in links_list[po_id]:
+                        links_list[po_id].append(sem_id)
+                    else:
+                        raise ValueError(f"Duplicate link found for {po.name} -> {link.mySemantic.name}")
+                    count += 1
+        logger.debug(f"Extracted {count} links.")
+        return links, links_list
     
-    def _extract_mappings(self) -> Dict:
-        """
-        Extract all mapping connections as matrices and lists.
-        """
-        mappings = {
-            'P_mappings': [],
-            'RB_mappings': [],
-            'PO_mappings': [],
-            'all_mappings': [],
-        }
-        
-        # Extract from all tokens that have mapping connections
-        for myP in self.memory.Ps:
-            for mc in myP.mappingConnections:
-                entry = {
-                    'type': 'P',
-                    'driver_name': mc.driverToken.name,
-                    'recipient_name': mc.recipientToken.name,
-                    'weight': mc.weight,
-                }
-                mappings['P_mappings'].append(entry)
-                mappings['all_mappings'].append(entry)
-        
-        for myRB in self.memory.RBs:
-            for mc in myRB.mappingConnections:
-                entry = {
-                    'type': 'RB',
-                    'driver_name': mc.driverToken.name,
-                    'recipient_name': mc.recipientToken.name,
-                    'weight': mc.weight,
-                }
-                mappings['RB_mappings'].append(entry)
-                mappings['all_mappings'].append(entry)
-        
-        for myPO in self.memory.POs:
-            for mc in myPO.mappingConnections:
-                entry = {
-                    'type': 'PO',
-                    'driver_name': mc.driverToken.name,
-                    'recipient_name': mc.recipientToken.name,
-                    'weight': mc.weight,
-                }
-                mappings['PO_mappings'].append(entry)
-                mappings['all_mappings'].append(entry)
-        
+    def _extract_mappings(self) -> list[list[dict[MappingFields, float]]]:
+        """ Extract all mapping data. """
+        r_count = len(self.state.recipient)
+        d_count = len(self.state.driver)
+        mappings = [[{MappingFields.WEIGHT: 0.0, MappingFields.HYPOTHESIS: 0.0, MappingFields.MAX_HYP: 0.0} for _ in range(r_count)] for _ in range(d_count)]
+        for tk_list in [self.memory.Ps, self.memory.RBs, self.memory.POs]:
+            for token in tk_list:
+                # hypotheses
+                for hyp in token.mappingHypotheses:
+                    info = {
+                        MappingFields.WEIGHT: hyp.myMappingConnection.weight,
+                        MappingFields.HYPOTHESIS: hyp.hypothesis,
+                        MappingFields.MAX_HYP: hyp.max_hyp,
+                    }
+                    rec_idx = self.state.recipient_idxs[hyp.myMappingConnection.recipientToken.ID]
+                    dri_idx = self.state.driver_idxs[hyp.myMappingConnection.driverToken.ID]
+                    mappings[rec_idx][dri_idx] = info
+                # connections
+                for mc in token.mappingConnections:
+                    rec_idx = self.state.recipient_idxs[hyp.myMappingConnection.recipientToken.ID]
+                    dri_idx = self.state.driver_idxs[hyp.myMappingConnection.driverToken.ID]
+                    weight = mappings[rec_idx][dri_idx][MappingFields.WEIGHT]
+                    if weight != 0.0 and weight != mc.weight:
+                        raise ValueError(f"Mapping weight mismatch for {token.name} -> {mc.driverToken.name}")
+                    else:
+                        mappings[rec_idx][dri_idx][MappingFields.WEIGHT] = mc.weight
         return mappings
-    
-    def _extract_connections(self) -> Dict:
-        """Extract token hierarchy connections (P→RB→PO)."""
-        connections = {
-            'P_to_RB': [],
-            'RB_to_PO': [],
-            'RB_to_childP': [],
-        }
-        
+
+    def _extract_connections(self) -> list[list[bool]]:
+        """ Extract all connection data. """
+        connections = [[0.0] * self.state.tk_count for _ in range(self.state.tk_count)]
         for myP in self.memory.Ps:
             for myRB in myP.myRBs:
-                connections['P_to_RB'].append({
-                    'parent': myP.name,
-                    'child': myRB.name,
-                })
-        
+                connections[self.state.idxs[myP.ID]][self.state.idxs[myRB.ID]] = True
         for myRB in self.memory.RBs:
-            if myRB.myPred:
-                connections['RB_to_PO'].append({
-                    'parent': myRB.name,
-                    'child': myRB.myPred[0].name,
-                    'role': 'pred',
-                })
-            if myRB.myObj:
-                connections['RB_to_PO'].append({
-                    'parent': myRB.name,
-                    'child': myRB.myObj[0].name,
-                    'role': 'obj',
-                })
-            if myRB.myChildP:
-                connections['RB_to_childP'].append({
-                    'parent': myRB.name,
-                    'child': myRB.myChildP[0].name,
-                })
-        
+            for myChildP in myRB.myChildP:
+                connections[self.state.idxs[myRB.ID]][self.state.idxs[myChildP.ID]] = True
+        for myPO in self.memory.POs:
+            for myRB in myPO.myRBs:
+                connections[self.state.idxs[myPO.ID]][self.state.idxs[myRB.ID]] = True
         return connections
-    
-    def _extract_analogs(self) -> List[Dict]:
-        """Extract analog structure."""
-        analogs = []
-        for i, analog in enumerate(self.memory.analogs):
-            analogs.append({
-                'index': i,
-                'P_names': [p.name for p in analog.myPs],
-                'RB_names': [rb.name for rb in analog.myRBs],
-                'PO_names': [po.name for po in analog.myPOs],
-            })
-        return analogs
-    
-    def _extract_set_contents(self, set_name: str) -> Dict:
-        """Extract contents of a specific set (driver/recipient)."""
-        if set_name == 'driver':
-            set_obj = self.memory.driver
-        elif set_name == 'recipient':
-            set_obj = self.memory.recipient
-        else:
-            raise ValueError(f"Unknown set: {set_name}")
-        
-        return {
-            'P_names': [p.name for p in set_obj.Ps],
-            'RB_names': [rb.name for rb in set_obj.RBs],
-            'PO_names': [po.name for po in set_obj.POs],
-            'counts': {
-                'Ps': len(set_obj.Ps),
-                'RBs': len(set_obj.RBs),
-                'POs': len(set_obj.POs),
-            },
-        }
-    
-    # ==================[ Saving Functions ]==================
-    
-    def save_state(self, file_path: Union[str, Path], format: str = 'pickle') -> Path:
+
+    def save_state(self, file_path: str = None):
         """
-        Save the current network state to a file.
+        Convert the state to a JSON-serializable dictionary.
         
         Args:
-            file_path: Path to save the state file
-            format: 'pickle' (binary, exact) or 'json' (human-readable)
+            filepath: Optional path to save the JSON file. If None, only returns the dict.
             
         Returns:
-            Path to the saved file
-            
-        Raises:
-            ValueError: If no network is loaded or invalid format
+            A JSON-serializable dictionary representation of the state.
         """
-        if self.memory is None:
-            raise ValueError("No network loaded. Call load_sim() first.")
-        
-        file_path = Path(file_path)
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        state = self.get_state()
-        
-        if format == 'pickle':
-            with open(file_path, 'wb') as f:
-                pickle.dump(state, f)
-        elif format == 'json':
-            with open(file_path, 'w') as f:
-                json.dump(state, f, indent=2, default=str)
-        else:
-            raise ValueError(f"Unknown format: {format}. Use 'pickle' or 'json'.")
-        
-        logger.info(f"State saved to {file_path} ({format} format)")
-        return file_path
+        return self.state.to_json(file_path)
     
-    def save_state_pickle(self, file_path: Union[str, Path]) -> Path:
-        """Convenience method to save as pickle."""
-        return self.save_state(file_path, format='pickle')
-    
-    def save_state_json(self, file_path: Union[str, Path]) -> Path:
-        """Convenience method to save as JSON."""
-        return self.save_state(file_path, format='json')
-    
-    # ==================[ Inspection Utilities ]==================
-    
-    def print_summary(self):
-        """Print a summary of the current network state."""
-        if self.memory is None:
-            print("No network loaded.")
-            return
-        
-        print("\n" + "="*60)
-        print("NETWORK SUMMARY")
-        print("="*60)
-        
-        if self._sim_path:
-            print(f"Source: {self._sim_path}")
-        
-        print(f"\nToken Counts:")
-        print(f"  Ps:        {len(self.memory.Ps)}")
-        print(f"  RBs:       {len(self.memory.RBs)}")
-        print(f"  POs:       {len(self.memory.POs)}")
-        print(f"  Semantics: {len(self.memory.semantics)}")
-        print(f"  Analogs:   {len(self.memory.analogs)}")
-        
-        print(f"\nDriver Set:")
-        print(f"  Ps:  {len(self.memory.driver.Ps)} - {[p.name for p in self.memory.driver.Ps]}")
-        print(f"  RBs: {len(self.memory.driver.RBs)} - {[rb.name for rb in self.memory.driver.RBs]}")
-        print(f"  POs: {len(self.memory.driver.POs)} - {[po.name for po in self.memory.driver.POs]}")
-        
-        print(f"\nRecipient Set:")
-        print(f"  Ps:  {len(self.memory.recipient.Ps)} - {[p.name for p in self.memory.recipient.Ps]}")
-        print(f"  RBs: {len(self.memory.recipient.RBs)} - {[rb.name for rb in self.memory.recipient.RBs]}")
-        print(f"  POs: {len(self.memory.recipient.POs)} - {[po.name for po in self.memory.recipient.POs]}")
-        
-        # Count mappings
-        total_mappings = sum(
-            len(t.mappingConnections) 
-            for t in self.memory.Ps + self.memory.RBs + self.memory.POs
-        )
-        print(f"\nMapping Connections: {total_mappings}")
-        
-        # Count semantic links
-        total_links = sum(len(po.mySemantics) for po in self.memory.POs)
-        print(f"Semantic Links: {total_links}")
-        
-        print("="*60 + "\n")
-    
-    def print_tokens(self, token_type: Optional[str] = None):
-        """Print detailed token information."""
-        if self.memory is None:
-            print("No network loaded.")
-            return
-        
-        # Helper to get analog index
-        def get_analog_index(myanalog_obj):
-            if myanalog_obj is None:
-                return None
-            try:
-                return self.memory.analogs.index(myanalog_obj)
-            except ValueError:
-                return None
-        
-        if token_type is None or token_type.upper() == 'P':
-            print("\n--- P Tokens ---")
-            for i, p in enumerate(self.memory.Ps):
-                analog_idx = get_analog_index(p.myanalog)
-                print(f"  [{i}] {p.name} (set={p.set}, analog={analog_idx}, act={p.act:.3f})")
-        
-        if token_type is None or token_type.upper() == 'RB':
-            print("\n--- RB Tokens ---")
-            for i, rb in enumerate(self.memory.RBs):
-                pred = rb.myPred[0].name if rb.myPred else "None"
-                obj = rb.myObj[0].name if rb.myObj else "None"
-                analog_idx = get_analog_index(rb.myanalog)
-                print(f"  [{i}] {rb.name} (set={rb.set}, analog={analog_idx}, pred={pred}, obj={obj})")
-        
-        if token_type is None or token_type.upper() == 'PO':
-            print("\n--- PO Tokens ---")
-            for i, po in enumerate(self.memory.POs):
-                role = "pred" if po.predOrObj == 1 else "obj"
-                sems = [link.mySemantic.name for link in po.mySemantics]
-                analog_idx = get_analog_index(po.myanalog)
-                print(f"  [{i}] {po.name} ({role}, set={po.set}, analog={analog_idx}, sems={sems})")
-    
-    def print_semantics(self):
-        """Print detailed semantic information."""
-        if self.memory is None:
-            print("No network loaded.")
-            return
-        
-        print("\n--- Semantics ---")
-        
-        if len(self.memory.semantics) == 0:
-            print("  No semantics found.")
-            return
-        
-        # Build a map of which POs link to each semantic
-        semantic_to_pos = {}
-        for po_idx, myPO in enumerate(self.memory.POs):
-            for link in myPO.mySemantics:
-                sem_name = link.mySemantic.name
-                if sem_name not in semantic_to_pos:
-                    semantic_to_pos[sem_name] = []
-                semantic_to_pos[sem_name].append({
-                    'po_name': myPO.name,
-                    'weight': link.weight,
-                })
-        
-        for i, sem in enumerate(self.memory.semantics):
-            dimension = getattr(sem, 'dimension', 'nil')
-            amount = getattr(sem, 'amount', None)
-            ont_status = getattr(sem, 'ont_status', None)
-            
-            # Build dimension/amount string
-            dim_str = f", dimension={dimension}" if dimension != 'nil' else ""
-            amount_str = f", amount={amount}" if amount is not None else ""
-            ont_str = f", ont_status={ont_status}" if ont_status is not None else ""
-            
-            # Get linked POs
-            linked_pos = semantic_to_pos.get(sem.name, [])
-            po_info = ""
-            if linked_pos:
-                po_names = [f"{po['po_name']}({po['weight']:.2f})" for po in linked_pos[:3]]
-                po_info = f", linked_to={po_names}"
-                if len(linked_pos) > 3:
-                    po_info += f", ... ({len(linked_pos)} total)"
-            
-            print(f"  [{i}] {sem.name} (act={sem.act:.3f}{dim_str}{amount_str}{ont_str}{po_info})")
-    
-    def print_links(self, show_matrix: bool = False, max_links: int = 20):
+    def load_state(self, source: str | dict):
         """
-        Print PO-semantic link information.
+        Load a State instance from JSON data.
         
         Args:
-            show_matrix: If True, print the full weight matrix (can be large)
-            max_links: Maximum number of individual links to show (default 20)
+            source: Either a filepath (str) to a JSON file, or a dictionary of state data.
+            
+        Returns:
+            A new State instance populated with the loaded data.
         """
-        if self.memory is None:
-            print("No network loaded.")
-            return
-        
-        print("\n--- PO-Semantic Links ---")
-        
-        # Get link data
-        links_data = self._extract_links()
-        links_list = links_data['links_list']
-        matrix = links_data['matrix']
-        po_names = links_data['po_names']
-        semantic_names = links_data['semantic_names']
-        
-        if len(links_list) == 0:
-            print("  No links found.")
-            return
-        
-        # Print summary
-        print(f"  Total links: {len(links_list)}")
-        print(f"  POs: {len(po_names)}, Semantics: {len(semantic_names)}")
-        
-        # Print individual links (limited)
-        print(f"\n  Individual Links (showing up to {max_links}):")
-        for i, link in enumerate(links_list[:max_links]):
-            print(f"    [{i}] {link['po_name']} <-> {link['sem_name']} "
-                  f"(weight={link['weight']:.4f})")
-        
-        if len(links_list) > max_links:
-            print(f"    ... and {len(links_list) - max_links} more links")
-        
-        # Print matrix if requested
-        if show_matrix:
-            print(f"\n  Weight Matrix ({len(po_names)} POs x {len(semantic_names)} Semantics):")
-            print("    PO\\Sem", end="")
-            for sem_name in semantic_names[:10]:  # Show first 10 semantic names
-                print(f"  {sem_name[:6]:>6}", end="")
-            if len(semantic_names) > 10:
-                print("  ...")
-            else:
-                print()
-            
-            for po_idx, po_name in enumerate(po_names[:10]):  # Show first 10 POs
-                print(f"    {po_name[:8]:>8}", end="")
-                for sem_idx in range(min(10, len(semantic_names))):
-                    weight = matrix[po_idx][sem_idx]
-                    print(f"  {weight:6.3f}", end="")
-                if len(semantic_names) > 10:
-                    print("  ...")
-                else:
-                    print()
-            
-            if len(po_names) > 10:
-                print("    ...")
-        
-        # Print statistics
-        if links_list:
-            weights = [link['weight'] for link in links_list]
-            avg_weight = sum(weights) / len(weights)
-            max_weight = max(weights)
-            min_weight = min(weights)
-            print(f"\n  Statistics:")
-            print(f"    Average weight: {avg_weight:.4f}")
-            print(f"    Max weight: {max_weight:.4f}")
-            print(f"    Min weight: {min_weight:.4f}")
-    
-    def print_mappings(self):
-        """Print current mapping connections."""
-        if self.memory is None:
-            print("No network loaded.")
-            return
-        
-        print("\n--- Mapping Connections ---")
-        
-        has_mappings = False
-        for token_type, tokens in [('P', self.memory.Ps), 
-                                    ('RB', self.memory.RBs), 
-                                    ('PO', self.memory.POs)]:
-            for token in tokens:
-                for mc in token.mappingConnections:
-                    has_mappings = True
-                    print(f"  {token_type}: {mc.driverToken.name} <-> "
-                          f"{mc.recipientToken.name} (weight={mc.weight:.4f})")
-        
-        if not has_mappings:
-            print("  No mapping connections established.")
-
-
-# ==================[ Static Loading Functions ]==================
-
-def load_state(file_path: Union[str, Path]) -> Dict:
-    """
-    Load a previously saved state from a pickle file.
-    
-    Args:
-        file_path: Path to the pickle file
-        
-    Returns:
-        The saved state dictionary
-    """
-    with open(file_path, 'rb') as f:
-        return pickle.load(f)
-
-
-def load_state_json(file_path: Union[str, Path]) -> Dict:
-    """
-    Load a previously saved state from a JSON file.
-    
-    Args:
-        file_path: Path to the JSON file
-        
-    Returns:
-        The saved state dictionary
-    """
-    with open(file_path, 'r') as f:
-        return json.load(f)
-
+        return self.state.from_json(source)
