@@ -95,7 +95,7 @@ class Semantics(object):
     
     def get_dim_name(self, dim_key: int) -> str:
         """Get the name of a dimension"""
-        return self.dimensions[dim_key]
+        return self.dimensions.get(dim_key, None)
     
     def set_dim_name(self, dim_key: int, name: str):
         """Set the name of a dimension"""
@@ -281,6 +281,22 @@ class Semantics(object):
             return self.nodes[idx, feature]
         except:
             raise ValueError("Invalid semantic or feature.")
+    
+    def getc(self, idx: int, feature: SF) -> any:
+        """
+        Get a type casted feature for a semantic with given index
+    
+        Args:
+            idx: int - The index of the semantic to get the feature for.
+            feature (SF): The feature to get.
+
+        Returns:
+            The type casted feature for the semantic.
+        """
+        val = self.get(idx, feature).item()
+        if val == null:
+            return None
+        return SF_type(feature)(val)
 
     def set(self, idx: int, feature, value):
         """
@@ -327,7 +343,12 @@ class Semantics(object):
     
     def get_name(self, idx: int) -> str:
         """Get the name of a semantic"""
-        return self.names[idx]
+        try:
+            return self.names[idx]
+        except:
+            logger.critical(f"Semantic name not found for index {idx}, names: {self.names}, IDs: {self.IDs}, shape: {self.nodes.shape}")
+            raise ValueError(f"Semantic name not found for index {idx}")
+            
     
     def set_name(self, idx: int, name: str):
         """Set the name of a semantic"""

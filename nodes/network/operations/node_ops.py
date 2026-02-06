@@ -162,6 +162,20 @@ class NodeOperations:
         idx = self._to_int_tensor(idx)
         return self.network.token_tensor.get_features(idx, features)
     
+    def tk_valc(self, idx: int, feature: TF) -> any:
+        """ 
+        Get a casted value for a feature of a token (e.g TF.SET -> Set instead of float).
+        
+        Args:
+            idx (int): The global index of the token.
+            feature (TF): The feature to get.
+
+        Returns:
+            any: The cased value of the feature.
+        """
+        val = self.get_tk_value(idx, feature)
+        return TF_type(feature)(val) if val != null else None
+    
     def set_tk_value(self, idx: int, feature: TF, value: float):
         """
         Set the value of a feature for a token.
@@ -359,10 +373,6 @@ class NodeOperations:
         # Get the highest weight semantics for each PO
         po1_sem = links.get_max_linked_sem(po1).item()
         po2_sem = links.get_max_linked_sem(po2).item()
-        # NOTE: Sems still using ref semantics atm, so need to convert to ref object
-        # TODO: Remove this once sems updated to use indices.
-        po1_sem = semantics.get_reference(index=po1_sem)
-        po2_sem = semantics.get_reference(index=po2_sem)
         # Check for common dimension
         sem1_dim = semantics.get_dim(po1_sem)
         sem2_dim = semantics.get_dim(po2_sem)
