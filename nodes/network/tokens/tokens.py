@@ -7,6 +7,7 @@ from .tensor_view import TensorView
 import torch
 from ...enums import *
 from logging import getLogger
+from ...utils import tensor_ops as tOps
 logger = getLogger("tkn")
 
 class Tokens:
@@ -267,6 +268,8 @@ class Tokens:
             print(self.connections.tensor)
             return
         else:
+            if not isinstance(indices, torch.Tensor):
+                indices = tOps.to_tensor(indices)
             p.print_connections(self, show_deleted=show_deleted, indices=indices, use_names=use_names, connected_char=connected_char, empty_char=empty_char)
     
     def print_connections_list(self, show_deleted: bool = False, indices: torch.Tensor = None, use_names: bool = False, list_only_connected: bool = True):

@@ -4,8 +4,11 @@ from .state import State
 from nodes.utils import OutputType, TablePrinter
 from typing import List, Tuple
 from logging import getLogger
+debug_logger = getLogger("SP_DEBUG")
 from nodes.enums import *
 from typing import Dict
+
+empty_char = "-"
 
 class StatePrinter:
     """
@@ -31,7 +34,7 @@ class StatePrinter:
         self.log_file = log_file
         self._state = state
         self.output_type = OutputType.SINGLE_LOG_CONSOLE
-        self.header_text = None
+        self.header_text = ""
         self.logger = logger if logger is not None else getLogger("STATE_PRINTER")
         self._temp_logger = None
     
@@ -79,6 +82,7 @@ class StatePrinter:
             rows (list[list[str]]): Row data.
             header_text (str): Header text for the table.
         """
+        logger = self._temp_logger if self._temp_logger is not None else self.logger
         if not rows:
             self._output(f"{header_text}: (empty)")
             return
@@ -89,7 +93,8 @@ class StatePrinter:
             headers=[header_text],
             log_file=self.log_file,
             print_to_console=self.print_to_console,
-            output_type=self.output_type
+            output_type=self.output_type,
+            logger=logger
         )
         table.print_table(header=True, column_names=True, split=False)
     
@@ -97,7 +102,7 @@ class StatePrinter:
                      features: List[str] = None, 
                      filter_set: str = None,
                      names: list[str] = None,
-                     IDs: list[int] = None,
+                     ids: list[int] = None,
                      logger = None):
         """ Print the tokens in the state.
 
@@ -118,20 +123,19 @@ class StatePrinter:
         for id in sorted(ID_list):
             token = tokens[id]
             if token['type'] not in token_types:
-                self._output(f"{id} type[{token['type']}] not in token_types[{token_types}]")
+                debug_logger.debug(f"{id} type[{token['type']}] not in token_types[{token_types}]")
                 continue
             if filter_set is not None and token['set'] != filter_set:
-                self._output(f"{id} set[{token['set']}] not in filter_set[{filter_set}]")
+                debug_logger.debug(f"{id} set[{token['set']}] not in filter_set[{filter_set}]")
                 continue
             if names is not None and token['name'] not in names:
-                self._output(f"{id} name[{token['name']}] not in names[{names}]")
+                debug_logger.debug(f"{id} name[{token['name']}] not in names[{names}]")
                 continue
-            if IDs is not None and id not in IDs:
-                self._output(f"{id} not in IDs[{IDs}]")
+            if ids is not None and id not in ids:
+                debug_logger.debug(f"{id} not in IDs[{ids}]")
                 continue
             output.append(token)
-        self._output(f"Tokens: {len(output)} tokens")
-        self._print_tokens(output)
+        self._print_tokens(output, ids=ids)
         self._temp_logger = None
     
     def semantics(self, show_zero_act: bool = True, names: list[str] = None, logger = None):
@@ -237,7 +241,8 @@ class StatePrinter:
                  as_matrix: bool = False,
                  get_children: bool = True,
                  get_parents: bool = False,
-                 logger = None):
+                 logger = None,
+                 use_names: bool = False):
         """ Print the connections in the state.
 
         Args:
@@ -249,10 +254,63 @@ class StatePrinter:
             get_children (bool, optional): Whether to get the children of the connections. Default True.
             get_parents (bool, optional): Whether to get the parents of the connections. Default False.
             logger (Logger, optional): Logger to use. Defaults to local logger.
+            use_names (bool, optional): Whether to use names instead of IDs. Default False.
         """
         self._temp_logger = logger
+        get_both = get_children and get_parents
         if as_matrix:
-            raise NotImplementedError("Not done yet.")
+            cons = self._state.connections
+            id_dict = self._state.ids
+            idxs = self._state.idxs
+            no_nodes = len(cons)
+            rows = []
+            filter_idxs = [idxs[id] for id in ids]
+            if ids is not None:
+                col_list = []
+                row_list = []
+                # Go through each row, check if parent or child connection to ids.
+                for row_idx, row in enumerate(cons):
+                    if row_idx in filter_idxs: # If parent is in ids
+                        row_list.append(row_idx)  # Add row
+                        for col_idx in range(len(row)):
+                            if row[col_idx]:  # If i is child of parent
+                                col_list.append(col_idx)  # Add col
+                    else: # Parent not in ids
+                        for col_idx in filter_idxs:
+                            if row[col_idx]:
+                                # If connect to node in ids, add row and col.
+                                row_list.append(row_idx)
+                                col_list.append(col_idx)
+                # Remove duplicates and sort.
+                col_list = sorted(list(set(col_list)))
+                row_list = sorted(list(set(row_list)))
+                # build matrix of rows and cols we want.
+                for row_idx, row in enumerate(cons):
+                    if row_idx in row_list:
+                        tag = self._get_tag(id_dict[row_idx], use_names)
+                        new_row = [f"*{tag}*"] if id_dict[row_idx] in ids else [f"{tag}"]
+                        for col_idx in col_list:
+                            formatted_val = "●" if row[col_idx] else "·"
+                            new_row.append(formatted_val)
+                        rows.append(new_row)
+                cols = ["p->c"] 
+                for col_idx in col_list:
+                    tag = self._get_tag(id_dict[col_idx], use_names)
+                    tag_str = f"*{tag}*" if id_dict[row_idx] in ids else f"{tag}"
+                    cols.append(tag_str)
+            else:
+                cols = ["p->c"] + [self._get_tag(id_dict[i], use_names) for i in range(no_nodes)]
+                for i, row in enumerate(cons):
+                    new_row = [f"{id_dict[i]}"]
+                    for val in row:
+                        formatted_val = "●" if val else "·"
+                        new_row.append(formatted_val)
+                    rows.append(new_row)
+            if len(rows) != 0:
+                header_text = self._get_header_text("Connections", len(rows), ids)
+                self._print_table(cols, rows, header_text)
+            else:
+                self._output(f"Connections: (None found for given ids)")
         else:
             # get connections list by going through each token and getting its connections
             tokens = self._state.tokens
@@ -262,28 +320,64 @@ class StatePrinter:
                 token = tokens[id]
                 children = []
                 parents = []
+                # Get parents and children, filter by ids if provided.
                 if get_children:
-                    children = self._get_children(token)
+                    children = self._filter_con_str(use_names, self._get_children(token), id, get_both, ids)
                 if get_parents:
-                    parents = self._get_parents(token)
-                if len(children) == 0 and len(parents) == 0:
-                    continue
-                if children and parents:
-                    rows.append([f"{id}[{self._state.idxs[id]}]", '→', children, '', parents])
-                elif children:
-                    rows.append([f"{id}[{self._state.idxs[id]}]", '→', children])
-                elif parents:
-                    rows.append([f"{id}[{self._state.idxs[id]}]", '→', parents])
+                    parents = self._filter_con_str(use_names, self._get_parents(token), id, get_both, ids)
+                # Add row to list
+                id_str = self._get_tag(id, use_names)
+                if get_children and get_parents and (children != empty_char or parents != empty_char):
+                    rows.append([f"{id_str}", '→', children, '', parents])
+                else:
+                    id_str = f"*{id_str}*" if id in ids else id_str
+                    if get_children and children != empty_char:
+                        rows.append([id_str, '→', children])
+                    elif get_parents and parents != empty_char:
+                        rows.append([id_str, '→', parents])
             if len(rows) == 0:
                 self._output(f"Connections: (None found for given ids)")
                 return
             else:
-                header_text = f"({len(rows)} connections)" if self.header_text is None else f"{self.header_text} ({len(rows)} connections)"
-                columns = ['Token[idx]', '', 'Children[idx]',] if get_children else ['Token[idx]', '', 'Parents[idx]']
+                header_text = self._get_header_text("Connections", len(rows), ids)
+                columns = ['Token', '', 'Children',] if get_children else ['Token', '', 'Parents']
                 if get_children and get_parents:
-                    columns = ['Token[idx]', '', 'Children[idx]', '', 'Parents[idx]']
+                    columns = ['Token', '', 'Children', '', 'Parents']
                 self._print_table(columns, rows, header_text)
         self._temp_logger = None
+
+    def _filter_con_str(self, use_names: bool,con_list: List[int], id: int =None, get_both: bool = False, ids: List[int]=None) -> List[str]:
+        """ Filter a list of connections by ids. """
+        if ids is not None:
+            in_ids = (id in ids)
+            if get_both and not in_ids:
+                return empty_char
+            filtered = []
+            for child in con_list:
+                if child in ids:
+                    filtered.append(f"*{self._get_tag(child, use_names)}*")
+                elif in_ids:
+                    filtered.append(f"{self._get_tag(child, use_names)}")
+        else:
+            filtered = [self._get_tag(id, use_names) for id in con_list]
+        if len(filtered) == 0:
+            return empty_char
+        else:
+            output = ", ".join(filtered)
+            return output
+    
+    def _get_tag(self, id: int, use_names: bool) -> str:
+        """ Get the tag for a token or semantic. 
+        Args:
+            id: The ID of the token or semantic.
+            use_names: Whether to use names instead of IDs.
+        Returns:
+            str: The tag for the token or semantic.
+        """
+        if use_names:
+            return f"{self._state.tokens[id]['name']}"
+        else:
+            return f"{id}"
         
     def summary(self, logger = None):
         """ 
@@ -346,7 +440,7 @@ class StatePrinter:
         rows = data
         self._print_table(cols, rows, f"Token {id}")
         self._temp_logger = None
-        
+
     def _get_children(self, token: Dict, ids: List[int] = None) -> List[int]:
         """ Get the children of a token. """
         c = []
@@ -355,7 +449,9 @@ class StatePrinter:
             case Type.P:
                 c.extend(token['myRBs'])
             case Type.RB:
-                c.extend(token['myChildP'], token['myPred'], token['myObj'])
+                c.extend(token['myChildP'])
+                c.extend(token['myPred'])
+                c.extend(token['myObj'])
             case _ :
                 return []
         if ids is not None:
@@ -385,12 +481,11 @@ class StatePrinter:
         return p
 
     # ================================[ Helper Functions ]===============================
-    def _print_tokens(self, tokens: List[Dict], features: List[Tuple[str, str]] = None):
+    def _print_tokens(self, tokens: List[Dict], features: List[Tuple[str, str]] = None, ids: list[int] = None):
         """ Print the tokens in the state.
         Args:
             tokens: List of tokens to print.
         """
-        header_text = 'Tokens'
         if features is None:
             features = [('idx', 'ID'), 
                         ('Name', 'name'), 
@@ -417,9 +512,15 @@ class StatePrinter:
                 row.append(self._format(value))
             row[0] = f"{index}"
             rows.append(row)
-        if self.header_text is not None:
-            header_text = f"{self.header_text} ({len(tokens)} tokens)"
+        header_text = self._get_header_text("Tokens", len(tokens), ids)
         self._print_table(columns, rows, header_text)
+
+    def _get_header_text(self, label: str,num_items: int, ids: list[int] = None) -> str:
+        """ Get the header text. """
+        header_text = f"{self.header_text} {label} ({num_items})"
+        if ids is not None:
+            header_text += f" | {ids}"
+        return header_text
     
     def _print_semantics(self, semantics: List[Dict]):
         """ Print the semantics in the state.

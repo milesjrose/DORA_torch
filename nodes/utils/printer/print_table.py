@@ -4,7 +4,6 @@
 from enum import IntEnum
 import os
 from logging import getLogger
-logger = getLogger("PRINT")
 
 # ====================[ PRINTER ENUMS ]=====================
 class lineTypes(IntEnum):
@@ -55,7 +54,7 @@ class TablePrinter(object):
         log_file (str): The file to log to. Only logs if provided.
         print_to_console (bool): Whether to print to the console.
     """
-    def __init__(self, columns: list[str], rows: list[list[str]], headers: list[str], log_file: str = None, print_to_console: bool = True, output_type: OutputType = OutputType.SINGLE_LOG_CONSOLE):
+    def __init__(self, columns: list[str], rows: list[list[str]], headers: list[str], log_file: str = None, print_to_console: bool = True, output_type: OutputType = OutputType.SINGLE_LOG_CONSOLE, logger = None):
         """
         Initialize the table printer. Must either set log_file or print_to_console, or both.
         Args:
@@ -79,6 +78,7 @@ class TablePrinter(object):
             "header" : ["╒","╕","╘","╛","═","│","╪", "╤", "╧", "╣", "╠"],
             "table"  : ["┌","┐","└","┘","─","│","┼", "┬", "┴", "┤", "├"]
         }
+        self.logger = logger if logger is not None else getLogger("PRINT")
         self.output_type = output_type
         self.output = [] if output_type == OutputType.BUILD_STR_LIST else ""
         self.line_chars = {
@@ -330,7 +330,7 @@ class TablePrinter(object):
                 case OutputType.PRINT_CONSOLE:
                     print(line)
                 case OutputType.LOG_CONSOLE:
-                    logger.info(line)
+                    self.logger.info(line)
                 case OutputType.BUILD_STRING:
                     self.output += line + "\n"
                 case OutputType.BUILD_STR_LIST:
@@ -349,7 +349,7 @@ class TablePrinter(object):
         ot = self.output_type if isinstance(self.output_type, list) else [self.output_type]
         for o in ot:
             if o == OutputType.SINGLE_LOG_CONSOLE:
-                logger.info("\n" + self.output)
+                self.logger.info("\n" + self.output)
             elif o in [OutputType.BUILD_STRING, OutputType.BUILD_STR_LIST]:
                 return self.output
         return None
