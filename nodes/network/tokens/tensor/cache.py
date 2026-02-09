@@ -133,7 +133,11 @@ class Cache:
         Args:
             sets: list[Set] - The sets to update the cache for.
         """
-        logger.info(f"Caching sets: {sets}")
+        if len(sets) == len(Set):
+            set_string = "ALL SETS"
+        else:
+            set_string = ", ".join([set.name for set in sets])
+        logger.debug(f"Caching sets: {set_string}")
         for set in sets:
             if set in self.masks:
                 del self.masks[set]
@@ -143,7 +147,7 @@ class Cache:
         """
         Cache the analogs in the tensor
         """
-        logger.info(f"Caching analogs")
+        logger.debug(f"Caching analogs")
         # Get unique analog numbers and their counts
         analog_numbers, analog_counts = torch.unique(self.tensor[:, TF.ANALOG], return_counts=True)
 
