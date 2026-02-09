@@ -190,7 +190,7 @@ class Links:
             new_adj_matrix[:old_num_token, :old_num_sem] = self.adj_matrix
             # Update the adj_matrix
             self.adj_matrix = new_adj_matrix
-            logger.info(f"-> Expanded links tensor: {old_num_token}x{old_num_sem} -> {new_num_token}x{new_num_sem}")
+            logger.debug(f"-> Expanded links tensor: {old_num_token}x{old_num_sem} -> {new_num_token}x{new_num_sem}")
         except Exception as e:
             logger.error(f"-> Error expanding links tensor: {e}")
             raise e

@@ -6,7 +6,7 @@ import torch
 from ...enums import *
 from ..single_nodes import Token, Semantic
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("NODE_OPS")
 
 from typing import TYPE_CHECKING, Optional, Tuple
 if TYPE_CHECKING:
@@ -148,7 +148,11 @@ class NodeOperations:
         Returns:
             float: The value of the feature.
         """
-        idx = self._to_int(idx)
+        try:
+            idx = self._to_int(idx)
+        except Exception as e:
+            logger.critical(f"Error converting index {idx} to int")
+            raise e
         return self.network.token_tensor.get_feature(idx, feature).item()
     
     def get_tk_values(self, idx: int, features: torch.Tensor) -> torch.Tensor:

@@ -94,7 +94,7 @@ class Network(object):
             self.inhibitor_ops
             ]
         
-        logger.info(f"> Network initialised:\n Tensor shapes:\n    Tokens: {self.token_tensor.tensor.shape[0]}x{self.token_tensor.tensor.shape[1]}\n    Semantics: {self.semantics.nodes.shape[0]}x{self.semantics.nodes.shape[1]}\n    Connections: {self.tokens.connections.tensor.shape[0]}x{self.tokens.connections.tensor.shape[1]}\n    Links: {self.links.adj_matrix.shape[0]}x{self.links.adj_matrix.shape[1]}\n    Mapping: {self.mappings.adj_matrix.shape[0]}x{self.mappings.adj_matrix.shape[1]}x{self.mappings.adj_matrix.shape[2]}\n Set counts:\n    Driver: {self.driver().get_count()}\n    Recipient: {self.recipient().get_count()}\n    Memory: {self.memory().get_count()}\n    New Set: {self.new_set().get_count()}\n    Tokens: {self.token_tensor.get_count()}\n    Semantics: {self.semantics.get_count()}")
+        logger.info(f"Network initialised -> Shapes: [Tks: {self.token_tensor.tensor.shape[0]}x{self.token_tensor.tensor.shape[1]}, Sems: {self.semantics.nodes.shape[0]}x{self.semantics.nodes.shape[1]}, Links: {self.links.adj_matrix.shape[0]}x{self.links.adj_matrix.shape[1]}, Maps: {self.mappings.adj_matrix.shape[0]}x{self.mappings.adj_matrix.shape[1]}x{self.mappings.adj_matrix.shape[2]}] || Counts: [D: {self.driver().get_count()}, R: {self.recipient().get_count()}, M: {self.memory().get_count()}, NS: {self.new_set().get_count()}, Tks: {self.token_tensor.get_count()}, Sems: {self.semantics.get_count()}]")
         #self.print_token_tensor()
 
     def __getattr__(self, name):
