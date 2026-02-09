@@ -1,4 +1,4 @@
-from bridge.new_net2 import NewNet
+from bridge.new_net import NewNet
 
 def test_new_net():
     """

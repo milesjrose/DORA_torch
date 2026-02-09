@@ -1,7 +1,7 @@
 from bridge.compare_states import CompareStates
 from bridge.state import State
 from bridge.old_net import OldNet
-from bridge.new_net2 import NewNet
+from bridge.new_net import NewNet
 from logging import getLogger
 logger = getLogger("TEST_COMP")
 from nodes.enums import SF

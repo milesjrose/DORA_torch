@@ -1,16 +1,11 @@
-"""Bridge module for comparing old (currVers) and new (nodes/network) DORA implementations.
-
-This module provides utilities for loading simulations into both implementations
-and comparing their states to validate the new tensorized implementation.
-"""
-
 from .old_net import OldNet
 from .new_net import NewNet
+from .compare_states import CompareStates, Diff
 import sys
 from pathlib import Path
-from .utils.utils import *
 from nodes.utils.printer.print_table import OutputType
-
+from logging import getLogger
+logger = getLogger("BRIDGE")
 
 class Bridge:
     """Bridge between old (currVers) and new (nodes/network) DORA implementations.
@@ -32,11 +27,16 @@ class Bridge:
         
         self.old = OldNet()
         self.new = NewNet()
+        self.comp_states = CompareStates(self.old.state, self.new.state)
     
-    def load_both(self, sim_path: str):
+    def load_both(self, sim_path: str, use_builder: bool = False):
         """ Load the simulation into both the old and new implementations. """
         self.old.load_sim(sim_path)
-        self.new.load_sim(sim_path)
+        if use_builder: # Build based on sim file
+            self.new.load_sim(sim_path)
+        else:   # Build based of the old net state.
+            self.new.set_state(self.old.get_state())
+            self.new.build_network()
     
     def load_new_from_old(self):
         """ Load the new network from the old network. """
@@ -45,59 +45,35 @@ class Bridge:
     
     def update_states(self):
         """ Update the states of both the old and new implementations to match their saved networks. """
-        self.old.update_state()
-        self.new.update_state()
+        self.old.get_state()
+        self.new.get_state()
 
-    def compare_states(self, print_diffs: bool = True, return_diffs: bool = False) -> dict:
+    def set_print_output_type(self, output_type: OutputType):
+        """ Set the output type for the printer. """
+        self.old.printer.output_type = output_type
+        self.new.printer.output_type = output_type
+    
+    def compare_states(self, output_diffs: bool = True,verbose: bool = False) -> tuple[bool, list[Diff]]:
         """Compare the states of both loaded implementations.
         
         Extracts states from both the old and new implementations and
         performs a detailed comparison to identify any differences.
 
         Args:
-            print_diffs: Whether to print a summary of the differences between the two states
-            return_diffs: Whether to return the differences between the two states
+            verbose (bool, optional): Whether to print a summary of the differences between the two states. Default False.
         Returns:
-            A dictionary containing any differences found between the two
-            implementations. Empty dict if implementations match exactly.
-        
-        Raises:
-            ValueError: If simulations haven't been loaded into both implementations.
+            Tuple containing:
+                - match (bool): Whether states match
+                - diffs (list[Diff]): list of differences
         """
-        self.update_states()
-        old_state = self.old.state
-        new_state = self.new.state
-        compared = compare_states(old_state, new_state)
-        matched = compared['match']
-        if print_diffs and not matched:
-            self.set_print_output_type(OutputType.PRINT_CONSOLE)
-            diffs = compared['differences']
-            names = []
-            for diff in diffs:
-                names.append(diff[2])
-            print("\n=== OLD STATE ===")
-            po_names = [l['po_name'] for l in old_state.get('links', {}).get('links_list', []) if l.get('sem_name') in names]
-            self.old.printer.tokens(names=names+po_names)
-            self.old.printer.semantics(names=['lover1', 'lover2', 'lover3'])
-            self.old.printer.links(names=names)
-            print("\n=== NEW STATE ===")
-            po_names = [l['po_name'] for l in new_state.get('links', {}).get('links_list', []) if l.get('sem_name') in names]
-            self.new.printer.tokens(names=names+po_names)
-            self.new.printer.semantics(names=['lover1', 'lover2', 'lover3'])
-            self.new.printer.links(names=names)
-            print("\n=== DIFFERENCES ===")
-            self.print_diffs(compared['differences'])
-            self.set_print_output_type(OutputType.SINGLE_LOG_CONSOLE)
-        if return_diffs:
-            return compared
+        match, diffs = self.comp_states.compare(verbose=verbose)
+        if output_diffs:
+            self.print_diffs(diffs)
         else:
-            return matched
-    
-    def set_print_output_type(self, output_type: OutputType):
-        """ Set the output type for the printer. """
-        self.old.printer.output_type = output_type
-        self.new.printer.output_type = output_type
-    
+            result = "States match" if match else "States do not match"
+            logger.info(result)
+        return match, diffs
+        
     def compare_states_arg(self, old_state: dict, new_state: dict) -> dict:
         """Compare two state dictionaries directly.
         
@@ -105,44 +81,15 @@ class Bridge:
         simulations.
         
         Args:
-            old_state: State dictionary from the old implementation.
-            new_state: State dictionary from the new implementation.
-        
+            verbose (bool, optional): Whether to print a summary of the differences between the two states. Default False.
         Returns:
-            A dictionary containing any differences found between the two
-            states. Empty dict if states match exactly.
+            Tuple containing:
+                - match (bool): Whether states match
+                - diffs (list[Diff]): list of differences
         """
-        return compare_states(old_state, new_state)
-    
-    def compare_connections(self) -> bool:
-        """Compare the connections of both loaded implementations.
-        
-        Returns:
-            True if the connections match, False otherwise.
-        """
-        old_state = self.old.state
-        new_state = self.new.state
-        connections_match = compare_connections(old_state, new_state)
-        links_connections_match = compare_links_connections(old_state, new_state)
-        links_weights_match = compare_links_weights(old_state, new_state)
-        mappings_connections_match = compare_mappings_connections(old_state, new_state)
-        mappings_weights_match = compare_mappings_weights(old_state, new_state)
-        all_match = connections_match and links_connections_match and links_weights_match and mappings_connections_match and mappings_weights_match
-        return all_match
-    
-    def print_diffs(self, diffs:list):
-        print_diffs(diffs)
-    
-    def print_summary_old(self):
-        """Print a summary of the network loaded in the old implementation.
-        
-        Displays token counts, set contents, and other relevant statistics.
-        """
-        self.TestDataGenerator.print_summary()
-    
-    def print_summary_new(self):
-        """Print a summary of the network loaded in the new implementation.
-        
-        Displays token counts, set contents, and other relevant statistics.
-        """
-        self.NewNetworkStateGenerator.print_summary()
+        new_comp = CompareStates(old_state, new_state)
+        return new_comp.compare()
+
+    def print_diffs(self, diffs:list[Diff]):
+        """ Print the differences. """
+        self.comp_states.print_diffs(diffs)

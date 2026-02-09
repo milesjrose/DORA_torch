@@ -14,7 +14,7 @@ def test_old_net():
     ose.printer.token_data(13)
     assert False
 
-from ..new_net2 import NewNet
+from ..new_net import NewNet
 
 def test_new_net():
     """
