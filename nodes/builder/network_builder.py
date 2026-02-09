@@ -5,6 +5,8 @@ from ..network.tokens.connections.links import LD
 from ..network.single_nodes import Token, Semantic
 from time import monotonic
 import torch
+from logging import getLogger
+logger = getLogger("NETWORK_BUILDER")
 
 
 class NetworkBuilder(object):
@@ -279,18 +281,29 @@ class NetworkBuilder(object):
             names = {}
         else:
             # Create semantic nodes tensor
-            nodes = torch.zeros(num_sems, len(SF), dtype=tensor_type)
+            nodes = torch.zeros([num_sems, len(SF)], dtype=tensor_type)
+            ids = {}
+            names = {}
             for i, sem in enumerate(self._semantic_list):
+                id = i + 1
                 nodes[i, :] = sem.tensor
+                # int values:
                 nodes[i, SF.ID] = i + 1  # 1-indexed IDs
-            
+                nodes[i, SF.TYPE] = Type.SEMANTIC
+                nodes[i, SF.ONT] = null
+                nodes[i, SF.DIM] = null
+                # bool values:
+                nodes[i, SF.DELETED] = B.FALSE
+                # float values:
+                nodes[i, SF.AMOUNT] = 0
+                nodes[i, SF.ACT] = 0
+                nodes[i, SF.INPUT] = 0
+                nodes[i, SF.MAX_INPUT] = 0
+                ids[id] = i
+                names[id] = sem.name
+
             # Create semantic connections (no internal semantic connections for now)
             connections = torch.zeros(num_sems, num_sems, dtype=tensor_type)
-            
-            # Build ID and name mappings
-            ids = {i: i for i in range(num_sems)}  # id -> index
-            names = {i: self._semantic_list[i].name for i in range(num_sems)}  # id -> name
-        
         return Semantics(nodes, connections, ids, names)
 
     def get_symProps_from_file(self):

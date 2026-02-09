@@ -101,6 +101,13 @@ class Semantics(object):
         """Set the name of a dimension"""
         self.dimensions[dim_key] = name
     
+    def get_dim_key(self, dimension: str) -> int:
+        """Get the key of a dimension"""
+        try:
+            return list(self.dimensions.keys())[list(self.dimensions.values()).index(dimension)]
+        except ValueError:
+            return None
+    
     def set_dim(self, idx: int, dimension: str):
         """
         Set the dimension of a semantic
@@ -146,18 +153,18 @@ class Semantics(object):
         Args:
             semantic (Semantic): The semantic to add.
         """
-        logger.info(f"Add sem: {semantic.name}")
+        logger.debug(f"Add sem: {semantic.name}")
         deleted_mask = self.nodes[:, SF.DELETED] == B.TRUE          # find all deleted semantics in nodes tensor
         if not deleted_mask.any():                                  # if no deleted semantics, expand tensor
             self.expand_tensor()
         empty_rows = torch.where(self.nodes[:, SF.DELETED] == B.TRUE)[0]                   # find all empty rows in nodes tensor
         mt_idx = int(empty_rows[0].item())                                # find first empty row
         self.nodes[mt_idx, :] = semantic.tensor                  # add semantic to empty row
-        new_id = max(self.IDs.keys()) + 1 if self.IDs else 1        # get new id
+        new_id = max(self.IDs.keys()) + 1 if self.IDs else 1     # get new id
         self.IDs[new_id] = mt_idx                                # add id to IDs
         if semantic.name is None:
             semantic.name = f"Semantic {new_id}"
-        self.names[new_id] = semantic.name                          # add name to names
+        self.names[new_id] = semantic.name                       # add name to names
         self.nodes[mt_idx, SF.ID] = new_id                       # set node id feature
         return mt_idx
     
@@ -279,8 +286,9 @@ class Semantics(object):
 
         try:
             return self.nodes[idx, feature]
-        except:
-            raise ValueError("Invalid semantic or feature.")
+        except Exception as e:
+            logger.critical(f"Error getting feature {feature} for semantic {idx}: {e}")
+            raise e
     
     def getc(self, idx: int, feature: SF) -> any:
         """

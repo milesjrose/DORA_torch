@@ -20,11 +20,21 @@ class Semantic(object):
             features (dict[SF, float]): A dictionary of features for the semantic.
         """
         self.name = name
-        self.tensor = torch.zeros(len(SF))
+        self.tensor = torch.zeros(len(SF), dtype=tensor_type)
+        # Load Default Values:
+        # int values:
+        self.tensor[SF.ID] = 404 # 404 is placeholder for sems that have no ID
         self.tensor[SF.TYPE] = Type.SEMANTIC
-        self.tensor[SF.DIM] = null
-        self.tensor[SF.AMOUNT] = null
         self.tensor[SF.ONT] = null
+        self.tensor[SF.DIM] = null
+        # bool values:
+        self.tensor[SF.DELETED] = B.FALSE
+        # float values:
+        self.tensor[SF.AMOUNT] = 0
+        self.tensor[SF.ACT] = 0
+        self.tensor[SF.INPUT] = 0
+        self.tensor[SF.MAX_INPUT] = 0
+        # Load provided features:
         for feature in features:
             self.tensor[feature] = features[feature]
     
