@@ -187,25 +187,24 @@ class OldNet:
 
     def get_state(self) -> State:
         """ Get the state of the network. """
-        logger.info("Extracting state from the OLD network...")
         state = self.state
         state.clear()
-        state.tokens = self._extract_tokens()
-        state.tk_count = len(state.tokens)
+        state.tokens, tk_count = self._extract_tokens()
+        state.tk_count = tk_count
         ids = sorted([tk['ID'] for tk in state.tokens.values()])
         for i, id in enumerate(ids):
             state.idxs[id] = i
             state.ids[i] = id
         state.recipient_idxs = {id: i for i, id in enumerate(sorted(state.recipient))}
         state.driver_idxs = {id: i for i, id in enumerate(sorted(state.driver))}
-        state.semantics = self._extract_semantics()
+        state.semantics, sem_count = self._extract_semantics()
         sem_ids = [tk['ID'] for tk in state.semantics.values()]
         state.sem_idxs = {id: i for i, id in enumerate(sorted(sem_ids))}
-        state.sem_count = len(state.semantics)
-        state.links, state.links_list = self._extract_links()
-        state.mappings = self._extract_mappings()
-        state.connections = self._extract_connections()
-        state.sem_connections = self._extract_semantic_connections()
+        state.sem_count = sem_count
+        state.links, state.links_list, link_count = self._extract_links()
+        state.mappings, m_count, h_count = self._extract_mappings()
+        state.connections, con_count = self._extract_connections()
+        state.sem_connections, sem_con_count = self._extract_semantic_connections()
         met = state.metadata
         met['sim_path'] = str(self._sim_path) if self._sim_path else None
         met['parameters'] = self.parameters
@@ -215,12 +214,17 @@ class OldNet:
             Type.PO: len(self.memory.POs),
             Type.SEMANTIC: len(self.memory.semantics),
         }
-        state.metadata = met
-        logger.info("State extracted successfully.")
-        return self.state
+        logger.info(f"Extracted {tk_count} tk, {sem_count} sem, {link_count} link, {m_count} maps, {con_count} cons, {sem_con_count} sem_cons")
+        return state
     
-    def _extract_tokens(self) -> dict[int, dict]:
-        """ Extract all token data. """
+    def _extract_tokens(self) -> tuple[dict[int, dict], int]:
+        """ Extract all token data. 
+
+        Returns: 
+        tuple[dict[int, dict], int]: A tuple containing:
+            tokens (dict[int, dict]): A dictionary of tokens by ID.
+            tk_count (int): The number of tokens.
+        """
         tokens = {}
         for myP in self.memory.Ps:
             tokens[myP.ID] = self._extract_token_data(myP)
@@ -228,8 +232,7 @@ class OldNet:
             tokens[myRB.ID] = self._extract_token_data(myRB)
         for myPO in self.memory.POs:
             tokens[myPO.ID] = self._extract_token_data(myPO)
-        logger.debug(f"Extracted {len(tokens)} tokens.")
-        return tokens
+        return tokens, len(tokens)
     
     def _encode_data(self, data, enum_class) -> any:
         """ Encode data into a standard format. """
@@ -269,7 +272,11 @@ class OldNet:
                 }[data]
 
     def _extract_token_data(self, token) -> dict:
-        """ Extract data from a token. """
+        """ Extract data from a token. 
+
+        Returns:
+            dict: A dictionary containing the token data.
+        """
         data = {
             'name': token.name,
             'ID': token.ID,
@@ -339,8 +346,14 @@ class OldNet:
             self.state.recipient.append(token.ID)
         return data
 
-    def _extract_semantics(self) -> dict[int, dict]:
-        """ Extract all semantic data. """
+    def _extract_semantics(self) -> tuple[dict[int, dict], int]:
+        """ Extract all semantic data. 
+
+        Returns:
+        tuple[dict[int, dict], int]: A tuple containing:
+            semantics (dict[int, dict]): A dictionary of semantics by ID.
+            sem_count (int): The number of semantics.
+        """
         semantics = {}
         for sem in self.memory.semantics:
             sem_connect_weights: List = sem.semConnectWeights
@@ -364,19 +377,33 @@ class OldNet:
                 'semConnect': [link.mySemantic.ID for link in sem.semConnect],
                 'semConnectWeights': sem_connect_weights,
             }
-        logger.debug(f"Extracted {len(semantics)} semantics.")
-        return semantics
+        return semantics, len(semantics)
     
-    def _extract_semantic_connections(self) -> list[list[float]]:
-        """ Extract all semantic connection data. """
+    def _extract_semantic_connections(self) -> tuple[list[list[float]], int]:
+        """ Extract all semantic connection data. 
+
+        Returns:
+        tuple[list[list[float]], int]: A tuple containing:
+            connections (list[list[float]]): The semantic connections matrix.
+            count (int): The number of semantic connections.
+        """
+        count = 0
         connections = [[0.0] * self.state.sem_count for _ in range(self.state.sem_count)]
         for sem in self.memory.semantics:
             for link in sem.semConnect:
                 connections[self.state.sem_idxs[sem.ID]][self.state.sem_idxs[link.mySemantic.ID]] = link.weight
-        return connections
+                if link.weight != 0:
+                    count += 1
+        return connections, count
     
-    def _extract_links(self) -> list[list[float]]:
-        """ Extract all link data. """
+    def _extract_links(self) -> tuple[list[list[float]], int]:
+        """ Extract all link data. 
+        Returns:
+            tuple[list[list[float]], int]: A tuple containing:
+                - links (list[list[float]]): The links matrix.
+                - links_list (dict[int, list[int]]): A dictionary mapping token IDs to the IDs of the semantics they are linked to.
+                - count (int): The number of links.
+        """
         links = [[0.0] * self.state.sem_count for _ in range(self.state.tk_count)]
         count = 0
         links_list = {}
@@ -394,11 +421,18 @@ class OldNet:
                     else:
                         raise ValueError(f"Duplicate link found for {po.name} -> {link.mySemantic.name}")
                     count += 1
-        logger.debug(f"Extracted {count} links.")
-        return links, links_list
+        return links, links_list, count
     
-    def _extract_mappings(self) -> list[list[dict[MappingFields, float]]]:
-        """ Extract all mapping data. """
+    def _extract_mappings(self) -> tuple[list[list[dict[MappingFields, float]]], int, int]:
+        """ Extract all mapping data. 
+        Returns:
+            tuple[list[list[dict[MappingFields, float]]], int, int]: A tuple containing:
+                - mappings (list[list[dict[MappingFields, float]]]): The mappings matrix.
+                - m_count (int): The number of mappings.
+                - h_count (int): The number of hypotheses.
+        """
+        m_count = 0
+        h_count = 0
         r_count = len(self.state.recipient)
         d_count = len(self.state.driver)
         mappings = [[{MappingFields.WEIGHT: 0.0, MappingFields.HYPOTHESIS: 0.0, MappingFields.MAX_HYP: 0.0} for _ in range(d_count)] for _ in range(r_count)]
@@ -414,6 +448,10 @@ class OldNet:
                     rec_idx = self.state.recipient_idxs[hyp.myMappingConnection.recipientToken.ID]
                     dri_idx = self.state.driver_idxs[hyp.myMappingConnection.driverToken.ID]
                     mappings[rec_idx][dri_idx] = info
+                    if info[MappingFields.WEIGHT] != 0.0:
+                        m_count += 1
+                    if info[MappingFields.HYPOTHESIS] != 0.0:
+                        h_count += 1
                 # connections
                 for mc in token.mappingConnections:
                     rec_idx = self.state.recipient_idxs[hyp.myMappingConnection.recipientToken.ID]
@@ -423,10 +461,16 @@ class OldNet:
                         raise ValueError(f"Mapping weight mismatch for {token.name} -> {mc.driverToken.name}")
                     else:
                         mappings[rec_idx][dri_idx][MappingFields.WEIGHT] = mc.weight
-        return mappings
+        return mappings, m_count, h_count
 
-    def _extract_connections(self) -> list[list[bool]]:
-        """ Extract all connection data. """
+    def _extract_connections(self) -> tuple[list[list[bool]], int]:
+        """ Extract all connection data. 
+
+        Returns:
+        tuple[list[list[bool]], int]: A tuple containing:
+            connections (list[list[bool]]): The connections matrix.
+            count (int): The number of connections.
+        """
         # init matrix
         connections = [[False] * self.state.tk_count for _ in range(self.state.tk_count)]
         # extract connections
@@ -445,9 +489,7 @@ class OldNet:
             for val in row:
                 if val:
                     num_cons_final += 1
-        # log
-        logger.debug(f"Extracted {num_cons_final} [P:{self.num_cons[Type.P]}, RB:{self.num_cons[Type.RB]}, PO:{self.num_cons[Type.PO]}] connections.")
-        return connections
+        return connections, num_cons_final
 
     def save_state(self, file_path: str = None):
         """

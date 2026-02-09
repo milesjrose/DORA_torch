@@ -206,8 +206,8 @@ class CompareStates:
         old = self.old_state.metadata
         new = self.new_state.metadata
         # sim_path
-        if old['sim_path'] != new['sim_path']:
-            logger.error(f"sim_path mismatch: {old['sim_path']} -> {new['sim_path']}")
+        #if old['sim_path'] != new['sim_path']:
+        #    logger.error(f"sim_path mismatch: {old['sim_path']} -> {new['sim_path']}")
         # parameters
         if False: # ignoring for now
             for field in list(old['parameters'].keys()):

@@ -41,7 +41,9 @@ class Bridge:
     def load_new_from_old(self):
         """ Load the new network from the old network. """
         state = self.old.get_state()
-        self.new.load_state(state)
+        self.new.set_state(state)
+        self.new.build_network()
+        self.new.state.metadata['sim_path'] = self.old.state.metadata['sim_path']
     
     def update_states(self):
         """ Update the states of both the old and new implementations to match their saved networks. """
@@ -53,7 +55,7 @@ class Bridge:
         self.old.printer.output_type = output_type
         self.new.printer.output_type = output_type
     
-    def compare_states(self, output_diffs: bool = True,verbose: bool = False) -> tuple[bool, list[Diff]]:
+    def compare_states(self, output_diffs: bool = True, verbose: bool = False) -> tuple[bool, list[Diff]]:
         """Compare the states of both loaded implementations.
         
         Extracts states from both the old and new implementations and
@@ -66,6 +68,7 @@ class Bridge:
                 - match (bool): Whether states match
                 - diffs (list[Diff]): list of differences
         """
+        self.update_states()
         match, diffs = self.comp_states.compare(verbose=verbose)
         if output_diffs:
             self.print_diffs(diffs)

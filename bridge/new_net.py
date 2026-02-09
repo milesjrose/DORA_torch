@@ -70,17 +70,20 @@ class NewNet:
 
 # =============================== EXTRACTORS ===============================
     def get_state(self) -> State:
-        """ Generate the state from the network. """
-        logger.info("Extracting state from the NEW network...")
+        """ Generate the state from the network. 
+
+        Returns:
+            State: The state object.
+        """
         state = self.state
         state.clear()
-        state.tokens = self._extract_tokens()
-        state.tk_count = len(state.tokens)
-        state.semantics = self._extract_semantics()
-        state.links, state.links_list = self._extract_links()
-        state.mappings = self._extract_mappings()
-        state.connections = self._extract_connections()
-        state.sem_connections = self._extract_semantic_connections()
+        state.tokens, tk_count = self._extract_tokens()
+        state.tk_count = tk_count
+        state.semantics, sem_count = self._extract_semantics()
+        state.links, state.links_list, link_count = self._extract_links()
+        state.mappings, m_count, h_count = self._extract_mappings()
+        state.connections, con_count = self._extract_connections()
+        state.sem_connections, sem_con_count = self._extract_semantic_connections()
         met = state.metadata
         met['sim_path'] = str(self.sim_path) if self.sim_path else None
         met['parameters'] = self.network.params.get_params_dict()
@@ -90,8 +93,7 @@ class NewNet:
             Type.PO: len(torch.where(self.network.token_tensor.tensor[:, TF.TYPE] == Type.PO)[0]),
             Type.SEMANTIC: len(state.sem_ids),
         }
-        state.metadata = met
-        logger.info("State extracted successfully.")
+        logger.info(f" Extracted {tk_count} tk, {sem_count} sem, {link_count} link, {m_count} maps, {con_count} cons, {sem_con_count} sem_cons")
         return state
     
     def _extract_tokens(self) -> dict[int, dict]:
@@ -103,8 +105,7 @@ class NewNet:
         for idx in all_indices:
             id = int(token_tensor.tensor[idx, TF.ID].item())
             tokens[id] = self._extract_token_data(idx)
-        logger.debug(f"Extracted {len(tokens)} tokens.")
-        return tokens
+        return tokens, len(tokens)
     
     def _get_id(self, idx: int) -> int:
         """ Get the ID of a token. """
@@ -118,7 +119,11 @@ class NewNet:
             raise e
     
     def _extract_token_data(self, idx: int) -> dict:
-        """ Extract the data from a token. """
+        """ Extract the data from a token. 
+
+        Returns:
+            - dict: A dictionary containing the token data.
+        """
         net = self.network
         nodes = net.node_ops
         id = nodes.tk_valc(idx, TF.ID)
@@ -187,8 +192,15 @@ class NewNet:
             self.state.recipient.append(data['ID'])
         return data
     
-    def _extract_semantics(self) -> dict[int, dict]:
-        """ Extract the semantics from the network. """
+    def _extract_semantics(self) -> tuple[dict[int, dict], int]:
+        """
+        Extract the semantics from the network. 
+    
+        Returns:
+            - tuple[dict[int, dict], int]: A tuple containing:
+                - sems (dict[int, dict]): The semantics dictionary.
+                - sem_count (int): The number of semantics.
+        """
         sems = {}
         st = self.network.semantics
         non_deleted_mask = st.nodes[:, SF.DELETED] == B.FALSE
@@ -213,11 +225,17 @@ class NewNet:
                 'semConnect': [],
                 'semConnectWeights': [],
             }
-        logger.debug(f"Extracted {len(sems)} semantics")
-        return sems
+        return sems, len(sems)
     
     def _extract_links(self) -> list[list[float]]:
-        """ Extract the links from the network. """
+        """ Extract the links from the network. 
+
+        Returns:
+            - tuple[list[list[float]], dict[int, list[int]], int]: A tuple containing:
+                - links (list[list[float]]): The links matrix.
+                - links_list (dict[int, list[int]]): A dictionary mapping token IDs to the IDs of the semantics they are linked to.
+                - link_count (int): The number of links.
+        """
         state = self.state
         net = self.network
         tk_tens = net.token_tensor.tensor
@@ -240,11 +258,17 @@ class NewNet:
                     links_list[tk_id].append(sem_id)
                 else:
                     raise ValueError(f"Duplicate link found for {tk_id} -> {sem_id}")
-        logger.debug(f"Extracted {len(links_list)} links.")
-        return links, links_list
+        return links, links_list, len(links_list)
         
     def _extract_mappings(self) -> list[list[dict[MappingFields, float]]]:
-        """ Extract the mappings from the network. """
+        """ Extract the mappings from the network. 
+
+        Returns:
+            - tuple[list[list[dict[MappingFields, float]]], int, int]: A tuple containing:
+                - mappings (list[list[dict[MappingFields, float]]]): The mappings matrix.
+                - m_count (int): The number of mappings.
+                - h_count (int): The number of hypotheses.
+        """
         map_tens = self.network.mappings.adj_matrix
         r_count = len(self.state.recipient)
         d_count = len(self.state.driver)
@@ -265,11 +289,16 @@ class NewNet:
                     m_c += 1
                 if hypothesis != 0.0:
                     h_c += 1
-        logger.debug(f"Extracted {m_c} mappings and {h_c} hypotheses.")
-        return mappings
+        return mappings, m_c, h_c
     
     def _extract_connections(self) -> list[list[bool]]:
-        """ Extract the connections from the network. """
+        """ Extract the connections from the network. 
+
+        Returns:
+            - tuple[list[list[bool]], int]: A tuple containing:
+                - connections (list[list[bool]]): The connections matrix.
+                - con_count (int): The number of connections.
+        """
         all_tks = torch.where(self.network.token_tensor.tensor[:, TF.DELETED] == B.FALSE)[0]
         tokens = self.network.tokens
         con_tens = self.network.tokens.connections.tensor[all_tks, :][:, all_tks]
@@ -278,8 +307,6 @@ class NewNet:
         po_mask = tokens.arb_mask({TF.TYPE: Type.PO})
         rb_mask = tokens.arb_mask({TF.TYPE: Type.RB})
         po_idx_list = torch.where(po_mask)[0].tolist()
-        logger.debug(f"PO idx list: {po_idx_list}")
-        self.network.print_token_tensor(features=[TF.ID, TF.TYPE])
         po_shared_rb = self._shared(po_mask, po_mask, rb_mask, con_tens, con_tens.t())
         for id in self.state.idxs.keys():
             idx = self.state.idxs[id]
@@ -347,7 +374,6 @@ class NewNet:
                         self.state.metadata['con_counts'][Type.PO][Type.RB] += 1
                     # same_RB_POs
                     po_idx = po_idx_list.index(idx)
-                    logger.debug(f"PO {id} -> {po_idx}")
                     same_rb_pos = torch.where(po_shared_rb[po_idx, :] > 0)[0].tolist()
                     for same_rb_pos_idx in same_rb_pos:
                         same_rb_idx = po_idx_list[same_rb_pos_idx]
@@ -356,12 +382,16 @@ class NewNet:
                     pass
                 case _:
                     raise ValueError(f"Unknown token type: {tk['type']}")
-        
-        logger.debug(f"Extracted {(con_tens > 0).sum()} connections.")
-        return connections
+        return connections, (con_tens > 0).sum()
     
     def _extract_semantic_connections(self) -> list[list[float]]:
-        """ Extract the semantic connections from the network. """
+        """ Extract the semantic connections from the network. 
+
+        Returns:
+            - tuple[list[list[float]], int]: A tuple containing:
+                - sem_connections (list[list[float]]): The semantic connections matrix.
+                - sem_con_count (int): The number of semantic connections.
+        """
         cons = self.network.semantics.connections
         all_sems = torch.where(self.network.semantics.nodes[:, SF.DELETED] == B.FALSE)[0].tolist()
         sems = self.state.semantics
@@ -384,8 +414,7 @@ class NewNet:
                     if from_id not in to_list:
                         to_list.append(from_id)
                         to_weights.append(weight)
-        return sem_connections
-
+        return sem_connections, (cons > 0).sum()
 
     def _shared(self, child1_mask, child2_mask, parent_mask, con_tensor, parent_cons):
         """ Returns a child1xchild2 tensor of 1 if child1 and child2 are not both connected to the same parent, 0 o.w """
