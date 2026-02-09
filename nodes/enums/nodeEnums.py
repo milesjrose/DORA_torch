@@ -178,17 +178,17 @@ class SF(IntEnum):
     """Type of semantic NOTE: can probably be removed as they are all semantics"""
     ONT                 = 2
     """Ontology status of semantic"""
-    DIM                 = 8
+    DIM                 = 3
     """Dimension of semantic"""
-
-    # BOOL values:
-    DELETED             = 3
 
     # FLOAT values:
     AMOUNT              = 4
     INPUT               = 5
     MAX_INPUT           = 6
     ACT                 = 7
+    
+    # BOOL values:
+    DELETED             = 8
 
 def SF_type(feature: SF):
     """
