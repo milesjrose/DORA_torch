@@ -28,7 +28,7 @@ class OldNet:
         self.parameters = parameters or self._default_parameters()
         self._sim_path = None
         self.state = State()
-        self.printer = StatePrinter(state=self.state)
+        self.printer = StatePrinter(state=self.state, logger=logger)
         self.printer.header_text = "OLD"
     
     def _setup_currvers_path(self):
@@ -203,6 +203,7 @@ class OldNet:
         state.links, state.links_list = self._extract_links()
         state.mappings = self._extract_mappings()
         state.connections = self._extract_connections()
+        state.sem_connections = self._extract_semantic_connections()
         state.metadata = {
             'sim_path': str(self._sim_path) if self._sim_path else None,
             'parameters': self.parameters,
@@ -280,7 +281,7 @@ class OldNet:
             'inhibitor_act': token.inhibitor_act,
             'mappingHypotheses': token.mappingHypotheses,
             'mappingConnections': token.mappingConnections,
-            'max_map_unit': token.max_map_unit,
+            'max_map_unit': token.max_map_unit.ID if token.max_map_unit else None,
             'max_map': token.max_map,
             'td_input': token.td_input,
             'bu_input': token.bu_input,
@@ -313,7 +314,7 @@ class OldNet:
                 data['timesFired'] = token.timesFired
                 self.state.token_ids[Type.RB].append(token.ID)
             case 'PO':
-                data['predOrObj'] = token.predOrObj
+                data['predOrObj'] = True if token.predOrObj == 1 else False
                 data['myRBs'] = [rb.ID for rb in token.myRBs]
                 data['same_RB_POs'] = [po.ID for po in token.same_RB_POs]
                 data['mySemantics'] = [link.mySemantic.ID for link in token.mySemantics]
@@ -349,6 +350,14 @@ class OldNet:
             }
         logger.debug(f"Extracted {len(semantics)} semantics.")
         return semantics
+    
+    def _extract_semantic_connections(self) -> list[list[float]]:
+        """ Extract all semantic connection data. """
+        connections = [[0.0] * self.state.sem_count for _ in range(self.state.sem_count)]
+        for sem in self.memory.semantics:
+            for link in sem.semConnect:
+                connections[self.state.sem_idxs[sem.ID]][self.state.sem_idxs[link.mySemantic.ID]] = link.weight
+        return connections
     
     def _extract_links(self) -> list[list[float]]:
         """ Extract all link data. """

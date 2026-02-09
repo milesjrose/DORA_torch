@@ -19,6 +19,8 @@ class State:
         f""" Matrix of mappings between driver and recipient tokens. (mappings[DRIVER_ID][RECIPIENT_ID][MappingField] = value)"""
         self.connections = [[]]
         f""" Matrix of connections between tokens. (connections[TOKEN_ID][TOKEN_ID] = weight)"""
+        self.sem_connections = [[]]
+        f""" Matrix of connections between semantics. (sem_connections[SEM_ID][SEM_ID] = weight)"""
         self.metadata = {
             'sim_path': None,
             'parameters': None,
