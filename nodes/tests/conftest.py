@@ -27,6 +27,9 @@ def configure_test_logging():
     """
     # Set root logger level (affects all loggers unless overridden)
     logging.getLogger().setLevel(logging.DEBUG)  # Only show WARNING and above by default
+    info_loggers = ["DATATYPES", "DRIVER_RB", "DRIVER_PO"]
+    for logger_name in info_loggers:
+        logging.getLogger(logger_name).setLevel(logging.INFO)
     
     # Set specific logger levels for classes/modules
     # Examples:

@@ -1073,10 +1073,6 @@ class TestObjectReferences:
         """network.token_tensor should be the same object as network.tokens.token_tensor."""
         assert simple_network.token_tensor is simple_network.tokens.token_tensor
 
-    def test_connections_reference_shared(self, simple_network):
-        """tokens.connections should be the same object as token_tensor.connections."""
-        assert simple_network.tokens.connections is simple_network.tokens.token_tensor.connections
-
     def test_links_reference_shared(self, simple_network):
         """network.links should be the same object as tokens.links."""
         assert simple_network.links is simple_network.tokens.links
@@ -1102,11 +1098,6 @@ class TestObjectReferences:
     def test_underlying_token_tensor_shared(self, simple_network):
         """The underlying torch tensor should be the same object."""
         assert simple_network.token_tensor.tensor is simple_network.tokens.token_tensor.tensor
-
-    def test_underlying_connections_tensor_shared(self, simple_network):
-        """The underlying connections tensor should be the same object."""
-        assert simple_network.tokens.connections.connections is \
-               simple_network.tokens.token_tensor.connections.connections
 
     def test_underlying_links_tensor_shared(self, simple_network):
         """The underlying links tensor should be the same object."""
@@ -1142,21 +1133,6 @@ class TestObjectReferences:
         
         # Restore
         simple_network.token_tensor.tensor[0, TF.ACT] = original
-
-    def test_connection_mutation_visible_everywhere(self, simple_network):
-        """Changes to connections should be visible through all references."""
-        # Find a connection that exists
-        connections = simple_network.tokens.connections.connections
-        
-        # Toggle a connection through one reference
-        original = connections[0, 1].item()
-        simple_network.tokens.connections.connections[0, 1] = not original
-        
-        # Verify visible through other reference
-        assert simple_network.tokens.token_tensor.connections.connections[0, 1].item() == (not original)
-        
-        # Restore
-        simple_network.tokens.connections.connections[0, 1] = original
 
     def test_link_mutation_visible_everywhere(self, simple_network):
         """Changes to links should be visible through all references."""

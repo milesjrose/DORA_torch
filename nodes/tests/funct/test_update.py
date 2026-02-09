@@ -164,7 +164,7 @@ def test_update_driver():
     """
     # Setup networks
     bridge.old.load_sim("sims/testsim15.py")
-    bridge.new.load_sim("sims/testsim15.py")
+    bridge.load_new_from_old()
 
     new_net: Network = bridge.new.network
     memory = bridge.old.memory
@@ -213,17 +213,8 @@ def test_update_driver():
         logger.info(f" -------------------------------> {i} Inputs NEW")
         new_net.update_ops.inputs(Set.DRIVER)
         # Compare
-        bridge.update_states()
-        match = bridge.compare_states()
-        if match == False:
-            logger.info(f" ===============================> {i} Inputs NO MATCH >:(\n")
-            bridge.new.printer.tokens()
-            bridge.new.printer.connections()
-            new_net.print_connections()
-            logger.info(f" Token(0): {new_net.get_name(0)}")
+        match, diffs = bridge.compare_states()
         assert match, "Mismatch after update inputs"
-
-        logger.info(f" ===============================> {i} Inputs Match :)\n")
 
         # Acts
         # - old
@@ -244,9 +235,10 @@ def test_update_driver():
         logger.info(f" -------------------------------> {i} Acts NEW")
         new_net.update_ops.acts(Set.DRIVER)
         # Compare
-        logger.info(f" ===============================> {i} Acts Match :)\n")
-        assert bridge.compare_states(), "Mismatch after update acts"
+        match, _ = bridge.compare_states()
+        assert match, "Mismatch after update acts"
             # Try set the p mode in both networks
+        logger.info(f" -------------------------------> {i} Get P mode")
         #old
         for myP in memory.Ps:
             myP.get_Pmode()
