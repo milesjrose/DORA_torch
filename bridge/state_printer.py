@@ -6,7 +6,6 @@ from typing import List, Tuple
 from logging import getLogger
 from nodes.enums import *
 from typing import Dict
-logger = getLogger("STATE_PRINTER")
 
 class StatePrinter:
     """
@@ -20,18 +19,21 @@ class StatePrinter:
         print_to_console (bool): Whether to print output to console.
     """
     
-    def __init__(self, log_file: str = None, state: State = None, output_type: OutputType = OutputType.SINGLE_LOG_CONSOLE):
+    def __init__(self, log_file: str = None, state: State = None, output_type: OutputType = OutputType.SINGLE_LOG_CONSOLE, logger = None):
         """
         Initialize the StatePrinter.
         
         Args:
             log_file (str): Optional file to log output to.
             print_to_console (bool): Whether to print to console. Default True.
+            logger (Logger, optional): Logger to use. Defaults to local logger.
         """
         self.log_file = log_file
         self._state = state
         self.output_type = OutputType.SINGLE_LOG_CONSOLE
         self.header_text = None
+        self.logger = logger if logger is not None else getLogger("STATE_PRINTER")
+        self._temp_logger = None
     
     def set_state(self, state: State):
         """ Set the state of the StatePrinter. 
@@ -51,6 +53,7 @@ class StatePrinter:
         Args:
             message (str): The message to output.
         """
+        logger = self._temp_logger if self._temp_logger is not None else self.logger
         if self.output_type == OutputType.PRINT_CONSOLE:
             print(message)
         elif self.output_type == OutputType.LOG_CONSOLE:
@@ -94,15 +97,19 @@ class StatePrinter:
                      features: List[str] = None, 
                      filter_set: str = None,
                      names: list[str] = None,
-                     IDs: list[int] = None):
+                     IDs: list[int] = None,
+                     logger = None):
         """ Print the tokens in the state.
+
         Args:
-            token_types: List of token types to print.
-            features: List of features to print.
-            filter_set: Filter the tokens by set.
-            names: List of names to filter the tokens by.
-            IDs: List of IDs to filter the tokens by.
+            token_types (list[str], optional): List of token types to print. Default [P, RB, PO].
+            features (list[str], optional): List of features to print. Default None.
+            filter_set (str, optional): Filter the tokens by set. Default None.
+            names (list[str], optional): List of names to filter the tokens by. Default None.
+            IDs (list[int], optional): List of IDs to filter the tokens by. Default None.
+            logger (Logger, optional): Logger to use. Defaults to local logger.
         """
+        self._temp_logger = logger
         tokens = self._state.tokens
         ID_list = list(tokens.keys())
         if token_types is None:
@@ -111,28 +118,31 @@ class StatePrinter:
         for id in sorted(ID_list):
             token = tokens[id]
             if token['type'] not in token_types:
-                logger.info(f"{id} type[{token['type']}] not in token_types[{token_types}]")
+                self._output(f"{id} type[{token['type']}] not in token_types[{token_types}]")
                 continue
             if filter_set is not None and token['set'] != filter_set:
-                logger.info(f"{id} set[{token['set']}] not in filter_set[{filter_set}]")
+                self._output(f"{id} set[{token['set']}] not in filter_set[{filter_set}]")
                 continue
             if names is not None and token['name'] not in names:
-                logger.info(f"{id} name[{token['name']}] not in names[{names}]")
+                self._output(f"{id} name[{token['name']}] not in names[{names}]")
                 continue
             if IDs is not None and id not in IDs:
-                logger.info(f"{id} not in IDs[{IDs}]")
+                self._output(f"{id} not in IDs[{IDs}]")
                 continue
             output.append(token)
-        logger.info(f"Tokens: {len(output)} tokens")
+        self._output(f"Tokens: {len(output)} tokens")
         self._print_tokens(output)
+        self._temp_logger = None
     
-    def semantics(self, show_zero_act: bool = True, names: list[str] = None):
+    def semantics(self, show_zero_act: bool = True, names: list[str] = None, logger = None):
         """ Print the semantics in the state.
 
         Args:
-            show_zero_act: Whether to show semantics with zero activation.
-            names: List of names to filter the semantics by.
+            show_zero_act (bool, optional): Whether to show semantics with zero activation. Default True.
+            names (list[str], optional): List of names to filter the semantics by. Default None.
+            logger (Logger, optional): Logger to use. Defaults to local logger.
         """
+        self._temp_logger = logger
         semantics = self._state.semantics
         ID_list = list(semantics.keys())
         output = []
@@ -144,17 +154,25 @@ class StatePrinter:
                 continue
             output.append(sem)
         self._print_semantics(output)
-    
+        self._temp_logger = None
+
     def links(self, show_weights: bool = True, 
               min_weight: float = 0.0,
               names: list[str] = None,
               ids: list[int] = None,
-              as_matrix: bool = False):
+              as_matrix: bool = False,
+              logger = None):
         """ Print the links in the state.
+
         Args:
-            show_weights: Whether to show weights.
-            min_weight: Minimum weight to display.
+            show_weights (bool, optional): Whether to show weights. Default True.
+            min_weight (float, optional): Minimum weight to display. Default 0.0.
+            names (list[str], optional): List of names to filter the links by. Default None.
+            ids (list[int], optional): List of IDs to filter the links by. Default None.
+            as_matrix (bool, optional): Whether to print the links as a matrix. Default False.
+            logger (Logger, optional): Logger to use. Defaults to local logger.
         """
+        self._temp_logger = logger
         if as_matrix:
             links = self._state.links
             i = 0
@@ -190,18 +208,27 @@ class StatePrinter:
             header_text = f"({len(rows)} links)" if self.header_text is None else f"{self.header_text} ({len(rows)} links)"
             columns = ['Token[idx]', '', 'Semantics[idx] (weight)']
             self._print_table(columns, rows, header_text)
-    
+        self._temp_logger = None
+        
     def mappings(self, show_weights: bool = True, 
                  min_weight: float = 0.0,
                  names: list[str] = None,
                  ids: list[int] = None,
-                 as_matrix: bool = False):
+                 as_matrix: bool = False,
+                 logger = None):
         """ Print the mappings in the state.
+
         Args:
-            show_weights: Whether to show weights.
-            min_weight: Minimum weight to display.
+            show_weights (bool, optional): Whether to show weights. Default True.
+            min_weight (float, optional): Minimum weight to display. Default 0.0.
+            names (list[str], optional): List of names to filter the mappings by. Default None.
+            ids (list[int], optional): List of IDs to filter the mappings by. Default None.
+            as_matrix (bool, optional): Whether to print the mappings as a matrix. Default False.
+            logger (Logger, optional): Logger to use. Defaults to local logger.
         """
+        self._temp_logger = logger
         raise NotImplementedError("Not done yet.")
+        self._temp_logger = None
 
     def connections(self, show_weights: bool = True, 
                  min_weight: float = 0.0,
@@ -210,12 +237,20 @@ class StatePrinter:
                  as_matrix: bool = False,
                  get_children: bool = True,
                  get_parents: bool = False,
-                 ):
+                 logger = None):
         """ Print the connections in the state.
+
         Args:
-            connection_types: List of connection types to print.
-            min_weight: Minimum weight to display.
+            show_weights (bool, optional): Whether to show weights. Default True.
+            min_weight (float, optional): Minimum weight to display. Default 0.0.
+            names (list[str], optional): List of names to filter the connections by. Default None.
+            ids (list[int], optional): List of IDs to filter the connections by. Default None.
+            as_matrix (bool, optional): Whether to print the connections as a matrix. Default False.
+            get_children (bool, optional): Whether to get the children of the connections. Default True.
+            get_parents (bool, optional): Whether to get the parents of the connections. Default False.
+            logger (Logger, optional): Logger to use. Defaults to local logger.
         """
+        self._temp_logger = logger
         if as_matrix:
             raise NotImplementedError("Not done yet.")
         else:
@@ -248,9 +283,17 @@ class StatePrinter:
                 if get_children and get_parents:
                     columns = ['Token[idx]', '', 'Children[idx]', '', 'Parents[idx]']
                 self._print_table(columns, rows, header_text)
+        self._temp_logger = None
+        
+    def summary(self, logger = None):
+        """ 
+        Print a short summary of the state. 
+        (Counts of tokens, semantics, connections, mappings, links, and sets.)
 
-    def summary(self):
-        """ Print the summary of the state. """
+        Args:
+            logger (Logger, optional): Logger to use. Defaults to local logger.
+        """
+        self._temp_logger = logger
         s = self._state
         
         num_cons = 0
@@ -272,14 +315,17 @@ class StatePrinter:
         os += f"    > {len(s.semantics)} semantics\n"
         os += f"Set_counts: \n    > {len(s.driver)} driver, \n    > {len(s.recipient)} recipient\n"
         os += f"Cons: \n    > {num_cons} Connections, \n    > {num_mappings} Mappings, \n    > {num_links} Links\n"
-        logger.info(os)
+        self._output(os)
+        self._temp_logger = None
 
-    def token_data(self, id: int):
+    def token_data(self, id: int, logger = None):
         """
         Print the data for a token.
         Args:
             id: The ID of the token.
+            logger (Logger, optional): Logger to use. Defaults to local logger.
         """
+        self._temp_logger = logger
         token = self._state.tokens[id]
         idx = self._state.idxs[id]
         data = [['idx', f"{idx}"]]
@@ -299,7 +345,8 @@ class StatePrinter:
         cols = ['Feat', "Val"]
         rows = data
         self._print_table(cols, rows, f"Token {id}")
-
+        self._temp_logger = None
+        
     def _get_children(self, token: Dict, ids: List[int] = None) -> List[int]:
         """ Get the children of a token. """
         c = []
