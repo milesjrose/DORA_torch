@@ -268,7 +268,7 @@ class Tokens:
             print(self.connections.tensor)
             return
         else:
-            if not isinstance(indices, torch.Tensor):
+            if not isinstance(indices, torch.Tensor) and indices is not None:
                 indices = tOps.to_tensor(indices)
             p.print_connections(self, show_deleted=show_deleted, indices=indices, use_names=use_names, connected_char=connected_char, empty_char=empty_char)
     
