@@ -30,12 +30,11 @@ class NewNet:
         self.network = network
 
     def set_state(self, state: State):
-        """ Set the state object. 
+        """ Copy the state object info into current state.
         Args:
             state: State object.
         """
-        self.state = state
-        self.printer.set_state(self.state)
+        self.state.copy_from(state)
     
     def load_sim(self, sim_path: str):
         """
@@ -72,7 +71,7 @@ class NewNet:
 # =============================== EXTRACTORS ===============================
     def get_state(self) -> State:
         """ Generate the state from the network. """
-        logger.debug("Extracting state from the network...")
+        logger.info("Extracting state from the NEW network...")
         state = self.state
         state.clear()
         state.tokens = self._extract_tokens()
@@ -82,17 +81,17 @@ class NewNet:
         state.mappings = self._extract_mappings()
         state.connections = self._extract_connections()
         state.sem_connections = self._extract_semantic_connections()
-        state.metadata = {
-            'sim_path': str(self.sim_path) if self.sim_path else None,
-            'parameters': self.network.params.get_params_dict(),
-            'token_counts': {
-                'P': len(torch.where(self.network.token_tensor.tensor[:, TF.TYPE] == Type.P)[0]),
-                'RB': len(torch.where(self.network.token_tensor.tensor[:, TF.TYPE] == Type.RB)[0]),
-                'PO': len(torch.where(self.network.token_tensor.tensor[:, TF.TYPE] == Type.PO)[0]),
-                'semantics': len(state.sem_ids),
-            },
+        met = state.metadata
+        met['sim_path'] = str(self.sim_path) if self.sim_path else None
+        met['parameters'] = self.network.params.get_params_dict()
+        met['token_counts'] = {
+            Type.P: len(torch.where(self.network.token_tensor.tensor[:, TF.TYPE] == Type.P)[0]),
+            Type.RB: len(torch.where(self.network.token_tensor.tensor[:, TF.TYPE] == Type.RB)[0]),
+            Type.PO: len(torch.where(self.network.token_tensor.tensor[:, TF.TYPE] == Type.PO)[0]),
+            Type.SEMANTIC: len(state.sem_ids),
         }
-        logger.debug("State extracted successfully.")
+        state.metadata = met
+        logger.info("State extracted successfully.")
         return state
     
     def _extract_tokens(self) -> dict[int, dict]:
@@ -279,6 +278,8 @@ class NewNet:
         po_mask = tokens.arb_mask({TF.TYPE: Type.PO})
         rb_mask = tokens.arb_mask({TF.TYPE: Type.RB})
         po_idx_list = torch.where(po_mask)[0].tolist()
+        logger.debug(f"PO idx list: {po_idx_list}")
+        self.network.print_token_tensor(features=[TF.ID, TF.TYPE])
         po_shared_rb = self._shared(po_mask, po_mask, rb_mask, con_tens, con_tens.t())
         for id in self.state.idxs.keys():
             idx = self.state.idxs[id]
@@ -292,43 +293,48 @@ class NewNet:
                     for rb_idx in my_rbs:
                         rb_id = self.state.ids[rb_idx]
                         tk['myRBs'].append(rb_id)
+                        self.state.metadata['con_counts'][Type.P][Type.RB]['child'] += 1
+
                     # myParentRBs
                     p_parents = con_tens[:, idx] == True
                     my_parent_rbs = torch.where(p_parents & rbs)[0].tolist()
                     for p_rb_idx in my_parent_rbs:
                         p_rb_id = self.state.ids[p_rb_idx]
                         tk['myParentRBs'].append(p_rb_id)
+                        self.state.metadata['con_counts'][Type.RB][Type.P]['parent'] += 1
                     # myGroups
                     pass
                 case Type.RB:
                     # myParentPs
+                    rb_parents = con_tens[:, idx] == True
+                    rb_children = con_tens[idx, :] == True
                     ps = tokens.arb_mask({TF.TYPE: Type.P})
-                    rb_parents = con_tens[idx, :] == True
                     my_parent_ps = torch.where(rb_parents & ps)[0].tolist()
                     for p_idx in my_parent_ps:
                         p_id = self.state.ids[p_idx]
                         tk['myParentPs'].append(p_id)
+                        self.state.metadata['con_counts'][Type.RB][Type.P]['parent'] += 1
                     # myPred
                     preds = tokens.arb_mask({TF.TYPE: Type.PO, TF.PRED: B.TRUE})
-                    rb_preds = con_tens[idx, :] == True
-                    my_preds = torch.where(rb_preds & preds)[0].tolist()
+                    my_preds = torch.where(rb_children & preds)[0].tolist()
                     for pred_idx in my_preds:
                         pred_id = self.state.ids[pred_idx]
                         tk['myPred'].append(pred_id)
+                        self.state.metadata['con_counts'][Type.RB][Type.PO]['pred'] += 1
                     # myObj
                     objs = tokens.arb_mask({TF.TYPE: Type.PO, TF.PRED: B.FALSE})
-                    rb_objs = con_tens[idx, :] == True
-                    my_objs = torch.where(rb_objs & objs)[0].tolist()
+                    my_objs = torch.where(rb_children & objs)[0].tolist()
                     for obj_idx in my_objs:
                         obj_id = self.state.ids[obj_idx]
                         tk['myObj'].append(obj_id)
+                        self.state.metadata['con_counts'][Type.RB][Type.PO]['obj'] += 1
                     # myChildP
                     child_ps = tokens.arb_mask({TF.TYPE: Type.P, TF.MODE: Mode.CHILD})
-                    rb_child_ps = con_tens[:, idx] == True
-                    my_child_ps = torch.where(rb_child_ps & child_ps)[0].tolist()
+                    my_child_ps = torch.where(rb_children & child_ps)[0].tolist()
                     for child_p_idx in my_child_ps:
                         child_p_id = self.state.ids[child_p_idx]
                         tk['myChildP'].append(child_p_id)
+                        self.state.metadata['con_counts'][Type.RB][Type.P]['child'] += 1
                     pass
                 case Type.PO:
                     # myRBs
@@ -338,15 +344,19 @@ class NewNet:
                     for rb_idx in my_rbs:
                         rb_id = self.state.ids[rb_idx]
                         tk['myRBs'].append(rb_id)
+                        self.state.metadata['con_counts'][Type.PO][Type.RB] += 1
                     # same_RB_POs
                     po_idx = po_idx_list.index(idx)
+                    logger.debug(f"PO {id} -> {po_idx}")
                     same_rb_pos = torch.where(po_shared_rb[po_idx, :] > 0)[0].tolist()
                     for same_rb_pos_idx in same_rb_pos:
-                        same_rb_pos_id = self.state.ids[same_rb_pos_idx]
+                        same_rb_idx = po_idx_list[same_rb_pos_idx]
+                        same_rb_pos_id = self.state.ids[same_rb_idx]
                         tk['same_RB_POs'].append(same_rb_pos_id)
                     pass
                 case _:
                     raise ValueError(f"Unknown token type: {tk['type']}")
+        
         logger.debug(f"Extracted {(con_tens > 0).sum()} connections.")
         return connections
     
@@ -434,7 +444,7 @@ class NewNet:
 
     def _build_connections(self) -> Connections_Tensor:
         """ Build the connections from the state. """
-        return Connections_Tensor(torch.tensor(self.state.connections))
+        return Connections_Tensor(torch.tensor(self.state.connections,dtype=bool))
     
     def _build_token_tensor(self) -> Token_Tensor:
         """ Build the token tensor from the state. """
@@ -515,10 +525,10 @@ class NewNet:
             sem_data[idx, SF.DELETED] = B.FALSE
 
             # FLOAT values:
-            sem_data[idx, SF.AMOUNT] = sem['amount']
-            sem_data[idx, SF.ACT] = sem['act']
-            sem_data[idx, SF.INPUT] = sem['myinput']
-            sem_data[idx, SF.MAX_INPUT] = sem['max_sem_input']
+            sem_data[idx, SF.AMOUNT] = sem['amount'] if sem['amount'] is not None else null
+            sem_data[idx, SF.ACT] = sem['act'] if sem['act'] is not None else null
+            sem_data[idx, SF.INPUT] = sem['myinput'] if sem['myinput'] is not None else null
+            sem_data[idx, SF.MAX_INPUT] = sem['max_sem_input'] if sem['max_sem_input'] is not None else null
         
         # Construct con and sem objects
         sem_connections = torch.tensor(self.state.sem_connections, dtype=tensor_type)

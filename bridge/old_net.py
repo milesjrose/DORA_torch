@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional, Dict, List, Any, Union
 
 from logging import getLogger
-logger = getLogger("old_state_extractor")
+logger = getLogger("OLD_NET")
 
 class OldNet:
     """
@@ -27,6 +27,11 @@ class OldNet:
         self.network = None
         self.parameters = parameters or self._default_parameters()
         self._sim_path = None
+        self.num_cons = {
+            Type.P: 0,
+            Type.RB: 0,
+            Type.PO: 0,
+        }
         self.state = State()
         self.printer = StatePrinter(state=self.state, logger=logger)
         self.printer.header_text = "OLD"
@@ -150,10 +155,6 @@ class OldNet:
         self.network.initialize_run(self.network.memory)
 
         logger.info(f"Loaded simulation from {sim_path}")
-        logger.info(f"  Ps: {len(self.memory.Ps)}, RBs: {len(self.memory.RBs)}, "
-              f"POs: {len(self.memory.POs)}, Semantics: {len(self.memory.semantics)}")
-        
-        self.get_state()
     
     def load_props(self, symProps: List[Dict]):
         """
@@ -181,19 +182,20 @@ class OldNet:
         self.network.memory = self._basicRunDORA.findDriverRecipient(self.network.memory)
         
         logger.info(f"Loaded network from props")
-        logger.info(f"  Ps: {len(self.memory.Ps)}, RBs: {len(self.memory.RBs)}, "
-              f"POs: {len(self.memory.POs)}, Semantics: {len(self.memory.semantics)}")
         
         self.get_state()
 
     def get_state(self) -> State:
         """ Get the state of the network. """
+        logger.info("Extracting state from the OLD network...")
         state = self.state
         state.clear()
         state.tokens = self._extract_tokens()
         state.tk_count = len(state.tokens)
-        ids = [tk['ID'] for tk in state.tokens.values()]
-        state.idxs = {id: i for i, id in enumerate(sorted(ids))}
+        ids = sorted([tk['ID'] for tk in state.tokens.values()])
+        for i, id in enumerate(ids):
+            state.idxs[id] = i
+            state.ids[i] = id
         state.recipient_idxs = {id: i for i, id in enumerate(sorted(state.recipient))}
         state.driver_idxs = {id: i for i, id in enumerate(sorted(state.driver))}
         state.semantics = self._extract_semantics()
@@ -204,16 +206,17 @@ class OldNet:
         state.mappings = self._extract_mappings()
         state.connections = self._extract_connections()
         state.sem_connections = self._extract_semantic_connections()
-        state.metadata = {
-            'sim_path': str(self._sim_path) if self._sim_path else None,
-            'parameters': self.parameters,
-            'token_counts': {
-                'Ps': len(self.memory.Ps),
-                'RBs': len(self.memory.RBs),
-                'POs': len(self.memory.POs),
-                'semantics': len(self.memory.semantics),
-            },
+        met = state.metadata
+        met['sim_path'] = str(self._sim_path) if self._sim_path else None
+        met['parameters'] = self.parameters
+        met['token_counts'] = {
+            Type.P: len(self.memory.Ps),
+            Type.RB: len(self.memory.RBs),
+            Type.PO: len(self.memory.POs),
+            Type.SEMANTIC: len(self.memory.semantics),
         }
+        state.metadata = met
+        logger.info("State extracted successfully.")
         return self.state
     
     def _extract_tokens(self) -> dict[int, dict]:
@@ -267,7 +270,6 @@ class OldNet:
 
     def _extract_token_data(self, token) -> dict:
         """ Extract data from a token. """
-        logger.info(f"Analog:{token.myanalog.ID}")
         data = {
             'name': token.name,
             'ID': token.ID,
@@ -305,6 +307,9 @@ class OldNet:
                 data['myParentRBs'] = [rb.ID for rb in token.myParentRBs]
                 data['myGroups'] = [group.ID for group in token.myGroups]
                 data['mode'] = self._encode_data(token.mode, 'mode')
+                self.state.metadata['con_counts'][Type.P][Type.RB]['child'] += len(token.myRBs)
+                self.state.metadata['con_counts'][Type.P][Type.RB]['parent'] += len(token.myParentRBs)
+                self.state.metadata['con_counts'][Type.P][Type.GROUP] += len(token.myGroups)
                 self.state.token_ids[Type.P].append(token.ID)
             case 'RB':
                 data['myParentPs'] = [p.ID for p in token.myParentPs]
@@ -312,6 +317,10 @@ class OldNet:
                 data['myObj'] = [obj.ID for obj in token.myObj]
                 data['myChildP'] = [childP.ID for childP in token.myChildP]
                 data['timesFired'] = token.timesFired
+                self.state.metadata['con_counts'][Type.RB][Type.P]['parent'] += len(token.myParentPs)
+                self.state.metadata['con_counts'][Type.RB][Type.PO]['pred'] += len(token.myPred)
+                self.state.metadata['con_counts'][Type.RB][Type.PO]['obj'] += len(token.myObj)
+                self.state.metadata['con_counts'][Type.RB][Type.P]['child'] += len(token.myChildP)
                 self.state.token_ids[Type.RB].append(token.ID)
             case 'PO':
                 data['predOrObj'] = True if token.predOrObj == 1 else False
@@ -320,6 +329,7 @@ class OldNet:
                 data['mySemantics'] = [link.mySemantic.ID for link in token.mySemantics]
                 data['semNormalization'] = token.semNormalization
                 data['max_sem_weight'] = token.max_sem_weight
+                self.state.metadata['con_counts'][Type.PO][Type.RB] += len(token.myRBs)
                 self.state.token_ids[Type.PO].append(token.ID)
             case _:
                 raise ValueError(f"Unknown token type: {token.my_type}")
@@ -333,6 +343,12 @@ class OldNet:
         """ Extract all semantic data. """
         semantics = {}
         for sem in self.memory.semantics:
+            sem_connect_weights: List = sem.semConnectWeights
+            while True:
+                try:
+                    sem_connect_weights.remove(0.0)
+                except ValueError:
+                    break
             semantics[sem.ID] = {
                 'name': sem.name,
                 'ID': sem.ID,
@@ -346,7 +362,7 @@ class OldNet:
                 'myPOs': [link.myPO.ID for link in sem.myPOs],
                 'myGroups': [link.group.ID for link in sem.myGroups],
                 'semConnect': [link.mySemantic.ID for link in sem.semConnect],
-                'semConnectWeights': sem.semConnectWeights,
+                'semConnectWeights': sem_connect_weights,
             }
         logger.debug(f"Extracted {len(semantics)} semantics.")
         return semantics
@@ -385,7 +401,7 @@ class OldNet:
         """ Extract all mapping data. """
         r_count = len(self.state.recipient)
         d_count = len(self.state.driver)
-        mappings = [[{MappingFields.WEIGHT: 0.0, MappingFields.HYPOTHESIS: 0.0, MappingFields.MAX_HYP: 0.0} for _ in range(r_count)] for _ in range(d_count)]
+        mappings = [[{MappingFields.WEIGHT: 0.0, MappingFields.HYPOTHESIS: 0.0, MappingFields.MAX_HYP: 0.0} for _ in range(d_count)] for _ in range(r_count)]
         for tk_list in [self.memory.Ps, self.memory.RBs, self.memory.POs]:
             for token in tk_list:
                 # hypotheses
@@ -411,7 +427,9 @@ class OldNet:
 
     def _extract_connections(self) -> list[list[bool]]:
         """ Extract all connection data. """
-        connections = [[0.0] * self.state.tk_count for _ in range(self.state.tk_count)]
+        # init matrix
+        connections = [[False] * self.state.tk_count for _ in range(self.state.tk_count)]
+        # extract connections
         for myP in self.memory.Ps:
             for myRB in myP.myRBs:
                 connections[self.state.idxs[myP.ID]][self.state.idxs[myRB.ID]] = True
@@ -420,7 +438,15 @@ class OldNet:
                 connections[self.state.idxs[myRB.ID]][self.state.idxs[myChildP.ID]] = True
         for myPO in self.memory.POs:
             for myRB in myPO.myRBs:
-                connections[self.state.idxs[myPO.ID]][self.state.idxs[myRB.ID]] = True
+                connections[self.state.idxs[myRB.ID]][self.state.idxs[myPO.ID]] = True
+        # count the number of connections
+        num_cons_final = 0
+        for row in connections:
+            for val in row:
+                if val:
+                    num_cons_final += 1
+        # log
+        logger.debug(f"Extracted {num_cons_final} [P:{self.num_cons[Type.P]}, RB:{self.num_cons[Type.RB]}, PO:{self.num_cons[Type.PO]}] connections.")
         return connections
 
     def save_state(self, file_path: str = None):

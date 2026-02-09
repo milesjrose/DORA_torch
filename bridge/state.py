@@ -1,5 +1,7 @@
 from nodes.enums import *
 import json
+from logging import getLogger
+logger = getLogger("STATE")
 
 class State:
     """
@@ -25,10 +27,23 @@ class State:
             'sim_path': None,
             'parameters': None,
             'token_counts': {
-                'P': None,
-                'RB': None,
-                'PO': None,
-                'semantics': None,
+                Type.P: None,
+                Type.RB: None,
+                Type.PO: None,
+                Type.SEMANTIC: None,
+            },
+            'con_counts': {
+                Type.P: {
+                    Type.RB: {'child': 0,'parent': 0,},
+                    Type.GROUP: 0,
+                },
+                Type.RB: {
+                    Type.P: {'parent': 0,'child': 0,},
+                    Type.PO: {'pred': 0,'obj': 0,},
+                },
+                Type.PO: {
+                    Type.RB: 0,
+                },
             }
         }
         self.token_ids = {
@@ -56,6 +71,31 @@ class State:
         self.sem_ids = {}
         """ Dict of semantic IDs by index. (sem_ids[index] = [ID1, ID2, ...])"""
     
+    def copy_from(self, state: 'State'):
+        """ Copy the state object info into current state.
+        Args:
+            state: State object.
+        """
+        self.tokens = state.tokens.copy()
+        self.semantics = state.semantics.copy()
+        self.links = state.links.copy()
+        self.links_list = state.links_list.copy()
+        self.mappings = state.mappings.copy()
+        self.connections = state.connections.copy()
+        self.sem_connections = state.sem_connections.copy()
+        self.metadata = state.metadata.copy()
+        self.token_ids = state.token_ids.copy()
+        self.idxs = state.idxs.copy()
+        self.ids = state.ids.copy()
+        self.tk_count = state.tk_count
+        self.sem_count = state.sem_count
+        self.recipient_idxs = state.recipient_idxs.copy()
+        self.driver_idxs = state.driver_idxs.copy()
+        self.recipient = state.recipient.copy()
+        self.driver = state.driver.copy()
+        self.sem_idxs = state.sem_idxs.copy()
+        self.sem_ids = state.sem_ids.copy()
+
     def clear(self):
         """ Clear the state. """
         self.tokens = {}
@@ -67,10 +107,23 @@ class State:
             'sim_path': None,
             'parameters': None,
             'token_counts': {
-                'P': None,
-                'RB': None,
-                'PO': None,
-                'semantics': None,
+                Type.P: None,
+                Type.RB: None,
+                Type.PO: None,
+                Type.SEMANTIC: None,
+            },
+            'con_counts': {
+                Type.P: {
+                    Type.RB: {'child': 0,'parent': 0,},
+                    Type.GROUP: 0,
+                },
+                Type.RB: {
+                    Type.P: {'parent': 0,'child': 0,},
+                    Type.PO: {'pred': 0,'obj': 0,},
+                },
+                Type.PO: {
+                    Type.RB: 0,
+                },
             }
         }
         self.token_ids = {
@@ -171,5 +224,28 @@ class State:
         
         return state
     
+    def debug_print(self):
+        """ Print the state in a debug format. """
+        output = " ---------------STATE---------------- \n"
+        output += f"Tokens: ids={list(self.tokens.keys())}\n"
+        output += f"Semantics: ids={list(self.semantics.keys())}\n"
+        output += f"Links: size={len(self.links)}x{len(self.links[0])}\n"
+        output += f"Mappings: size={len(self.mappings)}x{len(self.mappings[0])}x{len(self.mappings[0][0])}\n"
+        output += f"Connections: size={len(self.connections)}x{len(self.connections[0])}\n"
+        output += f"Sem Connections: size={len(self.sem_connections)}x{len(self.sem_connections[0])}\n"
+        output += f"ID_dict_counts: tokens={len(self.ids.keys())} semantics={len(self.sem_ids.keys())}\n"
+        output += f"index_dict_counts: tokens={len(self.idxs.keys())} semantics={len(self.sem_idxs.keys())}\n"
+        logger.debug(output)
     
-    
+    def debug_con_counts(self):
+        """ Print the connection counts. """
+        output = "CON_COUNTS: "
+        output += f"(P: RB_child={self.metadata['con_counts'][Type.P][Type.RB]['child']},"
+        output += f" RB_parent={self.metadata['con_counts'][Type.P][Type.RB]['parent']} "
+        output += f" group={self.metadata['con_counts'][Type.P][Type.GROUP]})"
+        output += f" | (RB: P_parent={self.metadata['con_counts'][Type.RB][Type.P]['parent']},"
+        output += f" P_child={self.metadata['con_counts'][Type.RB][Type.P]['child']},"
+        output += f" pred={self.metadata['con_counts'][Type.RB][Type.PO]['pred']},"
+        output += f" obj={self.metadata['con_counts'][Type.RB][Type.PO]['obj']})"
+        output += f" | (PO: RB={self.metadata['con_counts'][Type.PO][Type.RB]})"
+        logger.debug(output)
