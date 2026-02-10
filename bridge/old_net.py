@@ -200,6 +200,7 @@ class OldNet:
         state.semantics, sem_count = self._extract_semantics()
         sem_ids = [tk['ID'] for tk in state.semantics.values()]
         state.sem_idxs = {id: i for i, id in enumerate(sorted(sem_ids))}
+        state.sem_ids = {i: id for id, i in state.sem_idxs.items()}
         state.sem_count = sem_count
         state.links, state.links_list, link_count = self._extract_links()
         state.mappings, m_count, h_count = self._extract_mappings()
