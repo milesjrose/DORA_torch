@@ -19,14 +19,19 @@ def test_update_recipient():
     """
     # Setup networks
     bridge.old.load_sim("sims/testsim15.py")
-    bridge.new.load_sim("sims/testsim15.py")
+    bridge.load_new_from_old()
 
     new_net: Network = bridge.new.network
     memory = bridge.old.memory
 
     import basicRunDORA
 
-    assert bridge.compare_states(), "Mismatch after loading sim"
+    match = bridge.compare_states()
+    if not match:
+        bridge.old.printer.semantics()
+        bridge.new.printer.semantics()
+        print(new_net.semantics.IDs)
+    assert match, "Mismatch after loading sim"
     # Try set the p mode in both networks
     #old
     for myP in memory.Ps:
@@ -169,7 +174,13 @@ def test_update_driver():
     new_net: Network = bridge.new.network
     memory = bridge.old.memory
     import basicRunDORA
-    assert bridge.compare_states(), "States do not match"
+
+    match = bridge.compare_states()
+    if not match:
+        bridge.old.printer.semantics()
+        bridge.new.printer.semantics()
+        logger.debug(new_net.semantics.IDs)
+    assert match, "States do not match"
 
     # =====================================================
     # Step 1: Set driver P activations in both networks.
@@ -213,7 +224,10 @@ def test_update_driver():
         logger.info(f" -------------------------------> {i} Inputs NEW")
         new_net.update_ops.inputs(Set.DRIVER)
         # Compare
-        match, diffs = bridge.compare_states()
+        match= bridge.compare_states()
+        if not match:
+            bridge.old.printer.tokens(ids=[37,38,40,41,48,51,54])
+            bridge.new.printer.tokens(ids=[37,38,40,41,48,51,54])
         assert match, "Mismatch after update inputs"
 
         # Acts
@@ -235,7 +249,7 @@ def test_update_driver():
         logger.info(f" -------------------------------> {i} Acts NEW")
         new_net.update_ops.acts(Set.DRIVER)
         # Compare
-        match, _ = bridge.compare_states()
+        match= bridge.compare_states()
         assert match, "Mismatch after update acts"
             # Try set the p mode in both networks
         logger.info(f" -------------------------------> {i} Get P mode")
@@ -246,5 +260,50 @@ def test_update_driver():
         new_net.node_ops.get_pmode()
         assert bridge.compare_states(), "Mismatch after get p mode"
         new_net.params.phase_set += 1
+
+def test_update_semantics():
+    """ Test the update of the semantics set. """
+    # Setup networks
+    bridge.old.load_sim("sims/testsim15.py")
+    memory = bridge.old.memory
+    import basicRunDORA
+
+    # Semantic activation comes from driver PO nodes, so set up some PO activations.
+
+    for i, po in enumerate(memory.driver.POs):
+        if i < 2:
+            po.act = 0.8
+    
+    bridge.load_new_from_old()
+    network: Network = bridge.new.network
+
+    match = bridge.compare_states()
+    assert match, "States do not match"
+
+    # Update semantic inputs
+    # - old
+    ho_sem_act_flow = network.params.ho_sem_act_flow
+    retrieval_license = False
+    ignore_object_semantics = network.params.ignore_object_semantics
+    ignore_memory_semantics = network.params.ignore_memory_semantics
+    for semantic in memory.semantics:
+        semantic.update_input(
+            memory,
+            ho_sem_act_flow,
+            retrieval_license,
+            ignore_object_semantics,
+            ignore_memory_semantics,
+        )
+    # - new
+    memory_set = None if network.params.ignore_memory_semantics else network.sets[Set.MEMORY]
+    network.semantics.update_input(network.driver(), network.recipient(), memory_set)
+    match = bridge.compare_states()
+
+    if not match:
+        bridge.old.printer.semantics()
+        bridge.new.printer.semantics()
+    assert match
+    
+
 
 
