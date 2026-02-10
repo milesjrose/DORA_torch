@@ -561,7 +561,7 @@ class NewNet:
         
         # Construct con and sem objects
         sem_connections = torch.tensor(self.state.sem_connections, dtype=tensor_type)
-        sems = Semantics(sem_data, sem_connections, self.state.sem_ids.copy(), names)
+        sems = Semantics(sem_data, sem_connections, self.state.sem_idxs.copy(), names)
         # Initialise SDMs and set dimensions
         sems.init_sdm()
         for dim in list(dims.keys()):
