@@ -2,6 +2,7 @@ from bridge import Bridge, StatePrinter
 from nodes.enums import *
 from nodes.utils.printer import Printer as NodePrinter
 from nodes.network import Network
+from nodes.utils.timer import Timer, intervals_table
 bridge = Bridge()
 from logging import getLogger
 logger = getLogger("TEST")
@@ -210,19 +211,26 @@ def test_update_driver():
     # =====================================================
     # Step 2: Test some update cycles
     # =====================================================
-
+    c = []
+    old_timer = Timer()
+    new_timer = Timer()
     for i in range(10):
         # Inputs
         # - old
         logger.info(f" -------------------------------> {i} Inputs OLD")
+        old_timer.start()
         memory = basicRunDORA.update_driver_inputs(
             memory, 
             asDORA=new_net.params.as_DORA,
             lateral_input_level=new_net.params.lateral_input_level
         )
+        old_timer.stop()
         # - new
         logger.info(f" -------------------------------> {i} Inputs NEW")
+        new_timer.start()
         new_net.update_ops.inputs(Set.DRIVER)
+        new_timer.stop()
+        c.append(f"inputs {i}")
         # Compare
         match= bridge.compare_states()
         if not match:
@@ -236,6 +244,7 @@ def test_update_driver():
         gamma = new_net.params.gamma
         delta = new_net.params.delta
         HebbBias = new_net.params.HebbBias
+        old_timer.start()
         for Group in memory.driver.Groups:
             Group.update_act(gamma, delta, HebbBias)
         for myP in memory.driver.Ps:
@@ -244,10 +253,13 @@ def test_update_driver():
             myRB.update_act(gamma, delta, HebbBias)
         for myPO in memory.driver.POs:
             myPO.update_act(gamma, delta, HebbBias)
-
+        old_timer.stop()
+        c.append(f"acts {i}")
         # - new
         logger.info(f" -------------------------------> {i} Acts NEW")
+        new_timer.start()
         new_net.update_ops.acts(Set.DRIVER)
+        new_timer.stop()
         # Compare
         match= bridge.compare_states()
         assert match, "Mismatch after update acts"
@@ -260,6 +272,7 @@ def test_update_driver():
         new_net.node_ops.get_pmode()
         assert bridge.compare_states(), "Mismatch after get p mode"
         new_net.params.phase_set += 1
+    intervals_table([old_timer.get_intervals(), new_timer.get_intervals()], comments=c)
 
 def test_update_semantics():
     """ Test the update of the semantics set. """
@@ -267,6 +280,7 @@ def test_update_semantics():
     bridge.old.load_sim("sims/testsim15.py")
     memory = bridge.old.memory
     import basicRunDORA
+    
 
     # Semantic activation comes from driver PO nodes, so set up some PO activations.
 
@@ -280,30 +294,49 @@ def test_update_semantics():
     match = bridge.compare_states()
     assert match, "States do not match"
 
-    # Update semantic inputs
-    # - old
-    ho_sem_act_flow = network.params.ho_sem_act_flow
-    retrieval_license = False
-    ignore_object_semantics = network.params.ignore_object_semantics
-    ignore_memory_semantics = network.params.ignore_memory_semantics
-    for semantic in memory.semantics:
-        semantic.update_input(
-            memory,
-            ho_sem_act_flow,
-            retrieval_license,
-            ignore_object_semantics,
-            ignore_memory_semantics,
-        )
-    # - new
-    memory_set = None if network.params.ignore_memory_semantics else network.sets[Set.MEMORY]
-    network.semantics.update_input(network.driver(), network.recipient(), memory_set)
-    match = bridge.compare_states()
 
-    if not match:
-        bridge.old.printer.semantics()
-        bridge.new.printer.semantics()
-    assert match
+    # =====================================================
+    # Step 2: Test some update cycles
+    # =====================================================
+    for i in range(10):
+        # Update semantic inputs
+        # - old
+        logger.info(f" -------------------------------> {i} Inputs OLD")
+        ho_sem_act_flow = network.params.ho_sem_act_flow
+        retrieval_license = False
+        ignore_object_semantics = network.params.ignore_object_semantics
+        ignore_memory_semantics = network.params.ignore_memory_semantics
+        for semantic in memory.semantics:
+            semantic.update_input(
+                memory,
+                ho_sem_act_flow,
+                retrieval_license,
+                ignore_object_semantics,
+                ignore_memory_semantics,
+            )
+        logger.info(f" -------------------------------> {i} Inputs NEW")
+        # - new
+        memory_set = None if network.params.ignore_memory_semantics else network.sets[Set.MEMORY]
+        network.semantics.update_input(network.driver(), network.recipient(), memory_set)
+        match = bridge.compare_states()
+        if not match:
+            bridge.old.printer.semantics()
+            bridge.new.printer.semantics()
+        assert match, f"Inputs {i}, states do not match"
+
+        # Update semantic acts
+        # - old
+        logger.info(f" -------------------------------> {i} Acts OLD")
+        for semantic in memory.semantics:
+            semantic.update_act()
+        # - new
+        logger.info(f" -------------------------------> {i} Acts NEW ")
+        network.semantics.update_act()
+        match = bridge.compare_states()
+        if not match:
+            bridge.old.printer.semantics()
+            bridge.new.printer.semantics()
+        assert match, f"Acts {i}, states do not match"
     
-
 
 

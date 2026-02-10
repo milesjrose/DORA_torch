@@ -391,7 +391,7 @@ class Semantics(object):
         sem_mask = self.nodes[:, SF.MAX_INPUT] == 0                 # Get sem where max_input == 0       
         self.nodes[sem_mask, SF.ACT] = 0.0                          #  -  Set act of sem to 0
     
-    def update_input(self, driver, recipient, memory = None, ignore_obj=False):
+    def update_input(self, driver, recipient, memory = None, ignore_obj=False, retrieval_license=False):
         """
         Update the input of the semantics
         - Note, if memory is not provided, equivalent to "ignore_mem = True"
@@ -405,6 +405,11 @@ class Semantics(object):
         Raises:
             ValueError: If ignore_obj is set to False and no memory is provided.
         """
+        if not retrieval_license:
+            self.init_input(0.0)
+        else:
+            logger.critical("Not sure when this is used, so i'm going to throw an error for now :/")
+            raise NotImplementedError("Retrieval license not implemented yet.")
         self.update_input_from_set(driver, Set.DRIVER, ignore_obj)
         self.update_input_from_set(recipient, Set.RECIPIENT, ignore_obj)
         if memory is not None:
