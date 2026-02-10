@@ -522,15 +522,16 @@ class StatePrinter:
             header_text += f" | {ids}"
         return header_text
     
-    def _print_semantics(self, semantics: List[Dict]):
+    def _print_semantics(self, semantics: List[Dict], features: List[Tuple[str, str]] = None):
         """ Print the semantics in the state.
         Args:
             semantics: List of semantics to print.
         """
         header_text = 'Semantics'
         if features is None:
-            features = [('Name', 'name'), 
-                        ('Index', 'index'), 
+            features = [('Idx', 'index'), 
+                        ('Name', 'name'), 
+                        ('ID', 'ID'),
                         ('Act', 'act'), 
                         ('Input', 'input'), 
                         ('Max Input', 'max_input'), 
@@ -543,7 +544,10 @@ class StatePrinter:
         for sem in semantics:
             row = []
             for feature in features:
-                value = sem.get(feature[1], None)
+                if feature[1] == 'index':
+                    value = self._state.sem_idxs[sem['ID']]
+                else:
+                    value = sem.get(feature[1], None)
                 row.append(self._format(value))
             rows.append(row)
         if self.header_text is not None:
