@@ -204,13 +204,15 @@ class TablePrinter(object):
         Check that the number of columns in each row matches the number of columns in the table.
         """
         col_len = len(self.columns)
-        for row in self.rows:
+        mismatch_rows = []
+        for i, row in enumerate(self.rows):
             if len(row) != col_len:
-                for r in self.rows:
-                    self.output_line(r, len(r))
-                self.output_line(self.columns, len(self.columns))
-                raise ValueError(f"Row/Column length mismatch row_len:{len(row)} != col_len:{col_len} at row {row, enumerate(row)}")
-    
+                mismatch_rows.append([i, len(row)])
+        if mismatch_rows:
+            self.logger.error(f"Row/Column length mismatch, removing bad rows: col_len={col_len}, bad_rows(row_idx, row_len)={mismatch_rows}")
+            for row_idx, _ in mismatch_rows:
+                self.rows.pop(row_idx-1)
+               
     def calc_header_width(self):
         """
         Calculate the widths of the header strings.
