@@ -382,6 +382,10 @@ class Semantics(object):
         """Get the maximum input in semantics """
         return self.nodes[:, SF.INPUT].max()
 
+    def update_max_inputs(self):
+        """Update the max inputs of the semantics"""
+        self.set_max_input(self.get_max_input())
+    
     def update_act(self):                                           # Update act of all sems
         """Update the acts of the semantics """
         sem_mask = self.nodes[:, SF.MAX_INPUT] > 0                  # Get sem where max_input > 0

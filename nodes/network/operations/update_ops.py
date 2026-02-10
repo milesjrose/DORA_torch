@@ -119,11 +119,28 @@ class UpdateOperations:
 
     # ======================[ SEM/LINK FUNCTIONS]=======================
 
-    def get_max_sem_input(self):
+    def get_max_sem_input(self) -> float:
         """
         Get maximum semantic input.
+
+        Returns:
+            float: The maximum semantic input.
+            int: The index of the semantic with the maximum input.
         """
         return self.network.semantics.get_max_input()
+    
+    def set_max_sem_input(self, max_input: float):
+        """
+        Set maximum semantic input.
+
+        Args:
+            max_input (float): The maximum semantic input.
+        """
+        self.network.semantics.set_max_input(max_input)
+    
+    def max_sem_input(self):
+        """ Update the max_sem_input field of all semantics."""
+        self.network.semantics.update_max_inputs()
     
     def del_small_link(self, threshold: float):
         """
