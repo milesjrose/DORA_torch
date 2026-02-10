@@ -47,6 +47,8 @@ class OldNet:
         import buildNetwork
         import basicRunDORA
         import dataTypes
+        from dataTypes import reset_iterators
+        self._reset_iterators = reset_iterators
         
         self._buildNetwork = buildNetwork
         self._basicRunDORA = basicRunDORA
@@ -105,6 +107,7 @@ class OldNet:
             FileNotFoundError: If sim file doesn't exist
             ValueError: If sim file format is invalid
         """
+        self._reset_iterators()
         sim_path = Path(sim_path)
         if not sim_path.exists():
             raise FileNotFoundError(f"Simulation file not found: {sim_path}")
