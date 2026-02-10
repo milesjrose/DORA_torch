@@ -280,6 +280,7 @@ def test_update_semantics():
     bridge.old.load_sim("sims/testsim15.py")
     memory = bridge.old.memory
     import basicRunDORA
+    from basicRunDORA import get_max_sem_input
     
 
     # Semantic activation comes from driver PO nodes, so set up some PO activations.
@@ -299,6 +300,13 @@ def test_update_semantics():
     # Step 2: Test some update cycles
     # =====================================================
     for i in range(10):
+        for po_i, po in enumerate(memory.driver.POs):
+            if po_i < 2:
+                po.act = 0.8
+    
+        bridge.load_new_from_old()
+        network: Network = bridge.new.network
+
         # Update semantic inputs
         # - old
         logger.info(f" -------------------------------> {i} Inputs OLD")
@@ -323,6 +331,22 @@ def test_update_semantics():
             bridge.old.printer.semantics()
             bridge.new.printer.semantics()
         assert match, f"Inputs {i}, states do not match"
+        # Get max semantic input
+        logger.info(f" -------------------------------> {i} max inputs OLD")
+        # - old
+        max_sem_input = get_max_sem_input(memory)
+        for semantic in memory.semantics:
+            semantic.set_max_input(max_sem_input)
+        # - new
+        logger.info(f" -------------------------------> {i} max inputs NEW")
+        network.update_ops.max_sem_input()
+
+        match = bridge.compare_states()
+        if not match:
+            bridge.old.printer.semantics()
+            bridge.new.printer.semantics()
+        assert match, f"Max sem input {i}, states do not match"
+
 
         # Update semantic acts
         # - old
@@ -337,6 +361,4 @@ def test_update_semantics():
             bridge.old.printer.semantics()
             bridge.new.printer.semantics()
         assert match, f"Acts {i}, states do not match"
-    
-
 
