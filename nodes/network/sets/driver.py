@@ -252,21 +252,21 @@ class Driver(Base_Set):
         nodes[po, TF.TD_INPUT] += diff
         
         # Inhibitory input:
-        # 3). LATERAL: 3 * (if DORA_mode: PO connected to same rb / Else: POs not connected to same RBs)
-        # 3a). find other PO connected to same RB     
-        shared = torch.matmul(                     # PxObject tensor, shared[i][j] > 1 if Po[i] and Po[j] share an RB, 0 o.w
+        # 3). LATERAL: 3 * (if DORA_mode: All other POs / Else: POs not connected to same RBs)
+        diag_zeroes = tOps.diag_zeros(sum(po))     # Mask self referencing connections.
+        # 3a). if DORA: Mask self-referencing connections, to get all other POs
+        if as_DORA:
+            po_connections = diag_zeroes
+        # 3b). not as DORA: POs not connected to the same RB
+        else:
+            shared = torch.matmul(                     # PxObject tensor, shared[i][j] > 1 if Po[i] and Po[j] share an RB, 0 o.w
             parent_cons[po][:, rb].float(),
             con_tensor[rb][:, po].float()
             ) 
-        shared = torch.gt(shared, 0).int()         # now shared[i][j] = 1 if p[i] and object[j] share an RB, 0 o.w
-        diag_zeroes = tOps.diag_zeros(sum(po))     # (po x po) matrix: 0 for po[i] -> po[i] connections, 1 o.w
-        shared = torch.bitwise_and(shared.int(), diag_zeroes.int()).float() # remove po[i] -> po[i] connections
-        # 3ai). if DORA: Other po connected to same rb / else: POs not connected to same RBs
-        if as_DORA: # PO connected to same rb
-            po_connections = shared                # shared PO
-        else:       # POs not connected to same RBs
-            po_connections = 1 - shared            # non shared PO: mask[i][j] = 0 if p[i] and object[j] share an RB, 1 o.w
-        # 3aii). updaet lat input: 3 * (filtered nodes connected in po_connections)
+            shared = torch.gt(shared, 0).int()         # now shared[i][j] = 1 if p[i] and object[j] share an RB, 0 o.w
+            shared = torch.bitwise_and(shared.int(), diag_zeroes.int()).float() # remove po[i] -> po[i] connections
+            po_connections = 1 - shared                # non shared PO: mask[i][j] = 0 if p[i] and object[j] share an RB, 1 o.w
+        # 3c). updaet lat input: 3 * (filtered nodes connected in po_connections)
         nodes[po, TF.LATERAL_INPUT] -= 3 * torch.matmul(
             po_connections.float(),
             nodes[po, TF.ACT]
