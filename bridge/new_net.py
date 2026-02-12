@@ -112,11 +112,11 @@ class NewNet:
         state = self.state
         new_state = State()
         self.state = new_state
-        self.get_state()
+        self.get_state(log=False)
         self.state = state
         return new_state
 
-    def get_state(self) -> State:
+    def get_state(self, log: bool = True) -> State:
         """ Generate the state from the network. 
 
         Returns:
@@ -141,7 +141,8 @@ class NewNet:
             Type.SEMANTIC: len(state.sem_ids),
         }
         state.firing_order = [self.network.node_ops.get_id(idx) for idx in self.network.firing_ops.firing_order] if self.network.firing_ops.firing_order is not None else []
-        logger.info(f" Extracted {tk_count} tk, {sem_count} sem, {link_count} link, {m_count} maps, {con_count} cons, {sem_con_count} sem_cons")
+        if log:
+            logger.info(f" Extracted {tk_count} tk, {sem_count} sem, {link_count} link, {m_count} maps, {con_count} cons, {sem_con_count} sem_cons")
         return state
 
 # =============================== EXTRACTORS =============================== 

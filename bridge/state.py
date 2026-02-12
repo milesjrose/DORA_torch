@@ -72,7 +72,9 @@ class State:
         """ Dict of semantic IDs by index. (sem_ids[index1] = ID1)"""
         self.firing_order = []
         """ List of firing order. (firing_order = [token_id1, token_id2, ...])"""
-    
+        self.comments = ""
+        """ String of comments about the state. """
+        
     def copy_from(self, state: 'State'):
         """ Copy the state object info into current state.
         Args:

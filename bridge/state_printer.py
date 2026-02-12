@@ -3,8 +3,9 @@ import os
 from .state import State
 from nodes.utils import OutputType, TablePrinter
 from typing import List, Tuple
-from logging import getLogger
+from logging import getLogger, INFO, DEBUG
 debug_logger = getLogger("SP_DEBUG")
+debug_logger.setLevel(INFO)
 from nodes.enums import *
 from typing import Dict
 
@@ -499,7 +500,8 @@ class StatePrinter:
                         ('TD Input', 'td_input'), 
                         ('BU Input', 'bu_input'), 
                         ('Lateral Input', 'lateral_input'), 
-                        ('Map Input', 'map_input')
+                        ('Map Input', 'map_input'),
+                        ('Inhib Input', 'inhibitor_input')
                         ]
         columns = [feature[0] for feature in features]
         rows = []

@@ -104,6 +104,18 @@ class Bridge:
         old_states = self.old.network.states
         new_states = self.new.dora.states
         return old_states, new_states
+    
+    def compare_logged_states(self):
+        old_states, new_states = self.get_logged_states()
+        i = 0
+        for old_state, new_state in zip(old_states, new_states):
+            match, diffs = self.compare_states_arg(old_state, new_state)
+            if not match:
+                logger.error(f"Mismatch at iteration {i}: {old_state.comments}, {new_state.comments}")
+                self.print_diffs(diffs)
+                return False
+            i += 1
+        return True
 
 def load_new(sim_path: str, use_legacy_builder: bool = True):
     """ Load the new network from the simulation file. 

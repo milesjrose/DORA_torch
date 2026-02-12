@@ -45,8 +45,10 @@ class DORA:
             state = self.new_net.get_state()
         return state
     
-    def log_state(self):
+    def log_state(self, comments: str = ""):
+        logger.debug(f"-------------------------------- NEW log: {comments}--------------------------------")
         state = self.get_state(new_state=True)
+        state.comments = comments
         self.states.append(state)
     
     # ----------------------------[ LOADING AND SAVING ]-------------------------------
@@ -183,6 +185,8 @@ class DORA:
                     self.network.routines.schematisation.schematisation_routine()
                 case R.REL_GEN:
                     self.network.routines.rel_gen.rel_gen_routine()
+                case _:
+                    logger.error(f"Invalid routine: {routine}. Skipping routine.")
             # fire the local inhib if neccessary
             self.time_step_fire_local_inhibitor()
             #if self.network.params.doGUI: # NOTE: Not implemented
@@ -500,20 +504,28 @@ class DORA:
         # 4.3.2) Update modes of all P units in the driver and recipient
         if params.count_by_RBs:
             self.network.node_ops.get_pmode()
+        self.log_state(f"Set p modes")
         # 4.3.3) Update input to driver token units.
         self.network.update.inputs(Set.DRIVER)
+        self.log_state(f"Updated driver inputs")
         # 4.3.4-5) Update input to and activation of PO and RB inhibitors.
         self.network.inhibitor_ops.update()
+        self.log_state(f"Updated inhibitor inputs {params.as_DORA}")
         # 4.3.6-7) Update input and activation of local and global inhibitors.
         self.network.inhibitor_ops.check_local()
         self.network.inhibitor_ops.check_global()
+        self.log_state(f"Checked local and global inhibitors")
         # 4.3.8) Update input to semantic units.
         self.network.update.inputs_sem()
+        self.log_state(f"Updated semantic inputs")
         # 4.3.9) Update input to all tokens in the recipient and emerging recipient (i.e., newSet).
         self.network.update.inputs(Set.RECIPIENT)
+        self.log_state(f"Updated recipient inputs {params.as_DORA}, {params.phase_set}, {params.lateral_input_level}, {params.ignore_object_semantics}, {params.ignore_memory_semantics}")
         self.network.update.inputs(Set.NEW_SET)
+        self.log_state(f"Updated newSet inputs")
         # 4.3.10) Update activations of all units in the driver, recipient, and newSet, and all semanticss.
         self.network.update.acts_am()
+        self.log_state(f"Updated activations")
 
     def time_step_fire_local_inhibitor(self):
         """ function to fire the local inhibitor if necessary. """
@@ -603,5 +615,8 @@ class DORA:
         """
         # find all analogs inthe recepint that have mapped utnis and add then to the analog_list
         self.network.analog_ops.move_mapping_analogs_to_new()
-        
     
+    def set_count_by_rbs(self):
+        """ Set params.count_by_RBs to correct value. """
+        params = self.network.params
+        params.count_by_RBs = (self.network.driver().tensor_op.get_count(Type.RB) > 0)
