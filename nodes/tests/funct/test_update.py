@@ -362,3 +362,31 @@ def test_update_semantics():
             bridge.new.printer.semantics()
         assert match, f"Acts {i}, states do not match"
 
+def test_time_step_activations():
+    # load networks
+    b = Bridge()
+    b.old.load_sim("sims/testsim15.py")
+    b.old.network.do_1_to_3(mapping=False)
+    b.load_new_from_old()
+    assert b.compare_states(), "Mismatch after load new from old"
+    # update the rb act
+    mem = b.old.memory
+    net = b.new.network
+    idx = net.firing_ops.firing_order[0]
+    fire_id = net.node_ops.get_id(idx)
+    net.node_ops.set_tk_value(idx, TF.ACT, 1.0)
+    rb = find_rb_by_id(mem, fire_id)
+    rb.act = 1.0
+    assert b.compare_states(), "Mismatch after set rb act"
+    b.old.network.set_old_net(b.old)
+    b.new.dora.set_new_net(b.new)
+    b.new.dora.set_count_by_rbs()
+    b.new.dora.time_step_activations()
+    b.old.network.time_step_activations(0)
+    assert b.compare_states(), "Mismatch after time step activations"
+
+def find_rb_by_id(memory, id):
+    for rb in memory.driver.RBs:
+        if rb.ID == id:
+            return rb
+    raise ValueError(f"RB with ID {id} not found")
