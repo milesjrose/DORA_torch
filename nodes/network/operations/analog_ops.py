@@ -105,6 +105,7 @@ class AnalogOperations:
             # then find all tokens in the analog that have set != memory, and what that value is
             non_memory_tokens = tokens.token_tensor.get_tokens_where_not(TF.SET, Set.MEMORY, all_analog_indices)
             if len(non_memory_tokens) == 0:
+                logger.error(f"Analog {analog} has no non-memory tokens, check for copy flagged incorrectly.")
                 continue  # skip if no non-memory tokens - shouldn't happen but just in case
             to_set = Set(int(tokens.token_tensor.get_feature(non_memory_tokens, TF.SET)[0].item()))
             # get their lower tokens
@@ -129,7 +130,7 @@ class AnalogOperations:
         analogs = self.check_for_copy()
         # Find all tokens not in memory, set their sub-tokens to the same set.
         for check_set in [Set.DRIVER, Set.RECIPIENT]:
-            set_tokens = self.network.tokens.token_tensor.get_tokens_where(TF.SET, check_set)
+            set_tokens = self.network.sets[check_set].lcl._indices
             if not torch.any(set_tokens):
                 continue  # skip if no tokens in set
             lower_tokens = self.network.tokens.connections.get_children_recursive(set_tokens)
