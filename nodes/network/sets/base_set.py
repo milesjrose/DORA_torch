@@ -35,6 +35,7 @@ class Base_Set:
             - print(f_types=None)
             - print_tokens(f_types=None)
         """
+        self.tensor_ops = self.tensor_op # TODO: Fix sometimes this called with s, sometimes not.
         self.tnop = self.tensor_op
         self.update_op: UpdateOperations = UpdateOperations(self)
         """UpdateOperations: Operations for the update.
