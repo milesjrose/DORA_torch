@@ -23,6 +23,14 @@ class InhibitorOperations:
         self.network: 'Network' = network
         self.local = 0.0
         self.glbal = 0.0
+    
+    def get_local(self) -> float:
+        """Get the local inhibitor activation."""
+        return self.local
+    
+    def get_global(self) -> float:
+        """Get the global inhibitor activation."""
+        return self.glbal
 
     def update(self):                                                   # Update inputs and acts of inhibitors
         """
