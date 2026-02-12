@@ -7,7 +7,7 @@ from random import shuffle
 import torch
 from logging import getLogger
 from ..tokens.tensor_view import TensorView
-logger = getLogger(__name__)
+logger = getLogger("ops")
 
 if TYPE_CHECKING: # For autocomplete/hover-over docs
     from ..network import Network
@@ -34,7 +34,7 @@ class FiringOperations:
         """
         Create firing order of driver tokens, using specified rule (uses rule in network params if not specified).
             - "by_top_random": Randomise order of highest token nodes in driver. 
-            - "totally_random": Randomise order of all nodes in driver.
+            - "random": Randomise order of all nodes in driver.
 
         Args:
             rule (str, optional): Rule used to create order. If not specified in arg or params, defaults to "by_top_random".
@@ -50,6 +50,8 @@ class FiringOperations:
         match rule:
             case "by_top_random":
                 return self.by_top_random()
+            case "random":
+                return self.totally_random()
             case "totally_random":
                 return self.totally_random()
             case _:
@@ -66,6 +68,7 @@ class FiringOperations:
         Returns:
             list[int]: A list of global indices representing the firing order
         """
+        logger.debug("Creating firing order by top random")
         driver = self.network.driver()
         cons = self.network.tokens.get_view(TensorTypes.CON, Set.DRIVER) # get local view of connections in driver
         highest_token_type = driver.token_op.get_highest_token_type()
@@ -107,6 +110,7 @@ class FiringOperations:
         Returns:
             list[int]: A list of global indices representing the firing order
         """
+        logger.debug("Creating firing order totally random")
         driver = self.network.driver()
         if driver.tensor_op.get_count(Type.RB) > 0:
             self.firing_order = self.get_random_order_of_type(Type.RB)

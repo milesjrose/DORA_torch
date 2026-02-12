@@ -242,5 +242,8 @@ class CompareStates:
                 con_str += f"_{cons[2]}"
             if not self._equal(old_val, new_val):
                 diffs.append(Diff("con_counts", "-", con_str, old_val, new_val, "Count mismatch"))
+        # firing_order
+        if set(self.old_state.firing_order) != set(self.new_state.firing_order):
+            diffs.append(Diff("firing_order", "-", "Firing order", set(self.old_state.firing_order), set(self.new_state.firing_order), "Firing order mismatch"))
         return diffs
         

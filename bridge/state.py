@@ -69,7 +69,9 @@ class State:
         self.sem_idxs = {}
         """ Dict of semantic token indexes by ID. (sem_idxs[ID] = index)"""
         self.sem_ids = {}
-        """ Dict of semantic IDs by index. (sem_ids[index] = [ID1, ID2, ...])"""
+        """ Dict of semantic IDs by index. (sem_ids[index1] = ID1)"""
+        self.firing_order = []
+        """ List of firing order. (firing_order = [token_id1, token_id2, ...])"""
     
     def copy_from(self, state: 'State'):
         """ Copy the state object info into current state.
@@ -95,6 +97,7 @@ class State:
         self.driver = state.driver.copy()
         self.sem_idxs = state.sem_idxs.copy()
         self.sem_ids = state.sem_ids.copy()
+        self.firing_order = state.firing_order.copy()
 
     def clear(self):
         """ Clear the state. """
@@ -141,6 +144,7 @@ class State:
         self.recipient = []
         self.driver = []
         self.sem_idxs = {}
+        self.firing_order = []
 
     def to_json(self, filepath: str = None) -> dict:
         """
@@ -173,6 +177,7 @@ class State:
             'recipient': self.recipient,
             'driver': self.driver,
             'sem_idxs': self.sem_idxs,
+            'firing_order': self.firing_order,
         }
         
         if filepath:
@@ -221,7 +226,7 @@ class State:
         state.recipient = data.get('recipient', [])
         state.driver = data.get('driver', [])
         state.sem_idxs = data.get('sem_idxs', {})
-        
+        state.firing_order = data.get('firing_order', [])
         return state
     
     def debug_print(self):
