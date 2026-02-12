@@ -12,7 +12,9 @@ from nodes.enums import *
 from nodes.enums import Routines as R
 from logging import getLogger
 import os
-
+from typing import Callable, TYPE_CHECKING
+if TYPE_CHECKING:
+    from bridge.new_net import NewNet
 
 logger = getLogger(__name__)
 
@@ -24,10 +26,25 @@ class DORA:
     def __init__(self):
         self.network: nodes.Network = None
         self.params: nodes.Params = None
+        self.new_net: 'NewNet' = None
+        self.states = []
     
     def set_network(self, network: nodes.Network):
         self.network = network
         self.params = network.params
+    # ----------------------------[ LOGGING ]-------------------------------
+    def set_new_net(self, new_net: 'NewNet'):
+        self.new_net = new_net
+        new_net.dora = self
+        new_net.network = self.network
+    
+    def get_state(self):
+        state = self.new_net.get_state()
+        return state
+    
+    def log_state(self):
+        state = self.get_state()
+        self.states.append(state)
     
     # ----------------------------[ LOADING AND SAVING ]-------------------------------
     """ 
@@ -95,7 +112,7 @@ class DORA:
             self.network.params.count_by_RBs = False
             self.network.firing_ops.totally_random()
 
-    def do_1_to_3(self):
+    def do_1_to_3(self, mapping: bool = False):
         """ Perform steps 1-3 (initialising the network state) """
         self.initialise_run()
         self.initialise_network_state()
@@ -125,9 +142,9 @@ class DORA:
         params = self.network.params
         # Set inhibitor based on count_by_RBs.
         if params.count_by_RBs:
-            inhibitor = self.network.inhibitor.glbal
+            get_inhibitor = self.network.inhibitor.get_global
         else: # PO
-            inhibitor = self.network.inhibitor.local
+            get_inhibitor = self.network.inhibitor.get_local
             params.as_DORA = True # Make sure you are operating as DORA.
         for token in firing_order:
             self.phase_set_iterator = 0
@@ -135,25 +152,24 @@ class DORA:
             if routine == "predication": # clear inferred_new_p flag
                 self.network.routines.predication.inferred_new_p = False
             # Fire token
-            self.fire_token(routine, token, inhibitor)
+            self.fire_token(routine, token, get_inhibitor)
             # Token firing is over. Runs once per token.
             self.post_count_by_operations()
     
-    def fire_token(self, routine:R, token, inhibitor):
+    def fire_token(self, routine:R, token, get_inhibitor: Callable[[], float]):
         """  
         4.1-4.2) Fire the current token in the firingOrder. 
         Update the network in discrete time-steps until the inhibitor fires 
         (i.e., the current active token is inhibited by its inhibitor).
         """
-        token = self.network.driver().token_op.get_reference(index=token) # NOTE: can remove if just make the firing_order a list of references instead of indexes 
-        while inhibitor == 0: # TODO: Make this a pointer or smt.
+        while get_inhibitor() == 0:
             # 4.3.1-4.3.10) update network activations.
-            self.network.node_ops.set_value(token, TF.ACT, 1.0)
+            self.network.node_ops.set_tk_value(token, TF.ACT, 1.0)
             self.time_step_activations()
             # 4.3.11) Run routine
             match routine:
                 case R.MAP:
-                    self.network.routines.map.map_routine()
+                    self.network.mapping.update_mapping_hyps()
                 case R.RETRIEVE:
                     self.network.routines.retrieval.retrieval_routine()
                 case R.PREDICATE:
@@ -175,7 +191,7 @@ class DORA:
         params = self.network.params
         # Initialise memory
         self.network.mapping_ops.reset_mappings()
-        self.do_1_to_3()
+        self.do_1_to_3(mapping=True)
         phase_sets = 3 
         # If there are multiple relations in drive (P>2), switch to LISA mode, and set ignore_object_semantics to True.
         init_dora = params.as_DORA
@@ -477,30 +493,30 @@ class DORA:
         """ 4.3.1-4.3.10) update network activations. """
         params = self.network.params
         # initialse input
-        self.network.update_ops.initialise_input()
+        self.network.update.initialise_input()
         # 4.3.2) Update modes of all P units in the driver and recipient
         if params.count_by_RBs:
             self.network.node_ops.get_pmode()
         # 4.3.3) Update input to driver token units.
-        self.network.driver().update_input()
+        self.network.update.inputs(Set.DRIVER)
         # 4.3.4-5) Update input to and activation of PO and RB inhibitors.
         self.network.inhibitor_ops.update()
         # 4.3.6-7) Update input and activation of local and global inhibitors.
         self.network.inhibitor_ops.check_local()
         self.network.inhibitor_ops.check_global()
         # 4.3.8) Update input to semantic units.
-        self.network.semantics.update_input()
+        self.network.update.inputs_sem()
         # 4.3.9) Update input to all tokens in the recipient and emerging recipient (i.e., newSet).
-        self.network.recipient().update_input()
-        self.network.new_set().update_input()
+        self.network.update.inputs(Set.RECIPIENT)
+        self.network.update.inputs(Set.NEW_SET)
         # 4.3.10) Update activations of all units in the driver, recipient, and newSet, and all semanticss.
-        self.network.update_ops.acts_am()
+        self.network.update.acts_am()
 
     def time_step_fire_local_inhibitor(self):
         """ function to fire the local inhibitor if necessary. """
         params = self.network.params
         if params.as_DORA and self.network.inhibitor_ops.local >= 0.99 and not params.local_inhibitor_fired:
-            self.network.inhibitor_ops.fire_local_inhibitor()
+            self.network.inhibitor_ops.fire_local()
             params.local_inhibitor_fired = True
 
     def time_step_doGUI(self):
@@ -548,7 +564,7 @@ class DORA:
         # if mapping is licenced, update the mapping connections and update the max_map field for all driver and recipient tokens.
         if map_license:
             self.network.mapping_ops.update_mapping_connections()
-            self.network.mapping_ops.update_max_map()
+            self.network.mapping_ops.get_max_maps()
             self.network.mapping_ops.reset_mapping_hyps()
         # recalibrate PO weights.
         # self.network.utility_ops.calibrate_weight() NOTE: This was commented out in the original code.
