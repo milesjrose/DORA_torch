@@ -203,14 +203,14 @@ class UpdateOperations:
     def po_get_weight_length(self) -> None:                           # Sum value of links with weight > 0.1 for all PO nodes
         """Sum value of links with weight > 0.1 for all PO nodes - Used for semNormalisation"""
         # TODO: Implement this
-        raise NotImplementedError("Need to implement links first")
         if self.base_set.links is None:
             raise ValueError("Links is not initialised, po_get_weight_length.")
         
-        po = self.base_set.tensor_op.get_mask(Type.PO)                # mask links with PO
+        po = self.base_set.tokens.arb_mask({TF.TYPE: Type.PO, TF.SET: self.base_set.tk_set})                # mask links with PO
         if not torch.any(po): return;
-        mask = self.base_set.links[self.base_set.token_set][po] > 0.1 # Create sub mask for links with weight > 0.1
-        weights = (self.base_set.links[self.base_set.token_set][po] * mask).sum(dim=1, keepdim = False)  # Sum links > 0.1
+        mask = self.base_set.links[po] > 0.1 # Create sub mask for links with weight > 0.1
+        weights = (self.base_set.links[po] * mask).sum(dim=1, keepdim = False)  # Sum links > 0.1
+        po = self.base_set.tensor_op.get_mask(Type.PO)
         self.base_set.lcl[po, TF.SEM_COUNT] = weights               # Set semNormalisation
             
     def po_get_max_semantic_weight(self) -> None:                     # Get max link weight for all PO nodes
