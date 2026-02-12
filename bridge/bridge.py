@@ -99,3 +99,15 @@ class Bridge:
     def print_diffs(self, diffs:list[Diff]):
         """ Print the differences. """
         self.comp_states.print_diffs(diffs)
+
+def load_new(sim_path: str, use_legacy_builder: bool = True):
+    """ Load the new network from the simulation file. 
+    Args:
+        sim_path: Path to the simulation file (.py format)
+        use_legacy_builder: If true, create a runDORA instance, and build based on its state.
+    Returns:
+        Network: The new network object.
+    """
+    new_net = NewNet()
+    new_net.load_sim(sim_path, use_legacy_builder=use_legacy_builder)
+    return new_net.network

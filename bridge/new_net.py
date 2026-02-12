@@ -2,6 +2,7 @@ from _pytest.mark.expression import IDENT_PREFIX
 from .state_printer import StatePrinter
 from .state import State
 import torch
+from DORA import DORA
 from nodes import NetworkBuilder
 from nodes.enums import *
 from nodes.network import Network, Params, Semantics
@@ -12,11 +13,13 @@ logger = getLogger("NEW_NET")
 
 class NewNet:
     """
-    A class for holding the new network object.
+    Class for building, and extracting states from a network object.
+    
     """
 
     def __init__(self):
         self.network = None
+        self.dora = DORA()
         self.state = State()
         self.sim_path = None
         self.printer = StatePrinter(state=self.state, logger=logger)
@@ -28,6 +31,7 @@ class NewNet:
             network: Network object.
         """
         self.network = network
+        self.dora.set_network(network)
 
     def set_state(self, state: State):
         """ Copy the state object info into current state.
@@ -36,12 +40,13 @@ class NewNet:
         """
         self.state.copy_from(state)
     
-    def load_sim(self, sim_path: str):
+    def load_sim(self, sim_path: str, use_legacy_builder: bool = True):
         """
         Load a simulation file into the new network.
         
         Args:
             sim_path: Path to the simulation file (.py format)
+            use_legacy_builder: If true, create a runDORA instance, and build based on its state.
             
         Returns:
             self (for method chaining)
@@ -57,18 +62,50 @@ class NewNet:
         
         self._sim_path = sim_path
         
-        # Use NetworkBuilder to load and build the network
-        builder = NetworkBuilder(file_path=str(sim_path))
-        self.network = builder.build_network()
-        
+        if use_legacy_builder:
+            # Use runDORA to load and build the network
+            try: 
+                from .old_net import OldNet
+                old_net = OldNet()
+            except ImportError:
+                logger.critical("OldNet module not found. Please install the currVers package. Using NetworkBuilder instead.")
+                use_legacy_builder = True
+            else:
+                old_net.load_sim(sim_path)
+                state = old_net.get_state()
+                self.set_state(state)
+                self.build_network()
+        if not use_legacy_builder:
+            # Use NetworkBuilder to load and build the network
+            builder = NetworkBuilder(file_path=str(sim_path))
+            self.set_network(builder.build_network())
+            
         # Recache to ensure masks are up to date
         self.network.recache()
 
         logger.info(f"==> Loaded simulation from {sim_path}")
 
-
-
-# =============================== EXTRACTORS ===============================
+    def build_network(self)->Network:
+        """ Load network from state. """
+        logger.info("Building network from state...")
+        if self.state is None:
+            raise ValueError("State is not set.")
+        # Build all components
+        connections = self._build_connections()
+        token_tensor = self._build_token_tensor()
+        links = self._build_links()
+        mapping = self._build_mapping()
+        semantics = self._build_semantics()
+        params = self._build_params()
+        # Create network
+        tokens = Tokens(token_tensor, connections, links, mapping)
+        network = Network(tokens, semantics, params)
+        firing_order = [self.state.idxs[id] for id in self.state.firing_order] if self.state.firing_order is not None else []
+        # Set network
+        self.set_network(network)
+        logger.info("Network built successfully.")
+        return self.network
+    
     def get_state(self) -> State:
         """ Generate the state from the network. 
 
@@ -93,9 +130,11 @@ class NewNet:
             Type.PO: len(torch.where(self.network.token_tensor.tensor[:, TF.TYPE] == Type.PO)[0]),
             Type.SEMANTIC: len(state.sem_ids),
         }
+        state.firing_order = [self.network.node_ops.get_id(idx) for idx in self.network.firing_ops.firing_order] if self.network.firing_ops.firing_order is not None else []
         logger.info(f" Extracted {tk_count} tk, {sem_count} sem, {link_count} link, {m_count} maps, {con_count} cons, {sem_con_count} sem_cons")
         return state
-    
+
+# =============================== EXTRACTORS =============================== 
     def _extract_tokens(self) -> dict[int, dict]:
         """ Extract the tokens from the network. """
         tokens = {}
@@ -440,26 +479,6 @@ class NewNet:
 
 
 # =============================== BUILDER ==================================
-    def build_network(self)->Network:
-        """ Load network from state. """
-        logger.info("Building network from state...")
-        if self.state is None:
-            raise ValueError("State is not set.")
-        # Build all components
-        connections = self._build_connections()
-        token_tensor = self._build_token_tensor()
-        links = self._build_links()
-        mapping = self._build_mapping()
-        semantics = self._build_semantics()
-        params = self._build_params()
-        # Create network
-        tokens = Tokens(token_tensor, connections, links, mapping)
-        network = Network(tokens, semantics, params)
-        # Set network
-        self.network = network
-        logger.info("Network built successfully.")
-        return self.network
-    
     def _get_index(self, id: int) -> int:
         """ Get the index of a token. """
         if id is None:
