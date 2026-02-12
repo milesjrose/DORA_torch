@@ -193,13 +193,9 @@ class Connections_Tensor:
         # This is the row i, so we check connections[parent_idxs, :]
         mask = self.tensor[parent_idxs, :] == True
         # Get column indices (children) where any of the specified parents have connections
-        logger.debug(f"seaching in {self.tensor[parent_idxs, :]}")
-        logger.debug(f"mask: {mask}")
-        logger.debug(f"any(dim=0): {mask.any(dim=0)}")
-        logger.debug(f"where(mask.any(dim=0)): {torch.where(mask.any(dim=0))[0]}")
         if ret_idx:
             child_indices = torch.where(mask.any(dim=0))[0]
-        logger.debug(f"Children of {parent_idxs.tolist if isinstance(parent_idxs, torch.Tensor) else parent_idxs} => {torch.where(mask.any(dim=0))[0].tolist()}")
+        logger.debug(f"Children of {parent_idxs.tolist() if isinstance(parent_idxs, torch.Tensor) else parent_idxs} => {torch.where(mask.any(dim=0))[0].tolist()}")
         return child_indices
     
     def get_children_recursive(self, parent_idxs: torch.Tensor|list[int]|int) -> torch.Tensor:

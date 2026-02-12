@@ -11,8 +11,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..tokens import Mapping
 
-from logging import getLogger
+from logging import getLogger, INFO
 log_po = getLogger("REC_PO")
+log_po.setLevel(INFO)
 
 class Recipient(Base_Set):
     """

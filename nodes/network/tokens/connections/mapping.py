@@ -2,9 +2,10 @@ import torch
 from enum import IntEnum
 from ....enums import *
 from ....utils import tensor_ops as tOps
-from logging import getLogger
 from ..tensor_view import TensorView
+from logging import getLogger, INFO
 logger = getLogger("con")
+logger.setLevel(INFO)
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
