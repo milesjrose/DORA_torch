@@ -101,6 +101,7 @@ class NewNet:
         tokens = Tokens(token_tensor, connections, links, mapping)
         network = Network(tokens, semantics, params)
         firing_order = [self.state.idxs[id] for id in self.state.firing_order] if self.state.firing_order is not None else []
+        network.firing_ops.firing_order = firing_order
         # Set network
         self.set_network(network)
         logger.info("Network built successfully.")
@@ -313,9 +314,11 @@ class NewNet:
         d_count = len(self.state.driver)
         m_c = 0
         h_c = 0
+        r_indices = self.network.recipient().lcl._indices
+        d_indices = self.network.driver().lcl._indices
         mappings = [[{MappingFields.WEIGHT: 0.0, MappingFields.HYPOTHESIS: 0.0, MappingFields.MAX_HYP: 0.0} for _ in range(d_count)] for _ in range(r_count)]
-        for idx in range(r_count):
-            for d_idx in range(d_count):
+        for idx, glbl_idx in enumerate(r_indices):
+            for d_idx, d_glbl_idx in enumerate(d_indices):
                 weight = map_tens[idx, d_idx, MappingFields.WEIGHT].item()
                 hypothesis = map_tens[idx, d_idx, MappingFields.HYPOTHESIS].item()
                 max_hyp = map_tens[idx, d_idx, MappingFields.MAX_HYP].item()
@@ -324,10 +327,28 @@ class NewNet:
                     MappingFields.HYPOTHESIS: hypothesis,
                     MappingFields.MAX_HYP: max_hyp,
                 }
-                if weight != 0.0:
-                    m_c += 1
+                mc = False
+                hc = False
                 if hypothesis != 0.0:
                     h_c += 1
+                    hc = True
+                if weight != 0.0:
+                    m_c += 1
+                    mc = True
+                if mc:
+                    d_id = self.state.ids[d_glbl_idx]
+                    r_id = self.state.ids[glbl_idx]
+                    connection = (d_id, r_id, weight)
+                    self.state.tokens[r_id]['mappingConnections'].append(connection)
+                    self.state.tokens[d_id]['mappingConnections'].append(connection)
+                if hc:
+                    d_id = self.state.ids[d_glbl_idx]
+                    r_id = self.state.ids[glbl_idx]
+                    hypothesis = (d_id, r_id, hypothesis, max_hyp, weight)
+                    self.state.tokens[r_id]['mappingHypotheses'].append(hypothesis)
+                    self.state.tokens[d_id]['mappingHypotheses'].append(hypothesis)
+
+
         return mappings, m_c, h_c
     
     def _extract_connections(self) -> list[list[bool]]:

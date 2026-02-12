@@ -17,7 +17,10 @@ class Diff:
         return f"{self.diff_type} {self.id}: {self.val_type} {self.old_val} -> {self.new_val} {self.comment}"
 
     def to_list(self):
-        return [self.diff_type, self.id, self.val_type, self.old_val, self.new_val, self.comment]
+        try:
+            return [self.diff_type, self.id, self.val_type, self.old_val.name, self.new_val.name, self.comment]
+        except:
+            return [self.diff_type, self.id, self.val_type, self.old_val, self.new_val, self.comment]
 
 class CompareStates:
     def __init__(self, old_state: State, new_state: State):
@@ -40,13 +43,14 @@ class CompareStates:
         diffs = []
         diffs.extend(self._compare_tokens())
         diffs.extend(self._compare_semantics())
-        if len(diffs) == 0:
+        c_diff = [diff for diff in diffs if diff.val_type == "Count"]
+        if len(c_diff) == 0:
             diffs.extend(self._compare_links())
             diffs.extend(self._compare_mappings())
             diffs.extend(self._compare_connections())
             diffs.extend(self._compare_sem_connections())
         else:
-            logger.error("Differences found in tokens or semantics, skipping links, mappings, connections, and sem connections.")
+            logger.error(f"Differences found in counts, skipping connection comparisons.")
         diffs.extend(self._compare_metadata())
         match = (len(diffs) == 0)
         return match, diffs

@@ -282,6 +282,21 @@ class OldNet:
         Returns:
             dict: A dictionary containing the token data.
         """
+        non_zero_hyps = []
+        for hyp in token.mappingHypotheses:
+            if hyp.hypothesis != 0.0 and hyp.myMappingConnection.weight != 0.0:
+                non_zero_hyps.append(hyp)
+        non_zero_mcs = []
+        for mc in token.mappingConnections:
+            if mc.weight != 0.0:
+                non_zero_mcs.append(mc)
+        hyps = [f"{hyp.driverToken.ID}.{hyp.recipientToken.ID}" for hyp in non_zero_hyps]
+        unique_mcs = []
+        for mc in non_zero_mcs:
+            tk_str = f"{mc.driverToken.ID}.{mc.recipientToken.ID}"
+            if tk_str not in hyps:
+                unique_mcs.append(mc)
+
         data = {
             'name': token.name,
             'ID': token.ID,
@@ -293,8 +308,8 @@ class OldNet:
             'my_index': token.my_index,
             'inhibitor_input': token.inhibitor_input,
             'inhibitor_act': token.inhibitor_act,
-            'mappingHypotheses': token.mappingHypotheses,
-            'mappingConnections': token.mappingConnections,
+            'mappingHypotheses': [(hyp.driverToken.ID, hyp.recipientToken.ID, hyp.hypothesis, hyp.max_hyp, hyp.myMappingConnection.weight) for hyp in non_zero_hyps],
+            'mappingConnections': [(mc.driverToken.ID, mc.recipientToken.ID, mc.weight) for mc in unique_mcs],
             'max_map_unit': token.max_map_unit.ID if token.max_map_unit else None,
             'max_map': token.max_map,
             'td_input': token.td_input,
@@ -463,7 +478,7 @@ class OldNet:
                     dri_idx = self.state.driver_idxs[hyp.myMappingConnection.driverToken.ID]
                     weight = mappings[rec_idx][dri_idx][MappingFields.WEIGHT]
                     if weight != 0.0 and weight != mc.weight:
-                        raise ValueError(f"Mapping weight mismatch for {token.name} -> {mc.driverToken.name}")
+                        logger.error(f"Mapping weight mismatch for {token.name}({token.ID}) -> {mc.driverToken.name}({mc.driverToken.ID}) ({weight} != {mc.weight})")
                     else:
                         mappings[rec_idx][dri_idx][MappingFields.WEIGHT] = mc.weight
         return mappings, m_count, h_count
