@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ..tokens import Mapping
 
-from logging import getLogger, INFO
+from logging import getLogger, INFO, DEBUG
 log_po = getLogger("REC_PO")
-log_po.setLevel(INFO)
+log_po.setLevel(DEBUG)
 
 class Recipient(Base_Set):
     """
@@ -235,7 +235,8 @@ class Recipient(Base_Set):
                 parent_cons[po][:, rb].float(),                                # Masks connections between po[i] and its parent rbs
                 nodes[rb, TF.ACT]                              # For each po node -> sum of act of connected rb nodes 
                 )
-            log_po.debug(f"2). td_input: {delta}")
+            if torch.any(delta>0.0):
+                log_po.debug(f"2). td_input: {delta}")
             nodes[po, TF.TD_INPUT] += delta
         # 3). BU_INPUT: my_semantics [normalised by no. semantics po connects to]
         # need to get sem count, for po normalisation.
@@ -272,7 +273,8 @@ class Recipient(Base_Set):
                     )
                 )
             nodes[pred, TF.LATERAL_INPUT] -= delta
-            log_po.debug(f"6ai).po lat_input: preds<-> preds -={delta}")
+            if torch.any(delta>0.0):
+                log_po.debug(f"6ai).po lat_input: preds<-> preds -={delta}")
             # 6aii). Objects
             non_shared = self.non_shared(obj, obj, rb, con_tensor, parent_cons)
             delta = torch.mul(
@@ -283,7 +285,8 @@ class Recipient(Base_Set):
                     )
                 )
             nodes[obj, TF.LATERAL_INPUT] -= delta
-            log_po.debug(f"6aii).po lat_input: objects<-> objects -={delta}")
+            if torch.any(delta>0.0):
+                log_po.debug(f"6aii).po lat_input: objects<-> objects -={delta}")
         else: 
             # 6b). POs not connected to the same RB
             non_shared = self.non_shared(po, po, rb, con_tensor, parent_cons)
@@ -295,7 +298,8 @@ class Recipient(Base_Set):
                     nodes[po, TF.ACT]
                 )
             )
-            log_po.debug(f"6b).po lat_input: POs not connected to same RB -={delta}")
+            if torch.any(delta>0.0):
+                log_po.debug(f"6b).po lat_input: POs not connected to same RB -={delta}")
             nodes[po, TF.LATERAL_INPUT] -= delta
         if as_DORA: 
             # 6c). as_DORA: child p not same parent RB & POs connect same RB
@@ -311,8 +315,9 @@ class Recipient(Base_Set):
                     nodes[po, TF.ACT]
                 )
             )
+            if torch.any(delta>0.0):
+                log_po.debug(f"6ci).po lat_input: POs connected to same RB -={delta}")
             nodes[po, TF.LATERAL_INPUT] -= delta
-            log_po.debug(f"6ci).po lat_input: POs connected to same RB -={delta}")
             # 6cii). child p not same parent RB
             non_shared = self.non_shared(po, child_p, rb, con_tensor, parent_cons)
             delta = torch.mul(
@@ -320,7 +325,8 @@ class Recipient(Base_Set):
                 torch.matmul(non_shared.float(), nodes[child_p, TF.ACT])
             )
             nodes[po, TF.LATERAL_INPUT] -= delta
-            log_po.debug(f"6cii).po lat_input: child p not same parent RB -={delta}")
+            if torch.any(delta>0.0):
+                log_po.debug(f"6cii).po lat_input: child p not same parent RB -={delta}")
         else: 
             # 6d). not_as_DORA: if object: child_p
             child_p_sum = nodes[child_p, TF.ACT].sum()         # Get act of all child_p
@@ -329,13 +335,15 @@ class Recipient(Base_Set):
             log_po.debug(f"6d).po lat_input: objects from child p -= {delta_input}")
         # 7). TD: non-connected RB
         if as_DORA and phase_set >= 1:
-            non_connect_rb = 1 - parent_cons[po][:, rb].float()             # PO[i] -> non_connected_rb[j] = -1 // po is child so use parent_cons
+            r_rb = self.tokens.arb_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT})
+            non_connect_rb = 1 - parent_cons[po][:, r_rb].float()             # PO[i] -> non_connected_rb[j] = -1 // po is child so use parent_cons
             #non_connect_rb = lateral_input_level * non_connect_rb  NOTE: you might want to set multiplyer on other RB inhibition to lateral_input_level
             delta = torch.matmul(         
                 non_connect_rb,
-                nodes[rb, TF.ACT]
+                nodes[r_rb, TF.ACT]
             )
-            log_po.debug(f"7). td_input: {delta}")      
+            if torch.any(delta>0.0):
+                log_po.debug(f"7). td_input: {delta}")         
             nodes[po, TF.TD_INPUT] -= delta
         # 8). LATERAL: ihibitior * 10
         inhib_act = torch.mul(10, nodes[po, TF.INHIBITOR_ACT]) # Get inhibitor act * 10
