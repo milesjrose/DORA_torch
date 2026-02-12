@@ -76,6 +76,13 @@ class NodeOperations:
         return torch.tensor([idx])
 
     # =====================[ Token Operations ]======================
+
+    def get_id(self, idx: int) -> int:
+        """
+        Get the ID of a token by global index.
+        """
+        idx = self._to_int(idx)
+        return self.network.token_tensor.get_id(idx)
     
     def add_token(self, token: Token) -> int:
         """
@@ -422,12 +429,11 @@ class NodeOperations:
                 return global_idx.item()
         raise ValueError(f"Token with name '{name}' not found in set {tk_set.name}")
     
-    def get_index_by_id(self, tk_set: Set, token_id: int) -> int:
+    def get_index_by_id(self, token_id: int) -> int:
         """
         Get the global index of a token by ID.
         
         Args:
-            tk_set (Set): The set to search in.
             token_id (int): The ID of the token.
             
         Returns:
@@ -436,11 +442,10 @@ class NodeOperations:
         Raises:
             ValueError: If token not found.
         """
-        set_indices = self.network.token_tensor.cache.get_set_indices(tk_set)
-        for global_idx in set_indices:
-            if int(self.network.token_tensor.tensor[global_idx, TF.ID].item()) == token_id:
-                return global_idx.item()
-        raise ValueError(f"Token with ID {token_id} not found in set {tk_set.name}")
+        matches = self.network.token_tensor.tensor[:, TF.ID] == token_id
+        if not torch.any(matches):
+            raise ValueError(f"Token with ID {token_id} not found")
+        return torch.where(matches)[0].item()
 
     def local_to_global(self, tk_set: Set, local_idx: int) -> int:
         """

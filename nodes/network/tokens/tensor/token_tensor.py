@@ -37,6 +37,12 @@ class Token_Tensor:
         """
         return self.tensor.size(dim=0)
     
+    def get_id(self, idx: int) -> int:
+        """
+        Get the ID of a token by global index.
+        """
+        return int(self.tensor[idx, TF.ID].item())
+    
     def get_set_count(self, set: Set) -> int:
         """
         Get the number of tokens in the tensor for the given set.
