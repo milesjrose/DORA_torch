@@ -38,12 +38,15 @@ class DORA:
         new_net.dora = self
         new_net.network = self.network
     
-    def get_state(self):
-        state = self.new_net.get_state()
+    def get_state(self, new_state: bool = False):
+        if new_state:
+            state = self.new_net.get_new_state()
+        else:
+            state = self.new_net.get_state()
         return state
     
     def log_state(self):
-        state = self.get_state()
+        state = self.get_state(new_state=True)
         self.states.append(state)
     
     # ----------------------------[ LOADING AND SAVING ]-------------------------------

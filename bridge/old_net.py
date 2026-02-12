@@ -188,6 +188,15 @@ class OldNet:
         
         self.get_state()
 
+    def get_new_state(self) -> State:
+        """ Returns a new generated state object, without affecting current state object. """
+        state = self.state
+        new_state = State()
+        self.state = new_state
+        self.get_state()
+        self.state = state
+        return new_state
+
     def get_state(self) -> State:
         """ Get the state of the network. """
         state = self.state

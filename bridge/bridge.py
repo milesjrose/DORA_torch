@@ -99,6 +99,11 @@ class Bridge:
     def print_diffs(self, diffs:list[Diff]):
         """ Print the differences. """
         self.comp_states.print_diffs(diffs)
+    
+    def get_logged_states(self):
+        old_states = self.old.network.states
+        new_states = self.new.dora.states
+        return old_states, new_states
 
 def load_new(sim_path: str, use_legacy_builder: bool = True):
     """ Load the new network from the simulation file. 
