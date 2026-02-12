@@ -1,15 +1,15 @@
 # DORA_tensorised/DORA.py
 # Main DORA file for tensorised version
 
-from .nodes.network.sets.driver import Driver
-from .nodes.network.single_nodes import Pairs
-from . import nodes
+from nodes.network.sets.driver import Driver
+from nodes.network.single_nodes import Pairs
+import nodes
 import torch
 from random import choice
-from .nodes.network.operations.entropy_ops import en_based_mag_checks_results
-from .nodes.utils import tensor_ops as tOps
-from .nodes.enums import *
-from .nodes.enums import Routines as R
+from nodes.network.operations.entropy_ops import en_based_mag_checks_results
+from nodes.utils import tensor_ops as tOps
+from nodes.enums import *
+from nodes.enums import Routines as R
 from logging import getLogger
 import os
 
@@ -23,6 +23,11 @@ class DORA:
     """
     def __init__(self):
         self.network: nodes.Network = None
+        self.params: nodes.Params = None
+    
+    def set_network(self, network: nodes.Network):
+        self.network = network
+        self.params = network.params
     
     # ----------------------------[ LOADING AND SAVING ]-------------------------------
     """ 
@@ -30,18 +35,27 @@ class DORA:
     NOTE: Currently only can save as .sym file, not as list of props. 
     """
 
-    def load_sim(self, file_name):
+    def load_sim(self, file_name, use_legacy_builder: bool = False):
         # default path is ./sims/
         default_path = "./sims/"
         file_path = os.path.join(default_path, file_name)
         # if file is sim.py file, use old load in builder.
         # if file is .sym file, use new load in file_ops.
-        if file_name.endswith(".py"):
-            self.network = nodes.load_network_old(file_path)
+        if file_name.endswith(".py"):  
+            if use_legacy_builder:
+                try: 
+                    from bridge import load_new
+                    self.network = load_new(file_path)
+                except ImportError:
+                    logger.critical("Bridge module not found. Please install the bridge package. Using nodes.load_network_old instead.")
+                    self.network = nodes.load_network_old(file_path)
+            else:
+                self.network = nodes.load_network_old(file_path)
         elif file_name.endswith(".sym"):
             self.network = nodes.load_network_new(file_path)
         else:
             raise ValueError("Invalid file type")
+        self.params = self.network.params
     
     def save_sim(self, file_name):
         # default path is ./sims/
@@ -55,14 +69,13 @@ class DORA:
     Functions for initialising the network state. These are called before each phase_set.
     """
 
-    def initialise_run(self):
+    def initialise_run(self, mapping: bool = True):
         """ 1). Bring a prop or props into WM (driver). """
-        #NOTE: Doesn't differentiate between make copy of am and in-place am.
-        #      Need to ask about this.
         # Copy any analogs with set != memory into AM (driver/recipient)
-        self.network.analog_ops.make_AM_copy()
-        # remove any memory tokens from the am TODO: check if this should be here? > Don't think so.
-        #self.network.tensor_ops.del_mem_tokens()
+        if self.params.exemplar_memory and mapping:
+            self.network.analog_ops.make_AM_copy()
+        else:
+            self.network.analog_ops.make_AM_move()
         # Get PO SemNormalizations.
         self.network.node_ops.get_weight_lengths()
 
@@ -75,7 +88,7 @@ class DORA:
 
     def create_firing_order(self):
         """ 3). Create the firing order """
-        if self.network.driver().tensor_ops.get_count(Type.RB) > 0:
+        if self.network.driver().tensor_op.get_count(Type.RB) > 0:
             self.network.params.count_by_RBs = True
             self.network.firing_ops.make_firing_order()
         else:
