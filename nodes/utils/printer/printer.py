@@ -112,10 +112,7 @@ class Printer:
             
             # Add feature values
             for tf in features:
-                if tf == TF.ID:
-                    value = idx.item()
-                else:
-                    value = tensor[idx, tf].item()
+                value = tensor[idx, tf].item()
                 formatted = self._format_value(tf, value)
                 row.append(formatted)
             
