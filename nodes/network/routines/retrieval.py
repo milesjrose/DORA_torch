@@ -68,6 +68,15 @@ class RetrievalOperations:
         net = self.network
         net.update.inputs(Set.MEMORY)
         net.update.acts(Set.MEMORY)
+    
+    def retrieve_tokens(self):
+        """
+        Retrieve tokens from memory.
+        """
+        net = self.network
+        if net.memory().tensor_op.get_count() == 0:
+            logger.debug("No tokens in memory, skipping token retrieval.")
+            return
         rel_act = net.params.use_relative_act
         analog_bias = net.params.bias_retrieval_analogs
         if analog_bias:
@@ -87,6 +96,10 @@ class RetrievalOperations:
     def retrieve_analogs_biased(self, use_relative_act):
         """ Retrieve analogs from memory, using analog bias"""
         net = self.network
+        mem_count = net.memory().tensor_op.get_count()
+        if mem_count == 0:
+            logger.debug("No tokens in memory, skipping retrieval.")
+            return
         # Calc normal act for each analog
         info = net.analog_ops.get_analogs_info(set=Set.MEMORY)
         analogs = info.data[:, info.Cols.NUM]
@@ -151,7 +164,6 @@ class RetrievalOperations:
         retrieve_mask[token_mask] = retrieve_prob > random_num
         return retrieve_mask
 
-
     def retrieve_tokens_efficient(self):
         """ 
         Uses slightly different logic to retrieve tokens, but way more simple. Depending on how
@@ -172,6 +184,11 @@ class RetrievalOperations:
         # Apply luce choice to each token type
         mem = self.network.memory()
         net = self.network
+
+        mem_count = mem.tensor_op.get_count()
+        if mem_count == 0:
+            logger.debug("No tokens in memory, skipping token retrieval.")
+            return
 
         # Retrieve tokens and their children
         po_ret_mask = None
@@ -199,12 +216,15 @@ class RetrievalOperations:
             if torch.any(ret_rb_parents):
                 net.node_ops.move_tokens(ret_rb_parents, Set.RECIPIENT)
 
-
     def retrieve_tokens_direct_match(self):
         """ 
         Attempts to directly emulate the old retrieval logic, but my code for it is pretty 
         inefficient and convoluted. Not sure how robust it is, and might have bugs.
         """
+        mem_count = mem.tensor_op.get_count()
+        if mem_count == 0:
+            logger.debug("No tokens in memory, skipping token retrieval.")
+            return
         # Apply luce choice to each token type
         mem = self.network.memory()
         retrieve_masks = {}
@@ -216,7 +236,6 @@ class RetrievalOperations:
 
         # Move tokens to recipient
         self.retrieve_tokens_with_masks(retrieve_masks)
-
 
     def retrieve_tokens_with_masks(self, retrieve_masks: dict[Type, torch.Tensor]):
         """
