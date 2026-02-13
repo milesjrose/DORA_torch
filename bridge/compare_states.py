@@ -168,6 +168,20 @@ class CompareStates:
         diffs: list[Diff] = []
         old_mappings = self.old_state.mappings
         new_mappings = self.new_state.mappings
+        try:
+            old_map_shape = (len(old_mappings), len(old_mappings[0]))
+        except:
+            logger.error(f"Old mappings shape: {old_mappings}")
+            return diffs
+        try:
+            new_map_shape = (len(new_mappings), len(new_mappings[0]))
+        except:
+            logger.error(f"New mappings shape: {new_mappings}")
+            return diffs
+        if old_map_shape != new_map_shape:
+            logger.error(f"Mapping shape mismatch (old!=new): {old_map_shape} != {new_map_shape}")
+            diffs.append(Diff("mappings", "-", "Shape", old_map_shape, new_map_shape, "Shape mismatch"))
+            return diffs
         for i in range(len(old_mappings)):
             for j in range(len(old_mappings[i])):
                 for field in [MappingFields.WEIGHT, MappingFields.HYPOTHESIS, MappingFields.MAX_HYP]:
