@@ -47,7 +47,41 @@ class Network(object):
         """ Holds the tensor of semantics
         - Shape: [semantics, features]"""
         self.params: Params = params
-        """ Parameters object for the network. """
+        """ Parameters object for the network. 
+            - firing_order_rule,
+            - firing_order,
+            - as_DORA,
+            - gamma,
+            - delta,
+            - eta,
+            - HebbBias,
+            - lateral_input_level,
+            - strategic_mapping,
+            - ignore_object_semantics,
+            - ignore_memory_semantics,
+            - mag_decimal_precision,
+            - exemplar_memory,
+            - recent_analog_bias,
+            - bias_retrieval_analogs,
+            - use_relative_act,
+            - ho_sem_act_flow,
+            - tokenize,
+            - remove_uncompressed,
+            - remove_compressed,
+            - run_order,
+            - run_cycles,
+            - write_on_iteration,
+            - doGUI,
+            - screen,
+            - screen_width,
+            - screen_height,
+            - GUI_update_rate,
+            - starting_iteration,
+            - num_phase_sets_to_run,
+            - count_by_RBs,
+            - local_inhibitor_fired,
+            - phase_set,
+            """
         self.mappings: Mapping = tokens.mapping
         """ Holds the mappings tensor
         - Shape: [driver, recipient, mapping fields]"""

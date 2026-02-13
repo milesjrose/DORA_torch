@@ -44,6 +44,7 @@ class TestDoRetrieval:
         b.new.dora.set_new_net(b.new)
         b.new.dora.do_retrieval()
         b.old.network.do_retrieval()
+        print_tokens(b)
         assert b.compare_states(), "Mismatch after do_retrieval"
 
     def test_retrieval_analog_bias(self):
@@ -61,6 +62,7 @@ class TestDoRetrieval:
         b.new.network.params.use_relative_act = True
         b.new.dora.do_retrieval()
         b.old.network.do_retrieval()
+        print_tokens(b)
         assert b.compare_states(), "Mismatch after do_retrieval with analog bias"
 
     def test_retrieval_no_analog_bias(self):
@@ -78,6 +80,7 @@ class TestDoRetrieval:
         b.new.network.params.use_relative_act = False
         b.new.dora.do_retrieval()
         b.old.network.do_retrieval()
+        print_tokens(b)
         assert b.compare_states(), "Mismatch after do_retrieval without analog bias"
 
     def test_retrieval_analog_bias_no_relative_act(self):
@@ -95,4 +98,10 @@ class TestDoRetrieval:
         b.new.network.params.use_relative_act = False
         b.new.dora.do_retrieval()
         b.old.network.do_retrieval()
+        print_tokens(b)
         assert b.compare_states(), "Mismatch after do_retrieval analog bias no relative act"
+
+def print_tokens(b: Bridge):
+    b.update_states()
+    b.old.printer.tokens()
+    b.new.printer.tokens()
