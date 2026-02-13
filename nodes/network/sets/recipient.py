@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 from logging import getLogger, INFO, DEBUG
 log_po = getLogger("REC_PO")
-log_po.setLevel(DEBUG)
+log_po.setLevel(INFO)
 
 class Recipient(Base_Set):
     """

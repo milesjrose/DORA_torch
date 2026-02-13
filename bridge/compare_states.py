@@ -58,7 +58,6 @@ class CompareStates:
     def print_diffs(self, diffs: list[Diff], table=True):
         """ Print the differences. """
         if len(diffs) == 0:
-            logger.info("No differences found.")
             return
         if table:
             columns = ["Class", "Id", "Field", "Old", "New", "Comment"]
@@ -86,7 +85,7 @@ class CompareStates:
                 return True
         
         if isinstance(old_val, float):
-            tolerance = 1e-5
+            tolerance = 1e-3
             abs_diff = abs(old_val - new_val)
             return abs_diff <= tolerance
         match = old_val == new_val

@@ -142,7 +142,7 @@ class NewNet:
         }
         state.firing_order = [self.network.node_ops.get_id(idx) for idx in self.network.firing_ops.firing_order] if self.network.firing_ops.firing_order is not None else []
         if log:
-            logger.info(f" Extracted {tk_count} tk, {sem_count} sem, {link_count} link, {m_count} maps, {con_count} cons, {sem_con_count} sem_cons")
+            logger.debug(f" Extracted {tk_count} tk, {sem_count} sem, {link_count} link, {m_count} maps, {con_count} cons, {sem_con_count} sem_cons")
         return state
 
 # =============================== EXTRACTORS =============================== 

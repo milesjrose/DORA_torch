@@ -157,7 +157,7 @@ class Semantics(object):
         deleted_mask = self.nodes[:, SF.DELETED] == B.TRUE          # find all deleted semantics in nodes tensor
         if not deleted_mask.any():                                  # if no deleted semantics, expand tensor
             self.expand_tensor()
-        empty_rows = torch.where(self.nodes[:, SF.DELETED] == B.TRUE)[0]                   # find all empty rows in nodes tensor
+        empty_rows = torch.where(self.nodes[:, SF.DELETED] == B.TRUE)[0]  # find all empty rows in nodes tensor
         mt_idx = int(empty_rows[0].item())                                # find first empty row
         self.nodes[mt_idx, :] = semantic.tensor                  # add semantic to empty row
         new_id = max(self.IDs.keys()) + 1 if self.IDs else 1     # get new id

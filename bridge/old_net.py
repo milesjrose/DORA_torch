@@ -229,7 +229,7 @@ class OldNet:
         }
         state.firing_order = [node.ID for node in self.network.firingOrder] if self.network.firingOrder is not None else []
         if log:
-            logger.info(f"Extracted {tk_count} tk, {sem_count} sem, {link_count} link, {m_count} maps, {con_count} cons, {sem_con_count} sem_cons")
+            logger.debug(f"Extracted {tk_count} tk, {sem_count} sem, {link_count} link, {m_count} maps, {con_count} cons, {sem_con_count} sem_cons")
         return state
     
     def _extract_tokens(self) -> tuple[dict[int, dict], int]:
