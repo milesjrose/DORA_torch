@@ -49,6 +49,15 @@ class Tokens:
         """holds the mapping tensor, driver tokens -> recipient tokens"""
         self.recache()
     
+    def reset_inhibitor(self):
+        """ Reset the inhibitor act and input for all RB and PO tokens. """
+        rbs = self.token_tensor.cache.get_type_mask(Type.RB)
+        pos = self.token_tensor.cache.get_type_mask(Type.PO)
+        comb = rbs | pos
+        self.token_tensor.tensor[comb, TF.INHIBITOR_INPUT] = 0.0
+        self.token_tensor.tensor[comb, TF.INHIBITOR_ACT] = 0.0
+
+
     def recache(self):
         """
         Recache the token information, and ensure the sizes of the connections (con, link, map) tensors are correct.

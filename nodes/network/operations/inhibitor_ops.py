@@ -54,10 +54,9 @@ class InhibitorOperations:
         Reset the inhibitors (for RB and PO units).
         (driver, recipient, new_set, memory)
         """
-        self.network.driver().update_op.reset_inhibitor([Type.RB, Type.PO])
-        self.network.recipient().update_op.reset_inhibitor([Type.RB, Type.PO])
-        self.network.memory().update_op.reset_inhibitor([Type.RB, Type.PO])
-        self.network.new_set().update_op.reset_inhibitor([Type.RB, Type.PO])
+        self.local = 0.0
+        self.glbal = 0.0
+        self.network.tokens.reset_inhibitor()
 
     def check_local(self):                                              # Check local inhibition
         """Check local inhibitor activation."""
@@ -77,7 +76,4 @@ class InhibitorOperations:
         
     def fire_global(self):                                              # Fire global inhibitor
         """Fire the global inhibitor."""
-        self.network.driver().update_op.init_act([Type.PO, Type.RB, Type.P])
-        self.network.recipient().update_op.init_act([Type.PO, Type.RB, Type.P])
-        self.network.memory().update_op.init_act([Type.PO, Type.RB, Type.P])
-        self.network.semantics.init_sem()
+        self.network.update.initialise_act()
