@@ -168,25 +168,10 @@ class DORA:
         Update the network in discrete time-steps until the inhibitor fires 
         (i.e., the current active token is inhibited by its inhibitor).
         """
-        times = {
-            'set_act': [],
-            'time_step_activations': [],
-            'fire_local_inhibitor': [],
-            'run_routine': [],
-        }
-        i = 0
-        time = monotonic()
-        while get_inhibitor() == 0 and i < 220:
+        while get_inhibitor() == 0:
             # 4.3.1-4.3.10) update network activations.
-            s = monotonic()
             self.network.node_ops.set_tk_value(token, TF.ACT, 1.0)
-            e = monotonic()
-            times['set_act'].append(e - s)
-            s = monotonic()
             self.time_step_activations()
-            e = monotonic()
-            times['time_step_activations'].append(e - s)
-            s = monotonic()
             # 4.3.11) Run routine
             match routine:
                 case R.MAP:
@@ -203,26 +188,11 @@ class DORA:
                     self.network.routines.rel_gen.rel_gen_routine()
                 case _:
                     pass
-            e = monotonic()
-            times['run_routine'].append(e - s)
-            s = monotonic()
             # fire the local inhib if neccessary
             self.time_step_fire_local_inhibitor()
-            e = monotonic()
-            times['fire_local_inhibitor'].append(e - s)
-            i += 1
             #if self.network.params.doGUI: # NOTE: Not implemented
             #    self.phase_set_iterator += 1
             #    self.time_step_doGUI()
-        end = monotonic()
-        total_time = end - time
-        avg_times = {
-            'set_act': sum(times['set_act']) / len(times['set_act']),
-            'time_step_activations': sum(times['time_step_activations']) / len(times['time_step_activations']),
-            'fire_local_inhibitor': sum(times['fire_local_inhibitor']) / len(times['fire_local_inhibitor']),
-        }
-        logger.info(f"Fire token: {token} over {i} time steps in {total_time} seconds")
-        logger.info(f"Avg times: {avg_times}")
 
     def do_map(self):
         """ do mapping """
