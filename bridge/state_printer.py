@@ -232,7 +232,100 @@ class StatePrinter:
             logger (Logger, optional): Logger to use. Defaults to local logger.
         """
         self._temp_logger = logger
-        raise NotImplementedError("Not done yet.")
+        if as_matrix:
+            mappings = self._state.mappings
+            r_ids = sorted(self._state.recipient)
+            d_ids = sorted(self._state.driver)
+            if len(r_ids) == 0 or len(d_ids) == 0:
+                self._output(f"Mappings: (no driver/recipient tokens)")
+                self._temp_logger = None
+                return
+            # Build column headers from driver IDs
+            cols = ["r \\ d"] + [f"{self._get_tag(d_id, names is not None)}" for d_id in d_ids]
+            rows = []
+            for r_local_idx, r_id in enumerate(r_ids):
+                if ids is not None and r_id not in ids:
+                    # Check if any driver in ids maps to this recipient
+                    has_match = False
+                    for d_local_idx, d_id in enumerate(d_ids):
+                        if d_id in ids:
+                            entry = mappings[r_local_idx][d_local_idx]
+                            if entry[MappingFields.WEIGHT] > min_weight or entry[MappingFields.HYPOTHESIS] != 0.0:
+                                has_match = True
+                                break
+                    if not has_match:
+                        continue
+                r_tag = self._get_tag(r_id, names is not None)
+                r_label = f"*{r_tag}*" if ids is not None and r_id in ids else f"{r_tag}"
+                row = [r_label]
+                for d_local_idx, d_id in enumerate(d_ids):
+                    entry = mappings[r_local_idx][d_local_idx]
+                    weight = entry[MappingFields.WEIGHT]
+                    hyp = entry[MappingFields.HYPOTHESIS]
+                    max_hyp = entry[MappingFields.MAX_HYP]
+                    if weight > min_weight or hyp != 0.0:
+                        parts = []
+                        if show_weights:
+                            if weight > 0.0:
+                                parts.append(f"w={self._format(weight)}")
+                            if hyp != 0.0:
+                                parts.append(f"h={self._format(hyp)}")
+                            if max_hyp != 0.0:
+                                parts.append(f"mh={self._format(max_hyp)}")
+                        row.append(" ".join(parts) if parts else "●")
+                    else:
+                        row.append("·")
+                rows.append(row)
+            if len(rows) == 0:
+                self._output(f"Mappings: (none above min_weight={min_weight})")
+            else:
+                header_text = self._get_header_text("Mappings", len(rows), ids)
+                self._print_table(cols, rows, header_text)
+        else:
+            # List mode: show each non-zero mapping as a row
+            mappings = self._state.mappings
+            r_ids = sorted(self._state.recipient)
+            d_ids = sorted(self._state.driver)
+            if len(r_ids) == 0 or len(d_ids) == 0:
+                self._output(f"Mappings: (no driver/recipient tokens)")
+                self._temp_logger = None
+                return
+            rows = []
+            for r_local_idx, r_id in enumerate(r_ids):
+                for d_local_idx, d_id in enumerate(d_ids):
+                    entry = mappings[r_local_idx][d_local_idx]
+                    weight = entry[MappingFields.WEIGHT]
+                    hyp = entry[MappingFields.HYPOTHESIS]
+                    max_hyp = entry[MappingFields.MAX_HYP]
+                    if weight <= min_weight and hyp == 0.0:
+                        continue
+                    # Apply id filter
+                    if ids is not None and r_id not in ids and d_id not in ids:
+                        continue
+                    # Apply name filter
+                    if names is not None:
+                        r_name = self._state.tokens[r_id]['name'] if r_id in self._state.tokens else None
+                        d_name = self._state.tokens[d_id]['name'] if d_id in self._state.tokens else None
+                        if r_name not in names and d_name not in names:
+                            continue
+                    d_tag = self._get_tag(d_id, names is not None)
+                    r_tag = self._get_tag(r_id, names is not None)
+                    d_label = f"*{d_tag}*" if ids is not None and d_id in ids else d_tag
+                    r_label = f"*{r_tag}*" if ids is not None and r_id in ids else r_tag
+                    if show_weights:
+                        row = [d_label, '↔', r_label, self._format(weight), self._format(hyp), self._format(max_hyp)]
+                    else:
+                        row = [d_label, '↔', r_label]
+                    rows.append(row)
+            if len(rows) == 0:
+                self._output(f"Mappings: (none above min_weight={min_weight})")
+            else:
+                header_text = self._get_header_text("Mappings", len(rows), ids)
+                if show_weights:
+                    columns = ['Driver', '', 'Recipient', 'Weight', 'Hypothesis', 'Max Hyp']
+                else:
+                    columns = ['Driver', '', 'Recipient']
+                self._print_table(columns, rows, header_text)
         self._temp_logger = None
 
     def connections(self, show_weights: bool = True, 
@@ -501,7 +594,9 @@ class StatePrinter:
                         ('BU Input', 'bu_input'), 
                         ('Lateral Input', 'lateral_input'), 
                         ('Map Input', 'map_input'),
-                        ('Inhib Input', 'inhibitor_input')
+                        ('Inhib Input', 'inhibitor_input'),
+                        ('mappingConnections', 'mappingConnections'),
+                        ('mappingHypotheses', 'mappingHypotheses'),
                         ]
         columns = [feature[0] for feature in features]
         rows = []

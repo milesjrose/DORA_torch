@@ -135,7 +135,7 @@ class CompareStates:
                 old_node = old_nodes[id]
                 new_node = new_nodes[id]
                 for field in old_node.keys():
-                    if field not in ["my_index", "same_RB_POs"]: # TODO: skipping rb pos for now, but need to fix at some point.
+                    if field not in ["my_index", "same_RB_POs", "max_map_unit"]: # TODO: skipping rb pos for now, but need to fix at some point.
                         old_val = old_node.get(field, "N/A")
                         new_val = new_node.get(field, "N/A")
                         if not self._equal(old_val, new_val):

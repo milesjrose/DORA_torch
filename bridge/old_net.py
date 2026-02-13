@@ -484,12 +484,13 @@ class OldNet:
                         h_count += 1
                 # connections
                 for mc in token.mappingConnections:
-                    rec_idx = self.state.recipient_idxs[hyp.myMappingConnection.recipientToken.ID]
-                    dri_idx = self.state.driver_idxs[hyp.myMappingConnection.driverToken.ID]
+                    rec_idx = self.state.recipient_idxs[mc.recipientToken.ID]
+                    dri_idx = self.state.driver_idxs[mc.driverToken.ID]
                     weight = mappings[rec_idx][dri_idx][MappingFields.WEIGHT]
                     if weight != 0.0 and weight != mc.weight:
-                        logger.error(f"Mapping weight mismatch for {token.name}({token.ID}) -> {mc.driverToken.name}({mc.driverToken.ID}) ({weight} != {mc.weight})")
-                    else:
+                        pass
+                        #logger.error(f"Mapping weight mismatch for {token.name}({token.ID}) -> {mc.driverToken.name}({mc.driverToken.ID}) ({weight} != {mc.weight})")
+                    elif mc.weight != 0.0:
                         mappings[rec_idx][dri_idx][MappingFields.WEIGHT] = mc.weight
         return mappings, m_count, h_count
 

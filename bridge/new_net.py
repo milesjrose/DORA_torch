@@ -191,8 +191,8 @@ class NewNet:
             'my_index': idx,
             'inhibitor_input': nodes.tk_valc(idx, TF.INHIBITOR_INPUT),
             'inhibitor_act': nodes.tk_valc(idx, TF.INHIBITOR_ACT),
-            'mappingHypotheses': None,
-            'mappingConnections': None,
+            'mappingHypotheses': [],
+            'mappingConnections': [],
             'max_map_unit': self._get_id(nodes.tk_valc(idx, TF.MAX_MAP_UNIT)),
             'max_map': nodes.tk_valc(idx, TF.MAX_MAP),
             'td_input': nodes.tk_valc(idx, TF.TD_INPUT),
@@ -324,15 +324,15 @@ class NewNet:
         d_count = len(self.state.driver)
         m_c = 0
         h_c = 0
-        r_indices = self.network.recipient().lcl._indices
-        d_indices = self.network.driver().lcl._indices
+        r_indices = self.network.recipient().lcl._indices.tolist()
+        d_indices = self.network.driver().lcl._indices.tolist()
         mappings = [[{MappingFields.WEIGHT: 0.0, MappingFields.HYPOTHESIS: 0.0, MappingFields.MAX_HYP: 0.0} for _ in range(d_count)] for _ in range(r_count)]
-        for idx, glbl_idx in enumerate(r_indices):
+        for r_idx, r_glbl_idx in enumerate(r_indices):
             for d_idx, d_glbl_idx in enumerate(d_indices):
-                weight = map_tens[idx, d_idx, MappingFields.WEIGHT].item()
-                hypothesis = map_tens[idx, d_idx, MappingFields.HYPOTHESIS].item()
-                max_hyp = map_tens[idx, d_idx, MappingFields.MAX_HYP].item()
-                mappings[idx][d_idx] = {
+                weight = map_tens[r_idx, d_idx, MappingFields.WEIGHT].item()
+                hypothesis = map_tens[r_idx, d_idx, MappingFields.HYPOTHESIS].item()
+                max_hyp = map_tens[r_idx, d_idx, MappingFields.MAX_HYP].item()
+                mappings[r_idx][d_idx] = {
                     MappingFields.WEIGHT: weight,
                     MappingFields.HYPOTHESIS: hypothesis,
                     MappingFields.MAX_HYP: max_hyp,
@@ -347,13 +347,13 @@ class NewNet:
                     mc = True
                 if mc:
                     d_id = self.state.ids[d_glbl_idx]
-                    r_id = self.state.ids[glbl_idx]
+                    r_id = self.state.ids[r_glbl_idx]
                     connection = (d_id, r_id, weight)
                     self.state.tokens[r_id]['mappingConnections'].append(connection)
                     self.state.tokens[d_id]['mappingConnections'].append(connection)
                 if hc:
                     d_id = self.state.ids[d_glbl_idx]
-                    r_id = self.state.ids[glbl_idx]
+                    r_id = self.state.ids[r_glbl_idx]
                     hypothesis = (d_id, r_id, hypothesis, max_hyp, weight)
                     self.state.tokens[r_id]['mappingHypotheses'].append(hypothesis)
                     self.state.tokens[d_id]['mappingHypotheses'].append(hypothesis)
