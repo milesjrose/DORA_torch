@@ -200,7 +200,7 @@ class DORA:
             #    self.phase_set_iterator += 1
             #    self.time_step_doGUI()
             i += 1
-        logger.debug(f"fired [{self.network.token_tensor.tensor[token, TF.ID]}]: {i} times")
+        #logger.debug(f"fired [{self.network.token_tensor.tensor[token, TF.ID]}]: {i} times")
 
     def do_map(self):
         """ do mapping """
@@ -581,7 +581,6 @@ class DORA:
         # if mapping is licenced, update the mapping connections and update the max_map field for all driver and recipient tokens.
         if map_license:
             self.network.mapping_ops.update_mapping_connections()
-            self.network.print_mappings()
             self.network.mapping_ops.get_max_maps()
             self.network.mapping_ops.reset_mapping_hyps()
         # recalibrate PO weights.
