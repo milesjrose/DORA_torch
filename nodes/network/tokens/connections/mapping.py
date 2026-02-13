@@ -156,9 +156,11 @@ class Mapping:
         self[MappingFields.MAX_HYP] = tOps.efficient_local_max_excluding_self(self[MappingFields.HYPOTHESIS])
         self[MappingFields.HYPOTHESIS] -= self[MappingFields.MAX_HYP]
         # 3). Update the weights matrix, clamped to between 0 and 1.
-        self[MappingFields.WEIGHT] = torch.clamp(
-            eta * (1.1 - self[MappingFields.WEIGHT]) * self[MappingFields.HYPOTHESIS], 
-            0, 1)
+        neg_weights = 1.1 - self[MappingFields.WEIGHT]
+        updated_weight = eta * neg_weights * self[MappingFields.HYPOTHESIS]
+        self[MappingFields.WEIGHT] += updated_weight
+        self[MappingFields.WEIGHT] = torch.clamp(self[MappingFields.WEIGHT], 0, 1)
+
     
     def update_max_hyp(self):
         """

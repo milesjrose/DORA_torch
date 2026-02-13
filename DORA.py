@@ -111,18 +111,23 @@ class DORA:
 
     def create_firing_order(self):
         """ 3). Create the firing order """
-        if self.network.driver().tensor_op.get_count(Type.RB) > 0:
-            self.network.params.count_by_RBs = True
+        count_by_rbs = self.network.params.count_by_RBs
+        if count_by_rbs:
             self.network.firing_ops.make_firing_order()
         else:
-            self.network.params.count_by_RBs = False
             self.network.firing_ops.totally_random()
 
     def do_1_to_3(self, mapping: bool = False):
         """ Perform steps 1-3 (initialising the network state) """
         self.initialise_run()
         self.initialise_network_state()
-        self.create_firing_order()
+        driver_rb_count = self.network.driver().tensor_op.get_count(Type.RB)
+        self.network.params.count_by_RBs = driver_rb_count > 0
+        if self.network.firing.firing_order is None:
+            self.create_firing_order()
+        else:
+            logger.info(f"!!!! SKIPPING FIRING ORDER CREATION FOR DEBUGGING !!!!")
+        logger.debug(f"count_by_RBs: {self.network.params.count_by_RBs}")
     
     # ----------------------------[ PHASE SET OPERATIONS ]-------------------------------
     """
@@ -137,7 +142,6 @@ class DORA:
     def run_phase_sets(self, routine:R , phase_sets, firing_order):
         """ Runs the phase sets, for a given routine """
         params = self.network.params
-        self.do_1_to_3() # Initialise the network.
         for phase_set in range(phase_sets):
             params.phase_set = phase_set
             self.run_phase_set(routine, firing_order)
@@ -152,12 +156,13 @@ class DORA:
         else: # PO
             get_inhibitor = self.network.inhibitor.get_local
             params.as_DORA = True # Make sure you are operating as DORA.
-        for token in firing_order:
+        for i,token in enumerate(firing_order):
             self.phase_set_iterator = 0
             params.local_inhibitor_fired = False
             if routine == "predication": # clear inferred_new_p flag
                 self.network.routines.predication.inferred_new_p = False
             # Fire token
+            #logger.debug(f"Firing token {self.network.token_tensor.tensor[token, TF.ID]} : [{i}/{len(firing_order)}]")
             self.fire_token(routine, token, get_inhibitor)
             # Token firing is over. Runs once per token.
             self.post_count_by_operations()
@@ -168,6 +173,7 @@ class DORA:
         Update the network in discrete time-steps until the inhibitor fires 
         (i.e., the current active token is inhibited by its inhibitor).
         """
+        i = 0
         while get_inhibitor() == 0:
             # 4.3.1-4.3.10) update network activations.
             self.network.node_ops.set_tk_value(token, TF.ACT, 1.0)
@@ -193,6 +199,8 @@ class DORA:
             #if self.network.params.doGUI: # NOTE: Not implemented
             #    self.phase_set_iterator += 1
             #    self.time_step_doGUI()
+            i += 1
+        logger.debug(f"fired [{self.network.token_tensor.tensor[token, TF.ID]}]: {i} times")
 
     def do_map(self):
         """ do mapping """
@@ -213,7 +221,6 @@ class DORA:
         # If changed dora or ios, change them back.
         params.as_DORA = init_dora
         params.ignore_object_semantics = init_ios
-        #self.post_phase_set_operations(R.MAP)# note this should be in the run_phase_sets function
 
     def do_retrieval(self):
         """ do retrieval """
@@ -286,10 +293,10 @@ class DORA:
     def do_rel_form(self):
         """ do rel form """
         params = self.network.params
+        self.do_1_to_3()
         # only execute if count_by_rbs is true:
         if params.count_by_RBs:
             # initialise network
-            self.do_1_to_3()
             self.network.routines.rel_form.inferred_new_p = False
             # Run phase set
             self.run_phase_set(R.REL_FORM, self.network.firing_ops.firing_order)
@@ -320,10 +327,10 @@ class DORA:
         params = self.network.params
         init_dora = params.as_DORA
         params.as_DORA = True
+        self.do_1_to_3()
         # only execute if count_by_rbs is true:
         if params.count_by_RBs:
             # intitialise network
-            self.do_1_to_3()
             self.run_phase_set(R.SCEMA, self.network.firing_ops.firing_order)
             # post phase set ops
             self.post_phase_set_operations(R.SCEMA)
@@ -337,10 +344,10 @@ class DORA:
         params = self.network.params
         init_dora = params.as_DORA
         params.as_DORA = True
+        self.do_1_to_3()
         # only execute if count_by_rbs is true:
         if params.count_by_RBs:
             # intitialise network
-            self.do_1_to_3()
             self.run_phase_set(R.REL_GEN, self.network.firing_ops.firing_order)
             # post phase set ops
             self.post_phase_set_operations(R.REL_GEN)
@@ -545,7 +552,7 @@ class DORA:
         self.network.inhibitor_ops.fire_global()
         # reset the local inhib
         self.network.inhibitor_ops.reset()
-
+    
     def post_phase_set_operations(self, routine:R, inferred_new_p: bool = False):
         """ function to perform operations that occur after a phase set. 
 
@@ -574,6 +581,7 @@ class DORA:
         # if mapping is licenced, update the mapping connections and update the max_map field for all driver and recipient tokens.
         if map_license:
             self.network.mapping_ops.update_mapping_connections()
+            self.network.print_mappings()
             self.network.mapping_ops.get_max_maps()
             self.network.mapping_ops.reset_mapping_hyps()
         # recalibrate PO weights.

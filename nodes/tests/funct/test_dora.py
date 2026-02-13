@@ -27,6 +27,11 @@ class TestDoMap:
         assert b.compare_states_arg(so, sn), "Mismatch after do_1_to_3"
         b.new.dora.do_map()
         b.old.network.do_map()
+        b.update_states()
+        b.old.printer.mappings()
+        b.new.printer.mappings()
+        b.old.printer.tokens()
+        b.new.printer.tokens()
         assert b.compare_states(), "Mismatch after do_map"
 
 class TestDoRetrieval:
