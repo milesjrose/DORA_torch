@@ -487,7 +487,7 @@ class Network(object):
         """
         self.tokens.print_links_list(token_names=token_names, semantic_names=semantic_names, token_indices=token_indices, min_weight=min_weight, show_weights=show_weights)
     
-    def print_mappings(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, driver_indices: torch.Tensor = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
+    def print_mappings(self, use_ids: bool =True, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, driver_indices: torch.Tensor = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
         """ 
         Print mappings to console as a matrix showing recipient-to-driver mappings.
         
@@ -500,9 +500,18 @@ class Network(object):
             min_value (float): Minimum value to display. Values below this shown as empty. Default 0.0.
             show_values (bool): If True, show values. If False, show "●" for non-zero. Default True.
         """
-        self.tokens.print_mappings(driver_names=driver_names, recipient_names=recipient_names, driver_indices=driver_indices, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
+        if use_ids:
+            d_ids = self.network.driver().lcl[:, TF.ID].tolist()
+            d_id_dic = {}
+            for i,id in enumerate(d_ids):
+                d_id_dic[i] = int(id)
+            r_ids = self.network.recipient().lcl[:, TF.ID].tolist()
+            r_id_dic = {}
+            for i,id in enumerate(r_ids):
+                r_id_dic[i] = int(id)
+        self.tokens.print_mappings(driver_names=d_id_dic, recipient_names=r_id_dic, driver_indices=driver_indices, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
     
-    def print_mappings_list(self, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
+    def print_mappings_list(self, use_ids: bool=True, driver_names: dict[int, str] = None, recipient_names: dict[int, str] = None, recipient_indices: torch.Tensor = None, field: MappingFields = MappingFields.WEIGHT, min_value: float = 0.0, show_values: bool = True):
         """ 
         Print mappings as a list showing each recipient's mapped drivers.
         More readable for sparse matrices.
@@ -515,4 +524,13 @@ class Network(object):
             min_value (float): Minimum value to display. Default 0.0.
             show_values (bool): If True, show values with drivers. Default True.
         """
-        self.tokens.print_mappings_list(driver_names=driver_names, recipient_names=recipient_names, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
+        if use_ids:
+            d_ids = self.network.driver().lcl[:, TF.ID].tolist()
+            d_id_dic = {}
+            for i,id in enumerate(d_ids):
+                d_id_dic[i] = int(id)
+            r_ids = self.network.recipient().lcl[:, TF.ID].tolist()
+            r_id_dic = {}
+            for i,id in enumerate(r_ids):
+                r_id_dic[i] = int(id)
+        self.tokens.print_mappings_list(driver_names=d_id_dic, recipient_names=r_id_dic, recipient_indices=recipient_indices, field=field, min_value=min_value, show_values=show_values)
