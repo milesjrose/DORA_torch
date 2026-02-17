@@ -358,7 +358,7 @@ class StatePrinter:
             idxs = self._state.idxs
             no_nodes = len(cons)
             rows = []
-            filter_idxs = [idxs[id] for id in ids]
+            filter_idxs = [idxs[id] for id in ids] if ids is not None else None
             if ids is not None:
                 col_list = []
                 row_list = []
@@ -390,7 +390,7 @@ class StatePrinter:
                 cols = ["p->c"] 
                 for col_idx in col_list:
                     tag = self._get_tag(id_dict[col_idx], use_names)
-                    tag_str = f"*{tag}*" if id_dict[row_idx] in ids else f"{tag}"
+                    tag_str = f"*{tag}*" if ids is not None and id_dict[row_idx] in ids else f"{tag}"
                     cols.append(tag_str)
             else:
                 cols = ["p->c"] + [self._get_tag(id_dict[i], use_names) for i in range(no_nodes)]
@@ -424,7 +424,7 @@ class StatePrinter:
                 if get_children and get_parents and (children != empty_char or parents != empty_char):
                     rows.append([f"{id_str}", '→', children, '', parents])
                 else:
-                    id_str = f"*{id_str}*" if id in ids else id_str
+                    id_str = f"*{id_str}*" if ids is not None and id in ids else id_str
                     if get_children and children != empty_char:
                         rows.append([id_str, '→', children])
                     elif get_parents and parents != empty_char:
