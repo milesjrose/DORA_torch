@@ -4,7 +4,7 @@ from nodes.utils.printer import Printer as NodePrinter
 from nodes.network import Network
 from nodes.utils.timer import Timer, intervals_table
 bridge = Bridge()
-from logging import getLogger
+from logging import getLogger, INFO, DEBUG
 logger = getLogger("TEST")
 
 def test_update_recipient():
@@ -361,6 +361,149 @@ def test_update_semantics():
             bridge.old.printer.semantics()
             bridge.new.printer.semantics()
         assert match, f"Acts {i}, states do not match"
+
+def test_update_memory():
+    """
+    Test a series of update operations on the memory set.
+    
+    This test:
+    1. Loads a simulation with memory set tokens into both implementations
+    2. Sets activation on driver POs to drive semantic activation
+    3. Updates semantic inputs/acts in both implementations
+    4. Updates memory inputs/acts in both implementations
+    5. Compares the resulting states
+    """
+    old_net = getLogger("OLD_NET")
+    new_net = getLogger("NEW_NET")
+    old_net.setLevel(INFO)
+    new_net.setLevel(INFO)
+    # Setup networks
+    bridge.old.load_sim("sims/testsim_retrieval.py")
+    bridge.load_new_from_old()
+
+    new_net: Network = bridge.new.network
+    memory = bridge.old.memory
+
+    import basicRunDORA
+
+    match = bridge.compare_states()
+    if not match:
+        bridge.old.printer.semantics()
+        bridge.new.printer.semantics()
+        print(new_net.semantics.IDs)
+    assert match, "Mismatch after loading sim"
+
+    # Get p modes in both networks
+    for myP in memory.Ps:
+        myP.get_Pmode()
+    new_net.node_ops.get_pmode()
+    assert bridge.compare_states(), "Mismatch after get p mode"
+
+    # =====================================================
+    # Step 1: Set driver PO activations in both networks
+    # =====================================================
+    
+    # OLD: Set activations on driver POs (first 2 POs get activation)
+    for i, po in enumerate(memory.driver.POs):
+        if i < 2:
+            po.act = 0.8
+        else:
+            po.act = 0.0
+    
+    # NEW: Set activations on driver POs
+    driver_po_mask = new_net.sets[Set.DRIVER].tensor_op.get_arb_mask({TF.TYPE: Type.PO})
+    driver_po_indices = new_net.to_global(driver_po_mask.nonzero().squeeze(1), Set.DRIVER)
+    
+    for i, idx in enumerate(driver_po_indices):
+        if i < 2:
+            new_net.token_tensor.tensor[idx, TF.ACT] = 0.8
+        else:
+            new_net.token_tensor.tensor[idx, TF.ACT] = 0.0
+        
+    assert bridge.compare_states(), "Mismatch after setting driver PO activations"
+
+    # =====================================================
+    # Step 2: Update semantic inputs/acts in both networks
+    # =====================================================
+    
+    # OLD: Update semantic inputs
+    for semantic in memory.semantics:
+        semantic.update_input(
+            memory,
+            ho_sem_act_flow=0,
+            retrieval_license=False,
+            ignore_object_semantics=False,
+            ignore_memory_semantics=True
+        )
+    new_net.update_ops.inputs_sem()
+    assert bridge.compare_states(), "Mismatch after update semantic inputs"
+    
+    # OLD: Get max semantic input and update semantic activations
+    max_input = basicRunDORA.get_max_sem_input(memory)
+    for semantic in memory.semantics:
+        semantic.set_max_input(max_input)
+        semantic.update_act()
+    
+    # NEW: Update semantic inputs and acts
+    max_sem_input = new_net.update_ops.get_max_sem_input()
+    new_net.semantics.set_max_input(max_sem_input)
+    new_net.update_ops.acts_sem()
+
+    assert bridge.compare_states(), "Mismatch after update semantic acts"
+
+    # =====================================================
+    # Step 3: Test memory update cycles
+    # =====================================================
+    # NOTE: The old code hardcodes phase_set=2 for memory updates.
+    # Set phase_set=2 in the new code to match.
+    new_net.params.phase_set = 2
+
+    for i in range(10):
+        # Inputs
+        # - old
+        logger.info(" -------------------------------> UPDATING MEMORY INPUTS OLD - CYCLE " + str(i))
+        memory = basicRunDORA.update_memory_inputs(
+            memory, 
+            asDORA=new_net.params.as_DORA, 
+            lateral_input_level=new_net.params.lateral_input_level
+        )
+        # - new
+        logger.info(" -------------------------------> UPDATING MEMORY INPUTS NEW - CYCLE " + str(i))
+        new_net.update_ops.inputs(Set.MEMORY)
+        # Compare
+        match = bridge.compare_states()
+        if not match:
+            bridge.old.printer.tokens()
+            bridge.new.printer.tokens()
+        assert match, f"Mismatch after update memory inputs (cycle {i})"
+
+        # Acts
+        # - old
+        logger.info(" -------------------------------> UPDATING MEMORY ACTS OLD - CYCLE " + str(i))
+        gamma = new_net.params.gamma
+        delta = new_net.params.delta
+        HebbBias = new_net.params.HebbBias
+        memory = basicRunDORA.update_acts_memory(memory, gamma, delta, HebbBias)
+
+        # - new
+        logger.info(" -------------------------------> UPDATING MEMORY ACTS NEW - CYCLE " + str(i))
+        new_net.update_ops.acts(Set.MEMORY)
+        # Compare
+        logger.info(" ===============================> UPDATED MEMORY ACTS - CYCLE " + str(i))
+        assert bridge.compare_states(), f"Mismatch after update memory acts (cycle {i})"
+
+        # Get p modes in both networks
+        for myP in memory.Ps:
+            myP.get_Pmode()
+        new_net.node_ops.get_pmode()
+        match = bridge.compare_states()
+        if not match:
+            bridge.old.printer.tokens()
+            bridge.old.printer.connections(as_matrix=True)
+            bridge.new.printer.tokens()
+            bridge.new.printer.connections(as_matrix=True)
+        assert match, f"Mismatch after get p mode (cycle {i})"
+
 
 def test_time_step_activations():
     # load networks
