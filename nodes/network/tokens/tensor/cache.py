@@ -2,7 +2,7 @@ import torch
 from ....enums import *
 from enum import IntEnum
 from logging import getLogger
-logger = getLogger("tns")
+logger = getLogger("CACHE")
 
 class Analog_Cache(IntEnum):
     """ Enum for the analog cache."""
