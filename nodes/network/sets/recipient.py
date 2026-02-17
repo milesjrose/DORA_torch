@@ -51,7 +51,7 @@ class Recipient(Base_Set):
         con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
-        p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.PARENT})
+        p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: self.tk_set, TF.MODE: Mode.PARENT})
         if not torch.any(p): return;
         group = cache.get_type_mask(Type.GROUP)  # Boolean mask for GROUP nodes
         rb = cache.get_type_mask(Type.RB)        # Boolean mask for RB nodes
@@ -98,11 +98,11 @@ class Recipient(Base_Set):
         # Exitatory: td (RBs above me), mapping input, bu (my semantics [currently not implmented]).
         # Inhibitory: lateral (other Ps in child, and, if in DORA mode, other PO objects not connected to my RB, and 3*PO connected to my RB), inhibitor.
         # 1). get masks
-        p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.CHILD})
+        p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: self.tk_set, TF.MODE: Mode.CHILD})
         if not torch.any(p): return;
         rb = cache.get_type_mask(Type.RB)                           # Boolean mask for RB nodes
         po = cache.get_type_mask(Type.PO)
-        obj = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT, TF.PRED: B.FALSE}) # get object mask
+        obj = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: self.tk_set, TF.PRED: B.FALSE}) # get object mask
         # Exitatory input:
         # 2). TD_INPUT: my_groups and my_parent_RBs
         """ NOTE: Says this should be input in comments, but not implemented in code.
@@ -164,7 +164,7 @@ class Recipient(Base_Set):
         # Exitatory: td (my P units), bu (my pred and obj POs, and my child Ps), mapping input.
         # Inhibitory: lateral (other RBs*3), inhbitor.
         # 1). get masks
-        rb = cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT})
+        rb = cache.get_arbitrary_mask({TF.TYPE: Type.RB, TF.SET: self.tk_set})
         if not torch.any(rb): return;
         po = cache.get_type_mask(Type.PO)
         p = cache.get_type_mask(Type.P)
@@ -218,16 +218,16 @@ class Recipient(Base_Set):
         con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
-        all_po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT})
+        all_po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: self.tk_set})
         if not torch.any(all_po): return;
-        po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: Set.RECIPIENT, TF.INFERRED: B.FALSE}) # non-infered pos
+        po = cache.get_arbitrary_mask({TF.TYPE: Type.PO, TF.SET: self.tk_set, TF.INFERRED: B.FALSE}) # non-infered pos
         rb = cache.get_type_mask(Type.RB)
         pred_sub = (nodes[po, TF.PRED] == B.TRUE)              # predicate sub mask of po nodes
         obj_sub = (nodes[po, TF.PRED] == B.FALSE)              # object sub mask of po nodes
         obj = tOps.sub_union(po, obj_sub)                           # objects
         pred = tOps.sub_union(po, pred_sub)                          # predicates
         parent_cons = torch.transpose(con_tensor, 0 , 1)             # Transpose of connections matrix, so that index by child node (PO) to parent (RB)
-        child_p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.RECIPIENT, TF.MODE: Mode.CHILD}) # P nodes in child mode
+        child_p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: self.tk_set, TF.MODE: Mode.CHILD}) # P nodes in child mode
         # Exitatory input:
         # 2). TD_INPUT: my_rb * gain(pred:1, obj:1)  NOTE: neither change, so removed checking for type
         if phase_set >= 1:
@@ -335,7 +335,7 @@ class Recipient(Base_Set):
             log_po.debug(f"6d).po lat_input: objects from child p -= {delta_input}")
         # 7). TD: non-connected RB
         if as_DORA and phase_set >= 1:
-            r_rb = self.tokens.arb_mask({TF.TYPE: Type.RB, TF.SET: Set.RECIPIENT})
+            r_rb = self.tokens.arb_mask({TF.TYPE: Type.RB, TF.SET: self.tk_set})
             non_connect_rb = 1 - parent_cons[po][:, r_rb].float()             # PO[i] -> non_connected_rb[j] = -1 // po is child so use parent_cons
             #non_connect_rb = lateral_input_level * non_connect_rb  NOTE: you might want to set multiplyer on other RB inhibition to lateral_input_level
             delta = torch.matmul(         
