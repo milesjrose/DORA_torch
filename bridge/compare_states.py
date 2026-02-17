@@ -168,6 +168,11 @@ class CompareStates:
         diffs: list[Diff] = []
         old_mappings = self.old_state.mappings
         new_mappings = self.new_state.mappings
+        rec_len = len(self.old_state.recipient)
+        dri_len = len(self.old_state.driver)
+        if rec_len == 0 or dri_len == 0:
+            # No mappings to compare
+            return diffs
         try:
             old_map_shape = (len(old_mappings), len(old_mappings[0]))
         except:
