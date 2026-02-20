@@ -35,7 +35,6 @@ class NodeOperations:
         """
         self.network.sets[Set.DRIVER].update_op.p_get_mode()
         self.network.sets[Set.RECIPIENT].update_op.p_get_mode()
-        self.network.sets[Set.MEMORY].update_op.p_get_mode()
     
     def initialise_p_mode(self, tk_set: Set = Set.RECIPIENT):
         """

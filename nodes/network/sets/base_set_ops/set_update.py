@@ -37,7 +37,7 @@ class UpdateOperations:
         """
         type_mask = self.base_set.tensor_op.get_combined_mask(n_type)
         if torch.any(type_mask):
-            for feature in features:
+            for feature in features: #TODO: This should be vectorisable.
                 self.base_set.lcl[type_mask, feature] = value
     
     def init_input(self, n_type: list[Type], refresh: float) -> None:
@@ -66,6 +66,17 @@ class UpdateOperations:
             self.init_input(n_type, 0.0)
             self.init_float(n_type, [TF.ACT])
     
+    def init_act_ignore_retrieved(self, n_type: list[Type]) -> None:
+        """
+        Initialise the act of the tokens, ignoring any tokens that have retrieved set to True.
+        """
+        type_mask = self.base_set.tensor_op.get_combined_mask(n_type)
+        unretrieved = ~self.base_set.tensor_op.get_retrieved_mask()
+        update_mask = type_mask & unretrieved
+        if torch.any(type_mask): # TODO: Vectorise
+            for feature in [TF.TD_INPUT, TF.BU_INPUT,TF.LATERAL_INPUT,TF.MAP_INPUT,TF.NET_INPUT,TF.ACT]:
+                self.base_set.lcl[update_mask, feature] = 0.0
+
     def init_state(self, n_type: list[Type]) -> None:
         """
         Initialise the state of the tokens.

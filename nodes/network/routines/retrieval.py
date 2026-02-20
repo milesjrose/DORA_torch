@@ -66,7 +66,7 @@ class RetrievalOperations:
         get the total act for each analog, else track the most active tokens in memory.
         """
         net = self.network
-        net.update.inputs(Set.MEMORY)
+        net.update.inputs(Set.MEMORY, ignore_modes=True)
         net.update.acts(Set.MEMORY)
     
     def retrieve_tokens(self):

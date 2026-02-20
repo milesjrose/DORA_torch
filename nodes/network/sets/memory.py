@@ -9,6 +9,7 @@ from .semantics import Semantics
 from ..tokens import Tokens
 from logging import getLogger
 log_po = getLogger("MEM_PO")
+log_p = getLogger("MEM_P")
 logger = getLogger("MEMORY")
 
 class Memory(Base_Set):
@@ -18,17 +19,26 @@ class Memory(Base_Set):
     def __init__(self, tokens: Tokens, params: Params):
         super().__init__(tokens, Set.MEMORY, params)
         
-    def update_input(self, semantics: Semantics, links: Links):
+    def update_input(self, semantics: Semantics, links: Links, ignore_modes: bool = False):
         """
-        Update all input in the recipient.
+        Update all input in memory set.
+
+        Args:
+            semantics (Semantics): The semantics of the memory set.
+            links (Links): The links of the memory set.
+            ignore_modes (bool, optional): Whether to ignore p modes (updating all P as parents, for retrieval). Defaults to False.
         """
         logger.debug(f"Updating memory input, asDORA={self.params.as_DORA}, lateral_input_level={self.params.lateral_input_level}, phase_set={self.params.phase_set}")
-        self.update_input_p_parent()
-        self.update_input_p_child()
+        # NOTE: I think it might be best to avoid modes altogether when working in retieval mode. This version of the code reflects this assumption.
+        if ignore_modes:
+            self.update_input_p_parent(ignore_modes=True)
+        else:
+            self.update_input_p_parent()
+            self.update_input_p_child()
         self.update_input_rb()
         self.update_input_po(semantics, links)
     
-    def update_input_p_parent(self):
+    def update_input_p_parent(self, ignore_modes: bool = False):
         """
         Update input for P units in parent mode
         """
@@ -40,7 +50,10 @@ class Memory(Base_Set):
         con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
         # 1). get masks
-        p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.MEMORY, TF.MODE: Mode.PARENT})
+        if ignore_modes:
+            p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.MEMORY})
+        else:
+            p = cache.get_arbitrary_mask({TF.TYPE: Type.P, TF.SET: Set.MEMORY, TF.MODE: Mode.PARENT})
         if not torch.any(p): return;
         group = cache.get_type_mask(Type.GROUP)  # Boolean mask for GROUP nodes
         rb = cache.get_type_mask(Type.RB)        # Boolean mask for RB nodes
@@ -56,8 +69,12 @@ class Memory(Base_Set):
             con_tensor[p][:, rb].float(),           # Masks connections between p[i] and its rbs
             nodes[rb, TF.ACT]                       # Each p node -> sum of act of connected rb nodes
             )  
+        if torch.any(nodes[p, TF.BU_INPUT]!=0.0):
+            log_p.debug(f"3). bu_input: {nodes[p, TF.BU_INPUT]}")
         # 4). Mapping input
         nodes[p, TF.MAP_INPUT] += self.map_input(p) 
+        if torch.any(nodes[p, TF.MAP_INPUT]!=0.0):
+            log_p.debug(f"4). map_input: {nodes[p, TF.MAP_INPUT]}")
         # Inhibitory input:
         # 5). LATERAL_INPUT: (lat_input_level * other parent p nodes in recipient), inhibitor
         """ # NOTE: Removed rn, as original code uses recipient tokens for lat input - am checking if this is required.
@@ -75,6 +92,8 @@ class Memory(Base_Set):
         # 5c). Inhibitor
         inhib_input = nodes[p, TF.INHIBITOR_ACT]
         nodes[p, TF.LATERAL_INPUT] -= torch.mul(10, inhib_input)
+        if torch.any(nodes[p, TF.LATERAL_INPUT]!=0.0):
+            log_p.debug(f"5c). lateral_input: {nodes[p, TF.LATERAL_INPUT]}")
 
     def update_input_p_child(self):     # P Units in child mode - recipient:
         """

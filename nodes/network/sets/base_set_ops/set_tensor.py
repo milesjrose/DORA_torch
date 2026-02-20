@@ -53,6 +53,12 @@ class TensorOperations:
         masks = [self.get_mask(token_type) for token_type in token_types]
         return reduce(torch.logical_or, masks)
     
+    def get_retrieved_mask(self):
+        """
+        Return a (local) mask of retrieved tokens
+        """
+        return (self.base_set.lcl[:, TF.RETRIEVED] == B.TRUE)
+    
     def get_count(self, token_type: Type=None, mask: torch.Tensor = None) -> int:
         """
         Get the count of tokens in the set.

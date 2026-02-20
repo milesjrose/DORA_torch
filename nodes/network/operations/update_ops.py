@@ -23,13 +23,25 @@ class UpdateOperations:
         self.network: 'Network' = network
     
     # ======================[ ACT FUNCTIONS ]============================
+    # NOTE: Now that we have a single tensor for everything, anything that loops through 
+    #       sets should be moved to a single operation as no need to do seperately.
 
-    def initialise_act(self):
+
+    def initialise_act(self, no_ret: bool = False):
         """
         Initialise the act and inputs in the active memory/semantics.
         (driver, recipient, new_set, semantics)
+        
+        Args:
+            no_ret (bool): If true, don't initialise retrieved tokens in the recipient. (For do_retrieval)
         """
-        sets = [Set.DRIVER, Set.RECIPIENT, Set.NEW_SET]
+        sets = [Set.DRIVER, Set.NEW_SET]
+        # If not initialising retrieved recipient tokens, do it seperately. O.w do in other loop.
+        if no_ret:
+            self.network.recipient().update_op.init_act_ignore_retrieved([Type.GROUP, Type.P, Type.RB, Type.PO])
+        else:
+            sets.append(Set.RECIPIENT)
+        # Initialise sets
         for set in sets:
             self.network.sets[set].update_op.init_act([Type.GROUP, Type.P, Type.RB, Type.PO])
 
@@ -88,17 +100,20 @@ class UpdateOperations:
         """
         self.network.sets[Set.MEMORY].update_op.init_input([Type.GROUP, Type.P, Type.RB, Type.PO], 0.0)
     
-    def inputs(self, set: Set):
+    def inputs(self, set: Set, ignore_modes: bool = False):
         """
         Update the inputs in the given token set.
 
         Args:
             set (Set): The set to update inputs in.
+            ignore_modes (bool, optional): Whether to ignore p modes (updating all P as parents, for retrieval) for memory set. Defaults to False.
         """
         if set == Set.DRIVER or set == Set.NEW_SET:
             self.network.sets[set].update_input()
-        elif set == Set.RECIPIENT or set == Set.MEMORY:
+        elif set == Set.RECIPIENT:
             self.network.sets[set].update_input(self.network.semantics, self.network.links)
+        elif set == Set.MEMORY:
+            self.network.memory().update_input(self.network.semantics, self.network.links, ignore_modes)
     
     def inputs_sem(self):               
         """
@@ -128,6 +143,7 @@ class UpdateOperations:
             int: The index of the semantic with the maximum input.
         """
         return self.network.semantics.get_max_input()
+    
     
     def set_max_sem_input(self, max_input: float):
         """
