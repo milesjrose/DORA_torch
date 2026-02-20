@@ -11,7 +11,7 @@ from nodes.network.operations.entropy_ops import en_based_mag_checks_results
 from nodes.utils import tensor_ops as tOps
 from nodes.enums import *
 from nodes.enums import Routines as R
-from logging import getLogger
+from logging import getLogger, DEBUG, INFO
 import os
 from typing import Callable, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -46,8 +46,9 @@ class DORA:
             state = self.new_net.get_state()
         return state
     
-    def log_state(self, comments: str = ""):
-        logger.debug(f"-------------------------------- NEW log: {comments}--------------------------------")
+    def log_state(self, comments: str = "", log_comment = True):
+        if log_comment:
+            logger.debug(f"-------------------------------- NEW log: {comments}--------------------------------")
         state = self.get_state(new_state=True)
         state.comments = comments
         self.states.append(state)
@@ -156,6 +157,7 @@ class DORA:
         else: # PO
             get_inhibitor = self.network.inhibitor.get_local
             params.as_DORA = True # Make sure you are operating as DORA.
+        self.log_state(f"Running phase set {params.phase_set}")
         for i,token in enumerate(firing_order):
             self.phase_set_iterator = 0
             params.local_inhibitor_fired = False
@@ -165,19 +167,31 @@ class DORA:
             #logger.debug(f"Firing token {self.network.token_tensor.tensor[token, TF.ID]} : [{i}/{len(firing_order)}]")
             self.fire_token(routine, token, get_inhibitor)
             # Token firing is over. Runs once per token.
+            self.log_state(f"Post firing token {self.network.token_tensor.tensor[token, TF.ID]}")
             self.post_count_by_operations()
-    
+        
     def fire_token(self, routine:R, token, get_inhibitor: Callable[[], float]):
         """  
         4.1-4.2) Fire the current token in the firingOrder. 
         Update the network in discrete time-steps until the inhibitor fires 
         (i.e., the current active token is inhibited by its inhibitor).
         """
-        i = 0
+        self.ftk = int(self.network.token_tensor.tensor[token, TF.ID])
+        logger.debug(f"Firing token {self.ftk}")
+        self.psi = 1
         while get_inhibitor() == 0:
             # 4.3.1-4.3.10) update network activations.
+            if self.ftk == 1 and self.psi == 4:
+                for log_name in ["MEM_PO", "MEM_P"]:
+                    log = getLogger(log_name)
+                    log.setLevel(DEBUG)
             self.network.node_ops.set_tk_value(token, TF.ACT, 1.0)
             self.time_step_activations()
+            if self.ftk == 1 and self.psi == 4:
+                for log_name in ["MEM_PO", "MEM_P"]:
+                    log = getLogger(log_name)
+                    log.setLevel(INFO)
+            self.log_state(f"Post time step: tk={self.ftk}, psi={self.psi}", log_comment=False)
             # 4.3.11) Run routine
             match routine:
                 case R.MAP:
@@ -194,14 +208,24 @@ class DORA:
                     self.network.routines.rel_gen.rel_gen_routine()
                 case _:
                     pass
+            self.log_state(f"Post routine: tk={self.ftk}, psi={self.psi}", log_comment=False)
             # fire the local inhib if neccessary
             self.time_step_fire_local_inhibitor()
             #if self.network.params.doGUI: # NOTE: Not implemented
             #    self.phase_set_iterator += 1
             #    self.time_step_doGUI()
-            i += 1
+            self.psi += 1
         #logger.debug(f"fired [{self.network.token_tensor.tensor[token, TF.ID]}]: {i} times")
 
+
+    # ----------------------------[ MAIN ROUTINES ]-------------------------------
+    """
+    Rountines for each of the main operations. These set up the network state for the operation, then
+    run one or more phase sets, calling the network routines once each time a token is fired in the phase set.
+    For rountines that only run one phase set, they also run post-phase set operations, but for multiple phase sets,
+    this is done in run_phase_sets. For functions that change parameters, these are returned to their initial value
+    after the phase set(s) are run.
+    """
     def do_map(self):
         """ do mapping """
         params = self.network.params
@@ -224,16 +248,19 @@ class DORA:
 
     def do_retrieval(self):
         """ do retrieval """
+        self.log_state("Starting retrieval")
         # initialise network
         self.do_1_to_3()
         params = self.network.params
         init_dora = params.as_DORA
+        self.log_state(f"Post initialisation")
         # Run phase sets
         self.run_phase_set(R.RETRIEVE, self.network.firing_ops.firing_order)
         # Return the .asDORA setting to its pre-firing state.
         params.as_DORA = init_dora
         # phase set is over.
         self.post_phase_set_operations(R.RETRIEVE)
+        self.log_state("Post phase set operations")
 
     def do_retrieval_v2(self):
         """ retrieval, but limited to 7 or 4 iterations """
@@ -570,8 +597,7 @@ class DORA:
         # reset the mode of all P units in the recipient back to neutral (i.e., 0);
         self.network.node_ops.initialise_p_mode(Set.RECIPIENT)
         # reset the activation and input of all units back to 0
-        self.network.update_ops.initialise_act()
-        self.network.update_ops.initialise_act_memory() # NOTE: is this needed everytime (i.e not every phase set updates memory afaik?)
+        self.network.update_ops.initialise_act(retrieval_license)
          # if you made a new P during relation formation, name it with the name of all its RBs.
         if inferred_new_p:
             self.network.routines.rel_form.name_inferred_p()

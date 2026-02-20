@@ -6,6 +6,8 @@ import logging
 import pytest
 from pathlib import Path
 
+import torch
+
 # Get the DORA_tensorised directory (parent of nodes)
 # conftest.py is in DORA_tensorised/nodes/tests/unit/
 # So we need to go up 4 levels: unit -> tests -> nodes -> DORA_tensorised
@@ -14,6 +16,10 @@ dora_tensorised_dir = Path(__file__).parent.parent.parent
 # Add to Python path if not already there
 if str(dora_tensorised_dir) not in sys.path:
     sys.path.insert(0, str(dora_tensorised_dir))
+
+
+# Set default to CUDA (GPU)
+torch.set_default_device('cpu')
 
 
 # =====================[ Logging Configuration ]====================
@@ -27,7 +33,7 @@ def configure_test_logging():
     """
     # Set root logger level (affects all loggers unless overridden)
     logging.getLogger().setLevel(logging.DEBUG)  # Only show WARNING and above by default
-    info_loggers = ["DATATYPES", "DRIVER_RB", "DRIVER_PO"]
+    info_loggers = ["CACHE","DATATYPES", "DRIVER_RB", "DRIVER_PO"]
     for logger_name in info_loggers:
         logging.getLogger(logger_name).setLevel(logging.INFO)
     

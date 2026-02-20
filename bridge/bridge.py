@@ -107,13 +107,15 @@ class Bridge:
     
     def compare_logged_states(self):
         old_states, new_states = self.get_logged_states()
+        logger.info(f"Comparing {len(old_states)}, {len(new_states)} logged states")
         i = 0
         for old_state, new_state in zip(old_states, new_states):
             match, diffs = self.compare_states_arg(old_state, new_state)
             if not match:
                 logger.error(f"Mismatch at iteration {i}: {old_state.comments}, {new_state.comments}")
                 self.print_diffs(diffs)
-                return False
+                return False, old_state, new_state
+            logger.info(f"Match ({i}): {old_state.comments}, {new_state.comments}")
             i += 1
         return True
 

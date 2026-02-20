@@ -1,5 +1,20 @@
+import pdb
 from bridge import Bridge
 from nodes.enums import *
+from logging import getLogger, INFO, DEBUG
+logger = getLogger("test")
+old_net = getLogger("OLD_NET")
+new_net = getLogger("NEW_NET")
+old_net.setLevel(INFO)
+new_net.setLevel(INFO)
+po_log = getLogger("PO_LOG")
+po_log.setLevel(INFO)
+old_input_log = getLogger("OLD_INPUTS")
+old_input_log.setLevel(INFO)
+do_log = getLogger("DORA")
+do_log.setLevel(DEBUG)
+memory_log = getLogger("MEMORY")
+memory_log.setLevel(INFO)
 
 def test_firing_order():
     b = Bridge()
@@ -98,8 +113,18 @@ class TestDoRetrieval:
         b.new.network.params.use_relative_act = False
         b.new.dora.do_retrieval()
         b.old.network.do_retrieval()
-        print_tokens(b)
-        assert b.compare_states(), "Mismatch after do_retrieval analog bias no relative act"
+        match, old, new = b.compare_logged_states()
+        if not match:
+            new_b = Bridge()
+            new_b.old.state.copy_from(old)
+            new_b.new.state.copy_from(new)
+            np = new_b.new.printer
+            op = new_b.old.printer
+            from nodes.utils import OutputType
+            np.output_type = OutputType.PRINT_CONSOLE
+            op.output_type = OutputType.PRINT_CONSOLE
+            pdb.set_trace()
+        assert match, "Mismatch after do_retrieval analog bias no relative act"
 
 def print_tokens(b: Bridge):
     b.update_states()
