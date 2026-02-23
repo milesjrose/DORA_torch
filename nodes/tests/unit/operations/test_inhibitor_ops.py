@@ -136,17 +136,11 @@ def test_update_not_in_DORA_mode_updates_driver_rb_only(network):
 
 def test_reset_calls_reset_inhibitor_on_all_sets(network):
     """Test that reset() calls reset_inhibitor on all four sets."""
-    with patch.object(network.driver().update_op, 'reset_inhibitor') as mock_driver:
-        with patch.object(network.recipient().update_op, 'reset_inhibitor') as mock_recipient:
-            with patch.object(network.memory().update_op, 'reset_inhibitor') as mock_memory:
-                with patch.object(network.new_set().update_op, 'reset_inhibitor') as mock_new_set:
-                    network.inhibitor_ops.reset()
+    with patch.object(network.tokens, 'reset_inhibitor') as mock_reset_inhibitor:
+        network.inhibitor_ops.reset()
     
     # All sets should have reset_inhibitor called with RB and PO types
-    mock_driver.assert_called_once_with([Type.RB, Type.PO])
-    mock_recipient.assert_called_once_with([Type.RB, Type.PO])
-    mock_memory.assert_called_once_with([Type.RB, Type.PO])
-    mock_new_set.assert_called_once_with([Type.RB, Type.PO])
+    mock_reset_inhibitor.assert_called_once_with()
 
 
 # =====================[ check_local() Tests ]======================
@@ -264,9 +258,9 @@ def test_fire_global_initializes_all_token_acts_and_semantics(network):
                     network.inhibitor_ops.fire_global()
     
     # Verify all token types are initialized for driver, recipient, memory
-    mock_driver_act.assert_called_once_with([Type.PO, Type.RB, Type.P])
-    mock_recipient_act.assert_called_once_with([Type.PO, Type.RB, Type.P])
-    mock_memory_act.assert_called_once_with([Type.PO, Type.RB, Type.P])
+    mock_driver_act.assert_called_once_with([Type.GROUP, Type.P, Type.RB, Type.PO])
+    mock_recipient_act.assert_called_once_with([Type.GROUP, Type.P, Type.RB, Type.PO])
+    # Dont init memory anymore // mock_memory_act.assert_called_once_with([Type.GROUP, Type.P, Type.RB, Type.PO])
     # Verify semantics are initialized
     mock_init_sem.assert_called_once()
 
