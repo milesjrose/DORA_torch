@@ -35,7 +35,7 @@ def mock_mapping_tensor():
     tensor[1, 0, MappingFields.HYPOTHESIS] = 0.2
     tensor[2, 0, MappingFields.HYPOTHESIS] = 0.5
     
-    # Set some max_hyp
+    # Set some max_hypz
     tensor[0, 0, MappingFields.MAX_HYP] = 0.4
     tensor[0, 1, MappingFields.MAX_HYP] = 0.5
     tensor[1, 0, MappingFields.MAX_HYP] = 0.3
@@ -926,7 +926,7 @@ def test_update_weight_basic(mapping):
     assert torch.all(mapping[MappingFields.HYPOTHESIS] >= -1.0)  # Can be negative after subtractive norm
 
 
-def test_update_weight_eta_zero(mapping):
+def test_update_weight_eta_zero(mapping: Mapping):
     """Test update_weight with eta=0."""
     mapping[MappingFields.WEIGHT] = torch.rand(5, 4)
     mapping[MappingFields.HYPOTHESIS] = torch.tensor([
@@ -942,8 +942,9 @@ def test_update_weight_eta_zero(mapping):
     mapping.update_weight(eta=0.0)
     
     # With eta=0, weights should remain unchanged (or become 0 if hypothesis is negative)
-    # Actually, weight = clamp(0 * (1.1 - weight) * hypothesis, 0, 1) = 0
-    assert torch.all(mapping[MappingFields.WEIGHT] == 0.0)
+    logger.info(f"mapping[MappingFields.WEIGHT]: {mapping[MappingFields.WEIGHT]}")
+    logger.info(f"original_weight: {original_weight}")
+    assert torch.all(mapping[MappingFields.WEIGHT] == original_weight)
 
 
 def test_update_weight_eta_one(mapping):
