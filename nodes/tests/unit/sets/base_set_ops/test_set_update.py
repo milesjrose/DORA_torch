@@ -1008,22 +1008,6 @@ def test_p_get_mode_no_rb_tokens(driver_set):
     assert True
 
 
-# =====================[ po_get_weight_length tests ]======================
-
-def test_po_get_weight_length_not_implemented(driver_set):
-    """Test that po_get_weight_length raises NotImplementedError."""
-    with pytest.raises(NotImplementedError):
-        driver_set.update_op.po_get_weight_length()
-
-
-# =====================[ po_get_max_semantic_weight tests ]======================
-
-def test_po_get_max_semantic_weight_not_implemented(driver_set):
-    """Test that po_get_max_semantic_weight raises NotImplementedError."""
-    with pytest.raises(NotImplementedError):
-        driver_set.update_op.po_get_max_semantic_weight()
-
-
 # =====================[ Integration tests for new functions ]======================
 
 def test_inhibitor_operations_chain(driver_set):
