@@ -203,7 +203,7 @@ def mock_update_ops(network: Network):
     original_inputs = network.update.inputs
     original_acts = network.update.acts
     
-    def mock_inputs(set_arg):
+    def mock_inputs(set_arg, ignore_modes: bool = False):
         if set_arg == Set.MEMORY:
             return  # No-op for memory
         return original_inputs(set_arg)
