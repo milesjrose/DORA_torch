@@ -290,11 +290,11 @@ def test_inputs_calls_update_input_on_recipient_with_semantics_and_links(network
         mock_update_input.assert_called_once_with(network.semantics, network.links)
 
 
-def test_inputs_calls_update_input_on_memory_with_semantics_and_links(network):
+def test_inputs_calls_update_input_on_memory_with_semantics_and_links(network: Network):
     """Test that inputs calls update_input on MEMORY with semantics and links."""
     with patch.object(network.sets[Set.MEMORY], 'update_input') as mock_update_input:
         network.update_ops.inputs(Set.MEMORY)
-        mock_update_input.assert_called_once_with(network.semantics, network.links)
+        mock_update_input.assert_called_once_with(network.semantics, network.links, False)
 
 
 # =====================[ inputs_sem Tests ]======================

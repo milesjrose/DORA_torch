@@ -307,7 +307,7 @@ def test_get_maker_unit_returns_tuple(network):
 
 # =====================[ Index Lookup Tests ]======================
 
-def test_get_index_by_name(network):
+def test_get_index_by_name(network: Network):
     """Test getting a global index by token name."""
     idx = 2
     network.token_tensor.tensor[idx, TF.SET] = Set.DRIVER.value
@@ -317,27 +317,27 @@ def test_get_index_by_name(network):
     assert result == idx
 
 
-def test_get_index_by_name_not_found(network):
+def test_get_index_by_name_not_found(network: Network):
     """Test that get_index_by_name raises error for non-existent name."""
     with pytest.raises(ValueError, match="not found"):
         network.node_ops.get_index_by_name(Set.DRIVER, "nonexistent_token")
 
 
-def test_get_index_by_id(network):
+def test_get_index_by_id(network: Network):
     """Test getting a global index by token ID."""
     idx = 3
     token_id = 3  # IDs are set to index values in fixture
     network.token_tensor.tensor[idx, TF.SET] = Set.DRIVER.value
     network.recache()
     
-    result = network.node_ops.get_index_by_id(Set.DRIVER, token_id)
+    result = network.node_ops.get_index_by_id(token_id)
     assert result == idx
 
 
 def test_get_index_by_id_not_found(network):
     """Test that get_index_by_id raises error for non-existent ID."""
     with pytest.raises(ValueError, match="not found"):
-        network.node_ops.get_index_by_id(Set.DRIVER, 9999)
+        network.node_ops.get_index_by_id(9999)
 
 
 def test_local_to_global(network):
