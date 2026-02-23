@@ -211,28 +211,26 @@ class UpdateOperations:
     # ---------------------------------------------------------------
 
     # =======================[ PO FUNCTIONS ]======================== # TODO: Can move out of tensor to save memory, as shared values.
-    def po_get_weight_length(self) -> None:                           # Sum value of links with weight > 0.1 for all PO nodes
+    def po_get_weight_length(self, links) -> None:                           # Sum value of links with weight > 0.1 for all PO nodes
         """Sum value of links with weight > 0.1 for all PO nodes - Used for semNormalisation"""
         # TODO: Implement this
-        if self.base_set.links is None:
+        if links is None:
             raise ValueError("Links is not initialised, po_get_weight_length.")
         
         po = self.base_set.tokens.arb_mask({TF.TYPE: Type.PO, TF.SET: self.base_set.tk_set})                # mask links with PO
         if not torch.any(po): return;
-        mask = self.base_set.links[po] > 0.1 # Create sub mask for links with weight > 0.1
-        weights = (self.base_set.links[po] * mask).sum(dim=1, keepdim = False)  # Sum links > 0.1
+        mask = links[po] > 0.1 # Create sub mask for links with weight > 0.1
+        weights = (links[po] * mask).sum(dim=1, keepdim = False)  # Sum links > 0.1
         po = self.base_set.tensor_op.get_mask(Type.PO)
         self.base_set.lcl[po, TF.SEM_COUNT] = weights               # Set semNormalisation
             
-    def po_get_max_semantic_weight(self) -> None:                     # Get max link weight for all PO nodes
+    def po_get_max_semantic_weight(self, links) -> None:                     # Get max link weight for all PO nodes
         """Get max link weight for all PO nodes - Used for semNormalisation"""
-        # TODO: Implement this
-        raise NotImplementedError("Need to implement links first")
-        if self.base_set.links is None:
+        if links is None:
             raise ValueError("Links is not initialised, po_get_max_semantic_weight.")
         
         po = self.base_set.tensor_op.get_mask(Type.PO)
         if not torch.any(po): return;
-        max_values, _ = torch.max(self.base_set.links[self.base_set.token_set][po], dim=1, keepdim=False)  # (max_values, _) unpacks tuple returned by torch.max
-        self.base_set.nodes[po, TF.MAX_SEM_WEIGHT] = max_values         # Set max
+        max_values, _ = torch.max(links[po], dim=1, keepdim=False)  # (max_values, _) unpacks tuple returned by torch.max
+        self.base_set.lcl[po, TF.MAX_SEM_WEIGHT] = max_values                 # Set max
     # ---------------------------------------------------------------
