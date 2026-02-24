@@ -141,27 +141,46 @@ class RetrievalOperations:
 
 
 # ================================[ TOKEN RETRIEVAL LOGIC ]================================
-    def luce_choice_retrieval(self, token_sum: float, token_mask: torch.Tensor) -> torch.Tensor:
+    def luce_choice_retrieval(self, token_sum: float, token_mask: torch.Tensor, tensor = None, tk_type: Type = None) -> torch.Tensor:
         """ 
         Decide on retrieval based on luce choice for the tokens in the mask.
         Args:
             token_sum: Sum of the max acts of the tokens in the mask.
             token_mask: Mask of the tokens to decide on retrieval for.
+            tensor: Tensor to use for retrieval.
+            tk_type: Type of the tokens to decide on retrieval for. (Not required, used for debugging.)
         Returns:
             torch.Tensor: Mask of the tokens that should be retrieved.
         """
-        mem = self.network.memory()
+        if tensor is None:
+            tensor = self.network.memory().lcl
         # make sure token_sum > 0
         if token_sum <= 0:
             # No tokens to retrive, return false mask
             return torch.zeros_like(token_mask, dtype=torch.bool)
         # retrieve prob = max_act / token_sum
-        retrieve_prob = mem.lcl[token_mask, TF.MAX_ACT] / token_sum
+        retrieve_prob = tensor[token_mask, TF.ACT] / token_sum
+
         # if retrieve prob > random num, flag token for retrieval
         random_num = torch.rand_like(retrieve_prob)
         # Create mask for tokens that should be retrieved
         retrieve_mask = torch.zeros_like(token_mask, dtype=torch.bool)
         retrieve_mask[token_mask] = retrieve_prob > random_num
+        # debugging:
+        retrieved = retrieve_mask[token_mask].tolist()
+        act = tensor[token_mask, TF.ACT].tolist()
+        ret_prob = retrieve_prob.tolist()
+        id = tensor[token_mask, TF.ID].tolist()
+        for i in id:
+            i = int(i)
+        r_num = random_num.tolist()
+        max_act = tensor[token_mask, TF.MAX_ACT].tolist()
+        from nodes.utils import TablePrinter
+        cols = ["ID", "Act", "Max Act", "Retrieve Prob", "Random Num", "Retrieved"]
+        rows = [[str(i) for i in row] for row in zip(id, act, max_act, ret_prob, r_num, retrieved)]
+        tp = TablePrinter(columns = cols, rows = rows, headers = [f"Token Retrieval Debug {tk_type.name if tk_type is not None else ''}"])
+        tp.print_table()
+
         return retrieve_mask
 
     def retrieve_tokens_efficient(self):
@@ -181,9 +200,14 @@ class RetrievalOperations:
         to retrieval. Also if an RB is retrieved in the PO retrieval step, all parents of it are 
         retrieved, not just one parent P.
          """
+        
+        # TODO: FIX PROBLEMS:
+        # - max act is not being set correctly. In memory, max act=1 for all tokens.
+        # - we are retrieving driver tokens as well as memory tokens. Not a clue how.
         # Apply luce choice to each token type
         mem = self.network.memory()
         net = self.network
+        tensor = net.token_tensor.tensor
 
         mem_count = mem.tensor_op.get_count()
         if mem_count == 0:
@@ -191,28 +215,30 @@ class RetrievalOperations:
             return
 
         # Retrieve tokens and their children
-        po_ret_mask = None
+        po_ret_idxs = None
         for tk_type in [Type.P, Type.RB, Type.PO]:
-            type_mask = mem.tensor_op.get_mask(tk_type)
+            logger.debug(f"Retrieving {tk_type.name} tokens")
+            type_mask = net.tokens.arb_mask({TF.TYPE: tk_type, TF.SET: Set.MEMORY})
             if not torch.any(type_mask): 
                 continue # No tokens of this type to retrieve, skip
-            type_sum = mem.lcl[type_mask, TF.MAX_ACT].sum()
+            type_sum = tensor[type_mask, TF.MAX_ACT].sum()
             if type_sum == 0: 
                 continue # No active tokens to retrieve, skip.
-            ret_mask = self.luce_choice_retrieval(type_sum, type_mask)
-            glbl_mask = self.lcl_mask_to_glbl(ret_mask) # Mask of mem view -> whole tensor mask
-            type_children = mem.tokens.connections.get_children_recursive(glbl_mask)
-            ret_mask = ret_mask | type_children
+            ret_mask = self.luce_choice_retrieval(type_sum, type_mask, tensor=tensor, tk_type=tk_type)
+            type_children_idxs = net.tokens.connections.get_children_recursive(ret_mask)
+            ret_mask[type_children_idxs] = True
             if tk_type == Type.PO:
-                po_ret_mask = ret_mask # Keep the PO ret mask for finding parent Ps.
+                po_ret_idxs = ret_mask # Keep the PO ret mask for finding parent Ps.
             ret_type_idxs = torch.where(ret_mask)[0]
             net.node_ops.move_tokens(ret_type_idxs, Set.RECIPIENT)
 
         # Retrieve parent Ps of RBs retrieved from POs
-        if po_ret_mask is not None:
-            rbs = mem.tokens.arb_mask({TF.TYPE: Type.RB})
+        if po_ret_idxs is not None:
+            rbs = net.tokens.arb_mask({TF.TYPE: Type.RB})
+            po_ret_mask = torch.zeros_like(rbs, dtype=torch.bool)
+            po_ret_mask[po_ret_idxs] = True
             ret_rbs = rbs & po_ret_mask
-            ret_rb_parents = mem.tokens.connections.get_parents(ret_rbs)
+            ret_rb_parents = net.tokens.connections.get_parents(ret_rbs)
             if torch.any(ret_rb_parents):
                 net.node_ops.move_tokens(ret_rb_parents, Set.RECIPIENT)
 
