@@ -27,7 +27,7 @@ class CompareStates:
         self.old_state = old_state
         self.new_state = new_state
 
-    def compare(self, verbose: bool = False) -> tuple[bool, list[Diff]]:
+    def compare(self, verbose: bool = False, ignore: list = []) -> tuple[bool, list[Diff]]:
         """ Compare the states data, and return the differences.
         Args:
             verbose: Whether to print detailed comparison results
@@ -41,12 +41,12 @@ class CompareStates:
         else:
             logger.setLevel(INFO)
         diffs = []
-        diffs.extend(self._compare_tokens())
+        diffs.extend(self._compare_tokens(ignore))
         diffs.extend(self._compare_semantics())
         c_diff = [diff for diff in diffs if diff.val_type == "Count"]
         if len(c_diff) == 0:
             diffs.extend(self._compare_links())
-            diffs.extend(self._compare_mappings())
+            diffs.extend(self._compare_mappings(ignore_size=("set" in ignore)))
             diffs.extend(self._compare_connections())
             diffs.extend(self._compare_sem_connections())
         else:
@@ -93,15 +93,15 @@ class CompareStates:
             match = set(old_val) == set(new_val)
         return match
 
-    def _compare_tokens(self) -> list[Diff]:
+    def _compare_tokens(self, ignore: list = []) -> list[Diff]:
         """ Compare the tokens data, and return the differences. """
-        return self._compare_nodes(self.old_state.tokens, self.new_state.tokens, "tokens")
+        return self._compare_nodes(self.old_state.tokens, self.new_state.tokens, "tokens", ignore)
 
     def _compare_semantics(self) -> list[Diff]:
         """ Compare the semantics data, and return the differences. """
         return self._compare_nodes(self.old_state.semantics, self.new_state.semantics, "sems")
     
-    def _compare_nodes(self, old_nodes, new_nodes, n_type: str) -> list[Diff]:
+    def _compare_nodes(self, old_nodes, new_nodes, n_type: str, ignore: list = []) -> list[Diff]:
         """ Compare two sets of nodes, and return the differences."""
         diffs: list[Diff] = []
         old_ids = list(old_nodes.keys())
@@ -135,7 +135,7 @@ class CompareStates:
                 old_node = old_nodes[id]
                 new_node = new_nodes[id]
                 for field in old_node.keys():
-                    if field not in ["my_index", "same_RB_POs", "max_map_unit"]: # TODO: skipping rb pos for now, but need to fix at some point.
+                    if field not in ["my_index", "same_RB_POs", "max_map_unit"] and field not in ignore: # TODO: skipping rb pos for now, but need to fix at some point.
                         old_val = old_node.get(field, "N/A")
                         new_val = new_node.get(field, "N/A")
                         if not self._equal(old_val, new_val):
@@ -163,7 +163,7 @@ class CompareStates:
                     diffs.append(Diff("links", f"{id0} → {id1}", "Weight", old_val, new_val, "Value mismatch"))
         return diffs
 
-    def _compare_mappings(self) -> list[Diff]:
+    def _compare_mappings(self, ignore_size: bool = False) -> list[Diff]:
         """ Compare the mappings data, and return the differences. """
         diffs: list[Diff] = []
         old_mappings = self.old_state.mappings
@@ -183,12 +183,14 @@ class CompareStates:
         except:
             logger.error(f"New mappings shape: {new_mappings}")
             return diffs
-        if old_map_shape != new_map_shape:
+        if not ignore_size and old_map_shape != new_map_shape:
             logger.error(f"Mapping shape mismatch (old!=new): {old_map_shape} != {new_map_shape}")
             diffs.append(Diff("mappings", "-", "Shape", old_map_shape, new_map_shape, "Shape mismatch"))
             return diffs
-        for i in range(len(old_mappings)):
-            for j in range(len(old_mappings[i])):
+        r_count = min(len(old_mappings), len(new_mappings))
+        for i in range(r_count):
+            d_count = min(len(old_mappings[i]), len(new_mappings[i]))
+            for j in range(d_count):
                 for field in [MappingFields.WEIGHT, MappingFields.HYPOTHESIS, MappingFields.MAX_HYP]:
                     old_val = old_mappings[i][j].get(field, "N/A")
                     new_val = new_mappings[i][j].get(field, "N/A")

@@ -55,7 +55,7 @@ class Bridge:
         self.old.printer.output_type = output_type
         self.new.printer.output_type = output_type
     
-    def compare_states(self, output_diffs: bool = True, verbose: bool = False, return_diffs: bool = False) -> tuple[bool, list[Diff]]:
+    def compare_states(self, output_diffs: bool = True, verbose: bool = False, return_diffs: bool = False, ignore: list = []) -> tuple[bool, list[Diff]]:
         """Compare the states of both loaded implementations.
         
         Extracts states from both the old and new implementations and
@@ -63,13 +63,14 @@ class Bridge:
 
         Args:
             verbose (bool, optional): Whether to print a summary of the differences between the two states. Default False.
+            ignore (list, optional): Fields to ignore in token comparisons. Defualts to empty list.
         Returns:
             Tuple containing:
                 - match (bool): Whether states match
                 - diffs (list[Diff]): list of differences
         """
         self.update_states()
-        match, diffs = self.comp_states.compare(verbose=verbose)
+        match, diffs = self.comp_states.compare(verbose=verbose, ignore=ignore)
         if output_diffs:
             self.print_diffs(diffs)
         else:
