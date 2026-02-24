@@ -18,6 +18,7 @@ class Memory(Base_Set):
     """
     def __init__(self, tokens: Tokens, params: Params):
         super().__init__(tokens, Set.MEMORY, params)
+        self.phase_set = 2 # phase set is always set to 2 for memory input updates?
         
     def update_input(self, semantics: Semantics, links: Links, ignore_modes: bool = False):
         """
@@ -42,7 +43,7 @@ class Memory(Base_Set):
         """
         Update input for P units in parent mode
         """
-        phase_set = self.params.phase_set
+        phase_set = self.phase_set
         lateral_input_level = self.params.lateral_input_level
         # Exitatory: td (my Groups), bu (my RBs), mapping input.
         # Inhibitory: lateral (other P units in parent mode*lat_input_level), inhibitor.
@@ -100,7 +101,7 @@ class Memory(Base_Set):
         Update input for P units in child mode
         """
         as_DORA = self.params.as_DORA
-        phase_set = self.params.phase_set
+        phase_set = self.phase_set
         lateral_input_level = self.params.lateral_input_level
         cache = self.glbl.cache
         con_tensor = self.tokens.connections.tensor
@@ -171,7 +172,7 @@ class Memory(Base_Set):
         cache = self.glbl.cache
         con_tensor = self.tokens.connections.tensor
         nodes = self.glbl.tensor
-        phase_set = self.params.phase_set
+        phase_set = self.phase_set
         lateral_input_level = self.params.lateral_input_level
         # Exitatory: td (my P units), bu (my pred and obj POs, and my child Ps), mapping input.
         # Inhibitory: lateral (other RBs*3), inhbitor.
@@ -219,7 +220,7 @@ class Memory(Base_Set):
         Update input for PO units
         """
         as_DORA = self.params.as_DORA
-        phase_set = self.params.phase_set
+        phase_set = self.phase_set
         lateral_input_level = self.params.lateral_input_level
         ignore_object_semantics = self.params.ignore_object_semantics
         sem_links = links.adj_matrix
