@@ -112,10 +112,9 @@ class Bridge:
         for old_state, new_state in zip(old_states, new_states):
             match, diffs = self.compare_states_arg(old_state, new_state)
             if not match:
-                logger.error(f"Mismatch at iteration {i}: {old_state.comments}, {new_state.comments}")
+                logger.error(f"Mismatch at [{i}/{len(old_states)}]: {old_state.comments}, {new_state.comments}")
                 self.print_diffs(diffs)
                 return False, old_state, new_state
-            logger.info(f"Match ({i}): {old_state.comments}, {new_state.comments}")
             i += 1
         return True
 
