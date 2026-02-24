@@ -51,7 +51,7 @@ class NodeOperations:
         (driver, recipient, memory, new_set)
         """
         for tk_set in [Set.DRIVER, Set.RECIPIENT, Set.MEMORY, Set.NEW_SET]:
-            self.network.sets[tk_set].update_op.po_get_weight_length()
+            self.network.sets[tk_set].update_op.po_get_weight_length(self.network.links)
     
     def _to_int(self, idx: int|torch.Tensor|list[int]) -> int:
         """
