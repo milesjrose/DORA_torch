@@ -225,12 +225,17 @@ class RetrievalOperations:
             if type_sum == 0: 
                 continue # No active tokens to retrieve, skip.
             ret_mask = self.luce_choice_retrieval(type_sum, type_mask, tensor=tensor, tk_type=tk_type)
-            type_children_idxs = net.tokens.connections.get_children_recursive(ret_mask)
-            ret_mask[type_children_idxs] = True
+            logger.debug(f"tm:{type_mask.sum()}, rm:{ret_mask.sum()}")
+
+            full_ret_mask = ret_mask
+            ret_idxs = torch.where(full_ret_mask)[0]
+            type_children_idxs = net.tokens.connections.get_children_recursive(ret_idxs)
+            full_ret_mask[type_children_idxs] = True
             if tk_type == Type.PO:
                 po_ret_idxs = ret_mask # Keep the PO ret mask for finding parent Ps.
-            ret_type_idxs = torch.where(ret_mask)[0]
+            ret_type_idxs = torch.where(full_ret_mask)[0]
             net.node_ops.move_tokens(ret_type_idxs, Set.RECIPIENT)
+            net.tokens.token_tensor.set_feature(ret_type_idxs, TF.RETRIEVED, B.TRUE)
 
         # Retrieve parent Ps of RBs retrieved from POs
         if po_ret_idxs is not None:
@@ -241,6 +246,7 @@ class RetrievalOperations:
             ret_rb_parents = net.tokens.connections.get_parents(ret_rbs)
             if torch.any(ret_rb_parents):
                 net.node_ops.move_tokens(ret_rb_parents, Set.RECIPIENT)
+                net.tokens.token_tensor.set_feature(ret_rb_parents, TF.RETRIEVED, B.TRUE)
 
     def retrieve_tokens_direct_match(self):
         """ 
