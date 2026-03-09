@@ -10,7 +10,11 @@ new_net.setLevel(INFO)
 po_log = getLogger("PO_LOG")
 po_log.setLevel(INFO)
 old_input_log = getLogger("OLD_INPUTS")
-old_input_log.setLevel(INFO)
+old_input_log.setLevel(DEBUG)
+mem_p_log = getLogger("MEM_P")
+mem_p_log.setLevel(INFO)
+mem_po_log = getLogger("MEM_PO")
+mem_po_log.setLevel(INFO)
 do_log = getLogger("DORA")
 do_log.setLevel(DEBUG)
 memory_log = getLogger("MEMORY")
@@ -113,18 +117,91 @@ class TestDoRetrieval:
         b.new.network.params.use_relative_act = False
         b.new.dora.do_retrieval()
         b.old.network.do_retrieval()
-        match, old, new = b.compare_logged_states()
-        if not match:
-            new_b = Bridge()
-            new_b.old.state.copy_from(old)
-            new_b.new.state.copy_from(new)
-            np = new_b.new.printer
-            op = new_b.old.printer
-            from nodes.utils import OutputType
-            np.output_type = OutputType.PRINT_CONSOLE
-            op.output_type = OutputType.PRINT_CONSOLE
-            pdb.set_trace()
+        # as retreival is probabilistic, we ignore the sets field, and just check everything else.
+        # Checking retrieval sets is done manually rn, but should be a better way to do it.
+        match = b.compare_states(ignore=["set", "retrieved"]) 
         assert match, "Mismatch after do_retrieval analog bias no relative act"
+
+class TestDoPredication:
+    def test_no_map(self):
+        """Predication without prior mapping: no mapping connections exist,
+        so predication requirements cannot be met and both implementations
+        should be no-ops with matching states."""
+        b = Bridge()
+        b.old.load_sim("sims/testsim_predication.py")
+        b.old.network.do_1_to_3(mapping=False)
+        b.load_new_from_old()
+        b.old.network.set_old_net(b.old)
+        b.new.dora.set_new_net(b.new)
+        b.new.dora.do_predication()
+        b.old.network.do_predication()
+        print_tokens(b)
+        assert b.compare_states(), "Mismatch after do_predication (no prior mapping)"
+
+    def test_no_map_ts15(self):
+        """Predication on testsim15 without prior mapping: verifies both
+        implementations agree when predication is a no-op on a more complex
+        network topology."""
+        b = Bridge()
+        b.old.load_sim("sims/testsim15.py")
+        b.old.network.do_1_to_3(mapping=False)
+        b.load_new_from_old()
+        b.old.network.set_old_net(b.old)
+        b.new.dora.set_new_net(b.new)
+        b.new.dora.do_predication()
+        b.old.network.do_predication()
+        print_tokens(b)
+        assert b.compare_states(), "Mismatch after do_predication (testsim15, no mapping)"
+
+    def test_post_map(self):
+        """Run mapping to establish mapping connections, then run predication.
+        Both implementations should produce matching states, whether or not
+        predication actually triggers new predicate creation."""
+        b = Bridge()
+        b.old.load_sim("sims/testsim_predication.py")
+        b.old.network.do_1_to_3(mapping=False)
+        b.load_new_from_old()
+        b.old.network.set_old_net(b.old)
+        b.new.dora.set_new_net(b.new)
+        # Establish mapping connections first
+        b.new.dora.do_map()
+        b.old.network.do_map()
+        assert b.compare_states(), "Mismatch after do_map (pre-predication)"
+        # Now run predication on both
+        b.new.dora.do_predication()
+        b.old.network.do_predication()
+        print_tokens(b)
+        assert b.compare_states(), "Mismatch after do_predication (post-mapping)"
+
+    def test_post_map_ts15(self):
+        """Predication after mapping on testsim15: verifies both implementations
+        agree on a network with richer structure and shared predicate semantics."""
+        b = Bridge()
+        b.old.load_sim("sims/testsim15.py")
+        b.old.network.do_1_to_3(mapping=False)
+        b.load_new_from_old()
+        b.old.network.set_old_net(b.old)
+        b.new.dora.set_new_net(b.new)
+        b.new.dora.do_map()
+        b.old.network.do_map()
+        assert b.compare_states(), "Mismatch after do_map (pre-predication, testsim15)"
+        b.new.dora.do_predication()
+        b.old.network.do_predication()
+        print_tokens(b)
+        assert b.compare_states(), "Mismatch after do_predication (post-mapping, testsim15)"
+
+class TestDoRelForm:
+    def test_do_rel_form(self):
+        pass
+
+class TestDoSchematisation:
+    def test_do_schematisation(self):
+        pass
+
+class TestDoRelGen:
+    def test_do_rel_gen(self):
+        pass
+
 
 def print_tokens(b: Bridge):
     b.update_states()
