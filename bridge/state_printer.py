@@ -588,6 +588,7 @@ class StatePrinter:
                         ('Type', 'type'), 
                         ('Analog', 'myanalog'), 
                         ('Act', 'act'), 
+                        ('Max Act', 'max_act'),
                         ('Mode', 'mode'), 
                         ('Net Input', 'net_input'), 
                         ('TD Input', 'td_input'), 
