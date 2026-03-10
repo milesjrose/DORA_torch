@@ -306,38 +306,42 @@ class OldNet:
             tk_str = f"{mc.driverToken.ID}.{mc.recipientToken.ID}"
             if tk_str not in hyps:
                 unique_mcs.append(mc)
-
-        data = {
-            'name': token.name,
-            'ID': token.ID,
-            'set': self._encode_data(token.set, 'set'),
-            'type': self._encode_data(token.my_type, 'type'),
-            'myanalog': token.myanalog.ID,
-            'act': token.act,
-            'max_act': token.max_act,
-            'my_index': token.my_index,
-            'inhibitor_input': token.inhibitor_input,
-            'inhibitor_act': token.inhibitor_act,
-            'mappingHypotheses': [(hyp.driverToken.ID, hyp.recipientToken.ID, hyp.hypothesis, hyp.max_hyp, hyp.myMappingConnection.weight) for hyp in non_zero_hyps],
-            'mappingConnections': [(mc.driverToken.ID, mc.recipientToken.ID, mc.weight) for mc in unique_mcs],
-            'max_map_unit': token.max_map_unit.ID if token.max_map_unit else None,
-            'max_map': token.max_map,
-            'td_input': token.td_input,
-            'bu_input': token.bu_input,
-            'lateral_input': token.lateral_input,
-            'map_input': token.map_input,
-            'net_input': token.net_input,
-            'GUI_unit': token.GUI_unit,
-            'my_made_unit': token.my_made_unit.ID if token.my_made_unit else None,
-            'my_made_units': [made.ID for made in token.my_made_units],
-            'my_maker_unit': token.my_maker_unit.ID if token.my_maker_unit else None,
-            'inferred': token.inferred,
-            'retrieved': token.retrieved,
-            'copy_for_DR': token.copy_for_DR,
-            'copied_DR_index': token.copied_DR_index,
-            'sim_made': token.sim_made,
-            'inhibitorThreshold': token.inhibitorThreshold
-        }
+        try:
+            data = {
+                'name': token.name,
+                'ID': token.ID,
+                'set': self._encode_data(token.set, 'set'),
+                'type': self._encode_data(token.my_type, 'type'),
+                'myanalog': token.myanalog.ID if token.myanalog != "null" else None,
+                'act': token.act,
+                'max_act': token.max_act,
+                'my_index': token.my_index,
+                'inhibitor_input': token.inhibitor_input,
+                'inhibitor_act': token.inhibitor_act,
+                'mappingHypotheses': [(hyp.driverToken.ID, hyp.recipientToken.ID, hyp.hypothesis, hyp.max_hyp, hyp.myMappingConnection.weight) for hyp in non_zero_hyps],
+                'mappingConnections': [(mc.driverToken.ID, mc.recipientToken.ID, mc.weight) for mc in unique_mcs],
+                'max_map_unit': token.max_map_unit.ID if token.max_map_unit else None,
+                'max_map': token.max_map,
+                'td_input': token.td_input,
+                'bu_input': token.bu_input,
+                'lateral_input': token.lateral_input,
+                'map_input': token.map_input,
+                'net_input': token.net_input,
+                'GUI_unit': token.GUI_unit,
+                'my_made_unit': token.my_made_unit.ID if token.my_made_unit else None,
+                'my_made_units': [made.ID for made in token.my_made_units],
+                'my_maker_unit': token.my_maker_unit.ID if token.my_maker_unit else None,
+                'inferred': token.inferred,
+                'retrieved': token.retrieved,
+                'copy_for_DR': token.copy_for_DR,
+                'copied_DR_index': token.copied_DR_index,
+                'sim_made': token.sim_made,
+                'inhibitorThreshold': token.inhibitorThreshold
+            }
+        except Exception as e:
+            logger.error(f"Error extracting token data for {token}")
+            logger.error(f"analog: {token.myanalog}")
+            raise e
         match token.my_type:
             case 'P':
                 data['myRBs'] = [rb.ID for rb in token.myRBs]
