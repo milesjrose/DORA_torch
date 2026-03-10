@@ -1,6 +1,7 @@
 import pdb
 from bridge import Bridge
 from nodes.enums import *
+from nodes.enums import Routines as R
 from logging import getLogger, INFO, DEBUG
 logger = getLogger("test")
 old_net = getLogger("OLD_NET")
@@ -133,8 +134,10 @@ class TestDoPredication:
         b.load_new_from_old()
         b.old.network.set_old_net(b.old)
         b.new.dora.set_new_net(b.new)
-        b.new.dora.do_predication()
-        b.old.network.do_predication()
+        if b.new.dora.network.routines.predication.requirements():
+            b.new.dora.do_predication()
+        if b.old.network.predication_requirements():
+            b.old.network.do_predication()
         print_tokens(b)
         assert b.compare_states(), "Mismatch after do_predication (no prior mapping)"
 
@@ -159,18 +162,43 @@ class TestDoPredication:
         predication actually triggers new predicate creation."""
         b = Bridge()
         b.old.load_sim("sims/testsim_predication.py")
-        b.old.network.do_1_to_3(mapping=False)
+        b.old.network.exemplar_memory = False
+        # disconnect all POs from RBs
+        for idx, po in enumerate(b.old.network.memory.POs):
+            po.myRBs = []
+            po.ID = idx
+        b.old.network.memory.RBs = []
+        b.old.network.memory.driver.RBs = []
+        b.old.network.memory.recipient.RBs = []
+        b.old.network.do_1_to_3(mapping=True)
         b.load_new_from_old()
-        b.old.network.set_old_net(b.old)
         b.new.dora.set_new_net(b.new)
+        b.old.network.set_old_net(b.old)
         # Establish mapping connections first
-        b.new.dora.do_map()
+        b.set_log_requirements(R.MAP)
         b.old.network.do_map()
-        assert b.compare_states(), "Mismatch after do_map (pre-predication)"
+        b.new.dora.do_map()
+        match, old, new = b.compare_logged_states()
+        if not match:
+            from bridge.state_printer import StatePrinter
+            op = StatePrinter(state=old)
+            op.tokens()
+            np = StatePrinter(state=new)
+            np.tokens()
+            assert False, "Mismatch after do_predication (post-mapping)"
+        b.set_log_requirements(R.PREDICATE)
+        #assert b.compare_states(), "Mismatch after do_map (pre-predication)"
         # Now run predication on both
         b.new.dora.do_predication()
         b.old.network.do_predication()
-        print_tokens(b)
+        match, old, new = b.compare_logged_states()
+        if not match:
+            from bridge.state_printer import StatePrinter
+            op = StatePrinter(state=old)
+            op.tokens()
+            np = StatePrinter(state=new)
+            np.tokens()
+            assert False, "Mismatch after do_predication (post-mapping)"
         assert b.compare_states(), "Mismatch after do_predication (post-mapping)"
 
     def test_post_map_ts15(self):
@@ -179,16 +207,28 @@ class TestDoPredication:
         b = Bridge()
         b.old.load_sim("sims/testsim15.py")
         b.old.network.do_1_to_3(mapping=False)
+        # now load
         b.load_new_from_old()
         b.old.network.set_old_net(b.old)
         b.new.dora.set_new_net(b.new)
         b.new.dora.do_map()
         b.old.network.do_map()
-        assert b.compare_states(), "Mismatch after do_map (pre-predication, testsim15)"
+        b.new.dora.network.inhibitor.reset()
+        #assert b.compare_states(), "Mismatch after do_map (pre-predication, testsim15)"
         b.new.dora.do_predication()
         b.old.network.do_predication()
-        print_tokens(b)
+        b.update_states()
+        """
+        b.old.printer.tokens()
+        b.old.printer.semantics()
+        b.new.printer.tokens()
+        b.new.printer.semantics()
+        """
+        assert b.compare_logged_states()
+        print(b.new.network.routines.predication.inferred_pred)
         assert b.compare_states(), "Mismatch after do_predication (post-mapping, testsim15)"
+        print_tokens(b)
+        assert False
 
 class TestDoRelForm:
     def test_do_rel_form(self):
@@ -202,6 +242,9 @@ class TestDoRelGen:
     def test_do_rel_gen(self):
         pass
 
+def stop(b: Bridge):
+    print_tokens(b)
+    assert False
 
 def print_tokens(b: Bridge):
     b.update_states()
