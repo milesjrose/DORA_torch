@@ -7,8 +7,11 @@ from typing import TYPE_CHECKING
 from ...utils import tensor_ops as tOps
 import torch
 from ..single_nodes.token import Token
-from logging import getLogger
+from logging import getLogger, DEBUG, INFO
 logger = getLogger("rtn")
+po_req_log = getLogger("po_req")
+po_req_log.setLevel(INFO)
+
 
 if TYPE_CHECKING:
     from ...network import Network
@@ -18,14 +21,14 @@ if TYPE_CHECKING:
 
 class PredicationOperations:
     """
-    Implements DORA's predication learning mechanism, which learns single-place predicates 
-    from objects by discovering their shared features through comparison. All the driver POs map
-    strongly to recipient units that are not already bound to RBs. We look at the most active recipient
-    PO, and if it strongly maps to a driver PO (and both POs have high activation), we can infer a new
-    predicate, and an RB to connect it to the recipient PO. If we have inferred a new predicate, 
-    we can then update the predicates links to semantics based on the coactivation of the semantics 
-    and the predicate. This allows the predicate to learn to respond to the common features of 
-    the two mapped POs.
+    Implements DORA's predication learning mechanism, which infers new predicates 
+    from mapped objects by extracting their co-active features. For predication to occur, 
+    all the driver POs must map strongly to recipient units that are not already bound to RBs. 
+    We look at the most active recipient object, and if it strongly maps to a driver PO (and both 
+    POs have high activation), we can infer a new predicate, and an RB to connect it to the recipient object. 
+    If we have inferred a new predicate, we can then update the predicates links to semantics based on 
+    the coactivation of the semantics passed by the POs. This allows the predicate to learn to respond to 
+    the common features of the two mapped POs.
     
     Method:
 
@@ -37,25 +40,30 @@ class PredicationOperations:
         - Update semantic connections for the new predicate based on active semantics
     
     If a new predicate has been inferred:
-        - Refine the predicate by updating its semantic links
-          based on the coactivation of semantics and the predicate
+        - Refine the predicate by updating its semantic links. This gives the predicate 
+          stronger links to semantics that are shared by the firing driver PO and the 
+          object in the recipient.
     
     Requirements:
         - Driver POs must map to recipient POs 
-        - Mapping connections must be above threshold (0.8)
+        - These mapping connections must be above threshold (0.8)
     """
     
     def __init__(self, network: 'Network'):
         """
-        Initialize PredicationOperations with reference to Network.
+        Initialise PredicationOperations with reference to Network.
         
         Args:
             network: Reference to the Network object
         """
         self.network: 'Network' = network
+        """ Reference to the current network object. """
         self.debug: bool = False
+        """ Debug flag. """
         self.made_new_pred: bool = False
+        """ Flag to indicate if a new predicate has been inferred. Reset each time we fire a new token. """
         self.inferred_pred: Ref_Token = None
+        """ Index of the last inferred predicate. """
     
     def requirements(self):
         """
@@ -83,7 +91,7 @@ class PredicationOperations:
     
         # 1). Check that all driver POs have a mapping above the threshold.
         max_maps = p_maps.max(dim=0)
-        if torch.any(max_maps <= threshold):
+        if torch.any(max_maps.values <= threshold):
             logger.debug("PredReq Failed: Driver POs do not all have a mapping above threshold")
             return False
         
@@ -110,8 +118,10 @@ class PredicationOperations:
         tokens = self.network.token_tensor.tensor
         
         if tokens[po, TF.PRED] == B.TRUE:   # Check that PO is an object
+            po_req_log.debug(f"PredReq Failed: PO is a predicate")
             return False 
         if tokens[po, TF.ACT] <= 0.6: # Check act
+            po_req_log.debug(f"PredReq Failed: PO act {tokens[po, TF.ACT].item()} <= 0.6")
             return False
 
         # Get max map for PO
@@ -119,9 +129,12 @@ class PredicationOperations:
         max_map_value = tokens[po, TF.MAX_MAP]
         
         if max_map_value <= 0.75:
+            po_req_log.debug(f"PredReq Failed: Max map value {max_map_value.item()} <= 0.75")
             return False
         if tokens[max_map_unit_index, TF.ACT] <= 0.6:
+            po_req_log.debug(f"PredReq Failed: Max map unit act {tokens[max_map_unit_index, TF.ACT].item()} <= 0.6")
             return False
+        po_req_log.debug(f"PredReq Passed: PO meets requirements")
         return True
 
     def predication_routine(self):
@@ -136,9 +149,9 @@ class PredicationOperations:
     def predication_routine_made_new_pred(self):
         """
         Run the predication routine when a new pred has been made.
+        Refines the predicate by updating its semantic links.
         """
         pred = self.inferred_pred
-
         # Update the links between new pred and active semantics (sem act>0)
         # Get active semantics, their acts, and weight of links to them
         sems = self.network.semantics.nodes
