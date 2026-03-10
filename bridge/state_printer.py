@@ -607,6 +607,12 @@ class StatePrinter:
             index = self._state.idxs[id]
             for feature in features:
                 value = token.get(feature[1], None)
+                if feature[1] == 'mode' and value == None:
+                    value = token.get('predOrObj', None)
+                    if value != None and value:
+                        value = "PRED"
+                    else:
+                        value = "OBJ"
                 row.append(self._format(value))
             row[0] = f"{index}"
             rows.append(row)
