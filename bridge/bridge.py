@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from nodes.utils.printer.print_table import OutputType
 from logging import getLogger
+from nodes.enums import Routines as R
 logger = getLogger("BRIDGE")
 
 class Bridge:
@@ -117,7 +118,27 @@ class Bridge:
                 self.print_diffs(diffs)
                 return False, old_state, new_state
             i += 1
-        return True
+        return True, None, None
+    
+    def set_log_requirements(self, routine: R = None, token: int = None, psi: int = None):
+        old_routine_name = None
+        match routine:
+            case R.MAP:
+                old_routine_name = "map"
+            case R.RETRIEVE:
+                old_routine_name = "retrieval"
+            case R.PREDICATE:
+                old_routine_name = "predication"
+            case R.REL_FORM:
+                old_routine_name = "rel_form"
+            case R.SCEMA:
+                old_routine_name = "schematisation"
+            case R.REL_GEN:
+                old_routine_name = "rel_gen"
+            case _:
+                old_routine_name = "other"
+        self.old.network.log_requirements = [old_routine_name, token, psi]
+        self.new.dora.log_requirements = [routine, token, psi]
 
 def load_new(sim_path: str, use_legacy_builder: bool = True):
     """ Load the new network from the simulation file. 
