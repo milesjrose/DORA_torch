@@ -29,11 +29,12 @@ class DORA:
         self.params: nodes.Params = None
         self.new_net: 'NewNet' = None
         self.states = []
+        self.log_requirements = False
     
     def set_network(self, network: nodes.Network):
         self.network = network
         self.params = network.params
-#   ----------------------------[ LOGGING ]-------------------------------
+#   ----------------------------[ LOGGING ]-------------------------------------------
     def set_new_net(self, new_net: 'NewNet'):
         self.new_net = new_net
         new_net.dora = self
@@ -53,7 +54,20 @@ class DORA:
         state.comments = comments
         self.states.append(state)
     
-#   ----------------------------[ LOADING AND SAVING ]-------------------------------
+    def fire_token_log(self, comments: str = "", routine: R = None, token: int = None, psi: int = None):
+        if not self.log_requirements:
+            return 0
+        if self.log_requirements[0] != None and self.log_requirements[0] != routine:
+            return 0
+        if self.log_requirements[1] != None and self.log_requirements[1] != token:
+            return 0
+        if self.log_requirements[2] != None and self.log_requirements[2] != psi:
+            return 0
+        comments = f"{comments} | {routine.name} | {token} | {psi}"
+        self.log_state(comments, log_comment=False)
+        return 1
+
+#   ----------------------------[ LOADING AND SAVING ]--------------------------------
     """ 
     Handles loading and saving of network to disk. 
     NOTE: Currently only can save as .sym file, not as list of props. 
@@ -88,7 +102,7 @@ class DORA:
         # save as .sym file
         nodes.save_network(self.network, file_path)
 
-#   ----------------------------[ INITIALISATION ]-------------------------------
+#   ----------------------------[ INITIALISATION ]------------------------------------
     """
     Functions for initialising the network state. These are called before each phase_set.
     """
@@ -130,7 +144,7 @@ class DORA:
             logger.info(f"!!!! SKIPPING FIRING ORDER CREATION FOR DEBUGGING !!!!")
         logger.debug(f"count_by_RBs: {self.network.params.count_by_RBs}")
     
-#   ----------------------------[ PHASE SET OPERATIONS ]-------------------------------
+#   ----------------------------[ PHASE SET OPERATIONS ]------------------------------
     """
         A phase set is each RB firing at least once (i.e., all RBs in firingOrder firing). 
         It is in phase_sets you will do all of DORA's interesting operations (retrieval, mapping, learning, etc.). 
@@ -177,13 +191,14 @@ class DORA:
         (i.e., the current active token is inhibited by its inhibitor).
         """
         self.ftk = int(self.network.token_tensor.tensor[token, TF.ID])
+        no_logs = 0
         # logger.debug(f"Firing token {self.ftk}")
-        self.psi = 1
+        self.psi = 0
         while get_inhibitor() == 0:
             # 4.3.1-4.3.10) update network activations.
             self.network.node_ops.set_tk_value(token, TF.ACT, 1.0)
             self.time_step_activations()
-            # self.log_state(f"Post time step: tk={self.ftk}, psi={self.psi}", log_comment=False)
+            no_logs += self.fire_token_log(comments=f"Post time step", routine=routine, token=self.ftk, psi=self.psi)
             # 4.3.11) Run routine
             match routine:
                 case R.MAP:
@@ -200,16 +215,16 @@ class DORA:
                     self.network.routines.rel_gen.rel_gen_routine()
                 case _:
                     pass
-            # self.log_state(f"Post routine: tk={self.ftk}, psi={self.psi}", log_comment=False)
+            no_logs += self.fire_token_log(comments=f"Post time step", routine=routine, token=self.ftk, psi=self.psi)
             # fire the local inhib if neccessary
             self.time_step_fire_local_inhibitor()
             #if self.network.params.doGUI: # NOTE: Not implemented
             #    self.phase_set_iterator += 1
             #    self.time_step_doGUI()
             self.psi += 1
-        #logger.debug(f"fired [{self.network.token_tensor.tensor[token, TF.ID]}]: {i} times")
+        logger.debug(f"{routine.name.lower()} fired [{self.ftk}]: {self.psi} times | {no_logs} logs created")
 
-#   ----------------------------[ MAIN ROUTINES ]-------------------------------
+#   ----------------------------[ MAIN ROUTINES ]-------------------------------------
     """
     Rountines for each of the main operations. These set up the network state for the operation, then
     run one or more phase sets, calling the network routines once each time a token is fired in the phase set.
@@ -219,6 +234,7 @@ class DORA:
     """
     def do_map(self):
         """ do mapping """
+        logger.info("============ [ Mapping ] ============")
         params = self.network.params
         # Initialise memory
         self.network.mapping_ops.reset_mappings()
@@ -239,6 +255,7 @@ class DORA:
 
     def do_retrieval(self):
         """ do retrieval """
+        logger.info("============ [ Retrieval ] ============")
         # self.log_state("Starting retrieval")
         # initialise network
         self.do_1_to_3()
@@ -255,6 +272,7 @@ class DORA:
 
     def do_retrieval_v2(self):
         """ retrieval, but limited to 7 or 4 iterations """
+        logger.info("============ [ Retrieval v2 ] ============")
         # initialise network
         self.do_1_to_3()
         params = self.network.params
@@ -289,6 +307,7 @@ class DORA:
 
     def do_predication(self):
         """ do predication """
+        logger.info("============ [ Predication ] ============")
         params = self.network.params
         init_dora = params.as_DORA
         # must be in DORA mode for predication
@@ -296,8 +315,8 @@ class DORA:
         # initialise network
         self.do_1_to_3() 
         # set firing order (just POs)
-        if not params.count_by_RBs:
-            firing_order = self.network.firing_ops.get_random_order_of_type(Type.PO)
+        if params.count_by_RBs:
+            firing_order = self.network.firing_ops.get_random_order_of_objects()
         else:
             firing_order = self.network.firing_ops.firing_order
         # Run phase set
@@ -310,6 +329,7 @@ class DORA:
         
     def do_rel_form(self):
         """ do rel form """
+        logger.info("============ [ Rel Form ] ============")
         params = self.network.params
         self.do_1_to_3()
         # only execute if count_by_rbs is true:
@@ -342,6 +362,7 @@ class DORA:
 
     def do_schematisation(self):
         " do schematisation "
+        logger.info("============ [ Schematization ] ============")
         params = self.network.params
         init_dora = params.as_DORA
         params.as_DORA = True
@@ -359,6 +380,7 @@ class DORA:
 
     def do_rel_gen(self):
         """do rel gen"""
+        logger.info("============ [ Rel Gen ] ============")
         params = self.network.params
         init_dora = params.as_DORA
         params.as_DORA = True
@@ -374,7 +396,7 @@ class DORA:
         # Return the .asDORA setting to its pre-firing state.
         params.as_DORA = init_dora
     
-#   ----------------------------[ ENTROPY OPS ]-------------------------------
+#   ----------------------------[ ENTROPY OPS ]---------------------------------------
     """ Operations to perform entropy based comparisons on POs """
 
     def do_entropy_ops_within(self, pred_only):
@@ -504,7 +526,7 @@ class DORA:
             logger.info(f"Diff ratio: {diff_ratio}")
         return diff_ratio
 
-#   ----------------------------[ COMPRESSION ]-------------------------------
+#   ----------------------------[ COMPRESSION ]---------------------------------------
     """ NOTE: Not implemented yet """
 
     def do_compression(self):
@@ -519,7 +541,7 @@ class DORA:
     def do_unpacking(self):
         raise NotImplementedError("Not implemented yet")
 
-#   ----------------------------[ TIME-STEP OPERATIONS ]-------------------------------
+#   ----------------------------[ TIME-STEP OPERATIONS ]------------------------------
     """ Functions implementing operations performed during a single time-step in DORA. """
 
     def time_step_activations(self):
@@ -558,7 +580,7 @@ class DORA:
         """ Not implemented """
         pass
 
-#   ----------------------------[ POST PHASE SET OPERATIONS ]-------------------------------
+#   ----------------------------[ POST PHASE SET OPERATIONS ]-------------------------
     """ Functions implementing operations performed after a phase set. """
 
     def post_count_by_operations(self):
@@ -579,6 +601,7 @@ class DORA:
             map_license (bool): If you were doing mapping.
             inferred_new_p (bool): If a new P was inferred.
         """
+        logger.debug(f"Post phase set operations... {routine.name} | inf_p: {inferred_new_p}")
         map_license = True if routine == R.MAP else False
         retrieval_license = True if routine == R.RETRIEVE else False
         # if you were doing retrieval (i.e., if retrieval_license is True), 
