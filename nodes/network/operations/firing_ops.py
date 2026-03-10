@@ -133,6 +133,18 @@ class FiringOperations:
         indices = torch.where(mask)[0].tolist()
         shuffle(indices)
         return indices
+    
+    def get_random_order_of_objects(self) -> list[int]:
+        """
+        Get randomly shuffled list of local indices of objects in the driver.
+        Args:
+            None
+        Returns:
+            list[int]: A list of local indices representing the order of the objects.
+        """
+        mask = self.network.driver().tensor_op.get_arb_mask({TF.TYPE: Type.PO, TF.PRED: B.FALSE})
+        indices = torch.where(mask)[0].tolist()
+        return indices
 
     def get_lcl_child_idxs(self, indices: torch.Tensor, local_cons: TensorView, child_type: Type, set=Set.DRIVER) -> list[int]:
         """
